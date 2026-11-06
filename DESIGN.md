@@ -1006,6 +1006,18 @@ so Pi changes them through the settings tools; "the last session" is the one the
     lists the misses (one per element and value, alike elements counted), 20 at most. A picture file has no DOM: the
     tool says so and names `image_compare`. Both tools are deferred; `pathsOf` checks the page file, a tokens.css spec
     and `save`. `redline` is not in plan mode (it may write); `browser_redline` is, as all of Pi's browser.
+  - **Steps before the shot** (`src/server/render-steps.ts`, PP-423): `screenshot` and `redline` take `steps`
+    (`{click}`, `{type, text}`, `{press}`, `{wait: ms | selector}`, 12 at most, waits 15 s in all), checked by
+    `checkSteps` (the schema is one open object a step: four object shapes cost every request about 400 characters of
+    the prompt budget). `stepsScript` runs them in the page: pointer and mouse down and up then `click()`, a field's
+    value set through its prototype's setter with an input event (as React and Preact hear typing), keydown and keyup
+    at the focused element (the page's handlers, not the browser's default actions), a wait polling for a visible
+    match; a click or type waits 2 s for its element. It answers at once and keeps its place in `window.__piSteps`;
+    both renderers (`Renderer.java`, `chrome-renderer.ts`) run it per width after the page is laid out at its picture's
+    height and read `STEPS_STATE` every 100 ms for 20 s (`STEPS_MS`), then measure and picture; a failure is the
+    render's error ("a step failed: step 2 (click \"#x\"): nothing matches \"#x\""). Each shot answers `steps` with
+    their count: an app from before them answers none, and the server refuses its pictures (they would show the page
+    closed) saying to update the app. The request waits 90 s plus 20 s a width when it has steps.
   - **ui-verify** (`src/skills/ui-verify/SKILL.md`, PP-405): pi-phone's own skill, in every session like
     getting-started (`builtInSkills()`'s `src/skills/`, not behind Design & video, as the screenshot tools it uses are
     always there). It puts the checks above in one order: `screenshot` at 390, 1280 and 1920 px (the layout check's numbers

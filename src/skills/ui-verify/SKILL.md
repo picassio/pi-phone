@@ -14,6 +14,10 @@ numbers. Do every step on the real thing: the artifact, the file, or the live ap
 - `screenshot` at `widths: [390, 1280, 1920]` (its default: the phone first, then a desktop and a large screen,
   where a layout that only stretches shows its long lines and empty sides). Where the page has both themes and you can show each (a
   `data-theme` you set in your own file, a theme switch in Pi's browser), check both.
+- Check every open state the change touches, not only the page as it loads: a menu, a picker, a dialog, a sheet
+  opened from another. `screenshot` and `redline` take `steps` that run before each shot, such as
+  `steps: [{ click: "[data-part=wiki-capture-model] .choice" }, { wait: ".model-menu" }]`; a sheet opens by link
+  (`/?sheet=<name>`, `/?sheet=<module>:<id>`).
 - Read each width's **layout check** before the picture: cut text, covered text or controls, tap targets, off-grid
   sizes, contrast, small text, emoji, type, and the tells of an assembled page (broken images, skipped headings, cards
   inside cards, side-tab stripes, glows, pulsing dots, narrow justified text, tight leading, repeated words). Then look at the picture for what numbers cannot say (alignment, balance).

@@ -10,6 +10,7 @@
 
 /** What the service renders: an address on the app's server, or any http(s) page. */
 import { layoutCheck, type LayoutReport, parseLayout } from "./layout-check.ts";
+import { type RenderStep, stepsScript } from "./render-steps.ts";
 
 export type RenderRequest = {
     seq: number;
@@ -25,6 +26,12 @@ export type RenderRequest = {
     settleMs: number;
     /** A script the page runs just before it is drawn (`layout-check.ts`): its JSON text comes back with the shot. */
     check: string;
+    /**
+     * Steps run before each width's check and picture (PP-423, `render-steps.ts`): the script that runs them, "" for none,
+     * and how many; a renderer that ran them answers `steps` with that count in each shot.
+     */
+    steps: string;
+    stepCount: number;
 };
 
 /** A picture of the page at one width: `width` × `height` CSS pixels, as JPEGs from the top, each at most 2000 tall. */
@@ -74,13 +81,25 @@ export class Screenshots {
             settleMs = 1500,
             timeoutMs = 90_000,
             check = layoutCheck(),
-        }: { widths: number[]; fullPage?: boolean; maxHeight?: number; settleMs?: number; timeoutMs?: number; check?: string },
+            steps = [],
+        }: { widths: number[]; fullPage?: boolean; maxHeight?: number; settleMs?: number; timeoutMs?: number; check?: string; steps?: readonly RenderStep[] },
     ): Promise<Shot[]> {
         if (!this.present()) {
             return Promise.reject(new Error("No phone is rendering: screenshots need the pi-phone app's service, which polls the server on the phone itself."));
         }
 
-        const request: RenderRequest = { seq: ++this.#seq, id: crypto.randomUUID(), url, widths, fullPage, maxHeight, settleMs, check };
+        const request: RenderRequest = {
+            seq: ++this.#seq,
+            id: crypto.randomUUID(),
+            url,
+            widths,
+            fullPage,
+            maxHeight,
+            settleMs,
+            check,
+            steps: steps.length === 0 ? "" : stepsScript(steps),
+            stepCount: steps.length,
+        };
 
         this.#requests.push(request);
 
@@ -149,6 +168,14 @@ export class Screenshots {
         }
 
         const shots = Array.isArray(body.shots) ? body.shots : [];
+
+        // An app from before steps (PP-423) draws the page without them: a picture of another state, never passed off.
+        if (pending.request.stepCount > 0 && !shots.every((shot: unknown) => (shot as { steps?: unknown }).steps === pending.request.stepCount)) {
+            pending.reject(new Error("This pi-phone app does not run steps before a screenshot yet: update it (Menu › Check for app updates), or take the screenshot without steps."));
+
+            return;
+        }
+
         const parsed = shots.map((shot: unknown) => {
             const each = shot as { width?: unknown; height?: unknown; parts?: unknown; check?: unknown };
 

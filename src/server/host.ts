@@ -1,6 +1,7 @@
 import type { Context } from "@earendil-works/chord";
 import type { Shot } from "./screenshots.ts";
 import type { HookId } from "./hooks.ts";
+import type { RenderStep } from "./render-steps.ts";
 import type { PiBrowser } from "./browser/pi-browser.ts";
 import type { AppAction, Setting, TargetKind } from "./settings-registry.ts";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
@@ -374,8 +375,8 @@ export interface PocketHost {
     serverBase(): string | undefined;
     /** Pictures of a page, rendered by the app's service on the phone (`screenshots.ts`). */
     /** `check`: the script the page runs before it is pictured, whose answer comes back (default the layout check). */
-    /** `timeoutMs`: how long the phone may take to answer (default 90 s). */
-    render(url: string, options: { widths: number[]; fullPage?: boolean; settleMs?: number; check?: string; timeoutMs?: number }): Promise<Shot[]>;
+    /** `timeoutMs`: how long the phone may take to answer (default 90 s); `steps`: run in the page first (PP-423). */
+    render(url: string, options: { widths: number[]; fullPage?: boolean; settleMs?: number; check?: string; timeoutMs?: number; steps?: readonly RenderStep[] }): Promise<Shot[]>;
     /**
      * Pi's browser for a session working in `cwd` (`browser/pi-browser.ts`): the phone's, or for a session on a machine,
      * a Chrome on that machine (`browser/machine-engine.ts`). The pages Pi reads and acts on, which the owner watches.

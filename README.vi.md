@@ -346,6 +346,10 @@ dự án thật.</sub>
   hẹp, dòng chữ quá sát và cùng một chữ lặp trong một thẻ), gom nhóm kèm số đo, và báo khi trang dùng quá nhiều
   cỡ chữ, màu chữ hoặc cỡ biểu tượng. Trình duyệt của Pi cho cùng phép kiểm tra đó với `browser_screenshot`, và riêng
   bằng `browser_layout_check`. Pi dựa vào các con số.
+- **Các bước trước khi chụp.** `screenshot` và `redline` nhận `steps` chạy trong trang trước ảnh và layout check của
+  mỗi độ rộng (chạm một phần tử, gõ vào một ô, nhấn một phím, chờ một lúc hoặc chờ một phần tử), nên menu, bộ chọn hay
+  hộp thoại chỉ hiện sau một lần chạm được chụp và đo khi đang mở; bước nào không làm được thì lệnh gọi thất bại, nói rõ
+  bước nào và vì sao (không có gì khớp, không hiển thị).
 - **So từng điểm ảnh.** Để làm giao diện chuẩn đến từng điểm ảnh, `image_compare` so một ảnh chụp mới với một hình
   mẫu (bản mockup, hoặc một ảnh chụp Pi giữ lại khi trang đã đúng): tỉ lệ điểm ảnh đổi, các vùng đổi kèm vị trí và kích
   thước, và một hình khác biệt lưu cạnh ảnh chụp, chỗ đổi tô đỏ, các vùng được đóng khung và đánh số. Viền khử răng cưa

@@ -7,6 +7,7 @@
  */
 import type { Cdp } from "./browser/cdp.ts";
 import { ChromeEngine } from "./browser/pi-browser.ts";
+import { parseStepsState, STEPS_MS, STEPS_STATE } from "./render-steps.ts";
 import type { RenderRequest, Screenshots } from "./screenshots.ts";
 
 /** The tallest part of a picture: models take no image over 2000 pixels a side once a conversation holds many. */
@@ -76,7 +77,7 @@ export class ChromeRenderer {
     }
 
     /** One width: laid out as the phone's renderer lays it out (a phone's height, or a desktop's), then pictured. */
-    async #shot(request: RenderRequest, width: number): Promise<{ width: number; height: number; parts: string[]; check: string }> {
+    async #shot(request: RenderRequest, width: number): Promise<{ width: number; height: number; parts: string[]; check: string; steps?: number }> {
         const id = await this.#engine.newTab();
         const cdp = await this.#engine.connect(id);
 
@@ -113,6 +114,31 @@ export class ChromeRenderer {
                 await new Promise((resolve) => setTimeout(resolve, 400));
             }
 
+            // Steps before the shot (PP-423, `render-steps.ts`), as the phone's renderer runs them: started, then read until done.
+            if (request.stepCount > 0) {
+                await evaluate<string>(request.steps);
+
+                const until = Date.now() + STEPS_MS;
+
+                for (;;) {
+                    const state = parseStepsState(await evaluate<string>(STEPS_STATE));
+
+                    if (state?.state === "failed") {
+                        throw new Error(`a step failed: ${state.error ?? "no reason given"}`);
+                    }
+
+                    if (state?.state === "done") {
+                        break;
+                    }
+
+                    if (Date.now() > until) {
+                        throw new Error(`the steps did not finish within ${STEPS_MS / 1000} seconds (at step ${state?.at ?? 0})`);
+                    }
+
+                    await new Promise((resolve) => setTimeout(resolve, 100));
+                }
+            }
+
             // The page measures itself just before it is pictured.
             const check = await evaluate<string>(request.check);
             const parts: string[] = [];
@@ -127,7 +153,7 @@ export class ChromeRenderer {
                 parts.push(shot.data);
             }
 
-            return { width, height, parts, check };
+            return { width, height, parts, check, ...(request.stepCount > 0 ? { steps: request.stepCount } : {}) };
         } finally {
             cdp.close();
             await this.#engine.closeTab(id).catch(() => {});
@@ -148,6 +174,9 @@ export class ChromeRenderer {
             throw new Error(`the page did not load: ${answer.errorText}`);
         }
 
-        await Promise.race([loaded, new Promise((resolve) => setTimeout(resolve, 45_000))]);
+        let timer: NodeJS.Timeout | undefined;
+
+        // The wait's timer is cleared once the page loaded: left running, it held the process 45 s after the last page.
+        await Promise.race([loaded, new Promise((resolve) => (timer = setTimeout(resolve, 45_000)))]).finally(() => clearTimeout(timer));
     }
 }

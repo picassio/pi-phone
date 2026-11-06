@@ -54,7 +54,9 @@ before(async () => {
 
         response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         response.end(
-            request.url === "/tall"
+            request.url === "/menu"
+                ? MENU_PAGE
+                : request.url === "/tall"
                 ? `<!doctype html><meta name="viewport" content="width=device-width"><body style="margin:0"><div style="height:3500px;background:linear-gradient(#fff,#36c)">Tall</div>`
                 : `<!doctype html><meta name="viewport" content="width=device-width"><title>Signed in</title><p>Signed in as the owner</p><img src="http://127.0.0.1:${otherPort}/logo.svg">`,
         );
@@ -66,6 +68,23 @@ after(() => {
     app?.close();
     other?.close();
 });
+
+/**
+ * A page whose menu shows only after a tap (PP-423): its one item is a 28 px button, a tap target under 40 at a phone's
+ * width; a field shows what was typed into it, and Escape closes the menu.
+ */
+const MENU_PAGE = `<!doctype html><meta name="viewport" content="width=device-width"><body style="margin:0;padding:16px;font:16px sans-serif">
+<button id="open" style="height:44px">Menu</button><button id="gone" style="display:none">Gone</button>
+<input id="q" style="height:44px"><p id="said"></p>
+<div id="menu" hidden><button id="item" style="height:28px">Rename</button></div>
+<script>
+document.getElementById("open").addEventListener("click", () => setTimeout(() => { document.getElementById("menu").hidden = false; }, 200));
+document.getElementById("q").addEventListener("input", (event) => { document.getElementById("said").textContent = "typed " + event.target.value; });
+document.addEventListener("keydown", (event) => { if (event.key === "Escape") document.getElementById("menu").hidden = true; });
+</script>`;
+
+/** What the menu page shows, as a check script answers it. */
+const MENU_STATE = `JSON.stringify({ open: !document.getElementById("menu").hidden, said: document.getElementById("said").textContent })`;
 
 test("the server's renderer signs in only to the app, pictures tall pages in parts, and measures them", { skip: chrome === undefined ? "no Chrome on this machine (CI runs it)" : false }, async () => {
     const screenshots = new Screenshots();
@@ -94,6 +113,29 @@ test("the server's renderer signs in only to the app, pictures tall pages in par
         assert.deepEqual(tall!.parts.map((part) => imageSize(part)?.height), [2000, 1500]);
 
         await assert.rejects(screenshots.render(`http://127.0.0.1:1/`, { widths: [390], settleMs: 0 }), /did not load/);
+
+        // Steps before the shot (PP-423): a menu that shows only after a tap is measured open, at each width.
+        const menu = `http://127.0.0.1:${appPort}/menu`;
+        const [closed] = await screenshots.render(menu, { widths: [390], settleMs: 100 });
+
+        assert.deepEqual(closed!.layout?.found.filter((each) => each.kind === "small-target"), [], "closed: no small target");
+
+        const opened = await screenshots.render(menu, { widths: [390, 1920], settleMs: 100, steps: [{ click: "#open" }, { wait: "#item" }] });
+
+        const small = opened[0]!.layout?.found.filter((each) => each.kind === "small-target") ?? [];
+
+        assert.equal(small.length, 1, "open at 390: its 28 px item");
+        assert.match(small[0]!.what, /Rename/);
+        assert.equal(opened[1]!.width, 1920);
+
+        const typed = await screenshots.render(menu, { widths: [390], settleMs: 100, check: MENU_STATE, steps: [{ click: "#open" }, { wait: 300 }, { type: "#q", text: "hello" }, { press: "Escape" }] });
+
+        assert.deepEqual(JSON.parse(typed[0]!.check!), { open: false, said: "typed hello" }, "typed into, then closed with Escape");
+
+        // A step that cannot be done fails the render, naming the step and why.
+        await assert.rejects(screenshots.render(menu, { widths: [390], settleMs: 0, steps: [{ click: "#open" }, { click: "#nope" }] }), /a step failed: step 2 \(click "#nope"\): nothing matches "#nope"/);
+        await assert.rejects(screenshots.render(menu, { widths: [390], settleMs: 0, steps: [{ click: "#gone" }] }), /step 1 \(click "#gone"\): "#gone" matches an element that is not visible/);
+        await assert.rejects(screenshots.render(menu, { widths: [390], settleMs: 0, steps: [{ wait: ".never" }] }), /step 1 \(wait for "\.never"\): nothing visible matched within 5 s/);
     } finally {
         await renderer.stop();
     }

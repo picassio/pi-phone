@@ -59,6 +59,10 @@ final class Renderer {
     private static final String BASE = "http://127.0.0.1:" + PiService.PORT;
     /** How long one width may take, loading included. */
     private static final long SHOT_MS = 45_000;
+    /** How long the steps before a shot may take (src/server/render-steps.ts STEPS_MS), on top of SHOT_MS. */
+    private static final long STEPS_MS = 20_000;
+    /** Where the steps are, as JSON text (render-steps.ts STEPS_STATE). */
+    private static final String STEPS_STATE = "JSON.stringify(window.__piSteps || null)";
 
     private final Context context;
     private final Supplier<String> token;
@@ -123,7 +127,8 @@ final class Renderer {
             JSONArray shots = new JSONArray();
             for (int index = 0; index < widths.length(); index++) {
                 shots.put(shot(request.getString("url"), widths.getInt(index), request.getBoolean("fullPage"),
-                        request.getInt("maxHeight"), request.getLong("settleMs"), request.optString("check", "")));
+                        request.getInt("maxHeight"), request.getLong("settleMs"), request.optString("check", ""),
+                        request.optString("steps", ""), request.optInt("stepCount", 0)));
             }
             reply.put("shots", shots);
         } catch (Exception e) {
@@ -133,13 +138,15 @@ final class Renderer {
     }
 
     /** One picture at `width` CSS pixels, on the main thread, waited for here. */
-    private JSONObject shot(String url, int width, boolean fullPage, int maxHeight, long settleMs, String check) throws Exception {
+    private JSONObject shot(String url, int width, boolean fullPage, int maxHeight, long settleMs, String check,
+            String steps, int stepCount) throws Exception {
         CountDownLatch done = new CountDownLatch(1);
         Object[] result = new Object[1];
         Stage[] made = new Stage[1];
+        long limit = SHOT_MS + (stepCount > 0 ? STEPS_MS : 0);
         main.post(() -> {
             try {
-                made[0] = start(url, width, fullPage, maxHeight, settleMs, check, (value) -> {
+                made[0] = start(url, width, fullPage, maxHeight, settleMs, check, steps, stepCount, (value) -> {
                     result[0] = value;
                     done.countDown();
                 });
@@ -148,11 +155,11 @@ final class Renderer {
                 done.countDown();
             }
         });
-        boolean finished = done.await(SHOT_MS, TimeUnit.MILLISECONDS);
+        boolean finished = done.await(limit, TimeUnit.MILLISECONDS);
         main.post(() -> {
             if (made[0] != null) made[0].release();
         });
-        if (!finished) throw new IOException("the page did not finish loading within " + (SHOT_MS / 1000) + " seconds");
+        if (!finished) throw new IOException("the page did not finish loading within " + (limit / 1000) + " seconds");
         if (result[0] instanceof Exception) throw (Exception) result[0];
         return (JSONObject) result[0];
     }
@@ -214,7 +221,8 @@ final class Renderer {
     }
 
     /** Load the page in a WebView laid out at the width; once it finished and settled, take its frame (main thread). */
-    private Stage start(String url, int width, boolean fullPage, int maxHeight, long settleMs, String check, Done done) {
+    private Stage start(String url, int width, boolean fullPage, int maxHeight, long settleMs, String check,
+            String steps, int stepCount, Done done) {
         int viewport = width < 600 ? 844 : 800;
         Stage stage = new Stage(width, fullPage ? Math.max(viewport, maxHeight) : viewport);
         WebView view = stage.view;
@@ -247,6 +255,8 @@ final class Renderer {
                                 Runnable take = () -> {
                                     try {
                                         JSONObject shot = capture(stage.latest, width, height, !MainActivity.inFront);
+                                        // The steps ran (PP-423): the server tells an app without them by its absence.
+                                        if (stepCount > 0) shot.put("steps", stepCount);
                                         if (report != null && !report.equals("null")) {
                                             // evaluateJavascript answers with the value as JSON: here, a JSON string.
                                             shot.put("check", new JSONArray("[" + report + "]").getString(0));
@@ -267,8 +277,14 @@ final class Renderer {
                                             + (mark == 0 ? " at all" : "") + ")"));
                                 }, 3000);
                             };
-                            if (check.isEmpty()) measured.onReceiveValue(null);
-                            else page.evaluateJavascript(check, measured);
+                            Runnable measure = () -> {
+                                if (check.isEmpty()) measured.onReceiveValue(null);
+                                else page.evaluateJavascript(check, measured);
+                            };
+                            // Steps before the shot (PP-423, render-steps.ts): what a person would tap first.
+                            if (stepCount == 0) measure.run();
+                            else page.evaluateJavascript(steps, (started) ->
+                                    stepsDone(page, System.currentTimeMillis() + STEPS_MS, measure, done));
                         }, 600);
                     } catch (Exception e) {
                         done.accept(e);
@@ -288,6 +304,33 @@ final class Renderer {
         if (url.startsWith(BASE + "/")) headers.put("Authorization", "Bearer " + token.get());
         view.loadUrl(url, headers);
         return stage;
+    }
+
+    /**
+     * The steps started in the page keep where they are in window.__piSteps (render-steps.ts): read every 100 ms until they
+     * are done (then `next`), one failed, or STEPS_MS passed (main thread).
+     */
+    private void stepsDone(WebView page, long until, Runnable next, Done done) {
+        page.evaluateJavascript(STEPS_STATE, (value) -> {
+            try {
+                // evaluateJavascript answers with the value as JSON: here a JSON string holding JSON text, or "null".
+                String text = value == null || value.equals("null") ? "null" : new JSONArray("[" + value + "]").getString(0);
+                JSONObject state = text.equals("null") ? null : new JSONObject(text);
+                String now = state == null ? "running" : state.optString("state", "running");
+                if (now.equals("done")) {
+                    next.run();
+                } else if (now.equals("failed")) {
+                    done.accept(new IOException("a step failed: " + state.optString("error", "no reason given")));
+                } else if (System.currentTimeMillis() > until) {
+                    done.accept(new IOException("the steps did not finish within " + (STEPS_MS / 1000) + " seconds (at step "
+                            + (state == null ? 0 : state.optInt("at", 0)) + ")"));
+                } else {
+                    main.postDelayed(() -> stepsDone(page, until, next, done), 100);
+                }
+            } catch (Exception e) {
+                done.accept(e);
+            }
+        });
     }
 
     /** How long a finished page may take to say its document is complete. */

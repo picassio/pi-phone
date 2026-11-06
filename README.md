@@ -337,6 +337,10 @@ No Termux, no laptop, no cloud VM.
   the same words repeated in one card), grouped with their numbers, and says when a page uses too many font sizes,
   text colours or icon sizes. Pi's browser gives the same check with `browser_screenshot`, and alone with
   `browser_layout_check`. Pi goes by the numbers.
+- **Steps before the shot.** `screenshot` and `redline` take `steps` that run in the page before each width's picture
+  and layout check (tap an element, type into a field, press a key, wait for a time or an element), so a menu, a picker
+  or a dialog that shows only after a tap is pictured and measured open; a step that cannot be done fails the call,
+  naming the step and why (nothing matches, not visible).
 - **Pixel compare.** For pixel-perfect work, `image_compare` compares a new screenshot with a reference picture (a
   mockup, or a screenshot Pi kept once it was right): the share of changed pixels, the changed areas with their
   positions and sizes, and a diff picture saved beside it with the changes in red and the areas framed and numbered.

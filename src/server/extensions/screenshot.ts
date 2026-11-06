@@ -15,6 +15,7 @@ import { isPicturePath, NO_DOM, parseRedline, redlinePictures, redlineScript, sp
 import { isPng, markUp } from "../markup.ts";
 import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
 import { type ClientEntry, projectEntry } from "../projection.ts";
+import { checkSteps, MAX_STEPS, type RenderStep, STEPS_MS, stepWords } from "../render-steps.ts";
 import { reminderText, startsTurn, uncheckedUi } from "../ui-reminder.ts";
 
 /** The most entries read back for one turn. */
@@ -56,17 +57,35 @@ const reply = (text: string, isError = false) => ({ output: [{ type: "text" as c
 
 const MIN_WIDTH = 240;
 const MAX_WIDTH = 1920;
+/** How long a render may take: the request's default, and each width's steps on top. */
+const RENDER_MS = 90_000;
+
+/** Steps before the shot (PP-423, `render-steps.ts`), for screenshot and redline alike. */
+// One open object a step, checked by `checkSteps`: four object shapes in the schema cost every request 400 characters.
+const STEPS = opt(
+    arr(obj({}, { open: true }), {
+        maxItems: MAX_STEPS,
+        description: "Run in the page first, each width, to measure a menu, picker or dialog open: {click: css} | {type: css, text} | {press: key} | {wait: ms | css}",
+    }),
+);
+
+/** The steps checked, or why not; and what the answer says of them. */
+const stepsOf = (given: readonly unknown[] | undefined): { steps: RenderStep[]; words: string } | { error: string } => {
+    const steps = checkSteps(given ?? []);
+
+    return "error" in steps ? steps : { steps, words: steps.length === 0 ? "" : ` after ${steps.length === 1 ? "one step" : `${steps.length} steps`} (${steps.map(stepWords).join(", ")})` };
+};
 
 const DESCRIPTION =
-    "See a page as it shows: the phone renders it off screen and gives you a picture at each width (default a phone's 390 px, a desktop's 1280 px and a large screen's 1920 px, whole page up to 4000 px tall). " +
+    "See a page as it shows: the phone renders it off screen and gives you a picture at each width (default 390, 1280 and 1920 px: a phone, a desktop, a large screen; whole page up to 4000 px tall). " +
     "Name one of: artifact (an artifact of this session, by id, as the person opens it), path (a file: .html, .htm, .svg, or .docx/.xlsx/.pptx as OfficeCLI renders it), or url (an http or https page). " +
-    "Use it after making or changing an artifact or a page, to check layout, overflow, clipped or overlapping text, and broken states, then fix what you see and look again. " +
+    "Use it after making or changing an artifact or a page, then fix what you see and look again. " +
     "Each width comes with a measured layout check, grouped with numbers: spills, a page wider than the screen, cut text, elements covering text or controls, tap targets under 40 px on a phone, sizes off the 4 px grid, text under WCAG AA contrast or 12 px, emoji as icons, gradient text, uppercase labels, long lines, too many font sizes or colours. Trust its numbers over the picture, and when they disagree, find out why. " +
     "Scripts run and the network works; give a page a moment to load what it fetches (settle). " +
     "With save, the pictures are saved as files too, to mark up with image_markup or put in documents.";
 
 /** In every prompt while the module is on. */
-export const SEEING = `Seeing your work: after you make or change an artifact, an HTML page, or an Office file, look at it with screenshot (a phone's width, a desktop's and a large screen's: 390, 1280 and 1920 px) and fix what you see before you call it done. Check app changes in the live app (http://127.0.0.1:8787/s/<id>, or a sheet by /?sheet=...), not only a test page. Go by the layout check's numbers more than the picture; when the picture, the numbers, or a test page disagree, find out why before you call it right, never explain it away. For pixel-perfect work, keep a reference picture (the mockup, or a screenshot saved with save or path once it is right) and compare each new screenshot with it with image_compare. To check spacing, radii and type against a spec, use redline.`;
+export const SEEING = `Seeing your work: after you make or change an artifact, an HTML page, or an Office file, look at it with screenshot (390, 1280 and 1920 px) and fix what you see before you call it done. Check app changes in the live app (http://127.0.0.1:8787/s/<id>, or a sheet by /?sheet=...), not only a test page. Go by the layout check's numbers more than the picture; when the picture, the numbers, or a test page disagree, find out why before you call it right, never explain it away. For pixel-perfect work, keep a reference picture (the mockup, or a screenshot saved with save or path once it is right) and compare each new screenshot with it with image_compare. To check spacing, radii and type against a spec, use redline.`;
 
 export default function createScreenshot(host: PocketHost) {
     /** The address the phone renders for an artifact of this session, a file, or a web page, and its name in answers. */
@@ -111,6 +130,7 @@ export default function createScreenshot(host: PocketHost) {
             save: opt(str({
                     description: "Save the pictures too, ending in .png or .jpg (absolute or relative to this session's folder): one per width, its width added to the name (page-390.png), and -2, -3 for the parts of a tall one",
                 })),
+            steps: STEPS,
         }, { open: true }),
         // Only looks: a render runs again after a restart.
         replay: "safe",
@@ -125,6 +145,12 @@ export default function createScreenshot(host: PocketHost) {
 
             if (widths.length === 0 || widths.length > 4 || !widths.every((width) => Number.isInteger(width) && width >= MIN_WIDTH && width <= MAX_WIDTH)) {
                 return reply(`widths are 1 to 4 whole numbers from ${MIN_WIDTH} to ${MAX_WIDTH}.`, true);
+            }
+
+            const steps = stepsOf(args.steps);
+
+            if ("error" in steps) {
+                return reply(steps.error, true);
             }
 
             const page = pageOf(args, String(api.conversationId));
@@ -149,6 +175,7 @@ export default function createScreenshot(host: PocketHost) {
                     widths,
                     fullPage: args.fullPage ?? true,
                     settleMs: Math.round(Math.max(0, Math.min(10, args.settle ?? 1.5)) * 1000),
+                    ...(steps.steps.length === 0 ? {} : { steps: steps.steps, timeoutMs: RENDER_MS + widths.length * STEPS_MS }),
                 });
 
                 // Saved, one file per width (and part): for image_markup and documents (PP-119).
@@ -185,7 +212,7 @@ export default function createScreenshot(host: PocketHost) {
                 output: [
                     {
                         type: "text" as const,
-                        text: `${what}, as the phone renders it: ${shots.map((shot) => `${shot.width}×${shot.height}${shot.parts.length > 1 ? ` in ${shot.parts.length} pictures, top to bottom` : ""}`).join(", ")} (CSS pixels${shots.some((shot) => shot.height >= 4000) ? "; cut at 4000 px tall" : ""}).${saved.length === 0 ? "" : ` Saved as ${saved.join(", ")}.`}`,
+                        text: `${what}, as the phone renders it${steps.words}: ${shots.map((shot) => `${shot.width}×${shot.height}${shot.parts.length > 1 ? ` in ${shot.parts.length} pictures, top to bottom` : ""}`).join(", ")} (CSS pixels${shots.some((shot) => shot.height >= 4000) ? "; cut at 4000 px tall" : ""}).${saved.length === 0 ? "" : ` Saved as ${saved.join(", ")}.`}`,
                     },
                     ...shots.flatMap((shot) => [
                         ...shot.parts.map((part) => ({ type: "image" as const, data: part.toString("base64"), mimeType: "image/jpeg" })),
@@ -332,6 +359,7 @@ export default function createScreenshot(host: PocketHost) {
             "Name one of artifact (this session's), path (an .html or .htm file) or url (an http or https page, the live app too: http://127.0.0.1:8787/s/<id>, /?sheet=...); for the page in front of Pi's browser use browser_redline. " +
             "Auto mode measures the main blocks (surfaces with a background, border or shadow, and controls); selector measures the elements it finds. " +
             "With spec, values off it are red with the spec's nearest value (\"gap 23, spec 24\") and listed: a design system's tokens.css path (the design-system skill's `systems.ts show <id>` names it), or a plain list such as \"padding 16, gap 8/16, radius 24/12/20, font 22/13/12, weight 400/500, line 20, target 44\" (spacing sets padding and gap). " +
+            "With steps (as screenshot's), a menu, a picker or a dialog is opened first and measured open. " +
             "A picture file has no DOM: compare it with image_compare.",
         parameters: obj({
             artifact: opt(str({ description: "An artifact of this session, by its id" })),
@@ -343,6 +371,7 @@ export default function createScreenshot(host: PocketHost) {
             fullPage: opt(bool({ description: "The whole page (default), or only the first screen" })),
             settle: opt(num({ description: "Seconds to wait after loading (default 1.5, at most 10)" })),
             save: opt(str({ description: "Save the marked picture too, .png or .jpg; a tall page's later parts get -2, -3" })),
+            steps: STEPS,
         }, { open: true }),
         replay: "safe",
         execute: async (args, api, context) => {
@@ -372,6 +401,12 @@ export default function createScreenshot(host: PocketHost) {
                 return reply("Give save a path ending in .png or .jpg.", true);
             }
 
+            const steps = stepsOf(args.steps);
+
+            if ("error" in steps) {
+                return reply(steps.error, true);
+            }
+
             const page = pageOf(args, String(api.conversationId));
 
             if ("error" in page) {
@@ -394,6 +429,7 @@ export default function createScreenshot(host: PocketHost) {
                     fullPage: args.fullPage ?? true,
                     settleMs: Math.round(Math.max(0, Math.min(10, args.settle ?? 1.5)) * 1000),
                     check: redlineScript({ width, ...(args.selector === undefined ? {} : { selector: args.selector }) }),
+                    ...(steps.steps.length === 0 ? {} : { steps: steps.steps, timeoutMs: RENDER_MS + STEPS_MS }),
                 });
                 const measure = parseRedline(shot?.check);
 
@@ -433,7 +469,7 @@ export default function createScreenshot(host: PocketHost) {
 
                 return {
                     output: [
-                        { type: "text" as const, text: `${page.what}, measured and pictured at ${shot.width}×${shot.height} CSS px.${saved.length === 0 ? "" : ` Saved as ${saved.join(", ")}.`}\n${text}` },
+                        { type: "text" as const, text: `${page.what}, measured and pictured${steps.words} at ${shot.width}×${shot.height} CSS px.${saved.length === 0 ? "" : ` Saved as ${saved.join(", ")}.`}\n${text}` },
                         ...pictures.map((picture) => ({ type: "image" as const, data: Buffer.from(picture).toString("base64"), mimeType: kind === "png" ? "image/png" : "image/jpeg" })),
                     ],
                 };

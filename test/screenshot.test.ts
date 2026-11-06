@@ -33,6 +33,8 @@ const WHITE_PNG = white(400, 200, true);
 // The phone's picture: a small white JPEG.
 const JPEG = white(8, 8, false);
 let lastImages = 0;
+/** The steps each render request carried (PP-423): how many, and the script. */
+const steps: { count: number; script: string }[] = [];
 const route: FauxResponseStep = (request) => {
     const { role, text } = lastText(request as never);
     const messages = (request as { messages: { role: string; content?: unknown }[] }).messages;
@@ -69,6 +71,19 @@ const route: FauxResponseStep = (request) => {
         return fauxAssistantMessage([fauxToolCall("image_compare", { reference: join(work, "big.png"), picture: join(work, "shots", "page-390.png") })], { stopReason: "toolUse" });
     }
 
+    // Steps before the shot (PP-423).
+    if (role === "user" && text.endsWith("open the menu")) {
+        return fauxAssistantMessage([fauxToolCall("screenshot", { path: join(work, "page.html"), widths: [390], steps: [{ click: "#open" }, { wait: ".menu" }] })], { stopReason: "toolUse" });
+    }
+
+    if (role === "user" && text.endsWith("step badly")) {
+        return fauxAssistantMessage([fauxToolCall("screenshot", { path: join(work, "page.html"), steps: [{ click: " " }] })], { stopReason: "toolUse" });
+    }
+
+    if (role === "user" && text.endsWith("wait too long")) {
+        return fauxAssistantMessage([fauxToolCall("redline", { path: join(work, "page.html"), steps: [{ wait: 9000 }, { wait: 9000 }] })], { stopReason: "toolUse" });
+    }
+
     if (role === "user" && text.endsWith("look badly")) {
         return fauxAssistantMessage([fauxToolCall("screenshot", { path: "notes.txt" })], { stopReason: "toolUse" });
     }
@@ -98,6 +113,7 @@ function phone(screenshots: Screenshots, seen: { url: string; widths: number[]; 
 
             for (const request of requests) {
                 seen.push({ url: request.url, widths: request.widths, fullPage: request.fullPage });
+                steps.push({ count: request.stepCount, script: request.steps });
                 // The page measured itself as the renderer runs `request.check` (layout-check.ts): one issue at the phone's width.
                 assert.match(request.check, /getBoundingClientRect/);
                 screenshots.answer(request.id, {
@@ -198,6 +214,15 @@ test("Pi's screenshot: an artifact and a file, at the widths asked, as images it
         assert.equal(seen[1]!.fullPage, false);
 
         assert.match(await ask("look badly"), /path is a \.html, \.htm, \.svg, \.docx, \.xlsx, or \.pptx file/);
+
+        // Steps go to the renderer as a script it runs first; this stand-in, like an app from before them, does not say
+        // it ran them: the picture would be of the page closed, so the call fails saying what to do (PP-423).
+        assert.match(await ask("open the menu"), /This pi-phone app does not run steps before a screenshot yet: update it/);
+        assert.equal(steps.at(-1)!.count, 2);
+        assert.match(steps.at(-1)!.script, /window\.__piSteps/);
+        assert.ok(steps.slice(0, -1).every((each) => each.count === 0 && each.script === ""), "no steps, no script");
+        assert.match(await ask("step badly"), /Step 1: each step is one of \{ click: selector \}/);
+        assert.match(await ask("wait too long"), /the steps wait 18000 ms in all/);
 
         // Saved too, one file per width, as PNGs (the phone's JPEGs turned to PNG): for image_markup and documents (PP-119).
         const saved = await ask("save the file");
