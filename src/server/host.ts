@@ -1,5 +1,6 @@
 import type { Context } from "@earendil-works/chord";
 import type { Shot } from "./screenshots.ts";
+import type { HookId } from "./hooks.ts";
 import type { PiBrowser } from "./browser/pi-browser.ts";
 import type { AppAction, Setting, TargetKind } from "./settings-registry.ts";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
@@ -401,6 +402,8 @@ export interface PocketHost {
     browserRunModel(conversationId: ConversationId): string;
     /** Whether browser_eval runs scripts that read the page (setting `browser.eval`, Settings › Pi's browser; PP-244). */
     browserEval(): boolean;
+    /** Whether a hook runs now (Settings › Hooks, setting `hooks.<id>`; PP-419, `hooks.ts`). */
+    hookOn(id: HookId): boolean;
     /** A provider's API key from the app's sign-ins (OpenRouter's, for Jev), or undefined when it is not signed in. */
     apiKey(provider: string): Promise<string | undefined>;
     /** Ask a session's own model a prompt alone (no history, no tools): its reply's text; it counts as the session's spend. */

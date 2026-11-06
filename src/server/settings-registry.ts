@@ -29,6 +29,7 @@ import { copyFileSync, existsSync, readFileSync, rmSync, statSync } from "node:f
 import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import { MAX_AVATAR } from "./avatars.ts";
+import { HOOKS } from "./hooks.ts";
 import { expandHome } from "./paths.ts";
 
 const CONTEXT_TITLES: Record<ContextPart, string> = {
@@ -526,6 +527,19 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             choices: () => ["on", "off"],
             apply: (user, value) => app.keptPages.setOn(user, onOff(value)),
         },
+        // ─── Hooks (PP-419): checks the app runs around Pi's work by itself, Settings › Hooks ───
+        ...HOOKS.map(
+            (hook): Setting => ({
+                id: `hooks.${hook.id}`,
+                area: "hooks",
+                title: hook.title,
+                help: `${hook.does} ${hook.when} on${hook.default ? " (the default)" : ""} or off${hook.default ? "" : " (the default)"}. Settings › Hooks.`,
+                owner: hook.owner,
+                read: () => (app.config.hookOn(hook.id) ? "on" : "off"),
+                choices: () => ["on", "off"],
+                apply: (user, value) => app.setHook(user, hook.id, onOff(value)),
+            }),
+        ),
         // ─── Favorite models (PP-350) ───
         {
             id: "models.favorites",

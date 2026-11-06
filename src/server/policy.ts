@@ -84,6 +84,7 @@ export const ROUTES: readonly { first: string; permission: string; writes: boole
     { first: "restore", permission: "settings.change", writes: true },
     { first: "restart", permission: "settings.change", writes: true },
     { first: "subagent-models", permission: "settings.change", writes: true },
+    { first: "hooks", permission: "settings.change", writes: true },
 ];
 
 /** What a permission is, in words, for refusals. */

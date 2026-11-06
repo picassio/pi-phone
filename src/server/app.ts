@@ -104,6 +104,7 @@ import {
     TurnsDoc,
 } from "./docs.ts";
 import { describe, HttpError } from "./errors.ts";
+import { HOOK_IDS, HOOKS, type HooksView, isHookId } from "./hooks.ts";
 import { ExtensionCommands } from "./extension-commands.ts";
 import { ExtensionWebs, mayUse } from "./extension-web.ts";
 import { defang, quoted } from "./fence.ts";
@@ -1317,6 +1318,7 @@ export class PocketApp {
             detachBrowser: (session) => this.detachBrowser(session),
             browserRunModel: (id) => this.sessionMeta(this.rootOf(id))?.browserRunModel ?? this.config.browserRunModel,
             browserEval: () => this.config.browserEval,
+            hookOn: (id) => this.config.hookOn(id),
             apiKey: async (provider) => (await this.models.getAuth(provider))?.auth.apiKey,
             askSessionModel: async (id, prompt, maxTokens) => (await askSessionModel(this, id, prompt, { maxTokens })).text,
             chargeSession: (id, key, usage) => chargeSession(this, id, key, usage),
@@ -6492,6 +6494,38 @@ export class PocketApp {
         }
 
         this.config.browserEval = on;
+    }
+
+    /** Settings › Hooks (PP-419, `hooks.ts`): each hook, on or off, and the built-in behaviours beside them. The owner's. */
+    hooksView(user: User): HooksView {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        return {
+            hooks: HOOKS.map((hook) => ({ id: hook.id, title: hook.title, does: hook.does, when: hook.when, default: hook.default, on: this.config.hookOn(hook.id) })),
+            builtIn: [
+                { id: "wikiCapture", setting: "wiki.captureMinutes", minutes: this.config.wikiCaptureMinutes },
+                { id: "autoCompact", setting: "sessions.compactAt", at: this.config.compactAt },
+            ],
+        };
+    }
+
+    /** Turn one hook on or off (Settings › Hooks, `setting_change hooks.<id>`). The owner's. */
+    setHook(user: User, id: string, on: unknown): void {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        if (!isHookId(id)) {
+            throw new HttpError(404, `No hook ${id}: the hooks are ${HOOK_IDS.join(", ")}.`);
+        }
+
+        if (typeof on !== "boolean") {
+            throw new HttpError(400, "A hook is on (true) or off (false).");
+        }
+
+        this.config.setHookOn(id, on);
     }
 
     /**

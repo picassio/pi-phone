@@ -366,6 +366,10 @@ dự án thật.</sub>
   tương phản thấp, chữ dưới 12 px, icon emoji, vùng chạm nhỏ, ảnh hỏng, nhảy cấp tiêu đề hay thẻ lồng trong thẻ, rồi
   báo cáo kèm số đếm trước và sau cùng hình redline
   hoặc hình khác biệt. Các skill HTML, design-system và unslop đều kết thúc bằng nó.
+- **Hook.** **Menu › Hook** liệt kê các bước kiểm tra pi-phone tự chạy quanh công việc của Pi, nên chúng vẫn diễn ra
+  cả khi Pi quên, mỗi hook một công tắc (Pi bật hoặc tắt bằng `setting_change hooks.<id>`, sau khi bạn duyệt thẻ):
+  kiểm tra artifact khi xuất bản, và nhắc Pi kiểm tra giao diện trước khi xong. Bên cạnh là các hành vi tự động có cài
+  đặt riêng (ghi phiên không hoạt động vào wiki, nén ngữ cảnh đầy) cùng giá trị hiện tại của chúng.
 - **Hình ảnh.** `image_generate` tạo và sửa hình ảnh (sửa tối đa năm hình một lần; tạo 1 đến 4 hình; 1:1, 16:9,
   9:16, 4:3 hoặc 3:4) bằng mô hình bạn chọn ở **Menu › Hình ảnh** (`image.model`): GPT Image 2.5 qua đăng nhập
   ChatGPT (tính vào gói, Chi phí đếm số hình), một mô hình hình ảnh của OpenRouter như Nano Banana

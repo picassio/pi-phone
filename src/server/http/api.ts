@@ -1476,6 +1476,17 @@ export function createApi(options: HttpOptions, auth: Auth) {
 
         // Web access (`web/access.ts`): the search provider and what each needs; a test search with the one picked.
         // Reaching the phone over Tailscale (`tailnet.ts`): on or off, where it listens, or why it does not.
+        // Settings › Hooks (PP-419, `hooks.ts`): each hook on or off, and the built-in behaviours beside them.
+        if (first === "hooks" && second === undefined && method === "GET") {
+            return json(response, 200, app.hooksView(user));
+        }
+
+        if (first === "hooks" && second !== undefined && third === undefined && method === "PUT") {
+            app.setHook(user, second, (await readJson<{ on?: unknown }>(request)).on);
+
+            return json(response, 200, app.hooksView(user));
+        }
+
         if (first === "access" && second === undefined && (method === "GET" || method === "PUT")) {
             requireOwner(user);
 

@@ -1017,6 +1017,14 @@ so Pi changes them through the settings tools; "the last session" is the one the
     sentence in the pi-phone notes of Effective HTML's `html`, `html-prototype` and `design-artifact` and of unslop
     (its `NOTE` in `scripts/sync-unslop.ts`, so a sync keeps it; each vendoring README says so), and design-system's
     step 5, ours. AGENTS.md asks the same counts of every UI change.
+  - **Hooks** (`src/server/hooks.ts`, PP-418/PP-419; the owner's ask of 2026-11-06: checks the agent cannot skip, each
+    on or off): the prompt and the skill only ask; a hook is the app doing it. `HOOKS` is the registry (id, title, what
+    it does, when it runs, default, owner-only); `config.hooks` keeps only what differs from the defaults
+    (`hookOn`, `setHookOn`); `setting_change hooks.<id>` (area `hooks`) and **Menu › Hooks** (`web/sheets/hooks.js`,
+    `GET /api/hooks`, `PUT /api/hooks/<id>`, `/?sheet=hooks` for screenshots) change them through `setHook`, the
+    owner's; extensions read them with `host.hookOn(id)`. The sheet also lists the automatic behaviours that keep
+    settings of their own (the wiki's capture after idle, auto-compact) with their value, read only: their settings stay
+    where they were. First hooks: `artifactCheck` (PP-421) and `uiReminder` (PP-422).
 - **Server edition** (`--platform server`, PP-20; the owner's decision of 2026-10-20, board epic PP-19): the same server in
   Docker (`Dockerfile`, `deploy/`), behind Caddy. `main.ts` runs as `phone` unless told `--platform server` (the image sets `PI_PHONE_PLATFORM=server`). On a
   server, Pi's browser is a `ChromeEngine` with its profile kept in `~/.pi/mobile/browser`, screenshots come from

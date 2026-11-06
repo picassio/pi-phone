@@ -782,5 +782,7 @@
     "Give the pages in their new order: a list of each one's session and artifact.": "请按新顺序给出页面：每个页面的会话和产物列表。",
     "Name each page you keep once, and only those: the list changed, so open it again.": "请把保留的每个页面各列一次，且只列这些：列表已变化，请重新打开。",
     "Pages are on (true) or off (false).": "页面为开启（true）或关闭（false）。",
-    "A page is an artifact: its session's number (conversation) and its id (artifact).": "页面即产物：它所在会话的编号（conversation）和它的 id（artifact）。"
+    "A page is an artifact: its session's number (conversation) and its id (artifact).": "页面即产物：它所在会话的编号（conversation）和它的 id（artifact）。",
+    "No hook {1}: the hooks are {2}.": "没有钩子 {1}：钩子有 {2}。",
+    "A hook is on (true) or off (false).": "钩子为开启（true）或关闭（false）。"
 }

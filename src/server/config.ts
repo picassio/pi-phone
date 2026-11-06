@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { type AssistantSettings, readAssistant, storedAssistant } from "./assistant.ts";
 import type { PermissionMode, PopupMode } from "./browser/pi-browser.ts";
 import { type CodemodeMode, type ContextPart, type ContextPolicy, DEFAULT_CONTEXT_POLICY } from "./context-policy.ts";
+import { type HookId, hookInfo } from "./hooks.ts";
 import { type SubagentDefaults, type SubagentPart, withPart } from "./subagent-defaults.ts";
 
 /**
@@ -240,6 +241,8 @@ interface PocketConfig {
     browserPermissions?: PermissionMode;
     /** Whether browser_eval runs scripts that read the page in Pi's browser (PP-244). Absent: on. */
     browserEval?: boolean;
+    /** The hooks the owner turned away from their defaults (PP-419, `hooks.ts`), by id. Absent: each hook's default. */
+    hooks?: Partial<Record<HookId, boolean>>;
     /** How Pi calls its tools in every session (PP-379, `context-policy.ts`): "only" from codemode scripts. Absent: on. */
     codemodeMode?: CodemodeMode;
     /** Whether people may keep artifacts as pages on their rail (PP-370, `kept-pages.ts`). Absent: on. */
@@ -824,6 +827,30 @@ export class ConfigStore {
 
     get browserEval(): boolean {
         return this.#config.browserEval ?? true;
+    }
+
+    /** Whether a hook runs (Settings › Hooks, PP-419): the owner's choice, else its default. */
+    hookOn(id: HookId): boolean {
+        return this.#config.hooks?.[id] ?? hookInfo(id).default;
+    }
+
+    /** Turn a hook on or off; its default is kept as no entry. */
+    setHookOn(id: HookId, on: boolean): void {
+        const hooks = { ...this.#config.hooks };
+
+        if (on === hookInfo(id).default) {
+            delete hooks[id];
+        } else {
+            hooks[id] = on;
+        }
+
+        if (Object.keys(hooks).length === 0) {
+            delete this.#config.hooks;
+        } else {
+            this.#config.hooks = hooks;
+        }
+
+        this.save();
     }
 
     set browserEval(on: boolean) {

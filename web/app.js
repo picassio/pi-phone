@@ -937,6 +937,7 @@ const LINKED_SHEETS = new Set([
     "voice",
     "providers",
     "design-system",
+    "hooks",
     "images",
     "schedules",
     "secrets",

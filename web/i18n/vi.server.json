@@ -781,5 +781,7 @@
     "Give the pages in their new order: a list of each one's session and artifact.": "Hãy đưa các trang theo thứ tự mới: danh sách phiên và artifact của từng trang.",
     "Name each page you keep once, and only those: the list changed, so open it again.": "Hãy nêu mỗi trang bạn giữ đúng một lần, và chỉ những trang đó: danh sách đã thay đổi, hãy mở lại.",
     "Pages are on (true) or off (false).": "Trang bật (`true`) hoặc tắt (`false`).",
-    "A page is an artifact: its session's number (conversation) and its id (artifact).": "Một trang là một artifact: số của phiên chứa nó (`conversation`) và id của nó (`artifact`)."
+    "A page is an artifact: its session's number (conversation) and its id (artifact).": "Một trang là một artifact: số của phiên chứa nó (`conversation`) và id của nó (`artifact`).",
+    "No hook {1}: the hooks are {2}.": "Không có hook {1}: các hook là {2}.",
+    "A hook is on (true) or off (false).": "Một hook là bật (`true`) hoặc tắt (`false`)."
 }

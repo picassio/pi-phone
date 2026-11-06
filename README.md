@@ -357,6 +357,10 @@ No Termux, no laptop, no cloud VM.
   text, overlap, low contrast, text under 12 px, emoji icon, small tap target, broken image, skipped heading or card
   inside a card left, and a report with the counts
   before and after and the redline or diff picture. The HTML, design-system and unslop skills end with it.
+- **Hooks.** **Menu › Hooks** lists the checks pi-phone runs around Pi's work by itself, so they happen even when Pi
+  forgets them, each with a switch (Pi turns one on or off with `setting_change hooks.<id>`, after your card): check
+  artifacts on publish, and remind Pi to check UI before it finishes. Beside them, the automatic behaviours that keep
+  settings of their own (capturing idle sessions into the wiki, compacting a full context) show their value now.
 - **Images.** `image_generate` makes and edits images (up to five to edit at once; 1 to 4 at a time; 1:1, 16:9, 9:16,
   4:3 or 3:4) with the model you pick in **Menu › Images** (`image.model`): GPT Image 2.5 on your ChatGPT sign-in (on
   the plan, counted in Spend as images), an OpenRouter image model such as Nano Banana (`google/gemini-*-image`; its

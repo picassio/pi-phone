@@ -604,6 +604,10 @@ export function MenuSheet({ places = true }) {
                 // The models and voice Pi's audio tools use (PP-307), while the Media extension is on.
                 me?.role === "owner" && allowed("settings.change") && server?.extensions?.includes("pocket-media") && item("Audio", () => openSheet({ type: "audio" }), "transcribe, read aloud")
             }
+            ${
+                // Checks the app runs around Pi's work by itself (PP-419): each on or off.
+                me?.role === "owner" && allowed("settings.change") && item("Hooks", () => openSheet({ type: "hooks" }), "checks Pi cannot skip")
+            }
             ${me?.role === "owner" && allowed("browser.use") && item("Pi's browser", () => openSheet({ type: "browser" }), "how browser_run decides each step")}
             ${
                 // Pi uses this phone's apps (PP-141): the phone's own pi-phone only, never the team server.
