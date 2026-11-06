@@ -93,6 +93,8 @@ test("with the hook off, or for a Markdown artifact, the publish answers alone",
 
         assert.match(told, /Published \\"Shop\\" as artifact shop, version 1\. The user opens it from the artifact card\./);
         assert.doesNotMatch(told, /Layout check/);
+        // Unchecked, the publish is a UI change Pi has not looked at: the reminder hook (PP-422) names it.
+        assert.match(texts.at(-2)!, /^"\[via hook ui-reminder\] You changed UI after your last look at it: artifact shop\./);
     } finally {
         app.setHook(owner(app), "artifactCheck", true);
     }

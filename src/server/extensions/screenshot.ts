@@ -5,7 +5,8 @@
  * web page. It closes the check-and-fix step Effective HTML's skills and OfficeCLI's ask for.
  */
 import { arr, bool, num, obj, opt, str } from "@earendil-works/pi-schema";
-import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
+import type { Context } from "@earendil-works/chord";
+import { type Cursor, defineExtension, defineTool, GenerationTask, type HookApi, hook, section } from "@earendil-works/pi-durable";
 import type { PocketHost } from "../host.ts";
 import { compareImages, describeComparison, diffPathOf } from "../image-compare.ts";
 import { describeLayout } from "../layout-check.ts";
@@ -13,6 +14,43 @@ import { DEFAULT_WIDTHS } from "../screenshots.ts";
 import { isPicturePath, NO_DOM, parseRedline, redlinePictures, redlineScript, specFrom } from "../redline.ts";
 import { isPng, markUp } from "../markup.ts";
 import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
+import { type ClientEntry, projectEntry } from "../projection.ts";
+import { reminderText, startsTurn, uncheckedUi } from "../ui-reminder.ts";
+
+/** The most entries read back for one turn. */
+const TURN_ENTRIES = 3000;
+
+/** The turn's entries, oldest first: back to the message that started it (`startsTurn`). */
+async function turnEntries(api: HookApi, context: Context): Promise<ClientEntry[]> {
+    const found: ClientEntry[] = [];
+    let cursor: Cursor | undefined;
+
+    while (found.length < TURN_ENTRIES) {
+        const page = await api.entries({ order: "descending" }, 200, cursor, context);
+
+        for (const record of page.items) {
+            const entry = projectEntry(record);
+
+            if (entry === undefined) {
+                continue;
+            }
+
+            found.push(entry);
+
+            if (startsTurn(entry)) {
+                return found.reverse();
+            }
+        }
+
+        if (page.next === undefined) {
+            break;
+        }
+
+        cursor = page.next;
+    }
+
+    return found.reverse();
+}
 
 const reply = (text: string, isError = false) => ({ output: [{ type: "text" as const, text }], ...(isError ? { isError: true } : {}) });
 
@@ -409,5 +447,21 @@ export default function createScreenshot(host: PocketHost) {
         name: "pocket-screenshot",
         tools: [screenshot, imageMarkup, imageCompare, redline],
         sections: [section("seeing", () => SEEING)],
+        hooks: [
+            // "Remind to check UI before finishing" (PP-422, Settings › Hooks): a turn that ends with UI changed after its
+            // last look gets one follow-up, in subagents too. The artifact check counts as a look while it is on.
+            hook(GenerationTask, {
+                onYield: async (_answer, api, context) => {
+                    if (!host.hookOn("uiReminder")) {
+                        return undefined;
+                    }
+
+                    // Once a turn: its transcript holds the reminder once sent (`uncheckedUi`), a restart included.
+                    const files = uncheckedUi(await turnEntries(api, context), !host.hookOn("artifactCheck"));
+
+                    return files.length === 0 ? undefined : { continue: reminderText(files) };
+                },
+            }),
+        ],
     });
 }

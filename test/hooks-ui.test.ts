@@ -2,7 +2,9 @@
 // with its words, a state and a switch, and the built-in behaviours beside them with their own setting's value; a switch
 // turns its hook off in the app and back on; nothing runs past the screen, and every control takes a 40 px tap on a
 // phone. With PHONE_SHOTS, screenshots and the layout check's report go there.
-import { type App, cleanUp, cleanUpAll, openApp, root, scriptedModel } from "./helpers.ts";
+import { type App, cleanUp, cleanUpAll, context, lastText, newSession, openApp, owner, root, scriptedModel, work } from "./helpers.ts";
+import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
+import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -18,6 +20,14 @@ import { VIEWPORTS } from "./support/browser/viewport.ts";
 const real = { skip: findBrowser() === undefined ? "no Chromium-based browser on this machine" : false } as const;
 const SHOTS = process.env.PHONE_SHOTS;
 const LARGE = { width: 1920, height: 1080, scale: 1, mobile: false };
+/** Pi edits a stylesheet once and ends without a look: the reminder hook's case (PP-422). */
+const route: FauxResponseStep = (request) => {
+    const { role, text } = lastText(request as never);
+
+    return role === "user" && text.endsWith("edit the css")
+        ? fauxAssistantMessage([fauxToolCall("write", { path: join(work, "site", "style.css"), content: "a { color: #111 }\n" })], { stopReason: "toolUse" })
+        : fauxAssistantMessage([fauxText(role === "user" && text.startsWith("[via hook ui-reminder] ") ? "Checked: nothing to fix." : "Edited the stylesheet.")]);
+};
 
 let app: App;
 let server: Server;
@@ -30,7 +40,7 @@ before(async () => {
         return;
     }
 
-    app = await openApp(scriptedModel());
+    app = await openApp(scriptedModel(route));
     server = createServer(createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }));
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
@@ -139,6 +149,28 @@ for (const [viewport, label] of [[VIEWPORTS.mobile, "390"], [VIEWPORTS.desktop, 
         await until(() => app.config.hookOn("uiReminder"), "the reminder on again");
     });
 }
+
+test("the reminder shows in the session as sent by the hook, by its name (PP-422)", real, async () => {
+    const id = await newSession(app);
+    const { submissionId } = await app.commands.submit(id, owner(app), { text: "edit the css", requestId: crypto.randomUUID() });
+
+    await (await app.harness.submission(submissionId, context))!.wait(context);
+    await app.harness.waitForIdle(context);
+
+    for (const [viewport, label] of [[VIEWPORTS.mobile, "390"], [LARGE, "1920"]] as const) {
+        await page.setViewport(viewport);
+        await page.navigate(`${base}/s/${String(id)}`);
+        await present('[data-part="prompt-row"]', "the transcript");
+        await until(async () => (await inPage<string[]>(`return JSON.stringify([...document.querySelectorAll('[data-part="prompt-head"]')].map((each) => each.innerText.trim().replace(/\\s+/g, " ")))`)).length >= 2, "both messages");
+
+        const heads = await inPage<string[]>(`return JSON.stringify([...document.querySelectorAll('[data-part="prompt-head"]')].map((each) => each.innerText.trim().replace(/\\s+/g, " ")))`);
+        const texts = await inPage<string[]>(`return JSON.stringify([...document.querySelectorAll('[data-part="prompt-text"]')].map((each) => each.innerText.trim()))`);
+
+        assert.match(heads[1]!, /via the hook Remind to check UI before finishing$/);
+        assert.match(texts[1]!, /^You changed UI after your last look at it: .*style\.css\./);
+        await measure(`reminder-${label}`, viewport.width);
+    }
+});
 
 test("Settings › Hooks opens by link, for Pi's screenshots (/?sheet=hooks)", real, async () => {
     await page.setViewport(VIEWPORTS.mobile);

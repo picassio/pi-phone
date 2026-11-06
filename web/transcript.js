@@ -398,7 +398,14 @@ function UserEntry({ entry, view, users }) {
               ? t("Project {key}", { key: team[3] })
               : t("The board")
         : (author ?? (scheduled ? "Pi" : undefined));
-    const viaNote = team?.[2] ? t("task session #{n}", { n: team[2] }) : team ? null : via?.[1];
+    // Sent by one of the app's hooks (PP-422, src/server/ui-reminder.ts): named as Settings › Hooks names it.
+    const viaNote = team?.[2]
+        ? t("task session #{n}", { n: team[2] })
+        : team
+          ? null
+          : via?.[1] === "hook ui-reminder"
+            ? t("the hook {name}", { name: t("Remind to check UI before finishing") })
+            : via?.[1];
     // Your own messages take the accent; someone else's, their color; one from someone the app does not know (a name
     // the message carries, the main agent, Pi's own schedule), a quiet one.
     const mark =

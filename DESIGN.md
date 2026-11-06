@@ -1032,6 +1032,15 @@ so Pi changes them through the settings tools; "the last session" is the one the
     pictures (Pi takes them with `screenshot`). A width that failed or timed out says why; every width failing alike
     (no phone renders) is said once; the publish never fails for it. Off: the result is the publish alone. The phone's
     renderer takes requests one at a time, so the three widths still render one after another (about 6 s on Chrome).
+  - **Remind to check UI before finishing** (`uiReminder`, PP-422, `ui-reminder.ts`; the hook in
+    `extensions/screenshot.ts`): the generation's `onYield` (as goals') reads the turn back from the transcript (to the
+    newest message that is not the app's own follow-up: this reminder, a goal's check) and lists the UI files written or
+    edited after the turn's last look (`screenshot`, `redline`, `browser_screenshot`, `browser_redline`,
+    `browser_layout_check`, `image_compare`; codemode scripts' calls too, failed calls not; artifact publishes count as
+    edits while `artifactCheck` is off). Any: `continue` with `[via hook ui-reminder] …` naming them, which the
+    transcript shows as sent by the hook. Once a turn because the turn's transcript then holds the reminder, so a restart
+    that runs the hook again sends none twice (a memo in the generation task did not hold across its continues: the first
+    try, with one, looped). Subagents have the same hook (they drop only the subagent tools).
 - **Server edition** (`--platform server`, PP-20; the owner's decision of 2026-10-20, board epic PP-19): the same server in
   Docker (`Dockerfile`, `deploy/`), behind Caddy. `main.ts` runs as `phone` unless told `--platform server` (the image sets `PI_PHONE_PLATFORM=server`). On a
   server, Pi's browser is a `ChromeEngine` with its profile kept in `~/.pi/mobile/browser`, screenshots come from
