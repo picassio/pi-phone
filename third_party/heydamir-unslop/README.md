@@ -27,8 +27,13 @@ Modified by pi-phone: one marked note. `SKILL.md` gets one note after its front 
 `snapshot.mjs` on the phone; ask the direction question with `interview` and show mockups as an `artifact`; the
 project's own icons (pi-phone's `ICONS`), never emoji, and pi-phone's tokyo-night palette or a chosen design system as
 the brand (polish mode only); images with `image_generate`, asked first; the story video only on a machine, checked
-with the `media` tool, keeping its "unslop by @heydamir" credit; and its step 6 (Check) follows pi-phone's `ui-verify`
-skill (`src/skills/ui-verify/`, PP-405).
+with the `media` tool, keeping its "unslop by @heydamir" credit; three craft-floor lines (browser surfaces themed from
+the palette, shadows with an offset and a soft blur, more space above a heading than below it; PP-417); and its step 6
+(Check) follows pi-phone's `ui-verify` skill (`src/skills/ui-verify/`, PP-405).
+
+The craft-floor lines are adapted (shortened and reworded) from `reference/craft-floor.md` of
+[Impeccable](https://github.com/pbakaus/impeccable) by Paul Bakaus, at commit `c8891a9`, licensed under the
+[Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). Nothing else of Impeccable is copied.
 
 Nothing else is changed: the credit lines in `SKILL.md` and each reference's footer stay as upstream wrote them. To
 update: change `COMMIT` in `scripts/sync-unslop.ts`, run it, read the new `SKILL.md` against the note, run

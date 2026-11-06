@@ -21,6 +21,15 @@ test("the skill ships with CC BY 4.0, its credit, upstream's files and pi-phone'
     assert.ok(readme.includes("Damir Sokolovsky") && readme.includes("https://github.com/heydamir/unslop"), "credit and link");
     assert.ok(readme.includes("Modified by pi-phone: one marked note"));
 
+    // Impeccable's craft floor (PP-417): three lines inside the marked note, credited in the README.
+    const note = NOTE.join("\n");
+
+    for (const line of [/Text selection, the caret, scrollbars, focus rings, underline offset, tabular numerals/i, /Shadows carry an offset and a soft blur; a zero-offset coloured halo is decoration/, /More space above a heading than below it/]) {
+        assert.match(note, line);
+    }
+
+    assert.ok(readme.includes("https://github.com/pbakaus/impeccable") && readme.includes("Paul Bakaus") && readme.includes("c8891a9") && readme.includes("Apache License 2.0"), "Impeccable's credit");
+
     for (const reference of ["signs.md", "tokens.md", "visuals.md", "effects.md", "refs.md"]) {
         assert.match(readFileSync(join(SKILL, "references", reference), "utf8"), /Part of unslop by Damir Sokolovsky \(\[@heydamir\]\(https:\/\/x\.com\/heydamir\)\), CC BY 4\.0\./, reference);
     }

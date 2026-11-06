@@ -208,7 +208,7 @@
   并按两种打乱的顺序把同样的时刻各画一遍，这样某一帧若取决于之前画过的内容，就会在有人看片之前被发现。
 - **Unslop。** [heydamir 的 unslop](https://github.com/heydamir/unslop) 技能（作者 Damir Sokolovsky，CC BY 4.0）：让 Pi
   unslop、打磨或整理一个界面，它会按一份 AI 界面特征清单（发光、渐变文字、表情符号标签、间距不齐、夸张文案）审查，在卡片上提出方向并等你回答，
-  然后修正间距、颜色、图标、文案、字体、布局、细节、视觉和动效，并用 `screenshot` 检查结果。Pi 在认定一个 HTML 页面或产物完成之前，也会对照这份清单检查。
+  然后修正间距、颜色、图标、文案、字体、布局、细节、视觉和动效，并用 `screenshot` 检查结果。它的底线还包括：文字选区、滚动条和焦点框使用页面自己的颜色，阴影真实，标题上方的留白多于下方。Pi 在认定一个 HTML 页面或产物完成之前，也会对照这份清单检查。
 - **设计与视频。** 以上四项是同一个扩展，默认开启：在 **扩展** 中关闭它（或让 Pi 关闭）后，会话不再带有它的任何技能，
   **菜单 › 设计系统** 也会隐藏，直到再次开启。
 - **形式化检查。** pstack 的 [statechart](https://github.com/cursor/plugins/tree/main/pstack/skills/statechart) 技能：
@@ -673,6 +673,7 @@ pi-phone 大部分是别人的成果，只是为手机把它们组合在了一�
   和 GSAP 技能（作者 GreenSock，MIT），连同各自的许可证位于 `third_party/open-design/`。
 - **[motion-video-kit](https://github.com/echris6/motion-video-kit)**，作者 echris6（MIT）：位于 `third_party/motion-video-kit/` 的 `business-motion-film` 技能。
 - **[unslop](https://github.com/heydamir/unslop)**，作者 Damir Sokolovsky（[@heydamir](https://x.com/heydamir)，CC BY 4.0）：位于 `third_party/heydamir-unslop/` 的 `unslop` 技能，pi-phone 加了一条注释。
+- **[Impeccable](https://github.com/pbakaus/impeccable)**，作者 Paul Bakaus（Apache 2.0）：其 craft floor 中的三条，改写后放入 unslop 的注释。
 - **[pi-review](https://github.com/earendil-works/pi-review)**，作者 Earendil（MIT）：它的审查准则，原样保存在 `third_party/pi-review/`，`/review` 的子代理按它审查。
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)**，作者 Lauren Tan（[@poteto](https://github.com/poteto)，
   MIT）：位于 `third_party/pstack-statechart/` 的 `statechart` 技能，以 Kevin T. Ngo 的

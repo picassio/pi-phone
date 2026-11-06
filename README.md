@@ -310,7 +310,9 @@ No Termux, no laptop, no cloud VM.
 - **Unslop.** [heydamir's unslop](https://github.com/heydamir/unslop) skill (by Damir Sokolovsky, CC BY 4.0): ask Pi
   to unslop, polish or clean up a screen and it audits it against a list of AI-UI tells (glows, gradient text, emoji
   labels, uneven spacing, shouting copy), proposes a direction on a card and waits for your answer, then fixes spacing,
-  colour, icons, copy, type, layout, details, visuals and motion, and checks the result with `screenshot`. Pi also goes
+  colour, icons, copy, type, layout, details, visuals and motion, and checks the result with `screenshot`. Its floor
+  includes selection, scrollbars and focus rings in the page's own colours, real shadows and more space above
+  headings than below. Pi also goes
   through its sign list before calling an HTML page or artifact done.
 - **Design & video.** The four above are one extension, on by default: turn it off in **Extensions** (or ask Pi), and
   sessions carry none of its skills and Menu › Design system goes away until it is on again.
@@ -929,6 +931,8 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
   skill in `third_party/motion-video-kit/`.
 - **[unslop](https://github.com/heydamir/unslop)** by Damir Sokolovsky ([@heydamir](https://x.com/heydamir), CC BY
   4.0): the `unslop` skill in `third_party/heydamir-unslop/`, with one note added by pi-phone.
+- **[Impeccable](https://github.com/pbakaus/impeccable)** by Paul Bakaus (Apache 2.0): three lines of its craft floor,
+  adapted in the unslop note.
 - **[pi-review](https://github.com/earendil-works/pi-review)** by Earendil (MIT): its review rubric, as written, in
   `third_party/pi-review/`, which `/review`'s subagent follows.
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)** by Lauren Tan ([@poteto](https://github.com/poteto),

@@ -320,7 +320,8 @@ dự án thật.</sub>
   unslop, trau chuốt hoặc dọn lại một màn hình, Pi soát nó theo danh sách dấu hiệu của giao diện do AI làm (phát sáng,
   chữ gradient, nhãn emoji, khoảng cách lệch, lời lẽ phô trương), đề xuất một hướng trên một thẻ và chờ bạn trả lời, rồi
   sửa khoảng cách, màu, biểu tượng, chữ, kiểu chữ, bố cục, chi tiết, hình ảnh và chuyển động, và kiểm tra kết quả bằng
-  `screenshot`. Pi cũng soát danh sách dấu hiệu đó trước khi coi một trang HTML hay artifact là xong.
+  `screenshot`. Mức sàn của nó gồm vùng chọn chữ, thanh cuộn và viền focus theo màu của trang, bóng đổ thật và khoảng
+  trống phía trên tiêu đề nhiều hơn phía dưới. Pi cũng soát danh sách dấu hiệu đó trước khi coi một trang HTML hay artifact là xong.
 - **Thiết kế & video.** Bốn mục trên là một tiện ích, bật sẵn: tắt nó trong **Tiện ích** (hoặc nhờ Pi), thì các
   phiên không mang skill nào của nó và Menu › Hệ thống thiết kế biến mất cho tới khi bật lại.
 - **Kiểm chứng hình thức.** Skill [statechart](https://github.com/cursor/plugins/tree/main/pstack/skills/statechart)
@@ -956,6 +957,8 @@ pi-phone phần lớn là công sức của người khác, được ghép lại
   trong `third_party/motion-video-kit/`.
 - **[unslop](https://github.com/heydamir/unslop)** của Damir Sokolovsky ([@heydamir](https://x.com/heydamir), CC BY
   4.0): skill `unslop` trong `third_party/heydamir-unslop/`, với một ghi chú pi-phone thêm vào.
+- **[Impeccable](https://github.com/pbakaus/impeccable)** của Paul Bakaus (Apache 2.0): ba dòng trong mức sàn tay nghề
+  (craft floor) của nó, chuyển thể vào ghi chú của unslop.
 - **[pi-review](https://github.com/earendil-works/pi-review)** của Earendil (MIT): bộ tiêu chí review của nó, giữ nguyên, trong
   `third_party/pi-review/`, mà subagent của `/review` làm theo.
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)** của Lauren Tan ([@poteto](https://github.com/poteto),

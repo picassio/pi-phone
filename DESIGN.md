@@ -1156,7 +1156,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
   One marked note (the attribution's "modified"): look with `screenshot` (Pi's browser on a machine), never
   `snapshot.mjs` or `story.mjs` on the phone; direction with `interview`, mockups as an `artifact`; the project's icons
   (pi-phone's `ICONS`), never emoji, tokyo-night or a chosen design system as the brand (polish mode); images with
-  `image_generate`, asked first; keep the credits. Effective HTML's `design-artifact` note has one sentence more: go
+  `image_generate`, asked first; keep the credits; three craft-floor lines adapted from Impeccable's
+  `reference/craft-floor.md` (Paul Bakaus, Apache 2.0, `c8891a9`; PP-417 after research PP-411): browser surfaces
+  (selection, caret, scrollbars, focus rings, underline offset, tabular numerals) themed from the palette, shadows with
+  an offset and a soft blur, more space above a heading than below it. Effective HTML's `design-artifact` note has one sentence more: go
   through unslop's `references/signs.md` before calling a UI or artifact done. Not in the prompt (every session would
   pay for it); a skill only.
 - **Design & video** (`extensions/design.ts`, PP-247; owner's decision of 2026-10-29): the built-in extension that
