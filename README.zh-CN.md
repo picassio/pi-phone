@@ -204,7 +204,8 @@
 - **演示模板与动效。** 来自 [OpenDesign](https://github.com/nexu-io/open-design) 的五个 HTML 幻灯片模板和 GSAP 动画技能，
   各自采用 MIT 许可证：Pi 从其中一个模板开始制作演示文稿，并以产物形式发布。
 - **商业动效短片。** [Motion Video Kit](https://github.com/echris6/motion-video-kit) 的技能，用代码构建的动效（HTML、GSAP、Three.js）
-  制作发布会风格的商业短片，由全新的评审子代理评判；Pi 在你的某台机器上用 HyperFrames 机器工具渲染（那台机器需要 ffmpeg、numpy 和 scipy）。
+  制作发布会风格的商业短片，由全新的评审子代理评判；Pi 在你的某台机器上用 HyperFrames 机器工具渲染（那台机器需要 ffmpeg、numpy 和 scipy）。每次渲染前，Pi 会运行 `hyperframes check`，
+  并按两种打乱的顺序把同样的时刻各画一遍，这样某一帧若取决于之前画过的内容，就会在有人看片之前被发现。
 - **Unslop。** [heydamir 的 unslop](https://github.com/heydamir/unslop) 技能（作者 Damir Sokolovsky，CC BY 4.0）：让 Pi
   unslop、打磨或整理一个界面，它会按一份 AI 界面特征清单（发光、渐变文字、表情符号标签、间距不齐、夸张文案）审查，在卡片上提出方向并等你回答，
   然后修正间距、颜色、图标、文案、字体、布局、细节、视觉和动效，并用 `screenshot` 检查结果。Pi 在认定一个 HTML 页面或产物完成之前，也会对照这份清单检查。

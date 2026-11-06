@@ -12,7 +12,7 @@ A cut ships only when all of these hold. Critics check them; scripts measure the
 | Effects vs music | ~+4 dB lift within each effect's own frequency band over the music-only mix; never inaudible, never poking out (clicks/ticks spiking 10+ dB at 2–8 kHz read as annoying) | Band-passed 50ms peak vs music-only render |
 | Text contrast | WCAG AA on all settled text (transitional fades excepted) | Framework check / manual sampling |
 | Brand colour | Sampled backgrounds match brand tokens (tone mapping in 3D shifts colours, so measure) | Crop + average pixel |
-| Determinism | Same frame rendered twice from different seek orders gives identical pixels | Seek-consistency test |
+| Determinism | Same frame rendered twice from different seek orders gives identical pixels | Seek-consistency test: `scripts/twice.sh` (pi-phone, PP-413) |
 
 ## Visual (critic-judged)
 

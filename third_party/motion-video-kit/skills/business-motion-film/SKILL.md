@@ -13,6 +13,16 @@ description: Plan, build and quality-check a premium short commercial for a real
 > render, the brief and the references, never your session. Stills of a component or a frame come from the `screenshot`
 > tool (an HTML file, or a page the machine serves through a forwarded port); publish previews with the `artifact` tool.
 
+<!-- pi-phone: added (PP-413). -->
+> **Before every render** (a component's motion proof in step 5, each cut in step 7), run both checks on the machine,
+> with `PATH=~/.pi/mobile/tools/bin:$PATH`, and fix what they find before a critic sees the render:
+> - `hyperframes check <folder>`: lint, runtime errors, text cut off by the frame or its box, motion, WCAG contrast.
+> - `scripts/twice.sh <folder>` (12 frames; a second argument for more): draws the same times twice, each time in
+>   its own shuffled order, and names every time whose two pictures differ (exit 1), with the two stills to compare.
+>   `hyperframes check` passes such a composition. The usual causes: state kept between updates (a counter in
+>   `onUpdate`), unseeded `Math.random`, `Date.now` or `performance.now`, a tween that takes its start value from the
+>   screen (use `fromTo`), video still seeking. This is the Determinism row of `references/quality-bar.md`.
+
 # Business motion film
 
 Make short (15–40s) commercials that look like premium SaaS launch films but sell a real business outcome: explain a service, earn a quote request, follow up on a quote, or refresh an ad. The visuals can be ambitious; the claims must be true.
@@ -66,7 +76,7 @@ Each custom component (3D scene, report UI, booking flow, logo mark) gets its ow
 One root timeline; each scene is a sub-composition; Three.js scenes are rendered from the root seek clock; overlays such as labels, pins and leader lines are positioned from projected 3D anchors every frame (`templates/projected-overlays.js`). Hand objects across scenes at *exact* pixel coordinates, so the last frame of scene A equals the first frame of scene B for the carried object.
 
 ### 7. Full-film Gauntlet
-Render the whole film. Run `scripts/frozen-time.sh` and `scripts/loudness.sh`. Send to a fresh critic with `references/critic-prompts.md` (full-film prompt). Fix the highest-impact items, re-render, and send to a *new* critic that verifies the previous list item by item. Stop at the quality bar or when gains become cosmetic (usually 3–5 rounds).
+Render the whole film (after `hyperframes check` and `scripts/twice.sh` pass: pi-phone note above). Run `scripts/frozen-time.sh` and `scripts/loudness.sh`. Send to a fresh critic with `references/critic-prompts.md` (full-film prompt). Fix the highest-impact items, re-render, and send to a *new* critic that verifies the previous list item by item. Stop at the quality bar or when gains become cosmetic (usually 3–5 rounds).
 
 ### 8. Audio last, but not an afterthought
 Follow `references/audio.md`. For picture-locked music, back-time a real track so its own ending lands on the end card and it plays as one continuous piece, with every cut on its beat (`scripts/backtime-music.py`); offer several tracks under the same picture and let the client pick by ear. Keep the music matched to the buyer's customer and well under the effects (lo-fi or warm acoustic for home services); one soft, rumble-free whoosh per real transition; clean UI sounds only on real actions; per-event levels solved in each effect's band (`scripts/solve-sfx-gains.py`); candidates screened with `scripts/sfx-candidates.py`. Always deliver a music-only fallback, and isolate complaints with it. When the client dislikes an effect, replace it with a cleaner one; don't delete it. Make the hero moments audible.

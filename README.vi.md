@@ -314,7 +314,8 @@ dự án thật.</sub>
 - **Phim chuyển động cho doanh nghiệp.** Skill của [Motion Video Kit](https://github.com/echris6/motion-video-kit) để
   làm quảng cáo ngắn kiểu phim ra mắt sản phẩm bằng chuyển động dựng từ mã (HTML, GSAP, Three.js), được các subagent
   phê bình mới hoàn toàn đánh giá; Pi dựng video trên một máy của bạn bằng công cụ máy HyperFrames (cần ffmpeg, numpy và
-  scipy trên máy đó).
+  scipy trên máy đó). Trước mỗi lần dựng, Pi chạy `hyperframes check` và vẽ cùng các thời điểm hai lần theo hai thứ tự
+  xáo trộn, nên một khung hình phụ thuộc vào những gì đã vẽ trước nó bị phát hiện trước khi có ai xem phim.
 - **Unslop.** Skill [unslop của heydamir](https://github.com/heydamir/unslop) (của Damir Sokolovsky, CC BY 4.0): nhờ Pi
   unslop, trau chuốt hoặc dọn lại một màn hình, Pi soát nó theo danh sách dấu hiệu của giao diện do AI làm (phát sáng,
   chữ gradient, nhãn emoji, khoảng cách lệch, lời lẽ phô trương), đề xuất một hướng trên một thẻ và chờ bạn trả lời, rồi

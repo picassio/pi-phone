@@ -304,7 +304,9 @@ No Termux, no laptop, no cloud VM.
   publishes it as an artifact.
 - **Business motion films.** [Motion Video Kit](https://github.com/echris6/motion-video-kit)'s skill for short
   launch-style commercials in code-built motion (HTML, GSAP, Three.js), judged by fresh critic subagents; Pi renders
-  them on one of your machines with the HyperFrames machine tool (with ffmpeg, numpy and scipy there).
+  them on one of your machines with the HyperFrames machine tool (with ffmpeg, numpy and scipy there). Before each
+  render Pi runs `hyperframes check` and draws the same moments twice in two shuffled orders, so a frame that depends
+  on what was drawn before it is caught before anyone watches the film.
 - **Unslop.** [heydamir's unslop](https://github.com/heydamir/unslop) skill (by Damir Sokolovsky, CC BY 4.0): ask Pi
   to unslop, polish or clean up a screen and it audits it against a list of AI-UI tells (glows, gradient text, emoji
   labels, uneven spacing, shouting copy), proposes a direction on a card and waits for your answer, then fixes spacing,

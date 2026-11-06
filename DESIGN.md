@@ -1138,7 +1138,16 @@ so Pi changes them through the settings tools; "the last session" is the one the
   `business-motion-film/` whole (SKILL.md, references, scripts, templates; 113 KB) in `skills/`, one of Design &
   video's skills. One marked note: render on a machine with the HyperFrames machine tool (PP-246), never on the phone;
   the scripts need ffmpeg, numpy and scipy there (say what is missing, no workaround); each Gauntlet critic is a fresh
-  subagent; stills from `screenshot`.
+  subagent; stills from `screenshot`. **Draw-twice check** (PP-413; owner's decision of 2026-11-06 after research
+  PP-407, wiki `resources/openfilm-video-agent-research`): our `scripts/twice.sh <folder> [count=12]` takes the
+  duration from `hyperframes info --json`, snapshots the same evenly spaced times twice (`hyperframes snapshot --at …
+  --no-end -o .hyperframes/artifacts/twice/{a,b}`), each time in its own fixed shuffle (Park-Miller in awk), compares
+  each pair with ffmpeg (8×8 area averages, largest RGB difference, over 32 of 255 is a different picture: OpenFilm's
+  `look` limit) and says the times, the two stills and the usual causes (exit 1; 0 same; 2 could not check; a warning
+  when every still is identical). `hyperframes check` passes a composition whose `onUpdate` keeps a counter; this
+  catches it (YMAX 133 against 0 for the pure one on tuanlh-devbox-01). A second marked note in SKILL.md: run
+  `hyperframes check` and `twice.sh` before every render; step 7 and quality-bar's Determinism row point to it.
+  `test/motion-twice.test.ts` runs it against a stand-in `hyperframes` drawing with the server edition's ffmpeg.
 - **Unslop** (`third_party/heydamir-unslop/`, PP-327; owner's decision of 2026-11-01 after research PP-300, wiki
   `resources/unslop-research`): heydamir/unslop's `skills/unslop/` (CC BY 4.0, Damir Sokolovsky) at `1d13095`, whole
   (SKILL.md, agents/, references/ with its five webp refs, scripts/; 1.4 MB), copied with upstream's LICENSE by
