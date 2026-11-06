@@ -46,6 +46,23 @@ const PAGES: Record<string, string> = {
     "/gradient": `${head}<div class="col"><p id="hype" style="background:linear-gradient(90deg,#a855f7,#3b82f6);-webkit-background-clip:text;background-clip:text;color:transparent">Supercharge</p></div>`,
     "/caps": `${head}<div class="col"><p id="label" style="text-transform:uppercase;letter-spacing:2px">Navigation</p><p id="tight" style="letter-spacing:-0.5px">Squeezed words</p></div>`,
     "/long": `${head}<div style="overflow-x:auto"><p id="essay" style="width:760px;margin:0">${words.repeat(8)}</p></div>`,
+    // The nine tells adapted from Impeccable's detector (PP-415), each with one that passes beside it: a grey rule down
+    // a quote, a neutral elevation shadow, a dot that pulses once, a heading skip inside the footer, justified text with
+    // hyphens, a heading set tight.
+    "/slop": `${head}<style>@keyframes pulse{50%{opacity:.3}} .dot{width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block} .box{border:1px solid #cccccc;border-radius:8px;padding:8px;margin:8px 0}</style><div class="col">
+      <h1>Title</h1><h3 id="sub">Sub</h3>
+      <div id="tab" style="border-left:4px solid #8b5cf6;border-radius:12px;background:#15151f;color:#eeeeee;padding:16px">A card with a stripe</div>
+      <div id="inset" style="box-shadow:inset 3px 0 0 #e0af68;padding:8px">Critical question here</div>
+      <div style="border-left:3px solid #888888;padding:8px">Grey quote rule</div>
+      <div id="glowcard" style="box-shadow:0 0 40px rgba(139,92,246,0.5);border-radius:16px;width:200px;height:100px">Glow</div>
+      <div style="box-shadow:0 4px 12px rgba(0,0,0,0.3);width:200px;height:60px">Lifted</div>
+      <div id="outer" class="box">Outer card words<div id="inner" class="box" style="height:40px">Inner card words here</div></div>
+      <span id="dot" class="dot" style="animation:pulse 1.5s infinite"></span> <span class="dot" style="animation:pulse 1s 1"></span>
+      <img id="broken" src="/missing.png" alt="Shot" width="80" height="40">
+      <p id="just" style="width:160px;text-align:justify">${words}</p><p style="width:160px;text-align:justify;hyphens:auto" lang="en">${words}</p>
+      <p id="tight" style="line-height:1.1">${words}</p><h2 style="line-height:1.1">${words}</h2>
+      <div id="list" class="box"><p class="a">Read more</p><div class="b">Read more</div><span class="c">Read more</span></div>
+      <footer><h5>Links</h5></footer></div>`,
     // A phone page wider than its screen (PP-414): the browser stretches innerWidth to the content, the page is still a phone's.
     "/overflow": `${head}<div style="width:600px;white-space:nowrap">A row wider than the phone</div><button id="tiny" style="width:28px;height:28px;padding:0">A</button>`,
     // Words over gradients (PP-414): one colour drawn as a gradient, the dark half of a hard-stop band, and a radial
@@ -272,6 +289,44 @@ test("a phone page wider than its screen keeps its tap-target check, and words o
             ['span#left "Dark"', "#3b3f55", "#1a1b26", 1.65, "div#band"],
         ]);
         assert.match(describeLayout(gradient), /- span#left "Dark": #3b3f55 on #1a1b26 \(gradient on div#band\), 1\.65:1 \(needs 4\.5\)/);
+    } finally {
+        await engine.close();
+    }
+});
+
+test("the layout check finds the tells adapted from Impeccable: broken images, skipped headings, nested cards, side-tabs, glows, pulsing dots, narrow justified text, tight leading and repeated words (PP-415)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+
+        await page.init({ width: 390, height: 844, mobile: true });
+
+        const slop = await measured(page, "/slop");
+        const short = (what: string) => what.replace(/ ".*$/, "");
+
+        assert.deepEqual(of(slop, "broken-image").map((find) => [short(find.what), find.src]), [["img#broken", "http://pi.test/missing.png"]]);
+        assert.deepEqual(of(slop, "skipped-heading").map((find) => [short(find.what), find.from, find.to]), [["h3#sub", 1, 3]]);
+        assert.deepEqual(of(slop, "nested-cards").map((find) => [short(find.what), short(find.in)]), [["div#inner.box", "div#outer.box"]]);
+        assert.deepEqual(
+            of(slop, "side-tab").map((find) => [short(find.what), find.side, find.width, find.how]).sort(),
+            [["div#inset", "left", 3, "inset shadow"], ["div#tab", "left", 4, "border"]],
+        );
+        assert.deepEqual(of(slop, "glow").map((find) => [short(find.what), find.property, find.color, find.blur]), [["div#glowcard", "box-shadow", "#8b5cf6", 40]]);
+        assert.deepEqual(of(slop, "pulsing-dot").map((find) => [short(find.what), find.size]), [["span#dot.dot", 8]]);
+        assert.deepEqual(of(slop, "justified").map((find) => short(find.what)), ["p#just"]);
+        assert.deepEqual(of(slop, "tight-leading").map((find) => [short(find.what), find.ratio]), [["p#tight", 1.1]]);
+        assert.deepEqual(of(slop, "repeated-text").map((find) => [short(find.what), find.text, find.times]), [["div#list.box", "Read more", 3]]);
+
+        const text = describeLayout(slop);
+
+        assert.match(text, /\nSide-tab accent stripes \(2\):\n/);
+        assert.match(text, /- div#tab "A card with a stripe": 4 px left border/);
+        assert.match(text, /\nSkipped heading levels \(1\):\n- h3#sub "Sub": h1 then h3, no h2\n/);
+        assert.match(text, /\nCards inside cards \(1\):\n- div#inner\.box "Inner card words here": inside div#outer\.box/);
+        assert.match(text, /\nThe same words repeated in one card \(1\):\n- div#list\.box "Read moreRead moreRead more": "Read more" 3 times(\n|$)/);
+        // Pages in place stay in place.
+        assert.deepEqual((await measured(page, "/clean")).found, []);
     } finally {
         await engine.close();
     }

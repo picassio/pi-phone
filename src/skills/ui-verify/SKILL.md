@@ -14,7 +14,8 @@ numbers. Do every step on the real thing: the artifact, the file, or the live ap
 - `screenshot` at `widths: [390, 1280]` (the phone first). Where the page has both themes and you can show each (a
   `data-theme` you set in your own file, a theme switch in Pi's browser), check both.
 - Read each width's **layout check** before the picture: cut text, covered text or controls, tap targets, off-grid
-  sizes, contrast, small text, emoji, type. Then look at the picture for what numbers cannot say (alignment, balance).
+  sizes, contrast, small text, emoji, type, and the tells of an assembled page (broken images, skipped headings, cards
+  inside cards, side-tab stripes, glows, pulsing dots, narrow justified text, tight leading, repeated words). Then look at the picture for what numbers cannot say (alignment, balance).
   When they disagree, find out why; never explain a number away.
 - A page in Pi's browser (a machine's dev server, a site): `browser_layout_check`, or `browser_screenshot` (its
   answer has the same check).
@@ -47,7 +48,12 @@ Fix, then run steps 1 to 3 again, until these are zero:
   hint between 3:1 and 4.5:1 too, which may stay when the report names it);
 - text under 12 px;
 - emoji or symbol glyphs used as icons (line icons only; in pi-phone `ICONS` in `web/ui.js`);
-- tap targets under 40 px at a phone's width.
+- tap targets under 40 px at a phone's width;
+- broken images, skipped heading levels, and cards inside cards.
+
+Side-tab stripes, glows, pulsing dots, narrow justified text, tight leading and repeated words: fix them in what you
+made or changed unless the design asks for them (a pulse on a live state, a status stripe the owner chose), and say
+which stay and why.
 
 Off-grid sizes and spec misses: fix the ones in what you changed; list the rest instead of rewriting a whole screen.
 

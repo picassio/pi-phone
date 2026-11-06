@@ -332,7 +332,9 @@ No Termux, no laptop, no cloud VM.
   control, tap targets under 40 px on a phone (a hit area laid past a small control counts; a phone page wider than the
   screen still counts as a phone's), padding, gaps, corners and control heights off the 4 px grid or not
   whole pixels, text under WCAG AA contrast (over a gradient too, measured where the words sit) or under 12 px, emoji and symbols used as icons, gradient text, uppercase
-  labels, tight tracking and long lines, grouped with their numbers, and says when a page uses too many font sizes,
+  labels, tight tracking and long lines, and nine tells adapted from Impeccable's detector (broken images, skipped
+  heading levels, cards inside cards, side-tab stripes, glows, pulsing dots, narrow justified text, tight leading and
+  the same words repeated in one card), grouped with their numbers, and says when a page uses too many font sizes,
   text colours or icon sizes. Pi's browser gives the same check with `browser_screenshot`, and alone with
   `browser_layout_check`. Pi goes by the numbers.
 - **Pixel compare.** For pixel-perfect work, `image_compare` compares a new screenshot with a reference picture (a
@@ -352,7 +354,8 @@ No Termux, no laptop, no cloud VM.
 - **UI checked before it is done.** The built-in `ui-verify` skill has Pi verify every artifact, HTML page and app
   screen with numbers before calling it done: the layout check at 390 and 1280 px, redlines against the design
   system's tokens, the mockup or the 4 px rules, `image_compare` against a reference, fixing until there is no cut
-  text, overlap, low contrast, text under 12 px, emoji icon or small tap target left, and a report with the counts
+  text, overlap, low contrast, text under 12 px, emoji icon, small tap target, broken image, skipped heading or card
+  inside a card left, and a report with the counts
   before and after and the redline or diff picture. The HTML, design-system and unslop skills end with it.
 - **Images.** `image_generate` makes and edits images (up to five to edit at once; 1 to 4 at a time; 1:1, 16:9, 9:16,
   4:3 or 3:4) with the model you pick in **Menu › Images** (`image.model`): GPT Image 2.5 on your ChatGPT sign-in (on
@@ -932,8 +935,9 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
   skill in `third_party/motion-video-kit/`.
 - **[unslop](https://github.com/heydamir/unslop)** by Damir Sokolovsky ([@heydamir](https://x.com/heydamir), CC BY
   4.0): the `unslop` skill in `third_party/heydamir-unslop/`, with one note added by pi-phone.
-- **[Impeccable](https://github.com/pbakaus/impeccable)** by Paul Bakaus (Apache 2.0): three lines of its craft floor,
-  adapted in the unslop note.
+- **[Impeccable](https://github.com/pbakaus/impeccable)** by Paul Bakaus (Apache 2.0): nine of its detector's rules,
+  reimplemented in the screenshot layout check, and three lines of its craft floor, adapted in the unslop note;
+  licence and list in `third_party/impeccable/`.
 - **[pi-review](https://github.com/earendil-works/pi-review)** by Earendil (MIT): its review rubric, as written, in
   `third_party/pi-review/`, which `/review`'s subagent follows.
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)** by Lauren Tan ([@poteto](https://github.com/poteto),

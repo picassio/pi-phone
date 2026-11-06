@@ -944,6 +944,23 @@ so Pi changes them through the settings tools; "the last session" is the one the
     picture; a page it cannot run on still gets its picture and the reason), and `browser_layout_check` (deferred)
     gives it without a picture. Element names quote the page, so Pi's browser fences them as page data. Later rules
     (equal rows, alignment, nested radii, glows, motion, copy) are listed on the wiki page.
+  - **Tells adapted from Impeccable** (PP-415; the owner's choice of 2026-11-06 after research PP-411, wiki
+    `resources/impeccable-design-skill-research`: port rules by hand, not its 3.1 MB WebAssembly bundle or its skill).
+    Nine of Impeccable's 62 detector rules, reimplemented in the same page script with its thresholds
+    (`third_party/impeccable/README.md` lists them; Apache-2.0, Paul Bakaus, commit `c8891a9`, credited in the
+    script's header): broken images (loaded, nothing to draw); skipped heading levels (outside a footer); cards inside
+    cards (a card: a border on three sides or a shadow, with corners or a background; innermost only, in flow, with
+    10 characters of words, at least 50 x 40; not a control or list item drawn as a card, a field's box, a band along
+    the outer card's edges, inside a menu, listbox, tab list, radio group or toolbar; the outer card not a dialog or a
+    panel 80 % of the view tall); side-tab stripes (border-left or -right of 2 px on a rounded box, 3 px on a square
+    one, coloured with chroma, the other sides at most 1 px or half as wide; or an inset shadow 2 to 12 px drawn as a
+    stripe); glows (a coloured shadow, blur over 4 px and blur x alpha at least 3, lit area at most twice the
+    element's, with no offset or on a dark background); pulsing dots (16 px or smaller, round, animated for ever);
+    justified text in a column of 45 characters or fewer without hyphens; tight leading (under 1.3 on body text over
+    50 characters and two lines, below 24 px, not headings, bold titles or code); the same words (4 to 48 characters)
+    in three or more distinct spots of one card. ui-verify holds broken images, skipped headings and nested cards to
+    zero; the others are fixed in what Pi made unless the design asks for them (a live state's pulse).
+    `test/layout-polish-ui.test.ts` holds pi-phone's main screens to none but the pulse.
   - **Pixel compare** (`image_compare`, `image-compare.ts`, PP-396): for pixel-perfect work, a picture against a
     reference (a mockup or design file, or a screenshot kept once it was right: `screenshot`'s save,
     `browser_screenshot`'s path). A tool of its own, not a `compare` option on the screenshot tools: one place for any
@@ -1168,6 +1185,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
   an offset and a soft blur, more space above a heading than below it. Effective HTML's `design-artifact` note has one sentence more: go
   through unslop's `references/signs.md` before calling a UI or artifact done. Not in the prompt (every session would
   pay for it); a skill only.
+- **Impeccable's rules** (`third_party/impeccable/`, PP-415): no file copied; nine detector rules of pbakaus/impeccable
+  (Apache-2.0, Paul Bakaus) at `c8891a9` reimplemented in `src/server/layout-check.ts` (see the layout check above),
+  with upstream's LICENSE and a README naming each rule, what was kept and what changed. Nothing to sync.
 - **Design & video** (`extensions/design.ts`, PP-247; owner's decision of 2026-10-29): the built-in extension that
   owns all of the above, so the owner can drop it in one switch (Settings › Extensions, or `extensions.design.ts` with
   `setting_change`). On by default. While on, `PocketApp.builtInSkills()` adds `DESIGN_SKILLS` (`src/design/skills/`,

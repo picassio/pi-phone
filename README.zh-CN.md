@@ -221,7 +221,7 @@
 - **带测量数据的截图。** 每个宽度的 `screenshot` 都附带一份布局检查，在页面绘制前运行：哪些内容溢出了自身的框或父元素，页面是否比屏幕更宽，
   并给出具体尺寸。它还会找出让页面显得粗糙的地方：被自身框裁掉的文字（省略号、被截断的行）、遮住其他元素文字或控件的元素、手机上小于
   40 px 的点按区域（小控件向外扩出的点按层也算在内；比屏幕更宽的手机页面仍按手机页面检查）、不在 4 px 网格上或不是整像素的内边距、间距、圆角和控件高度、低于 WCAG AA 对比度（渐变背景上也算，在文字所在处测量）或小于 12 px 的文字、当作图标用的
-  emoji 和符号、渐变文字、大写标签、负字距和过长的行，按组列出并附数字；页面用了太多字号、文字颜色或图标尺寸时也会说明。Pi 的浏览器
+  emoji 和符号、渐变文字、大写标签、负字距和过长的行，以及取自 Impeccable 检测器的九种迹象（坏图、跳过的标题级别、卡片套卡片、单侧强调色条、发光阴影、闪烁圆点、窄栏两端对齐文字、过紧的行高、同一卡片内重复的文字），按组列出并附数字；页面用了太多字号、文字颜色或图标尺寸时也会说明。Pi 的浏览器
   通过 `browser_screenshot` 给出同样的检查，也可以用 `browser_layout_check` 单独运行。Pi 以这些数字为准。
 - **逐像素比对。** 为了做到像素级精确的界面，`image_compare` 把新截图与参考图（设计稿，或 Pi 在页面正确时保存的截图）逐像素比对：
   给出变化像素的比例、各变化区域的位置和尺寸，并在截图旁保存一张差异图，变化处标红，各区域加框编号。抗锯齿边缘默认忽略，
@@ -234,7 +234,7 @@
   图片文件没有 DOM：请用 `image_compare` 比对。
 - **界面完成前先检查。** 内置的 `ui-verify` 技能让 Pi 在说完成之前用数字检查每个 artifact、HTML 页面和 app 界面：
   390 和 1280 px 的布局检查、按设计系统 token、设计稿或 4 px 规则的标注、与参考图的 `image_compare`，修改到没有被裁文字、
-  重叠、低对比度、小于 12 px 的文字、emoji 图标或过小的点按区域为止，并附上前后计数和标注图或差异图。HTML、design-system
+  重叠、低对比度、小于 12 px 的文字、emoji 图标、过小的点按区域、坏图、跳过的标题级别或卡片套卡片为止，并附上前后计数和标注图或差异图。HTML、design-system
   和 unslop 技能最后都会用它。
 - **图片。** `image_generate` 生成和编辑图片（一次最多编辑五张；一次生成 1 到 4 张；1:1、16:9、9:16、4:3 或 3:4），
   使用你在 **菜单 › 图片**（`image.model`）中选择的模型：通过 ChatGPT 登录的 GPT Image 2.5（计入套餐，花费中按张数统计）、
@@ -673,7 +673,7 @@ pi-phone 大部分是别人的成果，只是为手机把它们组合在了一�
   和 GSAP 技能（作者 GreenSock，MIT），连同各自的许可证位于 `third_party/open-design/`。
 - **[motion-video-kit](https://github.com/echris6/motion-video-kit)**，作者 echris6（MIT）：位于 `third_party/motion-video-kit/` 的 `business-motion-film` 技能。
 - **[unslop](https://github.com/heydamir/unslop)**，作者 Damir Sokolovsky（[@heydamir](https://x.com/heydamir)，CC BY 4.0）：位于 `third_party/heydamir-unslop/` 的 `unslop` 技能，pi-phone 加了一条注释。
-- **[Impeccable](https://github.com/pbakaus/impeccable)**，作者 Paul Bakaus（Apache 2.0）：其 craft floor 中的三条，改写后放入 unslop 的注释。
+- **[Impeccable](https://github.com/pbakaus/impeccable)**，作者 Paul Bakaus（Apache 2.0）：其检测器中的九条规则，在截图的布局检查里重新实现；其 craft floor 中的三条，改写后放入 unslop 的注释；许可证和清单位于 `third_party/impeccable/`。
 - **[pi-review](https://github.com/earendil-works/pi-review)**，作者 Earendil（MIT）：它的审查准则，原样保存在 `third_party/pi-review/`，`/review` 的子代理按它审查。
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)**，作者 Lauren Tan（[@poteto](https://github.com/poteto)，
   MIT）：位于 `third_party/pstack-statechart/` 的 `statechart` 技能，以 Kevin T. Ngo 的

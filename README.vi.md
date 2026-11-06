@@ -341,7 +341,9 @@ dự án thật.</sub>
   khác, vùng chạm nhỏ hơn 40 px trên điện thoại (tính cả lớp chạm phủ rộng ra ngoài nút nhỏ; trang điện thoại rộng hơn
   màn hình vẫn được tính là trang điện thoại), padding, khoảng cách, bo góc và chiều cao nút lệch lưới 4 px hoặc
   không tròn điểm ảnh, chữ có độ tương phản dưới chuẩn WCAG AA (cả trên nền gradient, đo đúng chỗ chữ nằm) hoặc nhỏ hơn 12 px, emoji và ký hiệu dùng làm biểu
-  tượng, chữ gradient, nhãn viết hoa, giãn chữ âm và dòng quá dài, gom nhóm kèm số đo, và báo khi trang dùng quá nhiều
+  tượng, chữ gradient, nhãn viết hoa, giãn chữ âm và dòng quá dài, cùng chín dấu hiệu lấy từ bộ dò của Impeccable (ảnh
+  hỏng, nhảy cấp tiêu đề, thẻ lồng trong thẻ, sọc nhấn một bên, bóng phát sáng, chấm nhấp nháy, chữ căn đều trong cột
+  hẹp, dòng chữ quá sát và cùng một chữ lặp trong một thẻ), gom nhóm kèm số đo, và báo khi trang dùng quá nhiều
   cỡ chữ, màu chữ hoặc cỡ biểu tượng. Trình duyệt của Pi cho cùng phép kiểm tra đó với `browser_screenshot`, và riêng
   bằng `browser_layout_check`. Pi dựa vào các con số.
 - **So từng điểm ảnh.** Để làm giao diện chuẩn đến từng điểm ảnh, `image_compare` so một ảnh chụp mới với một hình
@@ -361,7 +363,8 @@ dự án thật.</sub>
 - **Kiểm tra giao diện trước khi xong.** Skill có sẵn `ui-verify` bắt Pi kiểm tra mọi artifact, trang HTML và màn hình
   của app bằng số đo trước khi nói là xong: layout check ở 390 và 1280 px, redline theo token của design system, theo
   mockup hoặc theo luật 4 px, `image_compare` với ảnh mẫu, sửa cho tới khi không còn chữ bị cắt, phần tử đè nhau, độ
-  tương phản thấp, chữ dưới 12 px, icon emoji hay vùng chạm nhỏ, rồi báo cáo kèm số đếm trước và sau cùng hình redline
+  tương phản thấp, chữ dưới 12 px, icon emoji, vùng chạm nhỏ, ảnh hỏng, nhảy cấp tiêu đề hay thẻ lồng trong thẻ, rồi
+  báo cáo kèm số đếm trước và sau cùng hình redline
   hoặc hình khác biệt. Các skill HTML, design-system và unslop đều kết thúc bằng nó.
 - **Hình ảnh.** `image_generate` tạo và sửa hình ảnh (sửa tối đa năm hình một lần; tạo 1 đến 4 hình; 1:1, 16:9,
   9:16, 4:3 hoặc 3:4) bằng mô hình bạn chọn ở **Menu › Hình ảnh** (`image.model`): GPT Image 2.5 qua đăng nhập
@@ -958,8 +961,9 @@ pi-phone phần lớn là công sức của người khác, được ghép lại
   trong `third_party/motion-video-kit/`.
 - **[unslop](https://github.com/heydamir/unslop)** của Damir Sokolovsky ([@heydamir](https://x.com/heydamir), CC BY
   4.0): skill `unslop` trong `third_party/heydamir-unslop/`, với một ghi chú pi-phone thêm vào.
-- **[Impeccable](https://github.com/pbakaus/impeccable)** của Paul Bakaus (Apache 2.0): ba dòng trong mức sàn tay nghề
-  (craft floor) của nó, chuyển thể vào ghi chú của unslop.
+- **[Impeccable](https://github.com/pbakaus/impeccable)** của Paul Bakaus (Apache 2.0): chín luật trong bộ dò của nó,
+  viết lại trong phép kiểm tra bố cục của ảnh chụp, và ba dòng trong mức sàn tay nghề (craft floor), chuyển thể vào
+  ghi chú của unslop; giấy phép và danh sách trong `third_party/impeccable/`.
 - **[pi-review](https://github.com/earendil-works/pi-review)** của Earendil (MIT): bộ tiêu chí review của nó, giữ nguyên, trong
   `third_party/pi-review/`, mà subagent của `/review` làm theo.
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)** của Lauren Tan ([@poteto](https://github.com/poteto),

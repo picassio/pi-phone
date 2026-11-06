@@ -11,6 +11,13 @@
  * lines, and how many font sizes, text colours, font families and icon sizes the page uses. Findings come grouped (the
  * same kind of element with the same numbers once, with a count) so the report stays short. Pi's browser runs the same
  * check (`browser_screenshot`, `browser_layout_check`).
+ *
+ * Since PP-415 it also finds nine tells of a page assembled rather than designed: broken images, skipped heading levels,
+ * cards inside cards, side-tab accent stripes, glowing shadows, pulsing dots, justified text in a narrow column, tight
+ * line height on body text, and the same words repeated in one card. These rules are adapted from Impeccable's
+ * detector (https://github.com/pbakaus/impeccable, commit c8891a9ae865d6ee311836ae5199bfce0fe115b1, Copyright Paul
+ * Bakaus, licensed under the Apache License 2.0; see third_party/impeccable/LICENSE and README.md): reimplemented here
+ * in a page script with fewer exceptions, their thresholds kept where they apply.
  */
 
 /** One thing out of place: what it is, and the boxes that show it (x and width, CSS pixels). */
@@ -33,7 +40,17 @@ export type LayoutFind =
     | { kind: "gradient-text"; what: string; count: number }
     | { kind: "uppercase"; what: string; transform: string; tracking: number; count: number }
     | { kind: "tight-tracking"; what: string; size: number; tracking: number; count: number }
-    | { kind: "long-lines"; what: string; chars: number; count: number };
+    | { kind: "long-lines"; what: string; chars: number; count: number }
+    // PP-415, adapted from Impeccable's detector (third_party/impeccable/README.md).
+    | { kind: "broken-image"; what: string; src: string; count: number }
+    | { kind: "skipped-heading"; what: string; from: number; to: number; count: number }
+    | { kind: "nested-cards"; what: string; in: string; count: number }
+    | { kind: "side-tab"; what: string; side: "left" | "right"; width: number; how: "border" | "inset shadow"; count: number }
+    | { kind: "glow"; what: string; property: string; color: string; blur: number; count: number }
+    | { kind: "pulsing-dot"; what: string; size: number; animation: string; count: number }
+    | { kind: "justified"; what: string; chars: number; count: number }
+    | { kind: "tight-leading"; what: string; size: number; ratio: number; count: number }
+    | { kind: "repeated-text"; what: string; text: string; times: number; count: number };
 
 export type LayoutFindKind = LayoutFind["kind"];
 
@@ -392,6 +409,27 @@ ${PAGE_HELPERS}
   };
   const sizes = new Set(), colours = new Set(), families = new Set(), icons = new Set(), strokes = new Set();
   const long = [];
+  // PP-415, rules adapted from Impeccable's detector (Apache-2.0, third_party/impeccable/README.md): what a page that
+  // was assembled rather than designed shows. A colour with chroma: its channels at least 30 apart.
+  const chroma = (c) => c !== null && c[3] > 0.1 && Math.max(c[0], c[1], c[2]) - Math.min(c[0], c[1], c[2]) >= 30;
+  // Shadow layers as Chrome computes them: a colour, then lengths (x, y, blur, spread), and inset.
+  const shadows = (v) => v === 'none' || !v ? [] : splitTop(v).map((layer) => {
+    const m = /^([a-z]+\([^()]*\))\s*(.*)$/i.exec(layer);
+    if (!m) return null;
+    const n = m[2].replace('inset', '').trim().split(/\s+/).map(px);
+    return { c: colour(m[1]), x: n[0] || 0, y: n[1] || 0, blur: n[2] || 0, spread: n[3] || 0, inset: /\binset\b/.test(m[2]) };
+  }).filter(Boolean);
+  const corners = (style) => [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].map(px);
+  const SIDE = ['Top', 'Right', 'Bottom', 'Left'];
+  const borderWidths = (style) => SIDE.map((k) => colour(style['border' + k + 'Color']) !== null && style['border' + k + 'Style'] !== 'none' ? px(style['border' + k + 'Width']) : 0);
+  // A card: a border on three sides or more, or a shadow, with rounded corners or a background of its own.
+  const card = (x) => {
+    const st = css(x), bg = colour(st.backgroundColor);
+    const edged = borderWidths(st).filter((w) => w >= 1).length >= 3 || shadows(st.boxShadow).some((l) => !l.inset && l.c && l.c[3] > 0.05);
+    return edged && (corners(st).some((v) => v > 0) || (bg !== null && bg[3] > 0.05) || st.backgroundImage !== 'none');
+  };
+  const BORDER_SAFE = /^(blockquote|nav|a|input|textarea|select|pre|code|span|th|td|tr|li|button|hr|img|svg)$/;
+  const nestedCandidates = [], headings = [], containers = [];
 
   for (const e of document.body ? document.body.querySelectorAll('*') : []) {
     if (++checked > 4000) break;
@@ -428,6 +466,43 @@ ${PAGE_HELPERS}
       if (Math.abs(r.width - Math.round(r.width)) > 0.01 || Math.abs(r.height - Math.round(r.height)) > 0.01) group('off-grid', 'icon|' + r2(r.width), () => ({ what: name(e), property: 'icon width', value: r2(r.width) }));
     }
     if ((style.webkitBackgroundClip === 'text' || style.backgroundClip === 'text') && style.backgroundImage !== 'none') group('gradient-text', sig(e), () => ({ what: name(e) }));
+    // Broken images: loaded, with nothing to draw.
+    if (tag === 'img' && e.complete && e.naturalWidth === 0 && (e.currentSrc || e.getAttribute('src'))) group('broken-image', sig(e) + '|' + (e.currentSrc || e.getAttribute('src')), () => ({ what: name(e), src: trim(e.currentSrc || e.getAttribute('src'), 80) }));
+    if (/^h[1-6]$/.test(tag)) headings.push(e);
+    const radii = corners(style);
+    const circle = Math.abs(r.width - r.height) <= Math.max(r.width, r.height) * 0.1 && radii.every((v) => v >= Math.min(r.width, r.height) / 2 - 0.5);
+    // Side-tab: a coloured stripe down one side of a card (border-left or -right of 2 px or more on a rounded box, 3 px
+    // or more on a square one, the other sides at most 1 px or half as wide), or an inset shadow drawn as one.
+    if (!BORDER_SAFE.test(tag) && !circle && (e.textContent || '').trim()) {
+      const widths = borderWidths(style);
+      for (const i of [1, 3]) {
+        const w = widths[i], others = Math.max(...widths.filter((_, j) => j !== i));
+        if (w >= 2 && (others <= 1 || w >= others * 2) && chroma(colour(style['border' + SIDE[i] + 'Color'])) && (radii.some((v) => v > 0) || w >= 3)) group('side-tab', sig(e) + '|' + i + '|' + w, () => ({ what: name(e), side: i === 1 ? 'right' : 'left', width: r1(w), how: 'border' }));
+      }
+      for (const l of shadows(style.boxShadow)) {
+        if (l.inset && l.y === 0 && l.blur === 0 && l.spread === 0 && Math.abs(l.x) >= 2 && Math.abs(l.x) <= 12 && chroma(l.c)) group('side-tab', sig(e) + '|inset|' + l.x, () => ({ what: name(e), side: l.x > 0 ? 'left' : 'right', width: r1(Math.abs(l.x)), how: 'inset shadow' }));
+      }
+    }
+    // Glow: a coloured shadow with a soft blur and no offset, or any on a dark background; a halo many times its
+    // element's size is an indicator's light, and a faint one is not seen.
+    const dark = (() => { const b = backdrop(e); return b !== null && lum(b) < 0.1; });
+    for (const [prop, value] of [['box-shadow', style.boxShadow], ['text-shadow', style.textShadow]]) {
+      const glow = shadows(value).find((l) => {
+        if (l.inset || !chroma(l.c) || l.blur <= 4 || l.blur * l.c[3] * opacityOf(e) < 3) return false;
+        const reach = l.blur / 2 + l.spread, area = r.width * r.height;
+        if (reach <= 0 || (r.width + 2 * reach) * (r.height + 2 * reach) - area > area * 2) return false;
+        return (l.x === 0 && l.y === 0) || dark();
+      });
+      if (glow) { group('glow', sig(e) + '|' + hex(glow.c), () => ({ what: name(e), property: prop, color: hex(glow.c), blur: r1(glow.blur) })); break; }
+    }
+    // A pulsing dot: a small round dot that animates for ever.
+    if (r.width <= 16 && r.height <= 16 && circle && style.animationName !== 'none' && /infinite/.test(style.animationIterationCount)) group('pulsing-dot', sig(e), () => ({ what: name(e), size: r1(Math.max(r.width, r.height)), animation: trim(style.animationName, 30) }));
+    // Candidates for the passes after this loop: cards in cards, and boxes whose words repeat.
+    // A control or a list item drawn as a card (a board's task button) is not a card that holds others.
+    if (card(e)) {
+      if (/^(div|section|article|aside|main|figure|form|fieldset|details|li)$/.test(tag)) containers.push(e);
+      if (!/^(blockquote|nav|a|button|label|li|span|pre|code|th|td|tr|input|textarea|select|img|video|canvas|picture)$/.test(tag) && !e.matches(CONTROL)) nestedCandidates.push(e);
+    }
     if (['p', 'li', 'blockquote', 'dd'].includes(tag) && (e.textContent || '').length >= 200) long.push(e);
     if (e.matches(CONTROL)) {
       const inline = tag === 'a' && style.display === 'inline' && [...(e.parentElement ? e.parentElement.childNodes : [])].some((n) => n.nodeType === 3 && n.textContent.trim() !== '');
@@ -445,6 +520,52 @@ ${PAGE_HELPERS}
         }
       }
     }
+  }
+
+  // Cards inside cards (Impeccable's nested-cards): the innermost card, in flow, with words, at least 50 x 30, that is
+  // not a one-line label, a field's box, or a band along its card's edges; the outer card is not a page frame (as tall
+  // as the view), a dialog or a layer over the page.
+  const nested = [];
+  for (const e of nestedCandidates) {
+    const st = css(e), r = e.getBoundingClientRect();
+    if (/absolute|fixed/.test(st.position) || /^(inline|contents)$/.test(st.display) || e.closest('[role=menu],[role=listbox],[role=tablist],[role=radiogroup],[role=toolbar]')) continue;
+    if ((e.textContent || '').trim().length < 10 || r.width < 50 || r.height < 40) continue;
+    if (e.querySelector('input:not([type=hidden]),select,textarea') && (e.textContent || '').trim().length < 30) continue;
+    let outer = null;
+    for (let a = e.parentElement; a && a !== document.body; a = a.parentElement) if (nestedCandidates.includes(a)) { outer = a; break; }
+    if (!outer || outer.matches(LAYER)) continue;
+    const q = outer.getBoundingClientRect();
+    if (q.height >= VH * 0.8 && q.width >= VW * 0.2) continue;
+    const edges = [Math.abs(r.top - q.top), Math.abs(r.right - q.right), Math.abs(r.bottom - q.bottom), Math.abs(r.left - q.left)].filter((d) => d <= 2).length;
+    if (edges >= 2) continue;
+    nested.push([e, outer]);
+  }
+  for (const [e, outer] of nested) if (!nested.some(([x]) => x !== e && e.contains(x))) group('nested-cards', sig(e) + '|' + sig(outer), () => ({ what: name(e), in: name(outer) }));
+  // Skipped heading levels: an h1 followed by an h3, outside a footer.
+  for (let i = 1; i < headings.length; i++) {
+    const from = Number(headings[i - 1].tagName[1]), to = Number(headings[i].tagName[1]);
+    if (to > from + 1 && !headings[i].closest('footer,[role=contentinfo]')) group('skipped-heading', 'h' + from + '|h' + to + '|' + sig(headings[i]), () => ({ what: name(headings[i]), from, to }));
+  }
+  // The same words in three or more different spots of one card (Impeccable's repeated-container-text): the card's own
+  // elements, not those of a card inside it, 4 to 48 characters with a letter, outside tables, menus and navigation.
+  const SKIP_REPEAT = 'table,select,datalist,nav,menu,[role=navigation],[role=menu],[role=menubar],[role=listbox],[role=grid],[role=tablist],[role=radiogroup],[aria-hidden=true]';
+  for (const box of containers) {
+    if (box.closest(SKIP_REPEAT)) continue;
+    const inside = box.querySelectorAll('*');
+    if (inside.length > 250) continue;
+    const spots = new Map();
+    for (const d of inside) {
+      let owner = d.parentElement;
+      while (owner && owner !== box && !containers.includes(owner)) owner = owner.parentElement;
+      if (owner !== box || d.closest(SKIP_REPEAT) || !shows(d, d.getBoundingClientRect())) continue;
+      const own = [...d.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join(' ').replace(/\s+/g, ' ').trim();
+      if (own.length < 4 || own.length > 48 || !/\p{L}/u.test(own)) continue;
+      const path = [];
+      for (let c = d; c && c !== box; c = c.parentElement) path.push(c.tagName.toLowerCase() + [...c.classList].sort().map((k) => '.' + k).join(''));
+      if (!spots.has(own)) spots.set(own, new Set());
+      spots.get(own).add(path.join('>'));
+    }
+    for (const [text, paths] of spots) if (paths.size >= 3) group('repeated-text', sig(box) + '|' + text, () => ({ what: name(box), text, times: paths.size }));
   }
 
   // Text: what each run of words shows, its size, colour and contrast, and what covers it.
@@ -512,6 +633,18 @@ ${PAGE_HELPERS}
     if ((s.textTransform === 'uppercase' || s.textTransform === 'capitalize') && letters) group('uppercase', sig(p) + '|' + s.textTransform, () => ({ what: name(p), transform: s.textTransform, tracking }));
     else if (letters.length >= 4 && letters === letters.toUpperCase() && letters !== letters.toLowerCase() && tracking > 0.5) group('uppercase', sig(p) + '|caps', () => ({ what: name(p), transform: 'capitals', tracking }));
     if (tracking < 0 && size < 16) group('tight-tracking', sig(p) + '|' + tracking, () => ({ what: name(p), size: r1(size), tracking }));
+    // Justified text in a narrow column (45 characters a line or fewer) without hyphens, and body text over more than
+    // one line set tighter than 1.3 (not headings, display type from 24 px, bold titles or code).
+    const lineTops = new Set(rects.map((q) => Math.round(q.top)));
+    if (s.textAlign === 'justify' && lineTops.size >= 2 && (s.hyphens || s.webkitHyphens) !== 'auto') {
+      const chars = Math.round(p.getBoundingClientRect().width / (size * 0.5));
+      if (chars <= 45) group('justified', sig(p), () => ({ what: name(p), chars }));
+    }
+    const pitch = px(s.lineHeight);
+    if (pitch > 0 && size < 24 && lineTops.size >= 2 && words.length > 50 && Number(s.fontWeight) < 600 && !p.closest('h1,h2,h3,h4,h5,h6,[role=heading],pre,code,samp')) {
+      const ratio = Math.round(pitch / size * 100) / 100;
+      if (ratio < 1.3) group('tight-leading', sig(p) + '|' + ratio, () => ({ what: name(p), size: r1(size), ratio }));
+    }
     // Contrast, WCAG AA: 4.5, or 3 for large text (24 px, or 18.66 px bold); disabled controls are exempt.
     // Over a gradient (PP-414): measured where the words sit (three points on the first line, the middle of the last),
     // the lowest of them, with the element that paints it.
@@ -582,6 +715,15 @@ const KINDS: [LayoutFindKind, string][] = [
     ["uppercase", "Uppercase labels (not sentence case)"],
     ["tight-tracking", "Negative letter spacing on small text"],
     ["long-lines", "Long lines"],
+    ["broken-image", "Broken images"],
+    ["skipped-heading", "Skipped heading levels"],
+    ["nested-cards", "Cards inside cards"],
+    ["side-tab", "Side-tab accent stripes"],
+    ["glow", "Glowing shadows"],
+    ["pulsing-dot", "Pulsing dots"],
+    ["justified", "Justified text in a narrow column"],
+    ["tight-leading", "Tight line height on body text"],
+    ["repeated-text", "The same words repeated in one card"],
 ];
 
 /** One finding in words, with its numbers. */
@@ -611,6 +753,24 @@ function findWords(find: LayoutFind): string {
             return `${find.what}: ${find.tracking} px at ${find.size} px${times}`;
         case "long-lines":
             return `${find.what}: about ${find.chars} characters a line${times}`;
+        case "broken-image":
+            return `${find.what}: ${find.src} has nothing to draw${times}`;
+        case "skipped-heading":
+            return `${find.what}: h${find.from} then h${find.to}, no h${find.from + 1}${times}`;
+        case "nested-cards":
+            return `${find.what}: inside ${find.in}${times}`;
+        case "side-tab":
+            return `${find.what}: ${find.width} px ${find.side} ${find.how === "border" ? "border" : "inset shadow"}${times}`;
+        case "glow":
+            return `${find.what}: ${find.property} ${find.color}, blur ${find.blur} px${times}`;
+        case "pulsing-dot":
+            return `${find.what}: ${find.size} px, animation ${find.animation}${times}`;
+        case "justified":
+            return `${find.what}: about ${find.chars} characters a line${times}`;
+        case "tight-leading":
+            return `${find.what}: line height ${find.ratio}× at ${find.size} px (needs 1.3)${times}`;
+        case "repeated-text":
+            return `${find.what}: "${find.text}" ${find.times} times${times}`;
     }
 }
 
