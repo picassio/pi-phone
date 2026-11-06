@@ -901,7 +901,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
   (`config.videoAskModel`, Menu › Videos, `setting_change`): a listed model, or null for google/gemini-3.5-flash-lite;
   one not listed fails naming the setting.
 - **Screenshots** (`src/server/screenshots.ts`, `extensions/screenshot.ts`, `android/.../Renderer.java`; owner's decision of
-  2026-10-18): Pi sees what it made. `screenshot({ artifact | path | url, widths = [390, 1280], fullPage, settle })`
+  2026-10-18): Pi sees what it made. `screenshot({ artifact | path | url, widths = [390, 1280, 1920], fullPage, settle })`
+  (1920, a large screen's, since PP-420: the owner found 1280 not enough). Its pictures go as they are, not scaled:
+  1920 px wide and at most 2000 tall a part, under the 2000 px a side models take, so its text is as sharp as the
+  1280 one's. Measured on the phone (Settings › Appearance open, 800 px tall): 37 KB at 390, 83 KB at 1280, 92 KB at
+  1920; a model that scales a picture to 1568 px a side (Claude) reads a 1920 × 2000 part as about 3,100 tokens, a
+  1280 × 2000 one as about 2,100. The 4000 px cap stays: the renderer's display is width × 4000 (31 MB a frame at 1920).
   asks the app's service, which long-polls `GET /api/phone/renders` (beside `/api/phone/events`), to draw the page in an
   off-screen WebView of the app (on a private virtual display of its own at density 1, laid out at the page's size, at most
   4000 px tall; the picture is the frame the GPU composed, since `view.draw` into a canvas misplaced composited layers,
@@ -1003,7 +1008,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
     and `save`. `redline` is not in plan mode (it may write); `browser_redline` is, as all of Pi's browser.
   - **ui-verify** (`src/skills/ui-verify/SKILL.md`, PP-405): pi-phone's own skill, in every session like
     getting-started (`builtInSkills()`'s `src/skills/`, not behind Design & video, as the screenshot tools it uses are
-    always there). It puts the checks above in one order: `screenshot` at 390 and 1280 px (the layout check's numbers
+    always there). It puts the checks above in one order: `screenshot` at 390, 1280 and 1920 px (the layout check's numbers
     before the picture; Pi's browser: `browser_layout_check`), `redline` with a spec (a design system's tokens.css,
     the mockup's numbers, else the owner's 4 px rules), `image_compare` against a reference (threshold 0.15 for JPEG
     screenshots), fix and rerun until the must-fix kinds are zero (cut text unless intended, overlaps, contrast under

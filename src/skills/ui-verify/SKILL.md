@@ -1,6 +1,6 @@
 ---
 name: ui-verify
-description: "Verify a UI with numbers before calling it done: layout check at 390 and 1280 px, redlines against a spec, pixel compare against a mockup, fix and rerun until the must-fix kinds are zero, then report before/after with the picture. Use for artifacts, HTML pages and pi-phone's own app UI, whenever you made or changed a screen, and before saying any UI work is finished."
+description: "Verify a UI with numbers before calling it done: layout check at 390, 1280 and 1920 px, redlines against a spec, pixel compare against a mockup, fix and rerun until the must-fix kinds are zero, then report before/after with the picture. Use for artifacts, HTML pages and pi-phone's own app UI, whenever you made or changed a screen, and before saying any UI work is finished."
 ---
 
 # UI verify
@@ -11,7 +11,8 @@ numbers. Do every step on the real thing: the artifact, the file, or the live ap
 
 ## 1. Look, numbers first
 
-- `screenshot` at `widths: [390, 1280]` (the phone first). Where the page has both themes and you can show each (a
+- `screenshot` at `widths: [390, 1280, 1920]` (its default: the phone first, then a desktop and a large screen,
+  where a layout that only stretches shows its long lines and empty sides). Where the page has both themes and you can show each (a
   `data-theme` you set in your own file, a theme switch in Pi's browser), check both.
 - Read each width's **layout check** before the picture: cut text, covered text or controls, tap targets, off-grid
   sizes, contrast, small text, emoji, type, and the tells of an assembled page (broken images, skipped headings, cards
@@ -59,6 +60,6 @@ Off-grid sizes and spec misses: fix the ones in what you changed; list the rest 
 
 ## 5. Report
 
-Tell the person, with numbers: each kind's count before and after at 390 and 1280 (for example "contrast 6 → 0, tap
+Tell the person, with numbers: each kind's count before and after at 390, 1280 and 1920 (for example "contrast 6 → 0, tap
 targets 9 → 2: the two chips are 36 px, by design"), what is left and why, and show the redline or diff picture
 (embed the saved file). In a pi-phone change, the same counts go in the commit's report and the ticket.

@@ -4,7 +4,7 @@ description: Create or redesign self-contained single-file HTML artifacts with a
 ---
 
 <!-- pi-phone: added (third_party/effective-html/README.md). -->
-> **In pi-phone:** publish the finished HTML with the `artifact` tool (type `html`), so it opens on the person's phone, and also write it to a file when they ask for one or the work belongs in a project. Artifacts run in a sandbox with no way into the app: keep them self-contained (libraries from a CDN with full URLs are fine) and touch-friendly. Most people here read on a phone: design for about 360–430 px wide first, then desktop. Then look at it with the `screenshot` tool (it takes a phone's width and a desktop's by default), fix what you see, and look again; that is your browser check. Before calling it done, follow the `ui-verify` skill (layout check numbers, redlines against a spec, pixel compare, before/after counts).
+> **In pi-phone:** publish the finished HTML with the `artifact` tool (type `html`), so it opens on the person's phone, and also write it to a file when they ask for one or the work belongs in a project. Artifacts run in a sandbox with no way into the app: keep them self-contained (libraries from a CDN with full URLs are fine) and touch-friendly. Most people here read on a phone: design for about 360–430 px wide first, then desktop. Then look at it with the `screenshot` tool (it takes a phone's width, a desktop's and a large screen's by default: 390, 1280 and 1920 px), fix what you see, and look again; that is your browser check. Before calling it done, follow the `ui-verify` skill (layout check numbers, redlines against a spec, pixel compare, before/after counts).
 
 # HTML
 

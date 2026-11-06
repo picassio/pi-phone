@@ -288,9 +288,9 @@ test("ui-verify (PP-405) is pi-phone's own skill, in every session's prompt and 
     const loaded = (await modelTexts(app, id)).join("\n");
 
     assert.match(loaded, /<skill name=\\"ui-verify\\" location=/);
-    // Its steps, as the owner asked: both widths, redlines against a spec with the 4 px rules, pixel compare, the
+    // Its steps, as the owner asked: the three widths (PP-420), redlines against a spec with the 4 px rules, pixel compare, the
     // must-fix kinds, and a report with numbers.
-    for (const words of ["widths: [390, 1280]", "redline", "spacing 0/4/8/12/16/20/24/32, radius 4/8/12/16", "image_compare", "threshold: 0.15", "tap targets under 40 px", "before and after", "browser_layout_check"]) {
+    for (const words of ["widths: [390, 1280, 1920]", "redline", "spacing 0/4/8/12/16/20/24/32, radius 4/8/12/16", "image_compare", "threshold: 0.15", "tap targets under 40 px", "before and after", "browser_layout_check"]) {
         assert.ok(loaded.includes(words), words);
     }
 
@@ -301,7 +301,11 @@ test("ui-verify (PP-405) is pi-phone's own skill, in every session's prompt and 
         ["third_party", "heydamir-unslop", "skills", "unslop", "SKILL.md"],
         ["src", "design", "skills", "design-system", "SKILL.md"],
     ]) {
-        assert.match(readFileSync(join(APP_ROOT, ...file), "utf8"), /follow the `ui-verify` skill/, file.join("/"));
+        const text = readFileSync(join(APP_ROOT, ...file), "utf8");
+
+        assert.match(text, /follow the `ui-verify` skill/, file.join("/"));
+        // Each names the large screen too (PP-420), not a phone and a desktop alone.
+        assert.match(text, /1920/, file.join("/"));
     }
 });
 

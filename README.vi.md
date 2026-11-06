@@ -332,8 +332,8 @@ dự án thật.</sub>
   chưa kiểm tra, nói rõ như vậy, và đề nghị kiểm tra trên một máy. Kèm bốn ví dụ mẫu (tiệm trà sữa của statechart-art).
   Là một tiện ích riêng, bật sẵn: tắt nó trong **Tiện ích** (hoặc nhờ Pi), thì không phiên nào liệt kê skill này.
 - **Pi nhìn thấy việc mình làm.** `screenshot` dựng một artifact, một tệp HTML hoặc Office, hay một trang web trong
-  WebView của chính điện thoại, ở độ rộng điện thoại và máy tính, kể cả khi tắt màn hình, nên Pi kiểm tra trang trước khi
-  coi là xong. Một tệp HTML tải stylesheet, script và hình ảnh từ chính thư mục của nó, nên trang liên kết tới CSS của
+  WebView của chính điện thoại, ở độ rộng điện thoại, máy tính và màn hình lớn (390, 1280 và 1920 px), kể cả khi tắt
+  màn hình, nên Pi kiểm tra trang trước khi coi là xong. Một tệp HTML tải stylesheet, script và hình ảnh từ chính thư mục của nó, nên trang liên kết tới CSS của
   ứng dụng sẽ hiện đúng kiểu.
 - **Ảnh chụp có số đo.** Mỗi độ rộng của `screenshot` đi kèm một lượt kiểm tra bố cục mà trang chạy trước khi vẽ: thứ
   gì tràn khỏi khung hoặc khung cha, và trang có rộng hơn màn hình không, kèm kích thước. Nó còn tìm những thứ khiến
@@ -361,7 +361,7 @@ dự án thật.</sub>
   liệt kê ra. `browser_redline` làm việc tương tự trên trang đang mở trong trình duyệt của Pi. Một tệp ảnh không có DOM:
   hãy so nó bằng `image_compare`.
 - **Kiểm tra giao diện trước khi xong.** Skill có sẵn `ui-verify` bắt Pi kiểm tra mọi artifact, trang HTML và màn hình
-  của app bằng số đo trước khi nói là xong: layout check ở 390 và 1280 px, redline theo token của design system, theo
+  của app bằng số đo trước khi nói là xong: layout check ở 390, 1280 và 1920 px, redline theo token của design system, theo
   mockup hoặc theo luật 4 px, `image_compare` với ảnh mẫu, sửa cho tới khi không còn chữ bị cắt, phần tử đè nhau, độ
   tương phản thấp, chữ dưới 12 px, icon emoji, vùng chạm nhỏ, ảnh hỏng, nhảy cấp tiêu đề hay thẻ lồng trong thẻ, rồi
   báo cáo kèm số đếm trước và sau cùng hình redline

@@ -22,7 +22,7 @@ export const SKILL = join(TARGET, "skills", "unslop");
 export const NOTE = [
     "<!-- pi-phone: added (third_party/heydamir-unslop/README.md) -->",
     "> In pi-phone:",
-    "> - Look with the `screenshot` tool (url, path or artifact; 390 and 1280 px), and trust its layout check. For a machine's dev server use Pi's browser there (`browser_open` with machine, then `browser_screenshot`). Do not run `scripts/snapshot.mjs` on the phone: with only a link, screenshot it and rebuild it as one static HTML file (the skill's screenshot path), or run snapshot.mjs in a session on a machine whose project has Playwright.",
+    "> - Look with the `screenshot` tool (url, path or artifact; 390, 1280 and 1920 px), and trust its layout check. For a machine's dev server use Pi's browser there (`browser_open` with machine, then `browser_screenshot`). Do not run `scripts/snapshot.mjs` on the phone: with only a link, screenshot it and rebuild it as one static HTML file (the skill's screenshot path), or run snapshot.mjs in a session on a machine whose project has Playwright.",
     "> - Ask the direction question with `interview` (with your recommendation) and wait. Show mockups as an `artifact` first.",
     "> - Icons: the project's own set; in pi-phone itself `ICONS` in `web/ui.js`. Never emoji. In pi-phone itself the tokyo-night palette is the brand: polish mode only. A chosen design system (the `design_system` section) is the brand too.",
     "> - Images: `image_generate` instead of fal/Replicate/MCP (aspects 1:1, 16:9, 9:16, 4:3, 3:4; no background removal: ask for the page colour and mask in CSS). Show the prompt and model and ask before it, as the skill says; save into the project's assets.",

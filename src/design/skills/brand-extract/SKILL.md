@@ -75,7 +75,7 @@ its palette.
 ## 4. Show it
 
 Make a small HTML page with the new `tokens.css` block (a heading, a paragraph, a primary and a secondary button, a
-card, an input), look at it with `screenshot` at 390 and 1280 px next to the site's screenshot, and fix a token that
+card, an input), look at it with `screenshot` at 390, 1280 and 1920 px next to the site's screenshot, and fix a token that
 looks off. Tell the person the id, the folder, and which values were chosen rather than measured; offer it as the
 default design system (`setting_change`, `design.default`, the id).
 

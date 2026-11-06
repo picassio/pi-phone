@@ -35,7 +35,7 @@
 - Every release has notes (the owner's rule): the release job writes them from the commits since the previous release
   (`scripts/release-notes.ts`). So write each commit's subject for people, with its kind and scope: `feat(machines): …`
   is listed as new, `fix(…): …` as a fix, anything else under other changes.
-- Every UI change shows the layout check's counts before and after (`screenshot` at 390 and 1280 px of the live app or
+- Every UI change shows the layout check's counts before and after (`screenshot` at 390, 1280 and 1920 px of the live app or
   the test page, by kind: cut text, overlaps, contrast, small text, emoji, tap targets) in its report and its ticket;
   follow the `ui-verify` skill (`src/skills/ui-verify/`).
 - README.md lists every feature people can use: a new one, or one changed or removed, changes it in the same commit.

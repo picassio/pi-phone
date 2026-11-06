@@ -1,6 +1,6 @@
 /**
  * `screenshot`: Pi sees what it made (`screenshots.ts`). The app's background service renders a page off screen, as the
- * app's own WebView would show it, at a phone's width and a desktop's, and the pictures come back to Pi as images: an
+ * app's own WebView would show it, at a phone's width, a desktop's and a large screen's, and the pictures come back to Pi as images: an
  * artifact of this session, a file (HTML, SVG, or a Word, Excel, or PowerPoint file as OfficeCLI renders it), or any
  * web page. It closes the check-and-fix step Effective HTML's skills and OfficeCLI's ask for.
  */
@@ -15,13 +15,16 @@ import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
 
 const reply = (text: string, isError = false) => ({ output: [{ type: "text" as const, text }], ...(isError ? { isError: true } : {}) });
 
-/** A phone's width and a desktop's, in CSS pixels. */
-export const DEFAULT_WIDTHS = [390, 1280];
+/**
+ * A phone's width, a desktop's and a large screen's (PP-420: the owner found 1280 not enough), in CSS pixels. A 1920 px
+ * picture is sent as it is, not scaled: under the 2000 px a side models take, and its text as sharp as the 1280 one's.
+ */
+export const DEFAULT_WIDTHS = [390, 1280, 1920];
 const MIN_WIDTH = 240;
 const MAX_WIDTH = 1920;
 
 const DESCRIPTION =
-    "See a page as it shows: the phone renders it off screen and gives you a picture at each width (default a phone's 390 px and a desktop's 1280 px, whole page up to 4000 px tall). " +
+    "See a page as it shows: the phone renders it off screen and gives you a picture at each width (default a phone's 390 px, a desktop's 1280 px and a large screen's 1920 px, whole page up to 4000 px tall). " +
     "Name one of: artifact (an artifact of this session, by id, as the person opens it), path (a file: .html, .htm, .svg, or .docx/.xlsx/.pptx as OfficeCLI renders it), or url (an http or https page). " +
     "Use it after making or changing an artifact or a page, to check layout, overflow, clipped or overlapping text, and broken states, then fix what you see and look again. " +
     "Each width comes with a measured layout check, grouped with numbers: spills, a page wider than the screen, cut text, elements covering text or controls, tap targets under 40 px on a phone, sizes off the 4 px grid, text under WCAG AA contrast or 12 px, emoji as icons, gradient text, uppercase labels, long lines, too many font sizes or colours. Trust its numbers over the picture, and when they disagree, find out why. " +
@@ -29,7 +32,7 @@ const DESCRIPTION =
     "With save, the pictures are saved as files too, to mark up with image_markup or put in documents.";
 
 /** In every prompt while the module is on. */
-export const SEEING = `Seeing your work: after you make or change an artifact, an HTML page, or an Office file, look at it with screenshot (a phone's width and a desktop's) and fix what you see before you call it done. Check app changes in the live app (http://127.0.0.1:8787/s/<id>, or a sheet by /?sheet=...), not only a test page. Go by the layout check's numbers more than the picture; when the picture, the numbers, or a test page disagree, find out why before you call it right, never explain it away. For pixel-perfect work, keep a reference picture (the mockup, or a screenshot saved with save or path once it is right) and compare each new screenshot with it with image_compare. To check spacing, radii and type against a spec, use redline.`;
+export const SEEING = `Seeing your work: after you make or change an artifact, an HTML page, or an Office file, look at it with screenshot (a phone's width, a desktop's and a large screen's: 390, 1280 and 1920 px) and fix what you see before you call it done. Check app changes in the live app (http://127.0.0.1:8787/s/<id>, or a sheet by /?sheet=...), not only a test page. Go by the layout check's numbers more than the picture; when the picture, the numbers, or a test page disagree, find out why before you call it right, never explain it away. For pixel-perfect work, keep a reference picture (the mockup, or a screenshot saved with save or path once it is right) and compare each new screenshot with it with image_compare. To check spacing, radii and type against a spec, use redline.`;
 
 export default function createScreenshot(host: PocketHost) {
     /** The address the phone renders for an artifact of this session, a file, or a web page, and its name in answers. */
@@ -68,7 +71,7 @@ export default function createScreenshot(host: PocketHost) {
             artifact: opt(str({ description: "An artifact of this session, by its id" })),
             path: opt(str({ description: "A file to show: .html, .htm, .svg, .docx, .xlsx, or .pptx" })),
             url: opt(str({ description: "An http or https page" })),
-            widths: opt(arr(num(), { description: "CSS pixel widths, one picture each; default [390, 1280]" })),
+            widths: opt(arr(num(), { description: "CSS pixel widths, one picture each; default [390, 1280, 1920]" })),
             fullPage: opt(bool({ description: "The whole page (default), or only the first screen" })),
             settle: opt(num({ description: "Seconds to wait after loading, for scripts and pictures (default 1.5, at most 10)" })),
             save: opt(str({

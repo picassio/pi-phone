@@ -324,8 +324,8 @@ No Termux, no laptop, no cloud VM.
   offers to check it on a machine. Four worked examples (statechart-art's boba shop) come with it. Its own extension,
   on by default: turn it off in **Extensions** (or ask Pi), and no session lists the skill.
 - **Pi sees its work.** `screenshot` renders an artifact, an HTML or Office file, or a web page in the phone's own
-  WebView, at phone and desktop widths, even with the screen off, so Pi checks a page before calling it done. An HTML
-  file loads its stylesheets, scripts and pictures from its own folder, so a page linking the app's CSS shows styled.
+  WebView, at a phone's, a desktop's and a large screen's width (390, 1280 and 1920 px), even with the screen off,
+  so Pi checks a page before calling it done. An HTML file loads its stylesheets, scripts and pictures from its own folder, so a page linking the app's CSS shows styled.
 - **Measured screenshots.** Every `screenshot` width comes with a layout check the page runs before it is drawn: what spills
   out of its box or its parent, and whether the page is wider than the screen, with sizes. It also finds what makes a
   page look unfinished: text cut by its box (an ellipsis, a clipped line), an element covering another's text or
@@ -352,7 +352,7 @@ No Termux, no laptop, no cloud VM.
   the spec's value ("gap 23, spec 24") and lists it. `browser_redline` does the same on the page in front of Pi's
   browser. A picture file has no DOM: compare it with `image_compare`.
 - **UI checked before it is done.** The built-in `ui-verify` skill has Pi verify every artifact, HTML page and app
-  screen with numbers before calling it done: the layout check at 390 and 1280 px, redlines against the design
+  screen with numbers before calling it done: the layout check at 390, 1280 and 1920 px, redlines against the design
   system's tokens, the mockup or the 4 px rules, `image_compare` against a reference, fixing until there is no cut
   text, overlap, low contrast, text under 12 px, emoji icon, small tap target, broken image, skipped heading or card
   inside a card left, and a report with the counts

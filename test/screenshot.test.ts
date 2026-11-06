@@ -182,12 +182,14 @@ test("Pi's screenshot: an artifact and a file, at the widths asked, as images it
     try {
         const artifact = await ask("look at the artifact");
 
-        assert.match(artifact, /artifact demo, as the phone renders it: 390×900, 1280×900/);
-        assert.equal(lastImages, 2, "both pictures reach the model as images");
+        // By default a phone's width, a desktop's and a large screen's (PP-420).
+        assert.match(artifact, /artifact demo, as the phone renders it: 390×900, 1280×900, 1920×900/);
+        assert.equal(lastImages, 3, "every picture reaches the model as an image");
         assert.match(artifact, /Layout check at 390 px \(40 elements\): 1 out of place\.\\n- pre\.code: its content is wider than its box \(664 px in 350\)/);
         assert.match(artifact, /Layout check at 1280 px \(40 elements\): nothing spills/);
         assert.equal(seen[0]!.url, `http://127.0.0.1:8799/a/${String(id)}/demo/latest`);
-        assert.deepEqual(seen[0]!.widths, [390, 1280]);
+        assert.match(artifact, /Layout check at 1920 px \(40 elements\): nothing spills/);
+        assert.deepEqual(seen[0]!.widths, [390, 1280, 1920]);
 
         const file = await ask("look at the file");
 
