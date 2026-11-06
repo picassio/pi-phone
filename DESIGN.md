@@ -1044,6 +1044,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
     pictures (Pi takes them with `screenshot`). A width that failed or timed out says why; every width failing alike
     (no phone renders) is said once; the publish never fails for it. Off: the result is the publish alone. The phone's
     renderer takes requests one at a time, so the three widths still render one after another (about 6 s on Chrome).
+    A request's time runs only while it is first in line (`Screenshots`, PP-429): each width gets its own 40 s, not 40 s
+    behind the widths before it and other sessions' screenshots; when the first one's time runs out and no renderer took
+    it, the ones behind it fail with it. A local Chrome (`ChromeEngine`) has started once it answers `/json/version`,
+    within its 45 s start, not when it writes its port: on a busy runner its first answer came 7.6 s after the port, past
+    a request's 5 s.
   - **Remind to check UI before finishing** (`uiReminder`, PP-422, `ui-reminder.ts`; the hook in
     `extensions/screenshot.ts`): the generation's `onYield` (as goals') reads the turn back from the transcript (to the
     newest message that is not the app's own follow-up: this reminder, a goal's check) and lists the UI files written or

@@ -34,6 +34,9 @@ const route: FauxResponseStep = (request) => {
 let app: App;
 let server: Server;
 let renderer: ChromeRenderer | undefined;
+let running: Promise<void> | undefined;
+/** The renderer's log, printed with a failure (PP-429: a CI failure said nothing of what the renderer did). */
+const log: string[] = [];
 
 before(async () => {
     app = await openApp(scriptedModel(route));
@@ -42,13 +45,27 @@ before(async () => {
     app.serverPort = (server.address() as { port: number }).port;
 
     if (chrome !== undefined) {
-        renderer = new ChromeRenderer(app.screenshots, { binary: chrome, flags: ["--no-sandbox"], base: `http://127.0.0.1:${app.serverPort}`, token: () => app.config.ownerToken, log: () => {} });
-        void renderer.run();
+        renderer = new ChromeRenderer(app.screenshots, {
+            binary: chrome,
+            flags: ["--no-sandbox"],
+            base: `http://127.0.0.1:${app.serverPort}`,
+            token: () => app.config.ownerToken,
+            log: (line) => log.push(`${new Date().toISOString()} ${line}`),
+        });
+        running = renderer.run();
+        // Chrome started and answering, and the renderer polling, before anything is published: a cold start on a busy
+        // runner took the first width's time (PP-429).
+        const started = Date.now();
+
+        await renderer.ready();
+        log.push(`${new Date().toISOString()} ready: Chrome answered after ${Date.now() - started} ms`);
+        assert.ok(app.screenshots.present(), "the renderer polls");
     }
 });
 
 after(async () => {
     await renderer?.stop();
+    await running;
     server?.closeAllConnections();
     server?.close();
     await app?.close();
@@ -69,8 +86,23 @@ const ask = async (id: number, text: string) => (await turn(id, text)).at(-1)!;
 
 test("a published artifact comes back with the layout check at 390, 1280 and 1920 px: its 28 px button is found", real, async () => {
     const id = await newSession(app);
+    const started = Date.now();
     const told = await ask(id, "publish small");
 
+    log.push(`${new Date().toISOString()} the turn took ${Date.now() - started} ms`);
+    await withLog(() => checked(told));
+});
+
+/** Run `assertions`; a failure carries the renderer's log. */
+async function withLog(assertions: () => void): Promise<void> {
+    try {
+        assertions();
+    } catch (error) {
+        throw new Error(`${error instanceof Error ? error.message : String(error)}\n\nThe renderer's log:\n${log.join("\n") || "(nothing)"}`, { cause: error });
+    }
+}
+
+function checked(told: string): void {
     assert.match(told, /Published \\"Shop\\" as artifact shop, version 1\./);
     assert.match(told, /Layout check \(the hook \\"Check artifacts on publish\\", Settings › Hooks; screenshot shows the pictures\):/);
     assert.match(told, /Layout check at 390 px \(\d+ elements\)/);
@@ -79,7 +111,7 @@ test("a published artifact comes back with the layout check at 390, 1280 and 192
     // At the phone's width only: a desktop has no tap targets.
     assert.match(told, /Layout check at 390 px[^]*Tap targets under 40 px \(1\):\\n- button[^:]*Buy now[^:]*: [\d.]+×28 px[^]*Layout check at 1280 px/);
     assert.doesNotMatch(told.slice(told.indexOf("Layout check at 1280 px")), /Tap targets/);
-});
+}
 
 test("with the hook off, or for a Markdown artifact, the publish answers alone", real, async () => {
     const id = await newSession(app);

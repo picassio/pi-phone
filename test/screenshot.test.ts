@@ -177,6 +177,37 @@ test("the service takes requests from its poll and answers with pictures; a fail
     assert.throws(() => failing.answer(requests[0]!.id, { shots: [] }), /No such render waits/);
 });
 
+test("a render's time runs while it is first in line, not behind the others; with no renderer taking them, they fail together (PP-429)", async () => {
+    const screenshots = new Screenshots();
+    const signal = new AbortController().signal;
+
+    await screenshots.after(-1, signal);
+    // Three widths at once, as the artifact check asks, each 1 s; the renderer takes them in one poll and renders them one
+    // after another, 400 ms each: the third is answered 1.2 s after it was asked, yet within its own second.
+    const renders = [390, 1280, 1920].map((width) => screenshots.render(`https://example.com/${width}`, { widths: [width], timeoutMs: 1000 }));
+    const { requests } = await screenshots.after(-1, signal);
+
+    for (const request of requests) {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        screenshots.answer(request.id, { shots: [{ width: request.widths[0], height: 900, parts: [JPEG.toString("base64")] }] });
+    }
+
+    assert.deepEqual((await Promise.all(renders)).map((shots) => shots[0]!.width), [390, 1280, 1920]);
+
+    // A service that polled once and went: the first request's second runs out untaken, and the others fail with it.
+    const gone = new Screenshots();
+
+    await gone.after(-1, signal);
+    const started = Date.now();
+    const failed = await Promise.allSettled([390, 1280, 1920].map((width) => gone.render("https://example.com/gone", { widths: [width], timeoutMs: 1000 })));
+
+    assert.deepEqual(
+        failed.map((each) => (each.status === "rejected" ? (each.reason as Error).message : "rendered")),
+        Array(3).fill("The phone did not render https://example.com/gone within 1 seconds."),
+    );
+    assert.ok(Date.now() - started < 2000, `failed together, not one after another: ${Date.now() - started} ms`);
+});
+
 test("Pi's screenshot: an artifact and a file, at the widths asked, as images it sees; a wrong path says what it takes", async () => {
     const id = await newSession(app);
     const seen: { url: string; widths: number[]; fullPage: boolean }[] = [];

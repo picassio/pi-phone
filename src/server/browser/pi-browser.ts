@@ -586,7 +586,23 @@ export class ChromeEngine implements BrowserEngine {
             throw new Error(`Chrome (${this.#binary}) did not start.`);
         }
 
-        return this.#port;
+        const port = this.#port;
+
+        // Chrome writes its port once it listens, while it may still be starting: on a busy computer its first answer
+        // came 7.6 s after the port, past a request's 5 s (PP-429, 2 cores at 10%). It has started once it answers.
+        for (;;) {
+            try {
+                await getJson({ host: "127.0.0.1", port, path: "/json/version", headers: { host: `127.0.0.1:${port}` } });
+
+                return port;
+            } catch (error) {
+                if (Date.now() >= until) {
+                    throw new Error(`Chrome (${this.#binary}) did not answer within 45 seconds of starting: ${error instanceof Error ? error.message : String(error)}`);
+                }
+
+                await new Promise((resolve) => setTimeout(resolve, 100));
+            }
+        }
     }
 
     async #list(): Promise<{ id: string; type: string }[]> {

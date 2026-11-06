@@ -6,6 +6,10 @@
  * The service long-polls `GET /api/phone/renders?after=<seq>` (as notifications poll `/api/phone/events`), renders each
  * request in turn, and answers `POST /api/phone/renders/<id>` with `{ shots: [{ width, height, jpeg (base64) }] }` or
  * `{ error }`. Requests are kept in memory: one that no service took, or answered, within its time fails, saying so.
+ *
+ * A renderer (the phone's `Renderer.java`, the server edition's `chrome-renderer.ts`) renders one request at a time, in
+ * the order they came. So a request's time runs while it is first in line, not while it waits behind others (PP-429:
+ * the artifact check's three widths, each given 40 s, timed out behind each other on a busy CI runner).
  */
 
 /** What the service renders: an address on the app's server, or any http(s) page. */
@@ -57,7 +61,16 @@ export const RENDER_POLL_MS = 50_000;
 const PRESENT_MS = RENDER_POLL_MS + 20_000;
 const KEPT = 20;
 
-type Pending = { request: RenderRequest; resolve: (shots: Shot[]) => void; reject: (error: Error) => void; timer: NodeJS.Timeout };
+type Pending = {
+    request: RenderRequest;
+    resolve: (shots: Shot[]) => void;
+    reject: (error: Error) => void;
+    timeoutMs: number;
+    /** Running once the request is first in line. */
+    timer: NodeJS.Timeout | undefined;
+    /** A renderer's poll has taken it. */
+    taken: boolean;
+};
 
 export class Screenshots {
     #seq = 0;
@@ -108,17 +121,37 @@ export class Screenshots {
         }
 
         return new Promise<Shot[]>((resolve, reject) => {
-            const timer = setTimeout(() => {
-                this.#pending.delete(request.id);
-                reject(new Error(`The phone did not render ${url} within ${Math.round(timeoutMs / 1000)} seconds.`));
-            }, timeoutMs);
-
-            this.#pending.set(request.id, { request, resolve, reject, timer });
+            this.#pending.set(request.id, { request, resolve, reject, timeoutMs, timer: undefined, taken: false });
+            this.#clock();
 
             for (const wake of [...this.#waiting]) {
                 wake();
             }
         });
+    }
+
+    /**
+     * Start the time of the request first in line (the oldest that waits: the one being rendered). When it runs out on a
+     * request no renderer took, nobody renders now: the ones behind it fail with it, rather than each waiting its time.
+     */
+    #clock(): void {
+        const first = this.#pending.values().next().value;
+
+        if (first === undefined || first.timer !== undefined) {
+            return;
+        }
+
+        first.timer = setTimeout(() => {
+            const failed = first.taken ? [first] : [...this.#pending.values()];
+
+            for (const each of failed) {
+                clearTimeout(each.timer);
+                this.#pending.delete(each.request.id);
+                each.reject(new Error(`The phone did not render ${each.request.url} within ${Math.round(each.timeoutMs / 1000)} seconds.`));
+            }
+
+            this.#clock();
+        }, first.timeoutMs);
     }
 
     /** For the service: requests after `after` still waiting for an answer, waiting up to `RENDER_POLL_MS` for one. */
@@ -128,7 +161,7 @@ export class Screenshots {
 
         if (after < 0) {
             // A service that (re)started takes what still waits.
-            return { seq: this.#seq, requests: this.#requests.filter((request) => this.#pending.has(request.id)) };
+            return { seq: this.#seq, requests: this.#take(this.#requests.filter((request) => this.#pending.has(request.id))) };
         }
 
         if (open().length === 0) {
@@ -147,7 +180,15 @@ export class Screenshots {
 
         this.#lastPoll = Date.now();
 
-        return { seq: this.#seq, requests: open() };
+        return { seq: this.#seq, requests: this.#take(open()) };
+    }
+
+    #take(requests: RenderRequest[]): RenderRequest[] {
+        for (const request of requests) {
+            this.#pending.get(request.id)!.taken = true;
+        }
+
+        return requests;
     }
 
     /** The service's answer: pictures (base64 JPEG), or why it could not render. */
@@ -160,6 +201,7 @@ export class Screenshots {
 
         this.#pending.delete(id);
         clearTimeout(pending.timer);
+        this.#clock();
 
         if (typeof body.error === "string") {
             pending.reject(new Error(`The phone could not render ${pending.request.url}: ${body.error}`));

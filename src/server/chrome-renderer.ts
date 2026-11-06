@@ -57,12 +57,20 @@ export class ChromeRenderer {
         }
     }
 
+    /** Start Chrome now and wait until it answers, rather than on the first request (whose time its start would take). */
+    async ready(): Promise<void> {
+        await this.#engine.tabs();
+    }
+
     async stop(): Promise<void> {
         this.#stop.abort();
         await this.#engine.close();
     }
 
     async #handle(request: RenderRequest): Promise<void> {
+        const started = Date.now();
+        let answer: { shots: unknown[] } | { error: string };
+
         try {
             const shots = [];
 
@@ -70,9 +78,17 @@ export class ChromeRenderer {
                 shots.push(await this.#shot(request, width));
             }
 
-            this.#screenshots.answer(request.id, { shots });
+            answer = { shots };
         } catch (error) {
-            this.#screenshots.answer(request.id, { error: error instanceof Error ? error.message : String(error) });
+            answer = { error: error instanceof Error ? error.message : String(error) };
+            this.#options.log(`renders: ${request.url} at ${request.widths.join(", ")} px failed after ${Date.now() - started} ms: ${answer.error}`);
+        }
+
+        // An answer that came too late is said here, and the next request still rendered.
+        try {
+            this.#screenshots.answer(request.id, answer);
+        } catch (error) {
+            this.#options.log(`renders: ${request.url} at ${request.widths.join(", ")} px, after ${Date.now() - started} ms: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 
