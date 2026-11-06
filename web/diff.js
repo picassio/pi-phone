@@ -1171,7 +1171,7 @@ function CommentBox({ initial = "", onSave, onCancel }) {
 function CommentBubble({ comment, onEdit, onRemove }) {
     return html`<div class="dv-comment" data-part="comment">
         <div class="dv-comment-head">
-            <span>${comment.side === "file" ? t("File note") : comment.side === "old" ? t("Old line {n}", { n: comment.line }) : t("Line {n}", { n: comment.line })}</span>
+            <span class="dv-comment-where"><${Icon} name="chat" size=${16} />${comment.side === "file" ? t("File note") : comment.side === "old" ? t("Old line {n}", { n: comment.line }) : t("Line {n}", { n: comment.line })}</span>
             <span class="grow"></span>
             <button type="button" class="link small" onClick=${onEdit}>${t("Edit")}</button>
             <button type="button" class="link small" onClick=${onRemove}>${t("Delete")}</button>

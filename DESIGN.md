@@ -220,8 +220,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
   checkpoints, clears the comments, and the app puts the text in the message box (`insertIntoComposer`). Git runs
   where the session works (`app.runIn`). Tests: `test/review-loop.test.ts`, `test/review-loop-ui.test.ts`.
 - **StateTag** (`web/ui.js`, PP-330; also to extensions as `pocket.StateTag`): a thing's state at the end of its title
-  line as a word and a small dot in the theme's green, yellow, red or muted ("Connected", "Ready", "Needs sign-in",
-  "On"), never a ✓ or ⚠ dingbat. pi-phone's own screens had unslop's pass (PP-328, the owner's OK on the mockups of
+  line as a word and a small dot in the theme's green, yellow, red, muted or accent ("Connected", "Ready", "Needs sign-in",
+  "On", "Key decision"), never a ✓ or ⚠ dingbat. pi-phone's own screens had unslop's pass (PP-328, the owner's OK on the mockups of
   2026-11-02); `test/unslop-ui.test.ts` holds them to it. Its rules for `web/style.css`: whole-pixel type sizes, 12 px at the
   least (PP-399: the 8 to 11 px and under-0.86rem sizes went to 12; the subagents board's 8 px state squares keep
   theirs; avatars under 24 px show one initial) and then 13, 14, 16, 20, 24, a few 15 in tight places; contrast by
@@ -250,7 +250,14 @@ so Pi changes them through the settings tools; "the last session" is the one the
   gradients. Icons are line icons from `ICONS` (`Icon`, or `iconElement` for Markdown built
   outside Preact), never emoji or symbol glyphs as icons (PP-402: React was `☺+`, tool calls `▣`/`◍`/`▦`/`⚙`, a
   subagent's row `✓`/`■`, attachments `📄`/`📎`/`🖼`): a tool call's line names one (`describeCall`'s `icon`, an `ICONS`
-  name), peek tiles draw it, and rows of words only (`nowDoing`) leave it out. The Providers list shows once the plan limits and the OpenAI-compatible providers
+  name), peek tiles draw it, and rows of words only (`nowDoing`) leave it out. No side stripes (PP-416, the owner's
+  picks of 2026-11-06 on the mockup pp416-side-tab-mockup, after Impeccable's scan in PP-411): a block that stands out
+  says so with a border, a tint, an icon or a word, never a coloured `border-left` or inset shadow on one side. An
+  interview's key question (weight critical) has its accent border and a `StateTag` "Key decision" (tone `accent`); the
+  quoted passage above the message box a 1 px `--hair-2` frame with the reply arrow in the accent; Review's comments
+  and file notes their 7 % accent tint, rounded all round, led by the chat icon. The memory lesson rules that had one
+  went (no markup since 95e1298e). `test/side-stripes-ui.test.ts` holds them to it with the layout check's side-tab
+  count. The Providers list shows once the plan limits and the OpenAI-compatible providers
   are in, so nothing moves under a tap.
 - **Machines** (`src/server/machines.ts`, `web/sheets/machines.js`): other computers sessions can work on, through
   `@earendil-works/pi-env` (its daemon on the machine, deployed over ssh and verified by hash). `machines.json` holds

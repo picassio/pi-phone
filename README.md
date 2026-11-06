@@ -150,7 +150,7 @@ No Termux, no laptop, no cloud VM.
   decisions and findings in the wiki, and uses its browser in full to look at the live app or a site), and a long plan
   comes as a reviewable HTML page.
 - **Interview.** Pi asks several questions at once in a form (choices with its recommendation, text, photos), and waits
-  for the answers, or carries on and gets them later.
+  for the answers, or carries on and gets them later. A key question is framed in the accent and tagged Key decision.
 - **Schedules and goals.** Pi messages itself later or on repeat (`schedule`), and a session can keep working toward a
   goal it checks. Archiving a session cancels none of its schedules: a notice says how many repeating ones keep
   running there and opens them (Pi's `session_archive` says so too), and its Schedules mark each "Session archived".

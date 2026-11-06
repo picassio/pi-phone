@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { HtmlPreview, Highlighted } from "../rich.js";
 import { api, attempt, canSteer, closeSheet, notify } from "../store.js";
-import { fileUrl, html, Icon, Linked, Loader, Markdown, Sheet } from "../ui.js";
+import { fileUrl, html, Icon, Linked, Loader, Markdown, Sheet, StateTag } from "../ui.js";
 import { t, tn } from "../i18n.js";
 
 const labelOf = (option) => (typeof option === "string" ? option : option.label);
@@ -347,7 +347,10 @@ function QuestionCard({ question, answer, onChange, disabled, conversationId, he
     const side = where("side");
 
     return html`<section class=${`interview-question ${question.weight ?? ""} ${question.type}`} data-question=${question.id}>
-        <div class="interview-ask"><${Markdown} text=${question.question} conversationId=${conversationId} /></div>
+        <div class="interview-ask">
+            <${Markdown} text=${question.question} conversationId=${conversationId} />
+            ${question.weight === "critical" && html`<${StateTag} tone="accent" label=${t("Key decision")} />`}
+        </div>
         ${question.context && html`<div class="muted small interview-context"><${Markdown} text=${question.context} conversationId=${conversationId} /></div>`}
         ${where("above").map((block) => html`<${Media} block=${block} conversationId=${conversationId} />`)}
         <div class=${side.length > 0 ? "interview-side" : ""}>

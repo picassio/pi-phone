@@ -469,6 +469,10 @@ kbd {
     background: var(--warn);
 }
 
+.state-tag.accent .state-dot {
+    background: var(--accent);
+}
+
 .state-tag.err .state-dot {
     background: var(--err);
 }
@@ -11016,35 +11020,6 @@ textarea.notes {
     color: var(--accent);
 }
 
-/* A change to a lesson that waits for the owner, under the lesson it would change. */
-.lesson-proposal {
-    margin-top: 0.35rem;
-    padding-left: 8px;
-    border-left: 2px solid var(--accent);
-}
-
-/* Under Pi's memory call: the lesson's state, and Approve and Discard while it waits. */
-.lesson-call {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 8px;
-    margin-top: 0.3rem;
-}
-
-.lesson-call.waiting {
-    padding: 4px 8px;
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-left: 2px solid var(--accent);
-    font-size: 12px;
-}
-
-/* The words that wait keep a readable width: where Approve and Discard would squeeze them, they go below. */
-.lesson-call.waiting > .grow {
-    flex: 1 1 16rem;
-}
-
 /* Memory: a lesson Pi keeps, who saved it and where, and what can be done with it. */
 .lesson {
     display: flex;
@@ -13723,8 +13698,7 @@ textarea.notes {
 .dv-comment {
     max-width: 640px;
     padding: 8px 12px;
-    border-left: 2px solid var(--accent);
-    border-radius: 0 8px 8px 0;
+    border-radius: var(--r-row);
     background: color-mix(in oklab, var(--accent) 7%, transparent);
     font: 13px/1.5 var(--sans);
     color: var(--text);
@@ -13736,6 +13710,17 @@ textarea.notes {
     gap: 12px;
     font-size: 12px;
     color: var(--muted);
+}
+
+/* Where the comment is, led by the chat icon of the file's comment button (PP-416). */
+.dv-comment-where {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dv-comment-where > .icon {
+    color: var(--accent);
 }
 
 .dv-comment-body {
@@ -15316,9 +15301,14 @@ textarea.notes {
     background: var(--card);
 }
 
+/* A key decision (weight "critical", PP-416): an accent border and a "Key decision" tag, no side stripe. */
 .interview-question.critical {
     border-color: var(--accent-line);
-    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.interview-ask > .md {
+    flex: 1 1 12rem;
+    min-width: 0;
 }
 
 .interview-question.minor {
@@ -21504,12 +21494,17 @@ button.welcome-row:hover {
     align-items: center;
     gap: 8px;
     margin: 0 0 8px;
-    padding: 4px 4px 4px 12px;
-    border-left: 2px solid var(--accent);
+    padding: 4px 4px 4px 8px;
+    border: 1px solid var(--hair-2);
     border-radius: var(--r-row);
     background: var(--card);
     color: var(--muted);
     font-size: 12px;
+}
+
+/* The reply arrow carries the colour (PP-416), not a stripe on the side. */
+.quote-strip > .icon:first-child {
+    color: var(--accent);
 }
 
 .quote-strip-text {

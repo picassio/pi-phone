@@ -159,7 +159,7 @@ dự án thật.</sub>
   định và phát hiện vào wiki, và dùng đầy đủ trình duyệt của nó để xem ứng dụng đang chạy hoặc một trang web), và một
   kế hoạch dài sẽ đến dưới dạng trang HTML để xem xét.
 - **Biểu mẫu.** Pi hỏi nhiều câu cùng lúc trong một biểu mẫu (lựa chọn kèm đề xuất của nó, văn bản, ảnh), và chờ câu
-  trả lời, hoặc tiếp tục và nhận chúng sau.
+  trả lời, hoặc tiếp tục và nhận chúng sau. Câu hỏi then chốt có viền màu nhấn và nhãn Quyết định then chốt.
 - **Lịch hẹn và mục tiêu.** Pi tự nhắn cho mình sau đó hoặc lặp lại (`schedule`), và một phiên có thể tiếp tục làm việc
   hướng tới một mục tiêu mà nó tự kiểm tra. Lưu trữ một phiên không hủy lịch hẹn nào của nó: một thông báo cho biết bao nhiêu
   lịch lặp lại vẫn chạy ở đó và mở chúng ra (`session_archive` của Pi cũng nói vậy), và Lịch hẹn của phiên đánh dấu từng cái
