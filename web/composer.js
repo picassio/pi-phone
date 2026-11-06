@@ -725,9 +725,11 @@ export function Composer() {
         }
 
         setSending(true);
+        // A command that needs more stays in the box (`/make` alone, PP-428): its `fill`, with the caret at its end.
+        let fill = null;
         const ok = await attempt(async () => {
             try {
-                await command.run(arg, request?.requestId);
+                fill = (await command.run(arg, request?.requestId))?.fill ?? null;
             } catch (error) {
                 // A 4xx made no run, or refused it for good: the next send is a new request. After a network error
                 // or a 5xx, the run may be there: the same send finds it.
@@ -745,7 +747,11 @@ export function Composer() {
 
         if (ok) {
             commandRequest.current = null;
-            update("");
+            update(fill ?? "");
+
+            if (fill !== null) {
+                focusEnd();
+            }
         }
     };
 

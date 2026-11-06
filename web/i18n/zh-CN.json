@@ -3696,5 +3696,8 @@
     "Capture idle sessions into the wiki": "把空闲会话记录到 wiki",
     "Compact a full context": "压缩已满的上下文",
     "Writes what a session learned into the wiki once it has been idle a while.": "会话空闲一段时间后，把它学到的内容写入 wiki。",
-    "Summarizes a session's older messages once its context passes the set share of the model's window. Set it in a session's menu › Compact context.": "当会话的上下文超过模型窗口的设定比例时，总结较早的消息。在会话菜单 › 压缩上下文中设置。"
+    "Summarizes a session's older messages once its context passes the set share of the model's window. Set it in a session's menu › Compact context.": "当会话的上下文超过模型窗口的设定比例时，总结较早的消息。在会话菜单 › 压缩上下文中设置。",
+    "Pi makes a drop-in extension for the app: a tool, a rail page, a sheet": "Pi 为应用做一个自备扩展：一个工具、一个侧栏页面、一个面板",
+    "Say what to make, such as /make a pomodoro timer in the side rail.": "说说要做什么，例如 /make 侧栏里的番茄钟计时器。",
+    "Pi builds an artifact and offers to keep it as a page on your rail": "Pi 做一个产物，并提议把它保留为你侧栏上的页面"
 }

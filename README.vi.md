@@ -464,6 +464,9 @@ dự án thật.</sub>
   bản nào đã giữ. Cài đặt › Tiện ích liệt kê các drop-in do Pi làm kèm các bản, Hoàn tác và Khôi phục…. Drop-in do Pi
   làm có cùng quyền như mọi drop-in: điều giữ an toàn cho bạn là bạn duyệt từng thẻ, nó được cài ở trạng thái tắt, và chỉ bạn
   bật nó. Tên bắt đầu bằng `made-` dành cho Creator. Là một phần của Trình tạo tiện ích: tắt cùng với nó.
+  **`/make <cần làm gì>`** bắt đầu nó từ ô nhập (`/make đồng hồ pomodoro trên thanh bên`): cùng thẻ, subagent, phép kiểm
+  tra và Giữ/Hoàn tác/Khôi phục; chỉ gõ `/make` thì nó ở lại trong ô kèm một ví dụ. Chủ sở hữu thấy lệnh này khi Trình
+  tạo tiện ích đang bật.
 - **Một wiki PARA** ([pi-para](https://github.com/picassio/pi-para)): Pi tra cứu và viết vào đó khi làm việc, với tìm
   kiếm của qmd, theo dõi các câu hỏi mở cho đến khi được trả lời, và ghi nhận các phiên rảnh vào đó. Khi đã
   đăng nhập OpenRouter, **Jev xếp hạng kết quả tìm** (Menu › Wiki › Xếp hạng bằng Jev): nó đọc từng trang tìm được
@@ -831,7 +834,10 @@ mới** trên danh sách phiên (và màn hình chính khi màn hình rộng) m�
 - **Thanh bên** (cạnh trái trên màn hình rộng) mở Phiên, Dự án và Wiki. **Nơi làm việc** của một phiên mở Tệp, Thay
   đổi, Artifact, Tìm và Nhánh. **Khung Trình duyệt** mở khi Pi duyệt web: cạnh cuộc trò chuyện trên màn hình rộng, hoặc từ
   bản xem trước nhỏ phía trên ô nhập trên điện thoại.
-- **Giữ artifact thành trang.** **Giữ thành trang** trên thẻ artifact trong cuộc trò chuyện (hoặc trong trình xem
+- **Giữ artifact thành trang.** **`/page <cần làm gì>`** (`/page công cụ đổi tiền VND/USD`) nhờ Pi làm nó thành một
+  artifact, kiểm tra, rồi đề nghị giữ nó thành trang qua một thẻ; chỉ gõ `/page` thì mở Cài đặt › Trang. Prompt template
+  tên `make` hay `page` thắng lệnh của ứng dụng, như với `/review`.
+  **Giữ thành trang** trên thẻ artifact trong cuộc trò chuyện (hoặc trong trình xem
   artifact) đưa nó lên thanh bên của bạn (trong ngăn kéo trên điện thoại) thành một trang riêng: trang mở ở chỗ của
   cuộc trò chuyện, trong cùng sandbox mà artifact chạy (không có dữ liệu ứng dụng, không cookie), và theo phiên bản mới
   nhất của artifact. Điều duy nhất trang làm được trong ứng dụng là đưa chữ vào ô nhập của phiên bạn đang ở, để bạn

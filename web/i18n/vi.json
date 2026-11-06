@@ -3676,5 +3676,8 @@
     "Capture idle sessions into the wiki": "Ghi phiên không hoạt động vào wiki",
     "Compact a full context": "Nén ngữ cảnh đầy",
     "Writes what a session learned into the wiki once it has been idle a while.": "Ghi những gì một phiên học được vào wiki khi nó không hoạt động một lúc.",
-    "Summarizes a session's older messages once its context passes the set share of the model's window. Set it in a session's menu › Compact context.": "Tóm tắt các tin nhắn cũ của một phiên khi ngữ cảnh vượt quá tỷ lệ đã đặt của cửa sổ mô hình. Đặt trong menu của phiên › Nén ngữ cảnh."
+    "Summarizes a session's older messages once its context passes the set share of the model's window. Set it in a session's menu › Compact context.": "Tóm tắt các tin nhắn cũ của một phiên khi ngữ cảnh vượt quá tỷ lệ đã đặt của cửa sổ mô hình. Đặt trong menu của phiên › Nén ngữ cảnh.",
+    "Pi makes a drop-in extension for the app: a tool, a rail page, a sheet": "Pi làm một drop-in cho ứng dụng: một công cụ, một trang trên thanh bên, một bảng",
+    "Say what to make, such as /make a pomodoro timer in the side rail.": "Hãy nói cần làm gì, ví dụ /make đồng hồ pomodoro trên thanh bên.",
+    "Pi builds an artifact and offers to keep it as a page on your rail": "Pi làm một artifact và đề nghị giữ nó thành một trang trên thanh bên của bạn"
 }

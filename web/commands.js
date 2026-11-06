@@ -12,6 +12,7 @@ import {
     paletteOf,
     THEMES,
 } from "./theme.js";
+import { t } from "./i18n.js";
 import { trustAvailable } from "./trust.js";
 import { copyText, formatTokens, formatWhen, modelLabel, replyText, shortPath } from "./ui.js";
 
@@ -20,6 +21,14 @@ const isSession = () => store.state.view.conversation?.kind === "session";
 
 /** Plan mode needs its extension, which the owner can turn off. */
 export const planAvailable = () => store.state.server?.extensions?.includes("pocket-plan") === true;
+/** `/make` (PP-428): the Creator flow is the Extension builder's, and the owner's. */
+const makeAvailable = () =>
+    store.state.me?.role === "owner" && store.state.server?.extensions?.includes("pocket-extension-builder") === true;
+/** `/page` (PP-428): artifacts, and pages kept from them. */
+const pageAvailable = () =>
+    store.state.keptPages.on === true && store.state.server?.extensions?.includes("pocket-artifacts") === true;
+/** A message to Pi from a command: steers a run that works, else waits for its turn. */
+const toPi = (text) => actions.submit(text, [], store.state.view.live?.busy ? "steer" : "followUp");
 /** Web access's settings while its module is on: off, Pi has no web tools to set up. */
 export const webAvailable = () => store.state.server?.extensions?.includes("pocket-web") === true;
 /** Scheduled messages need theirs, and a session; so do goals. */
@@ -351,7 +360,38 @@ const COMMANDS = [
         description: "Code review by a subagent: changes, a branch, a commit, a GitHub PR, or folders",
         toPi: true,
         available: () => isSession() && store.state.server?.extensions?.includes("pocket-subagents") === true,
-        run: (arg) => (arg === "" ? openSheet({ type: "review" }) : actions.submit(`/review ${arg}`, [], store.state.view.live?.busy ? "steer" : "followUp")),
+        run: (arg) => (arg === "" ? openSheet({ type: "review" }) : toPi(`/review ${arg}`)),
+    },
+    {
+        // PP-428: typed, it goes to Pi as `/make …`, which the server turns into the Creator flow (`creator-commands.ts`);
+        // with nothing after it, it stays in the box (`fill`) with an example.
+        name: "make",
+        args: "<what>",
+        get description() {
+            return t("Pi makes a drop-in extension for the app: a tool, a rail page, a sheet");
+        },
+        toPi: true,
+        available: makeAvailable,
+        run: (arg) => {
+            if (arg !== "") {
+                return toPi(`/make ${arg}`);
+            }
+
+            notify("info", t("Say what to make, such as /make a pomodoro timer in the side rail."));
+
+            return { fill: "/make " };
+        },
+    },
+    {
+        // PP-428: typed, Pi builds an artifact and offers to keep it as a page; with nothing after it, Settings › Pages.
+        name: "page",
+        args: "<what>",
+        get description() {
+            return t("Pi builds an artifact and offers to keep it as a page on your rail");
+        },
+        toPi: true,
+        available: pageAvailable,
+        run: (arg) => (arg === "" ? openSheet({ type: "pages" }) : toPi(`/page ${arg}`)),
     },
     {
         name: "branch",

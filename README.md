@@ -451,6 +451,9 @@ No Termux, no laptop, no cloud VM.
   kept. Settings › Extensions lists the drop-ins Pi made with their versions, Undo and Restore…. A made drop-in has
   the same rights as any drop-in: what keeps you safe is that you approve each card, it installs switched off, and
   only you switch it on. Names starting with `made-` are the Creator's. Part of the Extension builder: off with it.
+  **`/make <what>`** starts it from the message box (`/make a pomodoro timer in the side rail`): the same card, subagent,
+  checks and Keep/Undo/Restore; `/make` alone stays in the box with an example. Offered to the owner while the
+  Extension builder is on.
 - **A PARA wiki** ([pi-para](https://github.com/picassio/pi-para)): Pi consults and writes it as it works, with qmd's
   search, tracks its open questions until they are answered, and captures idle sessions into it. With OpenRouter signed
   in, **Jev ranks the search** (Menu › Wiki › Rank with Jev): it reads each page the search found (by keyword, by
@@ -803,7 +806,10 @@ card on the session list (and the home screen on a wide screen) offers a tour of
   instructions, schedules, board. Below them, under **App**, are the app's settings, listed in the next part.
 - **The rail** (left edge on a wide screen) opens Sessions, Projects, and the Wiki. A session's **Places** open its Files,
   Changes, Artifacts, Find, and Branch.
-- **Keep an artifact as a page.** **Keep as a page** on an artifact's card in the chat (or in the artifact viewer) puts
+- **Keep an artifact as a page.** **`/page <what>`** (`/page a currency converter VND/USD`) has Pi build it as an
+  artifact, check it, and offer to keep it as a page on a card; `/page` alone opens Settings › Pages. A prompt template
+  named `make` or `page` wins over the app's command, as with `/review`.
+  **Keep as a page** on an artifact's card in the chat (or in the artifact viewer) puts
   it on your rail (in the drawer on a phone) as a page of your own: it opens in the conversation's place, in the same
   sandbox artifacts run in (no app data, no cookies), and follows the artifact's newest version. The one thing a page
   can do in the app is put text into the message box of the session you are in, for you to send

@@ -783,5 +783,9 @@
     "Pages are on (true) or off (false).": "Trang bật (`true`) hoặc tắt (`false`).",
     "A page is an artifact: its session's number (conversation) and its id (artifact).": "Một trang là một artifact: số của phiên chứa nó (`conversation`) và id của nó (`artifact`).",
     "No hook {1}: the hooks are {2}.": "Không có hook {1}: các hook là {2}.",
-    "A hook is on (true) or off (false).": "Một hook là bật (`true`) hoặc tắt (`false`)."
+    "A hook is on (true) or off (false).": "Một hook là bật (`true`) hoặc tắt (`false`).",
+    "/make needs the Extension builder: turn it on in Settings › Extensions.": "/make cần Trình tạo tiện ích: hãy bật nó trong Cài đặt › Tiện ích.",
+    "/page needs artifacts kept as pages: turn them on in Settings › Pages.": "/page cần tính năng giữ artifact thành trang: hãy bật nó trong Cài đặt › Trang.",
+    "Say what to make, such as /make a pomodoro timer in the side rail.": "Hãy nói cần làm gì, ví dụ /make đồng hồ pomodoro trên thanh bên.",
+    "Say what to make, such as /page a currency converter VND/USD.": "Hãy nói cần làm gì, ví dụ /page công cụ đổi tiền VND/USD."
 }

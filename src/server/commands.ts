@@ -69,6 +69,8 @@ import { snippet } from "./projection.ts";
 import { globalModelSettings, projectModelDefault } from "./project-model.ts";
 import { expandPromptTemplate, expandSkillCommand, unwrapSkill } from "./prompts.ts";
 import { expandReviewCommand } from "./review.ts";
+import { expandCreatorCommand } from "./creator-commands.ts";
+import { BUILDER_EXTENSION } from "./extension-builder.ts";
 import { clientKey, ownRequest, requestFor, requestPerson } from "./requests.ts";
 import { type Resend, resendContent, resendRequest, ResendTask, userContent } from "./resend.ts";
 import { whyUnanswered } from "./subagent-runs.ts";
@@ -820,7 +822,8 @@ export class Commands {
         // value an extension hides here (`host.hide`): its label does.
         const typed = app.secrets.redact(request.text.trim(), id);
         // `/skill:name request` sends the skill with the request; `/name arguments`, Pi's prompt template of that name;
-        // `/review …` (PP-357), unless a template of that name is there, asks Pi to start the review tool.
+        // `/review …` (PP-357), unless a template of that name is there, asks Pi to start the review tool; `/make …` and
+        // `/page …` (PP-428) ask for a drop-in through the Creator flow, and for an artifact kept as a page.
         const template = typed.startsWith("/") && !typed.startsWith("/skill:") ? expandPromptTemplate(typed, app.promptTemplates(id)) : undefined;
         const review = template === undefined ? expandReviewCommand(typed) : undefined;
 
@@ -828,7 +831,33 @@ export class Commands {
             throw new HttpError(400, "That is not a target /review takes: changes, branch <base>, commit <sha>, pr <number or link>, or folder <paths>, then --extra and a focus.");
         }
 
-        const text = typed.startsWith("/skill:") ? (expandSkillCommand(typed, app.skillCommands(id)) ?? typed) : (template ?? review ?? typed);
+        const extensions = app.loader.extensionNames();
+        const creator =
+            template === undefined
+                ? expandCreatorCommand(typed, {
+                      builder: extensions.includes(BUILDER_EXTENSION),
+                      pages: extensions.includes("pocket-artifacts") && app.config.artifactPages,
+                      conversation: Number(id),
+                  })
+                : undefined;
+
+        if (typeof creator === "object") {
+            if (creator.error === "off") {
+                throw new HttpError(
+                    409,
+                    creator.command === "make"
+                        ? "/make needs the Extension builder: turn it on in Settings › Extensions."
+                        : "/page needs artifacts kept as pages: turn them on in Settings › Pages.",
+                );
+            }
+
+            throw new HttpError(
+                400,
+                creator.command === "make" ? "Say what to make, such as /make a pomodoro timer in the side rail." : "Say what to make, such as /page a currency converter VND/USD.",
+            );
+        }
+
+        const text = typed.startsWith("/skill:") ? (expandSkillCommand(typed, app.skillCommands(id)) ?? typed) : (template ?? review ?? creator ?? typed);
         const attachments = request.attachments ?? [];
 
         if (text === "" && attachments.length === 0) {

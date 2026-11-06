@@ -75,8 +75,11 @@ import { LimitSwitch, windowName } from "./usage.js";
 import { t, timeAgo, tn, tx } from "./i18n.js";
 
 const REPORT = /^\[subagent (\S+) (answered|failed)([^\]]*)\]\s?([\s\S]*)$/;
-/** `/review …` and the request `expandReviewCommand` (src/server/review.ts) puts after it. */
-const REVIEW_REQUEST = /^(\/review[^\n]*)\n\n<review-request>\n[\s\S]*\n<\/review-request>$/;
+/**
+ * `/review …`, `/make …` or `/page …` and the request the server puts after it (`expandReviewCommand` in
+ * src/server/review.ts, `expandCreatorCommand` in src/server/creator-commands.ts).
+ */
+const COMMAND_REQUEST = /^(\/(review|make|page)(?:\s[\s\S]*?)?)\n\n<\2-request>\n[\s\S]*\n<\/\2-request>$/;
 /** Where the next report starts, in a message of several that arrived together (`extensions/subagents.ts`). */
 const NEXT_REPORT = /\n\n(?=\[subagent \S+ (?:answered|failed))/;
 
@@ -383,8 +386,8 @@ function UserEntry({ entry, view, users }) {
             ? /\n<linked-session-message>\n([\s\S]*)\n<\/linked-session-message>$/.exec(sent)?.[1]
             : undefined;
     const said = peerText ?? (scheduled ? sent.slice(SCHEDULED.length) : spoken ? sent.slice(VOICE.length) : sent);
-    // `/review …` as typed: the request the server added for Pi (`expandReviewCommand`) stays out of sight (PP-357).
-    const body = REVIEW_REQUEST.exec(said)?.[1] ?? said;
+    // `/review …` (PP-357), `/make …` and `/page …` (PP-428) as typed: the request the server added for Pi stays out of sight.
+    const body = COMMAND_REQUEST.exec(said)?.[1] ?? said;
     const files = attachments ? parseAttachments(attachments) : [];
     // `/skill:name request`: the skill by name, and the request.
     const skill = SKILL.exec(body);

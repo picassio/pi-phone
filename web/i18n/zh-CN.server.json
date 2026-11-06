@@ -784,5 +784,9 @@
     "Pages are on (true) or off (false).": "页面为开启（true）或关闭（false）。",
     "A page is an artifact: its session's number (conversation) and its id (artifact).": "页面即产物：它所在会话的编号（conversation）和它的 id（artifact）。",
     "No hook {1}: the hooks are {2}.": "没有钩子 {1}：钩子有 {2}。",
-    "A hook is on (true) or off (false).": "钩子为开启（true）或关闭（false）。"
+    "A hook is on (true) or off (false).": "钩子为开启（true）或关闭（false）。",
+    "/make needs the Extension builder: turn it on in Settings › Extensions.": "/make 需要扩展生成器：请在设置 › 扩展中打开它。",
+    "/page needs artifacts kept as pages: turn them on in Settings › Pages.": "/page 需要把产物保留为页面：请在设置 › 页面中打开。",
+    "Say what to make, such as /make a pomodoro timer in the side rail.": "说说要做什么，例如 /make 侧栏里的番茄钟计时器。",
+    "Say what to make, such as /page a currency converter VND/USD.": "说说要做什么，例如 /page VND/USD 汇率换算器。"
 }

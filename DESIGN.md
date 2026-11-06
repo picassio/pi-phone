@@ -1351,6 +1351,13 @@ so Pi changes them through the settings tools; "the last session" is the one the
       turning the Extension builder off removes the tools, the routes and the cards' data together.
     - Tests: `test/creator.test.ts` (names, ready line, checks, versions, the flow with cards, the reserved prefix),
       `test/creator-ui.test.ts` (Chrome at 390 and 1280 px, screenshots with `PHONE_SHOTS`).
+    - **`/make <what>`** (PP-428, `src/server/creator-commands.ts`): expanded in `submit` as `/review` is, after a
+      prompt template of the name (which wins): the command as typed, then a `<make-request>` (read the skill, call
+      `extension_create`, go on as it says) the transcript hides (`COMMAND_REQUEST` in `web/transcript.js`). The words
+      come with the message only, so a new session's prompt does not grow. Builder off: 409; nothing after it: 400. In
+      the "/" list (`web/commands.js`) for the owner while the module is on; alone, its `run` answers `{ fill }` and the
+      composer leaves `/make ` in the box with an example notice, sending nothing. Tests:
+      `test/creator-commands.test.ts`, `test/creator-commands-ui.test.ts`.
 - **Machine tools** (`src/server/machine-tools.ts`; owner's decisions of 2026-10-18): command-line programs run where
   bash runs, which in a session on a machine is the machine, so OfficeCLI, ripgrep, and fd are installed there.
   - **Catalog** (`TOOLS`): OfficeCLI 1.0.157 (upstream's builds for linux/darwin x64 and arm64, the fork's NativeAOT
@@ -1532,6 +1539,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
     down and *Remove from the rail*.
   - **Tests:** `test/kept-pages.test.ts` (per person, order, newest version, visibility, removal, off, Pi's actions) and
     `test/kept-pages-ui.test.ts` (Chrome, 390 and 1280 px: keep from the card, the rail, the page, the bridge, removal).
+  - **`/page <what>`** (PP-428): expanded as `/make` is, into a `<page-request>`: build it with the artifact tool, fix
+    what the layout check finds, then `app_action pages.keep` with the session's number (the person's card is the
+    offer). Needs `pocket-artifacts` and `artifacts.pages` on (else 409); shown in the "/" list then; alone, it opens
+    Settings › Pages.
 - **Other sessions** (`src/server/session-control.ts`, `extensions/sessions.ts`): the part of PiP that stays, as
   tools in every session: `sessions`, `session_read`, `session_start`, `session_send`, `session_wait`,
   `session_stop`, `approvals` (deny only). They act as the calling session's requester with that person's rights;
