@@ -37,6 +37,13 @@ export type Shot = {
     check?: string;
 };
 
+/**
+ * What the screenshot tool and the artifact check render by default: a phone's width, a desktop's and a large screen's
+ * (PP-420: the owner found 1280 not enough), in CSS pixels. A 1920 px picture is sent as it is, not scaled: under the
+ * 2000 px a side models take, and its text as sharp as the 1280 one's.
+ */
+export const DEFAULT_WIDTHS = [390, 1280, 1920];
+
 /** How long a poll waits for a request before it answers with none. */
 export const RENDER_POLL_MS = 50_000;
 /** A service that polled within this is there to render. */

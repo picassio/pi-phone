@@ -1025,6 +1025,13 @@ so Pi changes them through the settings tools; "the last session" is the one the
     owner's; extensions read them with `host.hookOn(id)`. The sheet also lists the automatic behaviours that keep
     settings of their own (the wiki's capture after idle, auto-compact) with their value, read only: their settings stay
     where they were. First hooks: `artifactCheck` (PP-421) and `uiReminder` (PP-422).
+  - **Check artifacts on publish** (`artifactCheck`, PP-421, `extensions/artifacts.ts` `checkArtifact`): after the
+    version is committed, an `html`, `svg` or `openui` artifact (not Markdown) is rendered from
+    `/a/<session>/<id>/<version>` at `DEFAULT_WIDTHS` (`screenshots.ts`), one render request per width, all at once,
+    each waited for 40 s; the result appends `describeLayout` per width, the screenshot tool's words, without the
+    pictures (Pi takes them with `screenshot`). A width that failed or timed out says why; every width failing alike
+    (no phone renders) is said once; the publish never fails for it. Off: the result is the publish alone. The phone's
+    renderer takes requests one at a time, so the three widths still render one after another (about 6 s on Chrome).
 - **Server edition** (`--platform server`, PP-20; the owner's decision of 2026-10-20, board epic PP-19): the same server in
   Docker (`Dockerfile`, `deploy/`), behind Caddy. `main.ts` runs as `phone` unless told `--platform server` (the image sets `PI_PHONE_PLATFORM=server`). On a
   server, Pi's browser is a `ChromeEngine` with its profile kept in `~/.pi/mobile/browser`, screenshots come from

@@ -368,7 +368,10 @@ dự án thật.</sub>
   hoặc hình khác biệt. Các skill HTML, design-system và unslop đều kết thúc bằng nó.
 - **Hook.** **Menu › Hook** liệt kê các bước kiểm tra pi-phone tự chạy quanh công việc của Pi, nên chúng vẫn diễn ra
   cả khi Pi quên, mỗi hook một công tắc (Pi bật hoặc tắt bằng `setting_change hooks.<id>`, sau khi bạn duyệt thẻ):
-  kiểm tra artifact khi xuất bản, và nhắc Pi kiểm tra giao diện trước khi xong. Bên cạnh là các hành vi tự động có cài
+  **Kiểm tra artifact khi xuất bản**: khi Pi xuất bản một artifact HTML, SVG hoặc tương tác, app dựng nó ở 390, 1280 và
+  1920 px và chính kết quả của công cụ artifact mang theo những gì layout check tìm thấy (chữ bị cắt, phần tử đè nhau,
+  vùng chạm nhỏ, độ tương phản thấp), nên Pi thấy ngay trong lệnh gọi đó; độ rộng nào điện thoại không dựng được thì
+  nói lý do, và artifact vẫn được xuất bản. **Nhắc kiểm tra giao diện trước khi xong**. Bên cạnh là các hành vi tự động có cài
   đặt riêng (ghi phiên không hoạt động vào wiki, nén ngữ cảnh đầy) cùng giá trị hiện tại của chúng.
 - **Hình ảnh.** `image_generate` tạo và sửa hình ảnh (sửa tối đa năm hình một lần; tạo 1 đến 4 hình; 1:1, 16:9,
   9:16, 4:3 hoặc 3:4) bằng mô hình bạn chọn ở **Menu › Hình ảnh** (`image.model`): GPT Image 2.5 qua đăng nhập

@@ -374,7 +374,8 @@ export interface PocketHost {
     serverBase(): string | undefined;
     /** Pictures of a page, rendered by the app's service on the phone (`screenshots.ts`). */
     /** `check`: the script the page runs before it is pictured, whose answer comes back (default the layout check). */
-    render(url: string, options: { widths: number[]; fullPage?: boolean; settleMs?: number; check?: string }): Promise<Shot[]>;
+    /** `timeoutMs`: how long the phone may take to answer (default 90 s). */
+    render(url: string, options: { widths: number[]; fullPage?: boolean; settleMs?: number; check?: string; timeoutMs?: number }): Promise<Shot[]>;
     /**
      * Pi's browser for a session working in `cwd` (`browser/pi-browser.ts`): the phone's, or for a session on a machine,
      * a Chrome on that machine (`browser/machine-engine.ts`). The pages Pi reads and acts on, which the owner watches.

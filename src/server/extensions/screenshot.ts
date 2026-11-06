@@ -9,17 +9,13 @@ import { defineExtension, defineTool, section } from "@earendil-works/pi-durable
 import type { PocketHost } from "../host.ts";
 import { compareImages, describeComparison, diffPathOf } from "../image-compare.ts";
 import { describeLayout } from "../layout-check.ts";
+import { DEFAULT_WIDTHS } from "../screenshots.ts";
 import { isPicturePath, NO_DOM, parseRedline, redlinePictures, redlineScript, specFrom } from "../redline.ts";
 import { isPng, markUp } from "../markup.ts";
 import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
 
 const reply = (text: string, isError = false) => ({ output: [{ type: "text" as const, text }], ...(isError ? { isError: true } : {}) });
 
-/**
- * A phone's width, a desktop's and a large screen's (PP-420: the owner found 1280 not enough), in CSS pixels. A 1920 px
- * picture is sent as it is, not scaled: under the 2000 px a side models take, and its text as sharp as the 1280 one's.
- */
-export const DEFAULT_WIDTHS = [390, 1280, 1920];
 const MIN_WIDTH = 240;
 const MAX_WIDTH = 1920;
 

@@ -14,6 +14,7 @@ import { createHandler } from "../src/server/http.ts";
 const calls: Record<string, [string, Record<string, unknown>]> = {
     "list hooks": ["settings", { area: "hooks" }],
     "reminder off": ["setting_change", { id: "hooks.uiReminder", value: "off", reason: "Too chatty for this work" }],
+    "publish a page": ["artifact", { id: "page", title: "Page", content: "<!doctype html><p>Hi</p>" }],
 };
 const route: FauxResponseStep = (request) => {
     const { role, text } = lastText(request as never);
@@ -107,4 +108,14 @@ test("Settings › Hooks: the API lists and switches the hooks, with the built-i
     assert.equal((await call("hooks/uiReminder", { method: "PUT", body: JSON.stringify({ on: "yes" }) })).status, 400);
     assert.throws(() => app.setHook({ ...owner(app), role: "viewer" }, "uiReminder", false), /Only the owner/);
     assert.throws(() => app.hooksView({ ...owner(app), role: "guest" }), /Only the owner/);
+});
+
+test("the artifact check with no phone to render: the publish stands, and the result says once why it has no numbers (PP-421)", async () => {
+    app.serverPort = 8799;
+    const id = await newSession(app);
+    const told = (await turn(id, "publish a page")).said;
+
+    assert.match(told, /Published \\"Page\\" as artifact page, version 1\./);
+    assert.match(told, /Settings › Hooks; screenshot shows the pictures\): not run\. No phone is rendering: [^]*The artifact is published; look with screenshot once the phone renders\./);
+    assert.equal(told.split("No phone is rendering").length, 2, "said once, not for each width");
 });

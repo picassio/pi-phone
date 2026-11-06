@@ -8,8 +8,54 @@ import { literal } from "../tool-schema.ts";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import { ArtifactBodyDoc, type ArtifactMeta, ArtifactsDoc, type ArtifactType } from "../docs.ts";
 import type { PocketHost } from "../host.ts";
+import { describeLayout } from "../layout-check.ts";
+import { DEFAULT_WIDTHS } from "../screenshots.ts";
 
 const MAX_BYTES = 2_000_000;
+/** The artifact check's wait for each width (PP-421): past it the publish answers without that width's numbers. */
+const CHECK_TIMEOUT_MS = 40_000;
+/** Artifacts the check renders: those the phone lays out as a page. Markdown is text to read. */
+const CHECKED: ReadonlySet<ArtifactType> = new Set(["html", "svg", "openui"]);
+
+/**
+ * The "Check artifacts on publish" hook (PP-421, Settings › Hooks): the version just published, rendered at the
+ * screenshot widths as the screenshot tool renders it, each width a request of its own so one that is slow costs only
+ * its own numbers. What the layout check found, in the screenshot tool's words, without the pictures; a width that
+ * could not be rendered says why, and the publish stands.
+ */
+async function checkArtifact(host: PocketHost, conversation: string, id: string, version: number, timeoutMs: number): Promise<string> {
+    const base = host.serverBase();
+    const head = 'Layout check (the hook "Check artifacts on publish", Settings › Hooks; screenshot shows the pictures):';
+
+    if (base === undefined) {
+        return `${head} not run: this server has no address for the phone to render from.`;
+    }
+
+    const url = `${base}/a/${conversation}/${encodeURIComponent(id)}/${version}`;
+    const results = await Promise.allSettled(DEFAULT_WIDTHS.map((width) => host.render(url, { widths: [width], fullPage: true, timeoutMs })));
+    const whys = results.map((result) => (result.status === "rejected" ? (result.reason instanceof Error ? result.reason.message : String(result.reason)) : undefined));
+
+    // Every width failed alike (no phone renders now): said once.
+    if (whys.every((why) => why !== undefined && why === whys[0])) {
+        return `${head} not run. ${whys[0]} The artifact is published; look with screenshot once the phone renders.`;
+    }
+
+    const lines = results.map((result, index) => {
+        const width = DEFAULT_WIDTHS[index]!;
+
+        if (result.status === "rejected") {
+            const why = result.reason instanceof Error ? result.reason.message : String(result.reason);
+
+            return `Layout check at ${width} px: not measured. ${why} The artifact is published; look with screenshot.`;
+        }
+
+        const layout = result.value[0]?.layout;
+
+        return layout === undefined ? `Layout check at ${width} px: not measured (an older app).` : describeLayout(layout);
+    });
+
+    return `${head}\n${lines.join("\n")}`;
+}
 
 export function slugify(value: string): string {
     return value
@@ -56,7 +102,7 @@ const GUIDE = `Use the artifact tool for results the user should see rendered ra
 - Reuse the id to publish a new version. For small fixes, send edits against the latest version instead of the whole content.
 - The person can keep an artifact as a page on their rail (app_action pages.keep does it for them, after a card); the page follows its newest version. An artifact's one way into the app, in the viewer and on a page: parent.postMessage({ type: "pi-compose", text }, "*") puts text into the message box of the session they are in, for them to send (in an openui artifact, @ToAssistant does that on a page).`;
 
-export default function createArtifacts(_host: PocketHost) {
+export default function createArtifacts(host: PocketHost) {
     const artifact = defineTool({
         name: "artifact",
         description:
@@ -169,11 +215,19 @@ export default function createArtifacts(_host: PocketHost) {
                 }, context);
             }
 
+            const published = `Published "${args.title}" as artifact ${id}, version ${version}. The user opens it from the artifact card.`;
+            const type = (await api.snapshot(ArtifactsDoc, api.conversationId, context))?.items[id]?.type;
+            // The hook (PP-421): the numbers come with the publish, so Pi cannot skip looking at them.
+            const checked =
+                type !== undefined && CHECKED.has(type) && host.hookOn("artifactCheck")
+                    ? await checkArtifact(host, String(api.conversationId), id, version, CHECK_TIMEOUT_MS)
+                    : undefined;
+
             return {
                 output: [
                     {
                         type: "text",
-                        text: `Published "${args.title}" as artifact ${id}, version ${version}. The user opens it from the artifact card.`,
+                        text: checked === undefined ? published : `${published}\n\n${checked}`,
                     },
                 ],
                 details: { id, title: args.title, version },
