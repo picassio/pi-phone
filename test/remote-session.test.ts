@@ -72,6 +72,13 @@ const route: FauxResponseStep = (request) => {
         }
     }
 
+    // PP-441: Pi reads html-plan where its skills section says it is.
+    if (asked.role === "user" && asked.text.endsWith("read the html-plan skill")) {
+        const path = /<location>([^<]*\/html-plan\/SKILL\.md)<\/location>/.exec(skillsTold)?.[1] ?? "html-plan is not listed";
+
+        return fauxAssistantMessage([fauxToolCall("read", { path, limit: 4 })], { stopReason: "toolUse" });
+    }
+
     if (role === "user" && text === "where are you") {
         return fauxAssistantMessage([fauxToolCall("bash", { command: "pwd; echo marker-$HOME" })], { stopReason: "toolUse" });
     }
@@ -175,6 +182,65 @@ test("a session on a machine runs its tools there, and the prompt says where", {
     assert.match(preamble, /the wiki \(the phone's, one for all sessions\), secrets/);
     assert.doesNotMatch(preamble, /Termux/);
     void home;
+});
+
+test("pi-phone's own skills in a session on a machine: copied there once, listed at their place, read there (PP-441)", { skip }, async () => {
+    const copies = join(remoteHome, ".pi", "mobile", "skills");
+    const { id } = await app.commands.createSession(owner(app), { cwd: `machine:${machineId}:${join(remoteHome, "project")}` });
+
+    await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+    const { submissionId } = await app.commands.submit(id, owner(app), { text: "read the html-plan skill", requestId: crypto.randomUUID() });
+
+    await (await app.harness.submission(submissionId, context))!.wait(context);
+    assert.match(skillsTold, /<name>html-plan<\/name>/, "plan mode names html-plan: it is listed");
+    const key = app.machineSkillBundle().key;
+    const planThere = join(copies, key, "html-plan", "SKILL.md");
+
+    // Plan mode names html-plan: it is listed, at its place on the machine, never the phone's.
+    assert.ok(skillsTold.includes(`<location>${planThere}</location>`), skillsTold.slice(0, 600));
+    assert.match(skillsTold, /<name>ui-verify<\/name>/);
+    assert.match(skillsTold, /<name>unslop<\/name>/, "Design & video's, while it is on");
+    assert.doesNotMatch(skillsTold, new RegExp(APP_ROOT.replace(/[/.]/g, "\\$&")), "never the phone's paths");
+
+    // Not those that work on the phone alone.
+    for (const name of ["getting-started", "design-system", "brand-extract", "extension-builder"]) {
+        assert.doesNotMatch(skillsTold, new RegExp(`<name>${name}</name>`), name);
+    }
+
+    // Pi's read, on the machine, finds it: the same file as the phone's.
+    const said = (await modelTexts(app, id)).at(-1)!;
+
+    assert.match(said, /saw: ---(\s|\\n)+name: html-plan/, said.slice(0, 300));
+    assert.equal(readFileSync(planThere, "utf8"), readFileSync(join(APP_ROOT, "third_party", "effective-html", "skills", "html-plan", "SKILL.md"), "utf8"));
+    // And the business-motion-film skill's scripts, which run on a machine.
+    assert.ok(existsSync(join(copies, key, "business-motion-film", "scripts", "contact-sheet.sh")));
+
+    // Another request copies nothing again.
+    const mark = join(copies, key, ".done");
+    const before = readdirSync(copies);
+
+    // A copy made again would start from an empty folder: this file would go.
+    writeFileSync(join(copies, key, "html-plan", "left.txt"), "");
+    const again = await app.commands.submit(id, owner(app), { text: "read the html-plan skill", requestId: crypto.randomUUID() });
+
+    await (await app.harness.submission(again.submissionId, context))!.wait(context);
+    assert.deepEqual(readdirSync(copies), before);
+    assert.ok(existsSync(mark));
+    assert.ok(existsSync(join(copies, key, "html-plan", "left.txt")), "not copied again while the app runs");
+
+    // Design & video off: its skills are not listed, and their copy has its own key.
+    await app.setExtensionEnabled(owner(app), "design.ts", false);
+
+    try {
+        const off = await app.commands.submit(id, owner(app), { text: "read the html-plan skill", requestId: crypto.randomUUID() });
+
+        await (await app.harness.submission(off.submissionId, context))!.wait(context);
+        assert.doesNotMatch(skillsTold, /<name>unslop<\/name>/);
+        assert.match(skillsTold, /<name>html-plan<\/name>/);
+        assert.notEqual(app.machineSkillBundle().key, key);
+    } finally {
+        await app.setExtensionEnabled(owner(app), "design.ts", true);
+    }
 });
 
 test("tools on a machine: offered, installed checked against their sha256, first on bash's PATH there; their skills in the prompt", { skip }, async () => {

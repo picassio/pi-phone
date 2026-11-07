@@ -28,6 +28,11 @@ export const DESIGN_SKILLS = [
     join(APP_ROOT, "third_party", "motion-video-kit", "skills"),
     join(APP_ROOT, "third_party", "heydamir-unslop", "skills"),
 ];
+/**
+ * Those that work in a session on a machine, copied there (`machine-skills.ts`, PP-441): all but `src/design/skills/`,
+ * whose design-system and brand-extract read and write the design systems on the phone.
+ */
+export const DESIGN_MACHINE_SKILLS = DESIGN_SKILLS.filter((folder) => folder !== join(APP_ROOT, "src", "design", "skills"));
 
 /** The person's own design systems. */
 export const ownDesignSystems = (dataDir: string): string => join(dataDir, "design-systems");

@@ -123,6 +123,7 @@ import { localEngine } from "./media.ts";
 import { resolveLanguage, translator } from "./i18n.ts";
 import { newestBig, WHATS_NEW_DIR, type WhatsNew } from "./whats-new.ts";
 import {
+    DESIGN_MACHINE_SKILLS,
     DESIGN_MODULE,
     DESIGN_SKILLS,
     DESIGN_SYSTEM_ID,
@@ -141,6 +142,7 @@ import { CAPTURE_EXTENSION, ParaCapture } from "./para-capture.ts";
 import { PiSessions } from "./pi-sessions.ts";
 import { Machines } from "./machines.ts";
 import { exportsOf, MachineTools, machineSkillsDir, sessionEnvOf, TOOLS, TOOLS_BIN } from "./machine-tools.ts";
+import { MachineSkills, machineSkillsText, type SkillBundle, skillBundle } from "./machine-skills.ts";
 import { FORMAL_MODULE, FORMAL_SKILLS } from "./formal-checks.ts";
 import { BUILDER_MODULE, BUILDER_SKILLS } from "./extension-builder.ts";
 import { reviewTargets } from "./review.ts";
@@ -226,6 +228,9 @@ export const BROWSER_IDLE_MS = 30 * 60_000;
 const BROWSER_SWEEP_MS = 60_000;
 /** The extension module with the subagent tool, rebuilt when the models subagents may use change. */
 const SUBAGENTS_FILE = "subagents.ts";
+/** pi-phone's own skills (getting-started, ui-verify), and Effective HTML's: in every session. */
+const APP_SKILLS = join(APP_ROOT, "src", "skills");
+const EFFECTIVE_HTML_SKILLS = join(APP_ROOT, "third_party", "effective-html", "skills");
 /** The most models the owner may allow subagents besides their session's own. */
 const MAX_SUBAGENT_MODELS = 50;
 /** The hours a run may wait for a provider's limit, as the owner may choose them (0: not at all). */
@@ -638,6 +643,9 @@ export class PocketApp {
     readonly officecli: OfficeCli;
     /** Tools pi-phone installs on machines: OfficeCLI, rg, fd (`machine-tools.ts`). */
     readonly machineTools: MachineTools;
+    /** The app's own skills, copied to machines for sessions there (`machine-skills.ts`, PP-441). */
+    readonly machineSkills: MachineSkills;
+    #skillBundle: { folders: string; bundle: SkillBundle } | undefined;
     /** Where sessions work, here or on a machine, and each place's execution environment (`places.ts`). */
     readonly places: Places;
     /** Ports of machines opened here (`forwards.ts`). */
@@ -887,6 +895,7 @@ export class PocketApp {
         });
         this.officecli = new OfficeCli({ dataDir: options.dataDir, ...options.officecli });
         this.machineTools = new MachineTools(this.places, (id) => this.machines.get(id), (id, tools) => this.machines.setTools(id, tools), TOOLS, options.crdRun);
+        this.machineSkills = new MachineSkills(this.places);
         this.officecli.install();
         // The owner's tabs get the open ports again on every change, and hear why one closed by itself (PP-108).
         this.forwards = new Forwards(this.machines, (ended) => {
@@ -1322,24 +1331,33 @@ export class PocketApp {
             apiKey: async (provider) => (await this.models.getAuth(provider))?.auth.apiKey,
             askSessionModel: async (id, prompt, maxTokens) => (await askSessionModel(this, id, prompt, { maxTokens })).text,
             chargeSession: (id, key, usage) => chargeSession(this, id, key, usage),
-            machineSkills: (cwd) => {
+            machineSkills: async (cwd) => {
                 const machine = this.places.machineOf(cwd);
 
                 if (machine?.remote === undefined) {
                     return undefined;
                 }
 
-                const skills = this.machineTools.catalog.flatMap((tool) => {
+                const reached = { ...machine, remote: machine.remote };
+                const tools = this.machineTools.catalog.flatMap((tool) => {
                     const version = machine.tools?.[tool.id];
 
                     // A tool's skills follow their extension's switch (TLC's statechart: Formal checks).
                     return tool.skills === undefined || version === undefined || (tool.skillsModule !== undefined && !this.loader.enabled(tool.skillsModule))
                         ? []
-                        : machineToolSkills(resolve(APP_ROOT, tool.skills), machineSkillsDir(machine.remote!.home, tool, version), getAgentDir());
+                        : machineToolSkills(resolve(APP_ROOT, tool.skills), machineSkillsDir(reached.remote.home, tool, version), getAgentDir());
                 });
-                const text = formatSkillsForPrompt(skills, "read").trim();
+                let own: Skill[] = [];
+                let failed: string | undefined;
 
-                return text === "" ? undefined : text;
+                try {
+                    own = await this.machineSkills.place(reached, this.machineSkillBundle());
+                } catch (error) {
+                    failed = error instanceof Error ? error.message : String(error);
+                    this.log(`Could not copy pi-phone's skills to ${machine.name}: ${failed}`);
+                }
+
+                return machineSkillsText(formatSkillsForPrompt([...own, ...tools], "read").trim(), failed);
             },
             machines: () =>
                 this.machines
@@ -5685,13 +5703,29 @@ export class PocketApp {
      */
     builtInSkills(): string[] {
         return [
-            join(APP_ROOT, "src", "skills"),
-            join(APP_ROOT, "third_party", "effective-html", "skills"),
+            APP_SKILLS,
+            EFFECTIVE_HTML_SKILLS,
             ...(this.loader.enabled(DESIGN_MODULE) ? DESIGN_SKILLS : []),
             ...(this.loader.enabled(FORMAL_MODULE) ? FORMAL_SKILLS : []),
             ...(this.loader.enabled(BUILDER_MODULE) ? BUILDER_SKILLS : []),
             ...(this.officecli.available() ? [this.officecli.skillsDir] : []),
         ];
+    }
+
+    /**
+     * The app's skills that work on a machine, as `machine-skills.ts` copies them: pi-phone's own and Effective HTML's,
+     * and Design & video's while it is on (but those that use the phone's design systems). Hashed again only when the
+     * folders change (an extension turned on or off), as the app's files change only with an update.
+     */
+    machineSkillBundle(): SkillBundle {
+        const folders = [APP_SKILLS, EFFECTIVE_HTML_SKILLS, ...(this.loader.enabled(DESIGN_MODULE) ? DESIGN_MACHINE_SKILLS : [])];
+        const key = folders.join("\n");
+
+        if (this.#skillBundle?.folders !== key) {
+            this.#skillBundle = { folders: key, bundle: skillBundle(folders, getAgentDir()) };
+        }
+
+        return this.#skillBundle.bundle;
     }
 
     /** A shell command in `cwd`, where it is (the phone, or a machine): its exit code and output. */

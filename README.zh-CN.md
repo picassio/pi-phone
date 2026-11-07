@@ -321,7 +321,9 @@
 - **在其他机器上工作。** 添加 SSH 密钥和机器（设置 › SSH 密钥、机器）。机器上的会话通过
   [pi-env](https://github.com/earendil-works/pi/tree/main/packages/env) 的小型守护进程在那里运行工具；对话和你的登录信息仍留在手机上。
   文件面板、查看器、更改和终端都会跟随会话切到那台机器。支持 Linux、macOS、Termux 和 **Windows**（通过其 OpenSSH Server 和 Git Bash；
-  应用会给你一个负责配置的 PowerShell 脚本）。
+  应用会给你一个负责配置的 PowerShell 脚本）。应用中能在那里使用的技能（html-plan 等 HTML 技能、ui-verify，以及设计与视频中除
+  design-system 和 brand-extract 之外的技能）会在会话的第一个请求时复制到 `~/.pi/mobile/skills`，并按那里的位置列出，
+  所以 Pi 在机器上读取它们并运行其中的脚本。
 - **机器工具。** 可以从应用中在机器上安装 OfficeCLI、ripgrep、fd、Chrome（无头模式，供没有 Chrome 的机器运行 Pi 的浏览器）
   和电脑操作（ocu，让 Pi 操作那里的桌面应用；在 Linux 上需要桌面会话），Windows 也支持，安装时校验 SHA-256。添加机器时、
   **安装工具** 里以及 `machine_add` 卡片上都会列出它们，默认勾选。另有两个因体积大而默认不勾选：**ffmpeg**

@@ -298,7 +298,18 @@ so Pi changes them through the settings tools; "the last session" is the one the
   interactive answers, schedules, subagents, other sessions. A prompt that listed only limits had Pi there believe these
   stayed on the phone; all were checked working there on 2026-10-18. The environment section says which machine, that
   its git/gh logins are the machine's, that attachments are copied there, and that a command stops ~30 s after the link
-  drops; AGENTS.md and skills are not read for a machine (they would be the phone's). The folder picker
+  drops; AGENTS.md and the project's skills are not read for a machine (they would be the phone's). **The app's skills
+  there** (`machine-skills.ts`, PP-441): plan mode named html-plan's SKILL.md, which a session there could neither see
+  listed nor read (read runs on the machine; ENOENT, 2026-11-07). The skills that work on a machine (`src/skills/` but
+  getting-started, Effective HTML's, and Design & video's `DESIGN_MACHINE_SKILLS` while it is on, not design-system and
+  brand-extract, which use the phone's design systems; not Extension builder's, a phone flow) are copied by the skills
+  section, on a session's first request, as one tar to `~/.pi/mobile/skills/<key>/<skill folder>/` and listed there,
+  so read and bash (unslop's and business-motion-film's scripts) find them. `<key>` is a hash of their files; a `.done`
+  mark says a copy is whole, is checked once per machine and key while the app runs, and touched then; copies whose mark
+  is 30 days old go with the next copy. A failed copy is tried again by the next request, and until then the section
+  says the app's skills are not there (no other list instead). Chosen over a read path to the phone's files, which
+  would have left the skills' scripts out of bash's reach. OfficeCLI's and the statechart skill still come with their
+  machine tools. The folder picker
   browses the machine through its environment (New folder makes one there). **Health:** a machine counts as set up once
   connected, but whether it answers now is `Places.health()`: every set-up machine `reach`ed at once (10 s each),
   kept a minute, with `sshProblem()` saying what a failure means (key refused, host key changed, not reachable). It is
@@ -1531,7 +1542,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
     the environment section names the installed tools (`toolsNote`), with how to render with HyperFrames where it is
     (`hyperframes render <folder> -o <file>.mp4`, check with ffprobe, its own SKILL.md inside the package, never
     `npx hyperframes`); the skills section lists the installed tools' skills at their paths on the machine
-    (`machineToolSkills`), which Pi reads there. `machine_run`'s description says the tools are in
+    (`machineToolSkills`), which Pi reads there, after the app's own copied there (`machine-skills.ts`). `machine_run`'s description says the tools are in
     `~/.pi/mobile/tools/bin`, not on its PATH.
   - **Tests:** `remote-session.test.ts` serves a tool from a local HTTP server; its sshd runs with `SetEnv HOME=` the
     test's folder, so nothing reaches the real home.

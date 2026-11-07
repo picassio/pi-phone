@@ -412,8 +412,11 @@ export interface PocketHost {
     askSessionModel(conversationId: ConversationId, prompt: string, maxTokens: number): Promise<string>;
     /** Count a request made for a session elsewhere (Jev's decisions) in its Spend, under `key`. */
     chargeSession(conversationId: ConversationId, key: string, usage: { input: number; output: number; cost: number }): Promise<void>;
-    /** The skills of tools pi-phone installed on the session's machine, formatted for the prompt; undefined for none. */
-    machineSkills(cwd: string): string | undefined;
+    /**
+     * The skills of a session on a machine, formatted for the prompt: those of tools pi-phone installed there, and the
+     * app's own, copied there first (`machine-skills.ts`, PP-441); undefined for none.
+     */
+    machineSkills(cwd: string): Promise<string | undefined>;
     /**
      * `provider/modelId` (or a bare model id) to a signed-in model whose sign-in has not expired, or an error that says
      * it is not available. The error names no other models: models are a person's to choose.

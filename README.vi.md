@@ -508,7 +508,9 @@ dự án thật.</sub>
   cụ của nó ở đó qua daemon nhỏ của [pi-env](https://github.com/earendil-works/pi/tree/main/packages/env); cuộc trò
   chuyện và các đăng nhập của bạn vẫn ở trên điện thoại. Khung Tệp, trình xem, Thay đổi và terminal theo phiên sang đó.
   Linux, macOS, Termux và **Windows** (qua OpenSSH Server và Git Bash của nó; ứng dụng đưa bạn một script PowerShell để
-  thiết lập).
+  thiết lập). Các skill của ứng dụng dùng được ở đó (html-plan và các skill HTML khác, ui-verify, và của Thiết kế & video
+  trừ design-system và brand-extract) được chép sang `~/.pi/mobile/skills` ở yêu cầu đầu tiên của phiên và liệt kê tại
+  chỗ đó, nên Pi đọc chúng, và chạy script của chúng, ngay trên máy.
 - **Công cụ trên máy.** OfficeCLI, ripgrep, fd, Chrome (headless, cho trình duyệt của Pi khi máy không có Chrome), và
   Computer use (ocu, để Pi thao tác ứng dụng máy tính ở đó; trên Linux cần một phiên desktop) được cài lên máy từ ứng
   dụng (kể cả Windows), đối chiếu SHA-256. Chúng được liệt kê sẵn và được chọn khi bạn thêm máy, trong **Cài công cụ**,

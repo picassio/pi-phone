@@ -337,10 +337,11 @@ export default function createPrompt(host: PocketHost) {
 
                 return cwd === undefined ? undefined : load(cwd).context;
             }),
-            section("skills", (input) => {
+            section("skills", async (input) => {
                 const cwd = localCwd(input);
-                // On a machine: the skills of tools pi-phone installed there (OfficeCLI's), at their paths there.
-                const fresh = cwd === undefined ? host.machineSkills(cwdOf(input)) : load(cwd).skills;
+                // On a machine: the skills of tools pi-phone installed there (OfficeCLI's) and the app's own, copied there
+                // (PP-441), at their paths there.
+                const fresh = cwd === undefined ? await host.machineSkills(cwdOf(input)) : load(cwd).skills;
 
                 // Frozen (PP-276): the list the session has, while it names the same skills; an update that only rewords
                 // one is not sent again.

@@ -493,7 +493,9 @@ No Termux, no laptop, no cloud VM.
   runs its tools there through [pi-env](https://github.com/earendil-works/pi/tree/main/packages/env)'s small daemon;
   the conversation and your logins stay on the phone. The Files panel, viewer, Changes, and the terminal follow the
   session there. Linux, macOS, Termux, and **Windows** (through its OpenSSH Server and Git Bash; the app gives you a
-  PowerShell script that sets it up).
+  PowerShell script that sets it up). The app's skills that work there (html-plan and the other HTML skills, ui-verify,
+  and Design & video's but design-system and brand-extract) are copied to `~/.pi/mobile/skills` on the session's first
+  request and listed at that place, so Pi reads them, and runs their scripts, there.
 - **Machine tools.** OfficeCLI, ripgrep, fd, Chrome (headless, for Pi's browser where a machine has no Chrome), and
   Computer use (ocu, for Pi to operate desktop apps there; on Linux it needs a desktop session) installed on a machine
   from the app (Windows included), checked by their SHA-256. They are listed, ticked, when you add a machine, in
