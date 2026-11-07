@@ -78,6 +78,8 @@ export type PopupMode = "allow" | "ask" | "off";
 export const POPUP_MODES: readonly PopupMode[] = ["allow", "ask", "off"];
 /** How long an answer waits for a window the page asked for (`Page.windowOpen`) to open, or the phone to ask about it. */
 const WINDOW_WAIT_MS = 3000;
+/** How long `browser_select` waits for the options of a list a page draws after opening it (PP-448). */
+const OPTIONS_WAIT_MS = 3000;
 
 /**
  * A window a page asks to open, before it opens (the phone's WebView asks the app first, PP-249): the tab whose page
@@ -1647,8 +1649,9 @@ export class PiBrowser {
     }
 
     /**
-     * A list a page draws itself (a Radix or ARIA select: a button that opens options): open it unless it is open, then
-     * click the option, scrolled into view in the list (PP-116).
+     * A list a page draws itself (a Radix or ARIA select: a button that opens options): open it unless it is open, wait
+     * for its options (`OPTIONS_WAIT_MS`: a portal may render them once data comes, PP-448), then click the option,
+     * scrolled into view in the list (PP-116). One that does not open is refused with the page now, nothing else clicked.
      */
     async #chooseOption(tab: Tab, observed: Observed, element: Element, option: string): Promise<string> {
         const wanted = option.trim().toLowerCase();
@@ -1662,10 +1665,19 @@ export class PiBrowser {
         };
         let found = find(tab.elements);
 
-        if (found.match === undefined && element.expanded !== "true") {
-            await tab.page.click(observed, element);
+        if (found.match === undefined) {
+            if (element.expanded !== "true") {
+                await tab.page.click(observed, element);
+            }
+
+            const shown = await tab.page.optionsShown(element, OPTIONS_WAIT_MS);
+
             await this.#read();
             found = find(tab.elements);
+
+            if (found.match === undefined && found.options.length === 0 && !shown.open) {
+                throw new StalePage(`[${element.index}] ${element.label} did not open: no list of options showed within ${OPTIONS_WAIT_MS / 1000} s of the click, and nothing else was clicked.`);
+            }
         }
 
         if (found.match === undefined) {

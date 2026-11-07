@@ -1786,6 +1786,14 @@ so Pi changes them through the settings tools; "the last session" is the one the
   the action is refused as stale (the tool answers with the page now) and names what the input would have hit. All
   click kinds and an upload button's click; a hover, a drag and the panel's own input are not guarded. A listener the
   page put on the window's capture phase earlier still runs first.
+- **Lists a page draws, options that come late** (PP-448, the same console: auton-ui's FilterSelect is a button with
+  role combobox whose options a portal renders at the end of the body, once data comes; `browser_select` said it
+  "showed no options"). `#chooseOption` (a combobox, button or listbox without native options) clicks it unless it says
+  it is open, then waits for an option to show anywhere in its frame and open shadow roots (`optionsShown`, polled
+  every 50 ms, `OPTIONS_WAIT_MS` 3 s: aria-controls is not needed, as portals often lack it), reads the page and picks
+  the option by name with a guarded click. No option and no sign it opened (its aria-expanded, unless the page drew
+  the control again; a listbox or menu showing) is refused as stale with the page now: it did not open, nothing else
+  was clicked.
 - **Selecting text in Pi's browser** (`browser_select_text`, `BrowserPage.selectText`, `SELECT_TEXT`, PP-376): in a
   field (input with a selection, textarea) its own selection (`setSelectionRange`, focused): all, a text in its value,
   or characters start to end (clamped). Elsewhere a DOM range set with `setBaseAndExtent` over the visible text nodes

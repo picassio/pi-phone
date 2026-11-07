@@ -2141,6 +2141,30 @@ export class BrowserPage {
     }
 
     /** Choose an option of a drop-down list, by its text (or value), as a person picking it would. */
+    /**
+     * After a click on a list a page draws (PP-448: a button with role combobox whose options a portal renders at the end
+     * of the body once data comes): wait until an option shows anywhere in the control's frame (its open shadow roots
+     * too), `ms` at most. Answers whether one shows, and whether the list is open: the control says so (aria-expanded;
+     * one the page put in its place since is not asked), or a listbox or menu shows.
+     */
+    async optionsShown(element: Element, ms: number): Promise<{ options: boolean; open: boolean }> {
+        return this.#evaluateAt<{ options: boolean; open: boolean }>(
+            element.node,
+            (local) => `(async (node, ms) => {
+            const e=window.__piBrowser?.nodes.get(node);
+            const shown=x=>{ const r=x.getBoundingClientRect(); return r.width>0 && r.height>0 && x.checkVisibility({checkOpacity:true,checkVisibilityCSS:true}); };
+            const any=selector=>${ROOTS}.some(root=>[...root.querySelectorAll(selector)].some(shown));
+            const until=performance.now()+ms;
+            for (;;) {
+              const options=any('[role="option"]');
+              if (options || performance.now()>=until) return {options, open: options || !!e?.isConnected && e.getAttribute('aria-expanded')==='true' || any('[role="listbox"],[role="menu"]')};
+              await new Promise(done=>setTimeout(done,50));
+            }
+          })(${local}, ${ms})`,
+            { awaitPromise: true },
+        );
+    }
+
     async select(observed: Observed, element: Element, option: string): Promise<string> {
         const wanted = option.trim().toLowerCase();
         const match =

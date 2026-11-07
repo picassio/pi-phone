@@ -234,7 +234,8 @@ dự án thật.</sub>
   ở cỡ máy tính). `browser_select_text` bôi chọn một đoạn chữ trên trang (cả trong khung) hoặc trong một ô, toàn bộ một
   ô nhập, hoặc các ký tự theo vị trí, cho việc định dạng trong trình soạn thảo hay trang làm việc với vùng chọn; không dùng
   bảng tạm, và không bao giờ trong ô mật khẩu hay những gì bạn gõ trên thẻ. Danh sách do trang tự vẽ (một ô chọn có vùng cuộn riêng) cũng dùng được: mọi lựa chọn đều được
-  liệt kê, một cú nhấp cuộn nó vào tầm nhìn, `browser_select` mở danh sách và chọn theo tên, `browser_scroll` cuộn
+  liệt kê, một cú nhấp cuộn nó vào tầm nhìn, `browser_select` mở danh sách, chờ các lựa chọn trang vẽ ra
+  chậm một chút (trong một portal ở cuối trang) rồi chọn theo tên, hoặc báo danh sách không mở, `browser_scroll` cuộn
   danh sách, và một chữ cái nhảy tới mục theo kiểu gõ trước. `browser_screenshot` có thể lưu hình dạng PNG hoặc
   JPEG vào thư mục của phiên (cho `doc_image` hoặc một báo cáo), và chỉ chụp hộp thoại, menu hoặc danh sách chứa
   một ô điều khiển, hoặc cả trang vượt ra ngoài phần đang hiển thị (`full_page`, 4.000 px CSS đầu tiên; trên trình duyệt

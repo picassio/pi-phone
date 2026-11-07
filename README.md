@@ -225,7 +225,8 @@ No Termux, no laptop, no cloud VM.
   or a page that acts on a selection; no clipboard, and never in a password field or what you typed on a card.
   Lists a page draws itself
   (a select with its own scroll area) work too: every option is listed, a click scrolls it into view, `browser_select`
-  opens the list and picks by name, `browser_scroll` scrolls the list, and a letter jumps by type-ahead.
+  opens the list, waits for options a page renders a moment later (in a portal at the end of the page), and picks by
+  name, or says the list did not open, `browser_scroll` scrolls the list, and a letter jumps by type-ahead.
   `browser_screenshot` can save its picture as a PNG or JPEG in the session's folder (for `doc_image` or a report),
   and picture only the dialog, menu or list a control is in, or the whole page past the view (`full_page`, its first
   4,000 CSS pixels; on a machine's browser or an attached one, as the phone's pictures come from its screen a view at

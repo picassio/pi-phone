@@ -1,5 +1,5 @@
 // Pi's browser on pages that change under it, with a Chrome on the machine (CI): a layout that shifts between Pi's
-// check of a control and its click (PP-447).
+// check of a control and its click (PP-447); a list whose options a portal renders a moment after it opens (PP-448).
 import { cleanUp, cleanUpAll } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -32,6 +32,38 @@ const PAGES: Record<string, string> = {
     "/shift": shifting("addEventListener('mousemove', () => bar.remove(), { once: true });"),
     // The line goes and comes on every pointer move: the button never holds still under the pointer.
     "/jumpy": shifting("addEventListener('mousemove', () => { bar.hidden = !bar.hidden; });"),
+    // A combobox button (as auton-ui's FilterSelect) that the page draws again when it opens and when a choice is made,
+    // whose options a portal renders at the end of the body 800 ms after it opens (they come with data); and one that
+    // never opens. A link above, which a stray click would follow.
+    "/combo": `<!doctype html><title>Combo</title><meta name="viewport" content="width=device-width">
+        <style>body{font:16px sans-serif} [role=listbox]{position:fixed;left:8px;top:120px;background:#fff;border:1px solid #888} [role=option]{padding:8px 16px;cursor:pointer}</style>
+        <a href="#/reviews" style="display:block">Reviews</a>
+        <span id="slot"></span> <button role="combobox" aria-expanded="false" aria-haspopup="listbox">Status: Any</button>
+        <p id="out">Showing all</p>
+        <script>
+            let value = 'All';
+            function render(open) {
+                const b = document.createElement('button');
+                b.setAttribute('role', 'combobox'); b.setAttribute('aria-haspopup', 'listbox');
+                b.setAttribute('aria-expanded', String(open)); b.textContent = 'Show: ' + value;
+                b.onclick = () => {
+                    render(true);
+                    setTimeout(() => {
+                        const list = document.createElement('div');
+                        list.setAttribute('role', 'listbox');
+                        for (const name of ['All', 'Approved', 'Rejected']) {
+                            const o = document.createElement('div');
+                            o.setAttribute('role', 'option'); o.textContent = name;
+                            o.onclick = () => { value = name; list.remove(); render(false); out.textContent = 'Showing ' + name.toLowerCase(); };
+                            list.append(o);
+                        }
+                        document.body.append(list);
+                    }, 800);
+                };
+                slot.replaceChildren(b);
+            }
+            render(false);
+        </script>`,
     // The first page in a frame of the page's own.
     "/framed": `<!doctype html><title>Framed</title><meta name="viewport" content="width=device-width">
         <style>body{margin:0} iframe{display:block;width:300px;height:220px;border:0}</style><iframe src="/shift"></iframe>`,
@@ -98,6 +130,25 @@ test("with Chrome: a click whose control moves just before it lands on that cont
 
         assert.match(inFrame, /Clicked Match again/);
         assert.doesNotMatch(inFrame, /Clicked Human handoff/);
+    } finally {
+        await browser.close();
+    }
+});
+
+test("with Chrome: browser_select opens a combobox whose options a portal renders a moment later, and picks one by name; one that does not open is refused, nothing else clicked (PP-448)", { skip }, async () => {
+    const browser = browserHere();
+
+    try {
+        const page = await browser.open(1, "http://pi.test/combo");
+        const chosen = await browser.select(1, number(page, /\[(\d+)\] combobox "Show: All"/), "Approved");
+
+        assert.match(chosen, /^Chose "Approved"\./);
+        assert.match(chosen, /combobox "Show: Approved" expanded=false/);
+        assert.match(chosen, /Showing approved/);
+
+        // Never opens: said so, with the page now; the link above was not followed.
+        await assert.rejects(browser.select(1, number(chosen, /\[(\d+)\] combobox "Status: Any"/), "Open"), /\[\d+\] Status: Any did not open: no list of options showed within 3 s of the click, and nothing else was clicked\./);
+        assert.match(await browser.snapshot(1), /^Combo — http:\/\/pi\.test\/combo\n/);
     } finally {
         await browser.close();
     }
