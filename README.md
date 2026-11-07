@@ -329,7 +329,8 @@ No Termux, no laptop, no cloud VM.
 - **Measured screenshots.** Every `screenshot` width comes with a layout check the page runs before it is drawn: what spills
   out of its box or its parent, and whether the page is wider than the screen, with sizes. It also finds what makes a
   page look unfinished: text cut by its box (an ellipsis, a clipped line), an element covering another's text or
-  control, tap targets under 40 px on a phone (a hit area laid past a small control counts; a phone page wider than the
+  control, tap targets under 40 px on a phone (a hit area laid past a small control counts, and a stretched link takes its whole card, whose words under it are
+  not covered; a phone page wider than the
   screen still counts as a phone's), padding, gaps, corners and control heights off the 4 px grid or not
   whole pixels, text under WCAG AA contrast (over a gradient too, measured where the words sit) or under 12 px, emoji and symbols used as icons, gradient text, uppercase
   labels, tight tracking and long lines, and nine tells adapted from Impeccable's detector (broken images, skipped

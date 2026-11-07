@@ -153,8 +153,28 @@ export const PAGE_HELPERS = String.raw`
     }
     return v;
   };
+  // The box an absolutely placed ::before or ::after is laid out in: its element's padding box when the element is
+  // positioned (or transformed), else its nearest positioned ancestor's; none when nothing is (it would cover the page).
+  const placedIn = (e) => {
+    for (let a = e; a && a !== document.body && a !== document.documentElement; a = a.parentElement) {
+      const s = css(a);
+      if (s.position !== 'static' || s.transform !== 'none') return a;
+    }
+    return null;
+  };
+  // A ::before or ::after that takes taps: shown, absolutely placed, its insets given.
+  const tapLayers = (e) => ['::before', '::after'].map((which) => getComputedStyle(e, which)).filter((s) => s.content !== 'none' && s.content !== 'normal' && s.display !== 'none' && s.pointerEvents !== 'none' && s.position === 'absolute' && ![s.left, s.top, s.right, s.bottom].map(parseFloat).some(Number.isNaN));
+  // A stretched link (PP-436): a control whose ::before or ::after is absolute with all four insets 0 over the box it
+  // is placed in (its card), so the whole card is its target. Gives that box, or null. Read from the computed style,
+  // never from a class name.
+  const stretchedOver = (e) => {
+    if (css(e).pointerEvents === 'none') return null;
+    const block = placedIn(e);
+    return block && block !== e && tapLayers(e).some((s) => [s.left, s.top, s.right, s.bottom].every((v) => Math.abs(parseFloat(v)) < 0.5)) ? block : null;
+  };
   // Where a tap lands on a control: its box, and a ::before or ::after laid over it and past its edges (a hit area
-  // that keeps a small control's look), absolutely placed with its insets given; a field's label, which focuses it.
+  // that keeps a small control's look), absolutely placed with its insets given, in the box it is placed in (a
+  // stretched link's covers its card, PP-436); a field's label, which focuses it.
   const hitBox = (e, r) => {
     let l = r.left, t = r.top, rr = r.right, b = r.bottom;
     const label = /^(input|textarea|select)$/i.test(e.tagName) ? e.closest('label') : null;
@@ -162,14 +182,16 @@ export const PAGE_HELPERS = String.raw`
       const q = label.getBoundingClientRect();
       l = Math.min(l, q.left); t = Math.min(t, q.top); rr = Math.max(rr, q.right); b = Math.max(b, q.bottom);
     }
-    if (css(e).position !== 'static' && css(e).pointerEvents !== 'none') {
-      const pb = padBox(e);
-      for (const which of ['::before', '::after']) {
-        const s = getComputedStyle(e, which);
-        if (s.content === 'none' || s.content === 'normal' || s.display === 'none' || s.pointerEvents === 'none' || s.position !== 'absolute') continue;
+    const block = css(e).pointerEvents !== 'none' ? placedIn(e) : null;
+    if (block) {
+      const pb = padBox(block);
+      for (const s of tapLayers(e)) {
         const [L, T, R, B] = [s.left, s.top, s.right, s.bottom].map(parseFloat);
-        if ([L, T, R, B].some(Number.isNaN)) continue;
-        l = Math.min(l, pb.l + L); t = Math.min(t, pb.t + T); rr = Math.max(rr, pb.r - R); b = Math.max(b, pb.b - B);
+        const q = { l: pb.l + L, t: pb.t + T, r: pb.r - R, b: pb.b - B };
+        // Placed in an ancestor, a layer counts when it lies over the control (a stretched link's), not when it sits
+        // elsewhere in that box (a badge).
+        if (block !== e && (q.l > r.left + 1 || q.t > r.top + 1 || q.r < r.right - 1 || q.b < r.bottom - 1)) continue;
+        l = Math.min(l, q.l); t = Math.min(t, q.t); rr = Math.max(rr, q.r); b = Math.max(b, q.b);
       }
     }
     return { width: rr - l, height: b - t };
@@ -407,10 +429,18 @@ ${PAGE_HELPERS}
     return false;
   };
   // Whether the element at a point covers the target, or is the target's own (itself, inside it, around it), or a layer over the page.
-  const coveredBy = (target, x, y) => {
+  // Words under a stretched link's layer in the card it stretches over are that link's on purpose (PP-436); a control
+  // under it is still covered (it cannot be tapped).
+  const coveredBy = (target, x, y, words) => {
     if (x < 0 || y < 0 || x >= VW || y >= VH) return undefined;
     const hit = document.elementFromPoint(x, y);
     if (!hit || hit === target || target.contains(hit) || hit.contains(target)) return null;
+    const link = words ? hit.closest(CONTROL) : null;
+    const over = link && stretchedOver(link);
+    if (over && over.contains(target)) {
+      const own = link.getBoundingClientRect();
+      if (x < own.left || x > own.right || y < own.top || y > own.bottom) return null;
+    }
     if (hit.closest(LAYER) || !hides(hit, target)) return null;
     let layer = null;
     for (let a = hit; a && a !== document.body; a = a.parentElement) if (/fixed|absolute|sticky/.test(css(a).position)) { layer = a; break; }
@@ -725,7 +755,7 @@ ${PAGE_HELPERS}
       if (!empty(v)) {
         let points = 0, of = 0, by = null;
         for (const f of [0.25, 0.5, 0.75]) {
-          const hit = coveredBy(p, v.l + (v.r - v.l) * f, (v.t + v.b) / 2);
+          const hit = coveredBy(p, v.l + (v.r - v.l) * f, (v.t + v.b) / 2, true);
           if (hit === undefined) continue;
           of++;
           if (hit) { points++; by = by || hit; }

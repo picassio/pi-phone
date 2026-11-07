@@ -113,6 +113,10 @@ const PAGES: Record<string, string> = {
       <div id="list" class="box"><p class="a">Read more</p><div class="b">Read more</div><span class="c">Read more</span></div>
       <footer><h5>Links</h5></footer></div>`,
     // A phone page wider than its screen (PP-414): the browser stretches innerWidth to the content, the page is still a phone's.
+    // A stretched link (PP-436): a card's title link whose ::after, absolute with inset 0, covers the card (the card is
+    // its target, the description under the layer is its own). Beside it, a real overlay over words, and a 20 px link
+    // with no layer.
+    "/stretched": `${head}<style>.title::after{content:"";position:absolute;inset:0}</style><div class="col"><div id="card" style="position:relative;padding:16px;border:1px solid #cccccc;border-radius:12px"><a id="title" class="title" href="#" style="display:block;line-height:20px">Blueprint Bank</a><p id="desc" style="margin:8px 0 0">A description of the bank under its title.</p><p id="meta" style="margin:4px 0 0">Updated two days ago</p></div><div style="position:relative;margin-top:16px"><p id="under" style="margin:0">Words under a box</p><div id="overlay" style="position:absolute;inset:0;background:#eeeeee"></div></div><div style="margin-top:16px"><a id="plain" href="#" style="display:inline-block;line-height:20px">Plain link</a></div></div>`,
     "/overflow": `${head}<div style="width:600px;white-space:nowrap">A row wider than the phone</div><button id="tiny" style="width:28px;height:28px;padding:0">A</button>`,
     // Words over gradients (PP-414): one colour drawn as a gradient, the dark half of a hard-stop band, and a radial
     // glow in the far corner that has faded to nothing where the words are (no worst-stop guess).
@@ -319,6 +323,24 @@ test("the layout check finds cut text, overlaps, small tap targets, off-grid siz
         const [essay] = of(await measured(page, "/long"), "long-lines");
 
         assert.ok(essay !== undefined && essay.what.startsWith("p#essay") && essay.chars > 90, JSON.stringify(essay));
+    } finally {
+        await engine.close();
+    }
+});
+
+test("a stretched link's layer over its card is its tap target and covers no words of the card; a real overlay and a small link are still reported (PP-436)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+
+        await page.init({ width: 390, height: 844, mobile: true });
+
+        const stretched = await measured(page, "/stretched");
+        const short = (what: string) => what.replace(/ ".*$/, "");
+
+        assert.deepEqual(of(stretched, "small-target").map((find) => [short(find.what), find.size[1]]), [["a#plain", 20]]);
+        assert.deepEqual(of(stretched, "covered").map((find) => [short(find.what), short(find.by)]), [["p#under", "div#overlay"]]);
     } finally {
         await engine.close();
     }

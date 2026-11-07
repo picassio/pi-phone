@@ -940,7 +940,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
     content, so without a width given the check goes by the root's `clientWidth`, which stays the screen's, PP-414;
     inline links in sentences, controls inside controls, labelled check boxes and disabled
     controls left out; PP-400: a control's hit area counts, its box with an absolutely placed ::before or ::after past
-    its edges and a field's label, so a small control that keeps its look with a hit layer passes);
+    its edges and a field's label, so a small control that keeps its look with a hit layer passes; PP-436: a layer placed
+    in a positioned ancestor counts when it lies over the control, so a stretched link, whose ::before or ::after is
+    absolute with all four insets 0 over its card, takes the card's box; read from the computed style, never a class
+    name, and words of that card under its layer are not covered, while a control under it still is);
     padding, gaps, corner radii and control heights off the 4 px grid or not whole pixels (0, 1 and 2 px pass as
     hairlines and nudges, pill corners pass, svg icons need whole pixels only); text under WCAG AA contrast (4.5, 3
     for large text) against its ancestors' background colours composited, with its own and its ancestors' opacity
