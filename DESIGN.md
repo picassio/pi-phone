@@ -954,7 +954,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
     background: not measured, never guessed; disabled controls exempt); text under 12 px; emoji,
     pictographs and symbol glyphs as icons (✓, ✗, ★, geometric shapes; ©, ®, ™ pass); gradient text; uppercase or
     capitalised labels and tracked capitals; negative tracking under 16 px; paragraphs over 90 characters a line. Only
-    what shows counts: hidden, transparent and wholly clipped elements are left out. Findings are grouped (the same
+    what shows counts: hidden, transparent and wholly clipped elements are left out, and since PP-436 visually hidden
+    content (a chart's screen-reader table: the element or an ancestor a box of 1 x 1 px or less that hides its
+    overflow, a clip of no area, a clip-path inset that meets itself, or opacity 0; its own box keeps its natural size,
+    so the ancestors tell), for every kind. Visibility goes by the element's computed value, which inherits, so a child
+    set visible inside a hidden parent still counts, as it shows. Findings are grouped (the same
     kind of element with the same numbers once, with a count), at most 20 groups a kind kept and 3 shown with a count
     of the rest, so a whole app screen stays a screenful; a summary line names more than 6 font sizes or text
     colours, more than 2 families, or icons in more than 2 sizes or stroke widths. The check is a script the server

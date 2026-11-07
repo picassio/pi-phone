@@ -117,6 +117,12 @@ const PAGES: Record<string, string> = {
     // its target, the description under the layer is its own). Beside it, a real overlay over words, and a 20 px link
     // with no layer.
     "/stretched": `${head}<style>.title::after{content:"";position:absolute;inset:0}</style><div class="col"><div id="card" style="position:relative;padding:16px;border:1px solid #cccccc;border-radius:12px"><a id="title" class="title" href="#" style="display:block;line-height:20px">Blueprint Bank</a><p id="desc" style="margin:8px 0 0">A description of the bank under its title.</p><p id="meta" style="margin:4px 0 0">Updated two days ago</p></div><div style="position:relative;margin-top:16px"><p id="under" style="margin:0">Words under a box</p><div id="overlay" style="position:absolute;inset:0;background:#eeeeee"></div></div><div style="margin-top:16px"><a id="plain" href="#" style="display:inline-block;line-height:20px">Plain link</a></div></div>`,
+    // Visually hidden content (PP-436, part 2): a chart's screen-reader table under its SVG, hidden four ways (auton-ui's
+    // 1 px box with clip-path inset(50%), a zero clip rect, a 1 px box with overflow clip, an ancestor at opacity 0).
+    // Nothing of it is a finding; the same cell shown is. The cells sit at their box's corner, so the old check saw
+    // their words in the 1 px region.
+    "/sr-only": `${head}<div class="col" style="position:relative"><svg width="200" height="100"><rect width="200" height="100" fill="#e0e7ff"/></svg><div style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);top:0;left:0"><table style="border-spacing:0"><tr><td style="padding:0">48,213</td></tr></table></div><div style="position:absolute;top:20px;left:0;clip:rect(0,0,0,0)"><table><tr><td>12,345</td></tr></table></div><div style="position:absolute;top:40px;left:0;width:1px;height:1px;overflow:clip"><table style="border-spacing:0"><tr><td style="padding:0">90,210</td></tr></table></div><div style="position:absolute;top:60px;left:0;opacity:0"><div><table><tr><td>77,001</td></tr></table></div></div></div>`,
+    "/sr-shown": `${head}<div class="col"><svg width="200" height="100"><rect width="200" height="100" fill="#e0e7ff"/></svg><table><tr><td id="cell">48,213</td></tr></table></div>`,
     "/overflow": `${head}<div style="width:600px;white-space:nowrap">A row wider than the phone</div><button id="tiny" style="width:28px;height:28px;padding:0">A</button>`,
     // Words over gradients (PP-414): one colour drawn as a gradient, the dark half of a hard-stop band, and a radial
     // glow in the far corner that has faded to nothing where the words are (no worst-stop guess).
@@ -341,6 +347,23 @@ test("a stretched link's layer over its card is its tap target and covers no wor
 
         assert.deepEqual(of(stretched, "small-target").map((find) => [short(find.what), find.size[1]]), [["a#plain", 20]]);
         assert.deepEqual(of(stretched, "covered").map((find) => [short(find.what), short(find.by)]), [["p#under", "div#overlay"]]);
+    } finally {
+        await engine.close();
+    }
+});
+
+test("visually hidden content (a chart's screen-reader table) gives no finding of any kind; the same cell shown still does (PP-436)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+
+        await page.init({ width: 390, height: 844, mobile: true });
+
+        const hidden = await measured(page, "/sr-only");
+
+        assert.deepEqual([hidden.found, hidden.issues], [[], []]);
+        assert.deepEqual(of(await measured(page, "/sr-shown"), "tabular").map((find) => [find.what, find.text]), [['td#cell "48,213"', "48,213"]]);
     } finally {
         await engine.close();
     }

@@ -342,7 +342,8 @@ No Termux, no laptop, no cloud VM.
   `::before`/`::after` bar, and static CSS tells (`transition: all`, line height 1 on wrapping text, a field under 16 px
   on a phone, a scrolling dialog without `overscroll-behavior: contain`, a viewport that blocks zoom, `tnum` instead of
   `tabular-nums`), grouped with their numbers, and says when a page uses too many font sizes,
-  text colours or icon sizes. Pi's browser gives the same check with `browser_screenshot`, and alone with
+  text colours or icon sizes. Content hidden for screen readers (a chart's data table in a 1 px box) is left out. Pi's
+  browser gives the same check with `browser_screenshot`, and alone with
   `browser_layout_check`. Pi goes by the numbers.
 - **Steps before the shot.** `screenshot` and `redline` take `steps` that run in the page before each width's picture
   and layout check (tap an element, type into a field, press a key, wait for a time or an element), so a menu, a picker

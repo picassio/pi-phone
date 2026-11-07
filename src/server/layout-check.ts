@@ -197,9 +197,39 @@ export const PAGE_HELPERS = String.raw`
     return { width: rr - l, height: b - t };
   };
   const docW = Math.max(W, document.documentElement.scrollWidth);
+  // Visually hidden (PP-436): content kept for screen readers off the picture (a chart's data table), by the element or
+  // an ancestor: a box of 1 x 1 px or less that hides its overflow, a clip of no area, a clip-path inset that meets
+  // itself, opacity 0; or visibility hidden on the element (computed: it inherits, and a child set visible shows). Its
+  // own box keeps its size (a cell in a 1 px box measures 56 x 20), so the ancestors tell.
+  const insetMeets = (v, r) => {
+    const m = /^inset\(([^)]*)\)/.exec(v || '');
+    if (!m) return false;
+    const n = m[1].split(/\s+round\s+/)[0].trim().split(/\s+/);
+    const [t, rr, b, l] = n.length === 1 ? [n[0], n[0], n[0], n[0]] : n.length === 2 ? [n[0], n[1], n[0], n[1]] : n.length === 3 ? [n[0], n[1], n[2], n[1]] : n;
+    const len = (x, size) => x.endsWith('%') ? parseFloat(x) / 100 * size : px(x);
+    return len(t, r.height) + len(b, r.height) >= r.height || len(l, r.width) + len(rr, r.width) >= r.width;
+  };
+  const clipless = (s) => {
+    const m = /^rect\(([^)]*)\)$/.exec(s.clip || '');
+    if (!m || !/absolute|fixed/.test(s.position)) return false;
+    const [t, rr, b, l] = m[1].split(/[\s,]+/).filter(Boolean).map((x, i) => x === 'auto' ? (i === 1 || i === 2 ? Infinity : -Infinity) : px(x));
+    return rr - l <= 0 || b - t <= 0;
+  };
+  const concealments = new Map();
+  const concealedBox = (e) => {
+    if (!e || e.nodeType !== 1 || e === document.documentElement) return false;
+    let v = concealments.get(e);
+    if (v === undefined) {
+      const s = css(e), r = e.getBoundingClientRect();
+      v = (r.width <= 1 && r.height <= 1 && /hidden|clip/.test(s.overflowX + ' ' + s.overflowY)) || clipless(s) || insetMeets(s.clipPath, r) || Number(s.opacity) === 0 || concealedBox(e.parentElement);
+      concealments.set(e, v);
+    }
+    return v;
+  };
+  const concealed = (e) => css(e).visibility === 'hidden' || css(e).visibility === 'collapse' || concealedBox(e);
   const shows = (e, r) => {
     const s = css(e);
-    if (s.visibility === 'hidden' || s.visibility === 'collapse' || opacityOf(e) < 0.05) return false;
+    if (s.visibility === 'hidden' || s.visibility === 'collapse' || opacityOf(e) < 0.05 || concealedBox(e)) return false;
     if (r.width < 1 || r.height < 1 || r.right <= 0 || r.bottom <= 0 || r.left >= docW) return false;
     return !empty(meet(inside(e.parentElement), { l: r.left, t: r.top, r: r.right, b: r.bottom }));
   };
@@ -500,7 +530,7 @@ ${PAGE_HELPERS}
     const r = e.getBoundingClientRect();
     if (r.width < 1 || r.height < 1) continue;
     const style = css(e);
-    if (style.visibility === 'hidden' || style.display === 'contents') continue;
+    if (style.visibility === 'hidden' || style.display === 'contents' || concealed(e)) continue;
     const tag = e.tagName.toLowerCase();
     let sideways = false;
     for (let a = e.parentElement; a && a !== document.body; a = a.parentElement) if (clipsX(a)) { sideways = true; break; }
@@ -718,7 +748,7 @@ ${PAGE_HELPERS}
     const p = node.parentElement;
     if (!words || !p || SKIP.has(p.tagName.toLowerCase()) || p.closest('svg')) continue;
     const s = css(p);
-    if (s.visibility !== 'visible' || opacityOf(p) < 0.05) continue;
+    if (s.visibility !== 'visible' || opacityOf(p) < 0.05 || concealed(p)) continue;
     range.selectNodeContents(node);
     const rects = [...range.getClientRects()].filter((q) => q.width > 0 && q.height > 0);
     if (rects.length === 0) continue;
