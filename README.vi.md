@@ -437,8 +437,9 @@ dự án thật.</sub>
 ### Bí mật và wiki
 - **Bí mật.** Khóa API và token trong Cài đặt › Bí mật, dùng theo tên (`$NPM_TOKEN`) và không bao giờ hiện ra: kết quả
   có chứa một bí mật sẽ hiện `[secret NAME]`. Pi xin bí mật còn thiếu qua một ô nhập ẩn. Để giữ một giá trị do lệnh tạo
-  ra (`gh auth token`), Pi cho bạn xem toàn bộ lệnh trên một thẻ trước (**Chạy và lưu**), và kết quả của lệnh thất bại
-  không bao giờ được hiện. Trình duyệt của Pi đưa cho Pi văn bản của trang trong hàng rào “của trang”, không phải
+  ra (`gh auth token`), Pi cho bạn xem toàn bộ lệnh trên một thẻ trước (**Chạy và lưu**); lệnh chạy ở nơi bash của
+  phiên chạy (điện thoại, hoặc máy của phiên) với các bí mật lệnh có ghi tên, và lệnh thất bại chỉ hiện phần báo lỗi,
+  đã che bí mật và các chuỗi trông như token. Trình duyệt của Pi đưa cho Pi văn bản của trang trong hàng rào “của trang”, không phải
   chỉ dẫn, và một lần đăng nhập bạn gõ sẽ che tên người dùng của bạn trong những gì Pi đọc sau đó, giống như mật khẩu.
 - **Tiện ích drop-in.** Module tiện ích của riêng bạn, thêm bằng **Thêm drop-in…** trong Cài đặt › Tiện ích (một tệp
   `.ts`, hoặc tệp `.zip` chứa nó) hoặc do Pi thêm bằng `extension_install` khi bạn duyệt thẻ (hiện các tệp và những

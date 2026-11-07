@@ -10,7 +10,7 @@ import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { namesIn, Secrets } from "../src/server/secrets.ts";
-import { browserSecretNames, redactToolResult } from "../src/server/extensions/secrets.ts";
+import { browserSecretNames, failedSaveStderr, redactToolResult } from "../src/server/extensions/secrets.ts";
 
 const VALUE = "s3cr3t-value-0123456789";
 const notes = join(work, "secret-notes.txt");
@@ -28,8 +28,15 @@ const calls: Record<string, [string, Record<string, unknown>]> = {
     "find the test one": ["secrets_list", { query: "test service" }],
     "find none": ["secrets_list", { query: "no such words" }],
     "save over the app's ssh": ["secret_save", { name: "SSH_MADE", command: "pi-ssh-fake devbox 'cat token'", description: "read over pi-ssh" }],
-    // A command that fails after printing its token on stderr: the token is made in the shell, so this text holds none.
-    "save a failing key": ["secret_save", { name: "FAILED_KEY", command: "printf 'leaked-%s\\n' $((100+23)) >&2; exit 3", description: "fails" }],
+    // A command that fails after printing a token on stderr and half a value on stdout: both are made in the shell, so
+    // this text holds neither; its stderr's words say why it failed.
+    "save a failing key": [
+        "secret_save",
+        { name: "FAILED_KEY", command: "printf 'half-%s' $((4000+56)); printf 'token %s%s\\n' abcdef0123456789 $((10000+23)) >&2; echo 'op: not signed in' >&2; exit 3", description: "fails" },
+    ],
+    // The secret it names reaches the command, as in bash (PP-439): without it the command exits 9.
+    "save from a secret": ["secret_save", { name: "FROM_TOKEN", command: 'test -n "$TEST_TOKEN" || exit 9; printf "from-env-%s-chars" "${#TEST_TOKEN}"', description: "made with a secret" }],
+    "save from the other one": ["secret_save", { name: "FROM_ELSEWHERE", command: 'printf "%s" "$ELSEWHERE_TOKEN"', description: "not allowed here" }],
     // Declined: nothing runs, so the marker file is never made.
     "save with a marker": ["secret_save", { name: "MARKED_KEY", command: `touch ${join(work, "secret-save-ran")}; printf marked-value`, description: "leaves a mark" }],
     "save a long one": ["secret_save", { name: "LONG_KEY", command: `printf x # ${"y".repeat(1600)}`, description: "too long to show" }],
@@ -336,14 +343,44 @@ test("secret_save keeps a command's output as a secret without showing it", asyn
     assert.match(readFileSync(join(root, "data", "secrets.json"), "utf8"), /generated-abcdefgh-123/, "in the store's file");
 });
 
-test("secret_save says a failed command failed, and none of its output: a token it printed reaches neither Pi nor the transcript", async () => {
+test("secret_save says why a command failed, from its stderr, and never its stdout: a token it printed reaches neither Pi nor the transcript (PP-439)", async () => {
     const id = await newSession(app);
     const answer = await turn(id, "save a failing key", true);
 
-    assert.match(answer, /The command failed \(exit 3\); nothing was saved\. Its output is not shown/);
-    assert.ok(!(await modelTexts(app, id)).join("\n").includes("leaked-123"), "not in the transcript");
-    assert.ok(!requests.some((each) => each.includes("leaked-123")), "not in any model request");
+    assert.match(answer, /The command failed \(exit 3\); nothing was saved\. Its standard output is not shown/);
+    // The answer is the model's request as JSON: its line break written \n.
+    assert.match(answer, /token \[hidden\]\\nop: not signed in/, "its stderr, the token hidden");
+
+    for (const leaked of ["abcdef012345678910023", "half-4056"]) {
+        assert.ok(!(await modelTexts(app, id)).join("\n").includes(leaked), `${leaked} not in the transcript`);
+        assert.ok(!requests.some((each) => each.includes(leaked)), `${leaked} not in any model request`);
+    }
+
     assert.equal(app.secrets.get("FAILED_KEY"), undefined);
+});
+
+test("secret_save gives its command the secrets it names, as bash does, and refuses one not allowed in the folder before asking (PP-439)", async () => {
+    const id = await newSession(app);
+    const answer = await turn(id, "save from a secret", true);
+
+    assert.match(answer, /Saved FROM_TOKEN/);
+    assert.deepEqual(app.secrets.environment(["FROM_TOKEN"], work), { FROM_TOKEN: `from-env-${VALUE.length}-chars` });
+
+    const other = await newSession(app);
+    const refused = await turn(other, "save from the other one");
+
+    assert.match(refused, /\$ELSEWHERE_TOKEN may not be used in this folder.*Nothing ran/);
+    assert.equal(app.approvals.forConversation(other).length, 0, "no card");
+    assert.equal(app.secrets.get("FROM_ELSEWHERE"), undefined);
+});
+
+test("a failed secret_save's stderr: the half-written value, the secrets and token-shaped words are hidden, its words kept (PP-439)", () => {
+    const redact = (text: string) => text.split(VALUE).join("[secret TEST_TOKEN]");
+
+    assert.equal(failedSaveStderr(`bad ${VALUE} and partial-value-xyz\n`, "partial-value-xyz", redact), "bad [secret TEST_TOKEN] and [hidden]");
+    assert.equal(failedSaveStderr("[ERROR] 2026/11/07 16:46:55 item njs4plazdwqzuo3rflzxqekgta not found\n", "", redact), "[ERROR] 2026/11/07 16:46:55 item [hidden] not found");
+    assert.equal(failedSaveStderr("", "", redact), "");
+    assert.equal(failedSaveStderr(`${"x ".repeat(2000)}end`, "", redact).length, 2001);
 });
 
 test("secret_save's command finds the app's tools, as bash does: pi-ssh's folder is on its PATH (PP-30)", async () => {

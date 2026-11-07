@@ -34,6 +34,24 @@ const reply = (text: string, isError = false) => ({
 /** The longest command secret_save asks about: the card shows it whole. */
 export const MAX_SAVE_COMMAND = 1500;
 
+/** How much of a failed secret_save command's standard error is shown: its end. */
+const MAX_SAVE_STDERR = 2000;
+
+/** A word shaped like a token: 20 or more characters of a key's alphabet, with a letter and a digit. */
+const TOKEN_SHAPED = /[A-Za-z0-9+/=_-]{20,}/g;
+
+/**
+ * A failed secret_save command's standard error, safe to show: its end, with the value it may have half-written to
+ * stdout, the owner's secrets (`redact`) and every token-shaped word hidden. Standard output itself is never shown.
+ */
+export function failedSaveStderr(stderr: string, stdout: string, redact: (text: string) => string): string {
+    const pieces = [stdout.trim(), ...stdout.split(/\s+/)].filter((piece) => piece.length >= 8).sort((a, b) => b.length - a.length);
+    const unvalued = pieces.reduce((text, piece) => text.split(piece).join("[hidden]"), stderr);
+    const tail = redact(unvalued).replace(TOKEN_SHAPED, (word) => (/[A-Za-z]/.test(word) && /\d/.test(word) ? "[hidden]" : word)).trim();
+
+    return tail.length > MAX_SAVE_STDERR ? `…${tail.slice(-MAX_SAVE_STDERR)}` : tail;
+}
+
 const RULES = `Secrets: the person keeps API keys and tokens in Settings > Secrets, and you use them without seeing them.
 - In bash, use a secret as an environment variable by its name: curl -H "Authorization: Bearer $DEEPSEEK_API_KEY" ..., NODE_AUTH_TOKEN=$NPM_TOKEN npm publish, printf '%s' "$NPM_TOKEN" | gh secret set NPM_TOKEN. Only the secrets a command names are set for it.
 - Never print, echo, or log a value, and never write one into a file you read back or into the wiki. Output that holds a value shows [secret NAME] instead.
@@ -284,7 +302,7 @@ export default function createSecrets(host: PocketHost) {
     const save = defineTool({
         name: "secret_save",
         description:
-            "Run a command and store its output as a secret, without showing the output to anyone: for a key a command makes or prints (gh auth token, openssl rand -hex 32).",
+            "Run a command where this session's bash runs (the phone, or its machine), with the secrets it names ($NAME), and store its standard output as a secret, without showing it to anyone: for a key a command makes or prints (gh auth token, openssl rand -hex 32). A failed command shows its standard error, secrets hidden.",
         parameters: obj({
             name: str({ description: "An environment variable's name: capitals, digits, _" }),
             command: str({ description: "The command whose standard output is the value" }),
@@ -310,6 +328,15 @@ export default function createSecrets(host: PocketHost) {
                 );
             }
 
+            // The secrets it names reach it as bash's do (`$OP_SERVICE_ACCOUNT_TOKEN`), by the same folder and machine rules.
+            const cwd = await cwdOf(api, context);
+            const named = namesIn(args.command).filter((name) => secrets.get(name) !== undefined);
+            const refused = named.filter((name) => !secrets.allowed(name, cwd));
+
+            if (refused.length > 0) {
+                return reply(`${refused.map((name) => `$${name}`).join(", ")} may not be used in this folder: the person allows it in Settings > Secrets. Nothing ran.`, true);
+            }
+
             const answer = await host.approvals.request(
                 {
                     id: `secret-save-${String(api.taskId)}-${api.callId}`,
@@ -328,16 +355,24 @@ export default function createSecrets(host: PocketHost) {
                 return reply(`${answer.by === "superseded" ? "The request was replaced" : `${answer.by} declined`}: nothing ran, and nothing was saved.`, true);
             }
 
-            const cwd = await cwdOf(api, context);
+            const env = secrets.environment(named, cwd);
             let stdout = "";
+            let stderr = "";
+
+            secrets.used(Object.keys(env));
+
+            // Where the session's bash runs: the phone, or its machine (pi-env sends `env` inside the exec request).
             const result = await host.envOf(cwd).exec(
                 args.command,
                 {
                     timeout: 120,
-                    // Only standard output, the value: what the command says on stderr is never shown, nor kept.
+                    env,
+                    // Standard output is the value; standard error is kept only to say why a command failed.
                     onOutput: (text, _context, info) => {
                         if (info.stream === "stdout") {
                             stdout += text;
+                        } else {
+                            stderr = (stderr + text).slice(-4 * MAX_SAVE_STDERR);
                         }
                     },
                 },
@@ -351,10 +386,15 @@ export default function createSecrets(host: PocketHost) {
             const value = stdout.trim();
             const hide = (text: string) => secrets.redact(value === "" ? text : text.split(value).join(`[secret ${args.name}]`));
 
-            // None of a failed command's output: what it printed may be the value itself, on stderr or half-written to
-            // stdout, where hiding the (unknown) value cannot find it (pi-pocket's review of our port, 2026-10-26).
+            // Never its standard output, which may be the value half-written (pi-pocket's review of our port, 2026-10-26).
+            // Its standard error says why it failed (PP-439): shown with the secrets and anything shaped like a token hidden.
             if (result.value.exitCode !== 0) {
-                return reply(`The command failed (exit ${result.value.exitCode}); nothing was saved. Its output is not shown, since it may hold the value.`, true);
+                const said = failedSaveStderr(stderr, stdout, (text) => secrets.redact(text, api.conversationId));
+
+                return reply(
+                    `The command failed (exit ${result.value.exitCode}); nothing was saved. Its standard output is not shown, since it may hold the value. ${said === "" ? "It wrote nothing on standard error." : `Its standard error, with secrets and token-shaped words hidden:\n${said}`}`,
+                    true,
+                );
             }
 
             try {

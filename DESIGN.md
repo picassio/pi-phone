@@ -548,9 +548,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
   structured output). A person's message is redacted in `commands.ts` before it is sent. **Asking:**
   `secret_request` is an approval with `form: { type: "secret" }`. Its card (`SecretRequestCard` in
   `transcript.js`) has a hidden field, answered by `POST /api/secrets/requests/<id>` (owner only); a plain Allow is
-  refused. `secret_save` runs a command through the unguarded env and stores its stdout, for the owner only and after a
-  card showing the whole command (at most 1,500 characters; Run and save); a failed command's output is never shown
-  (pi-pocket's review of our port, 2026-10-26). The store writes its file from a copy before memory changes, and a
+  refused. `secret_save` runs a command through the unguarded env (`host.envOf`: the phone, or the session's machine)
+  and stores its stdout, for the owner only and after a card showing the whole command (at most 1,500 characters; Run
+  and save). The secrets it names go into its `env` as bash's do, a secret not allowed in the folder refused before the
+  card (PP-439: without them `op item get` failed there while bash's ran). A failed command's stdout is never shown
+  (pi-pocket's review of our port, 2026-10-26); its stderr's last 2,000 characters are, with the half-written stdout,
+  the secrets, and every token-shaped word (20+ key characters with a letter and a digit) hidden (`failedSaveStderr`). The store writes its file from a copy before memory changes, and a
   broken file's log line quotes none of it. `secrets_list` and
   `secret_request` are allowed in plan mode, as are `wiki_query`, `wiki_read` and `wiki_summarize`. None of this
   is a boundary against a model set on leaking a value; it keeps values out by accident. The approval card's heading

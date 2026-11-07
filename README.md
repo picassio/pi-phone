@@ -427,8 +427,9 @@ No Termux, no laptop, no cloud VM.
 ### Secrets and the wiki
 - **Secrets.** API keys and tokens in Settings › Secrets, used by name (`$NPM_TOKEN`) and never shown: output that
   contains one shows `[secret NAME]`. Pi asks for a missing one through a hidden field. To keep a value a command
-  makes (`gh auth token`), Pi shows you the whole command on a card first (**Run and save**), and a failed command's
-  output is never shown. Pi's browser gives Pi a page's text fenced as the page's, not instructions, and a sign-in you
+  makes (`gh auth token`), Pi shows you the whole command on a card first (**Run and save**); it runs where the
+  session's bash runs (the phone, or its machine) with the secrets it names, and a failed command shows only its
+  error output, with secrets and token-like words hidden. Pi's browser gives Pi a page's text fenced as the page's, not instructions, and a sign-in you
   type hides your username in what Pi reads afterwards, as it does the password.
 - **Drop-in extensions.** Your own extension modules, added with **Add drop-in…** in Settings › Extensions (a `.ts`
   file, or a `.zip` holding one) or by Pi with `extension_install` once you approve its card (files and first lines
