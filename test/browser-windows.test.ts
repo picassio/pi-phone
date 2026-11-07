@@ -107,6 +107,11 @@ class FakeWebView {
             return [[], null];
         }
 
+        // The hit guard around a click (PP-447): put in, and taken out having seen every event reach the control.
+        if (expression.includes("__piHitGuard")) {
+            return expression.startsWith("window.__piHitGuard?.stop()") ? { hits: 3, missed: null } : true;
+        }
+
         if (expression.includes("elementFromPoint")) {
             return { x: 10, y: 10 };
         }

@@ -264,7 +264,9 @@ dự án thật.</sub>
   điện thoại (hoặc trên một máy). Tab của một phiên đóng sau 30 phút không dùng (không đóng khi bạn đang xem hoặc đang
   tiếp quản), và đóng ngay khi phiên bị lưu trữ hoặc xóa; đăng nhập vẫn giữ. Trang được dàn trang như trên điện
   thoại, hoặc như trên máy tính (1280 px, Chrome máy tính, không cảm ứng) bằng **Điện thoại / Máy tính** trong khung hoặc
-  `browser_size`. Mỗi cú nhấp được kiểm tra trước: phần tử đúng như đã đọc, vẫn trong tầm nhìn, không bị gì che. Bạn
+  `browser_size`. Mỗi cú nhấp được kiểm tra trước: phần tử đúng như đã đọc, vẫn trong tầm nhìn, không bị gì che; và
+  kiểm tra cả ở chỗ trang nhận nó, nên bố cục xê dịch ngay trước đó (dữ liệu về từng đợt) không bao giờ làm nhấp nhầm
+  thứ khác: Pi nhắm lại phần tử, hoặc báo nó cứ xê dịch và không nhấp gì. Bạn
   xem trực tiếp trong khung Trình duyệt (bên cạnh cuộc trò chuyện trên màn hình rộng, nơi nó tự mở khi Pi bắt đầu
   duyệt web; trên điện thoại, một bản xem trước trực tiếp nhỏ phía trên ô nhập sẽ mở nó), và có thể **Tiếp quản**
   và **Trả lại**: khi tiếp quản, chạm vào trang và gõ trên bàn phím, phím của bạn đi thẳng vào trang; vuốt (hoặc

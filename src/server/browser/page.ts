@@ -59,6 +59,48 @@ const OWNER_BOX = `function (point) {
   return {x,y,w,h,shown,hit};
 }`;
 
+/** What a hit guard saw (PP-447): events of Pi's input that reached the control, and the first that did not. */
+type GuardSeen = { hits: number; missed: { type: string; at: string } | null };
+
+/**
+ * A hit guard (PP-447; as Playwright's hit target check): put in a frame just before Pi's input to a control there
+ * (`node`, its number in the frame; -1 in each frame around it, where none of that input should land), it stops in the
+ * capture phase, before the page's listeners, every trusted press, release, touch and context menu event whose target
+ * is not the control or inside it, and every such event and click after it. A release that pointer capture sends
+ * elsewhere passes when the point is still over the control. Clicks themselves pass unless something before them
+ * missed: a label sends its own to its field. So a layout that shifts between Pi's check of the point and the input
+ * clicks nothing else; `stop` removes the guard and says what it saw.
+ */
+function hitGuardScript(node: number): string {
+    return `(node => {
+  window.__piHitGuard?.stop();
+  const e=node<0 ? null : window.__piBrowser?.nodes.get(node);
+  if (node>=0 && !e?.isConnected) return false;
+  const name=t=>{ const el=t instanceof Element ? t : t?.parentElement; if (!el) return 'nothing';
+    const label=(el.getAttribute('aria-label')||el.innerText||'').trim().replace(/\\s+/g,' ').slice(0,40);
+    return el.tagName.toLowerCase()+(label ? ' "'+label+'"' : ''); };
+  const over=(x,y)=>{ let hit=document.elementFromPoint(x,y);
+    for (let i=0; i<8 && hit?.shadowRoot; i++) { const inner=hit.shadowRoot.elementFromPoint(x,y); if (!inner || inner===hit) break; hit=inner; }
+    return !!hit && (hit===e || e.contains(hit) || hit.getRootNode()!==document && hit.getRootNode().host && e.contains(hit.getRootNode().host)); };
+  const seen={hits:0, missed:null};
+  const on=ev=>{
+    if (!ev.isTrusted) return;
+    const click=ev.type==='click' || ev.type==='dblclick' || ev.type==='auxclick';
+    const up=ev.type==='pointerup' || ev.type==='mouseup';
+    const ok=e && !seen.missed && (click || ev.composedPath().includes(e) || up && over(ev.clientX, ev.clientY));
+    if (ok) { if (!click) seen.hits++; return; }
+    if (!e && click && !seen.missed) return;
+    if (!seen.missed) seen.missed={type:ev.type, at:name(ev.composedPath()[0])};
+    ev.preventDefault(); ev.stopImmediatePropagation();
+  };
+  const types=['pointerdown','mousedown','pointerup','mouseup','touchstart','touchend','contextmenu','click','dblclick','auxclick'];
+  for (const t of types) addEventListener(t, on, {capture:true});
+  const guard={stop:()=>{ for (const t of types) removeEventListener(t, on, {capture:true}); if (window.__piHitGuard===guard) delete window.__piHitGuard; return seen; }};
+  window.__piHitGuard=guard;
+  return true;
+})(${node})`;
+}
+
 /** The document's and its open shadow roots' (PP-376), outermost first, in a script of its own: 200 at most. */
 const ROOTS = `(() => { const found=[document]; for (let i=0; i<found.length && found.length<200; i++) for (const e of found[i].querySelectorAll('*')) if (e.shadowRoot && found.length<200) found.push(e.shadowRoot); return found; })()`;
 
@@ -1627,6 +1669,8 @@ export class BrowserPage {
     /**
      * The element's centre now, if it is still there, in view, enabled, and not covered. One out of view (below the fold
      * of a list with its own scroll area, PP-116) is scrolled into view first, as a person would, and as Playwright does.
+     * One that moves (a page whose data comes in steps, PP-447) is waited for until its box holds still for a frame, a
+     * third of a second at most.
      */
     async #point(element: Element): Promise<{ x: number; y: number }> {
         let point = await this.#evaluateAt<{ x: number; y: number } | null>(
@@ -1635,6 +1679,14 @@ export class BrowserPage {
             const e=window.__piBrowser?.nodes.get(node);
             if (!e?.isConnected || e.matches(':disabled') || e.closest('[aria-disabled="true"],[inert]') ||
                 !e.checkVisibility({checkOpacity:true,checkVisibilityCSS:true})) return null;
+            const box=()=>{ const r=e.getBoundingClientRect(); return [r.x,r.y,r.width,r.height].join(); };
+            const frame=()=>new Promise(done=>{ requestAnimationFrame(()=>done()); setTimeout(done,50); });
+            for (let last=box(), until=performance.now()+330; performance.now()<until;) {
+              await frame();
+              const now=box();
+              if (now===last) break;
+              last=now;
+            }
             const at=()=>{
               const r=e.getBoundingClientRect(), x=r.x+r.width/2, y=r.y+r.height/2;
               if (!r.width || !r.height || x<0 || y<0 || x>=innerWidth || y>=innerHeight) return null;
@@ -1755,8 +1807,85 @@ export class BrowserPage {
         }
 
         const before = this.#loads;
-        const point = await this.#point(element);
 
+        await this.#guarded(element, (point) => this.#clickAt(point, how, ms));
+        this.#afterInput = { node: element.node, kind: "click" } as RawAction;
+        await this.#followNavigation(before);
+    }
+
+    /**
+     * Input to a control at its point, checked where the page hears it (PP-447): hit guards in its frame and the frames
+     * around it stop what lands elsewhere. When nothing of it reached the control (the layout moved between the check
+     * and the input), it is pointed at again and tried again, three times at most; when the control got part of it, or
+     * it kept moving, the action is refused as stale. Never anything else is clicked.
+     */
+    async #guarded(element: Element, input: (point: { x: number; y: number }) => Promise<void>): Promise<void> {
+        for (let attempt = 1; ; attempt++) {
+            const point = await this.#point(element);
+            const stop = await this.#guard(element);
+            let seen: (GuardSeen | null)[];
+
+            try {
+                await input(point);
+            } finally {
+                seen = await stop();
+            }
+
+            const missed = seen.find((each) => each?.missed !== null && each?.missed !== undefined)?.missed;
+
+            if (missed === undefined || missed === null) {
+                return;
+            }
+
+            const hits = seen.reduce((sum, each) => sum + (each?.hits ?? 0), 0);
+
+            if (hits > 0) {
+                throw new StalePage(
+                    `[${element.index}] ${element.label} moved while it was clicked: it got part of the click, and its ${missed.type} landed on ${missed.at}, which was stopped. Read the page again.`,
+                );
+            }
+
+            if (attempt === 3) {
+                throw new StalePage(`[${element.index}] ${element.label} kept moving (the click would have landed on ${missed.at}): nothing was clicked. Read the page again.`);
+            }
+        }
+    }
+
+    /** Put hit guards (`hitGuardScript`) in the control's frame and the frames around it; the answer takes them out. */
+    async #guard(element: Element): Promise<() => Promise<(GuardSeen | null)[]>> {
+        const slot = Math.floor(element.node / FRAME_SPAN);
+        const run = <T>(frame: ChildFrame | undefined, expression: string) => (frame === undefined ? this.evaluate<T>(expression) : this.#evaluateIn<T>(frame, expression));
+        const places: { frame: ChildFrame | undefined; node: number }[] = [];
+
+        if (slot === 0) {
+            places.push({ frame: undefined, node: element.node });
+        } else {
+            let frame = this.#frameOfSlot(slot);
+
+            places.push({ frame, node: element.node % FRAME_SPAN });
+
+            for (let parent = this.#known.get(frame.parentId); frame.parentId !== this.#mainFrame && parent !== undefined; parent = this.#known.get(frame.parentId)) {
+                places.push({ frame: parent, node: -1 });
+                frame = parent;
+            }
+
+            places.push({ frame: undefined, node: -1 });
+        }
+
+        const stop = () => Promise.all(places.map((place) => run<GuardSeen | null>(place.frame, "window.__piHitGuard?.stop() ?? null").catch(() => null)));
+        const put = await Promise.all(places.map((place) => run<boolean>(place.frame, hitGuardScript(place.node)).catch(() => false)));
+
+        if (put.some((done) => done !== true)) {
+            await stop();
+
+            throw new StalePage(`[${element.index}] ${element.label} changed or is gone: nothing was clicked. Read the page again.`);
+        }
+
+        return stop;
+    }
+
+    /** One click of a kind at a point (`click`'s). */
+    async #clickAt(point: { x: number; y: number }, how: ClickKind, ms: number): Promise<void> {
         if (how === "single") {
             await this.#click(point);
         } else if (how === "double") {
@@ -1783,9 +1912,6 @@ export class BrowserPage {
             await new Promise((resolve) => setTimeout(resolve, ms));
             await this.cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: point.x, y: point.y, button: "left", buttons: 0, clickCount: 1 });
         }
-
-        this.#afterInput = { node: element.node, kind: "click" } as RawAction;
-        await this.#followNavigation(before);
     }
 
     /** Move the pointer over the element (menus and tooltips that open on hover), without clicking. */
@@ -1919,7 +2045,6 @@ export class BrowserPage {
 
             await cdp.send("DOM.setFileInputFiles", { files: paths, objectId: field.result.objectId });
         } else {
-            const point = await this.#point(element);
             let off = () => {};
             const opened = new Promise<{ backendNodeId: number; mode: string } | undefined>((resolve) => {
                 const timer = setTimeout(() => resolve(undefined), 3000);
@@ -1934,7 +2059,7 @@ export class BrowserPage {
             await cdp.send("Page.setInterceptFileChooserDialog", { enabled: true });
 
             try {
-                await this.#click(point);
+                await this.#guarded(element, (point) => this.#click(point));
                 chooser = await opened;
             } finally {
                 off();

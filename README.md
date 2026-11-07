@@ -256,7 +256,9 @@ No Termux, no laptop, no cloud VM.
   (or on a machine). A session's tabs close after 30 minutes unused (not while you watch or have taken over), and at once
   when it is archived or deleted; the sign-ins stay. Pages are laid out as a phone's, or as a desktop's (1280 px, a
   desktop Chrome, no touch) with **Phone / Desktop** in the panel or `browser_size`.
-  Each click is checked first: the element as read, still in view, nothing over it. You watch it live in the Browser panel (beside the conversation on wide screens, where
+  Each click is checked first: the element as read, still in view, nothing over it; and where the page hears it, so a
+  layout that shifts just before (data that comes in steps) never clicks something else: Pi points at the element
+  again, or says it kept moving and clicks nothing. You watch it live in the Browser panel (beside the conversation on wide screens, where
   it opens by itself when Pi starts browsing; on a phone, a small live preview above the message box opens it), and can
   **Take over** and **Hand back**: taken over, tap the page and type on your keyboard, and your keys go straight to it;
   swipe (or use the wheel) to scroll what is under your finger, an open list's own scroll area included.

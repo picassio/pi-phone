@@ -1773,6 +1773,19 @@ so Pi changes them through the settings tools; "the last session" is the one the
   contextmenu); `long` a press held `duration_ms` (300 to 5,000, 800 by default): `Input.dispatchTouchEvent` start and
   end while pages are laid out as a phone's (touch on), the left button held at desktop size. The point is checked as
   a click's. Two touches within Chrome's double-tap time are a double tap to the page.
+- **Clicks checked where the page hears them** (PP-447, after session #348424: on a React console whose data loads in
+  steps, `browser_click` on a combobox opened another tab and "Match again" hit "Human handoff" below it; Playwright's
+  hit target check). The act-time check (`#point`: as read, in view, not covered) ran a DevTools round trip or more
+  before the press, which on a machine is long enough for the layout to move. Now `#point` also waits until the
+  element's box holds still for a frame (330 ms at most), and `#guarded` puts a hit guard (`hitGuardScript`) in its
+  frame (and a guard that stops everything in each frame around it) before the input: a capture listener on the window
+  that stops, before the page's listeners, every trusted press, release, touch or context menu event not aimed at the
+  element (a release that pointer capture sends elsewhere passes while the point is over the element), and every
+  such event and click after a miss; clicks themselves pass otherwise (a label sends its own to its field). When
+  nothing reached the element, it is pointed at again, three tries; when it got part of the input, or kept moving,
+  the action is refused as stale (the tool answers with the page now) and names what the input would have hit. All
+  click kinds and an upload button's click; a hover, a drag and the panel's own input are not guarded. A listener the
+  page put on the window's capture phase earlier still runs first.
 - **Selecting text in Pi's browser** (`browser_select_text`, `BrowserPage.selectText`, `SELECT_TEXT`, PP-376): in a
   field (input with a selection, textarea) its own selection (`setSelectionRange`, focused): all, a text in its value,
   or characters start to end (clamped). Elsewhere a DOM range set with `setBaseAndExtent` over the visible text nodes
