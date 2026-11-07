@@ -360,7 +360,7 @@ No Termux, no laptop, no cloud VM.
   selector finds; given a spec (a design system's
   tokens.css, or a plain list such as "padding 16, radius 24/12/20, font 22/13/12") it marks what is off it in red with
   the spec's value ("gap 23, spec 24") and lists it. `browser_redline` does the same on the page in front of Pi's
-  browser. A picture file has no DOM: compare it with `image_compare`.
+  browser (a phone page wider than its screen still counts as a phone's). A picture file has no DOM: compare it with `image_compare`.
 - **UI checked before it is done.** The built-in `ui-verify` skill has Pi verify every artifact, HTML page and app
   screen with numbers before calling it done: the layout check at 390, 1280 and 1920 px, redlines against the design
   system's tokens, the mockup or the 4 px rules, `image_compare` against a reference, fixing until there is no cut

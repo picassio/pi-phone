@@ -1030,7 +1030,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
     said but never checked or listed as spacing), and the type of its first words; the page answers its type styles by
     use. `planRedline` makes the shapes in CSS pixels (padding strips green, gaps magenta, radius tags blue with a
     quarter-arc sign, control sizes orange and tap targets under 40 px on a phone red, type tags purple above their
-    line) and the legend; `markup.ts`'s `drawRedlines` draws them on each part of the picture (a tall page's parts at
+    line) and the legend; without a width (`browser_redline`) the page's width is the root's `clientWidth`, as in the
+    layout check (PP-424: a phone page wider than its screen stretches `innerWidth`, 616 in a 412 px view); `markup.ts`'s `drawRedlines` draws them on each part of the picture (a tall page's parts at
     their offset) and adds the legend as a band under the last. Tags never cover each other: what is off a spec is
     placed first, each tries five places around its own, and one with no room stays out (counted in the answer). A
     spec is a plain list (`padding`, `gap`, `spacing` for both, `radius`, `font`, `weight`, `line`, `target`) or a

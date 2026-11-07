@@ -368,7 +368,8 @@ dự án thật.</sub>
   Nó đo các khối chính (khi đang mở một sheet hoặc hộp thoại thì chỉ đo lớp trên cùng đó), hoặc các phần tử một
   selector chọn; khi có spec (tokens.css của một design system, hoặc một danh
   sách như "padding 16, radius 24/12/20, font 22/13/12") nó tô đỏ chỗ lệch kèm giá trị của spec ("gap 23, spec 24") và
-  liệt kê ra. `browser_redline` làm việc tương tự trên trang đang mở trong trình duyệt của Pi. Một tệp ảnh không có DOM:
+  liệt kê ra. `browser_redline` làm việc tương tự trên trang đang mở trong trình duyệt của Pi (trang điện thoại rộng hơn màn hình
+  vẫn được tính là trang điện thoại). Một tệp ảnh không có DOM:
   hãy so nó bằng `image_compare`.
 - **Kiểm tra giao diện trước khi xong.** Skill có sẵn `ui-verify` bắt Pi kiểm tra mọi artifact, trang HTML và màn hình
   của app bằng số đo trước khi nói là xong: layout check ở 390, 1280 và 1920 px, redline theo token của design system, theo

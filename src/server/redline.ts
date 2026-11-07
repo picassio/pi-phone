@@ -57,11 +57,12 @@ export type RedlineMeasure = {
 };
 
 /**
- * The script that measures a page laid out `width` CSS pixels wide (innerWidth when not given), as one expression that
+ * The script that measures a page laid out `width` CSS pixels wide (when not given, the root's clientWidth: a phone
+ * page wider than its screen stretches innerWidth to its content, 616 in a 412 px view, PP-424), as one expression that
  * returns its JSON text. `selector`: the elements to measure instead of the main blocks.
  */
 export const redlineScript = ({ width, selector }: { width?: number; selector?: string } = {}) => String.raw`(() => {
-  const W = ${width === undefined ? "innerWidth" : String(Math.round(width))}, VW = innerWidth, VH = innerHeight;
+  const W = ${width === undefined ? "Math.min(innerWidth, document.documentElement.clientWidth || innerWidth)" : String(Math.round(width))}, VW = innerWidth, VH = innerHeight;
   const SELECTOR = ${JSON.stringify(selector ?? null)};
 ${PAGE_HELPERS}
   const box = (r) => [r1(r.left), r1(r.top), r1(r.width), r1(r.height)];

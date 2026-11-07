@@ -48,6 +48,8 @@ body{margin:0;font:15px/20px sans-serif;background:#fff;color:#111}
 #sheet button{width:120px;height:44px;padding:0;border:0;border-radius:12px;background:#ccd;font:14px/20px sans-serif}
 </style><div class="list"><div class="row">Row one</div><div class="row">Row two</div><button class="row">Row three</button></div>
 <div class="scrim"><section id="sheet" role="dialog" aria-modal="true"><h2>Dictation</h2><button>Turn on</button></section></div>`;
+/** A phone page wider than its screen (PP-424): the browser stretches innerWidth to the 600 px row. */
+const OVERFLOW = `<!doctype html><meta name="viewport" content="width=device-width"><body style="margin:0"><div style="width:600px;white-space:nowrap">A row wider than the phone</div><button id="tiny" style="width:28px;height:28px;padding:0">A</button>`;
 
 let server: Server;
 let port = 0;
@@ -66,7 +68,7 @@ const route: FauxResponseStep = (request) => {
 before(async () => {
     server = createServer((_request, response) => {
         response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        response.end(_request.url === "/sheet" ? SHEET : PAGE);
+        response.end(_request.url === "/sheet" ? SHEET : _request.url === "/overflow" ? OVERFLOW : PAGE);
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     port = (server.address() as { port: number }).port;
@@ -301,6 +303,31 @@ test("with Chrome: Pi's browser measures the page in front with the same script,
         assert.match(text, /^Redlines at \d+ px: 2 of the 2 elements \.card h2 finds; 1 type styles\.\n/);
         assert.match(text, /\n- Type 22\/28 600 #111111(\n|$)/);
         assert.ok(decodePicture(pictures[0]!).height > decodePicture(Buffer.from(shot.data, "base64")).height);
+    } finally {
+        await browser.close();
+    }
+});
+
+test("with Chrome: on a phone page wider than its screen, Pi's browser still measures it as a phone's and marks a 28 px button red (PP-424)", { skip }, async () => {
+    const browser = new PiBrowser({ engine: new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]), changed: () => {}, frame: () => {}, log: () => {} });
+
+    try {
+        await browser.open(1, "http://pi.test/overflow");
+
+        const shot = await browser.screenshot(1, { png: true, script: redlineScript() });
+
+        assert.ok("data" in shot);
+
+        const measure = parseRedline(shot.measured);
+
+        assert.ok(measure !== undefined);
+        // The view's width, not innerWidth stretched to the 600 px row.
+        assert.equal(measure.width, shot.viewport.width);
+
+        const plan = planRedline(measure, undefined, { width: shot.viewport.width, height: shot.viewport.height });
+
+        assert.equal(plan.targets, 1);
+        assert.ok(plan.shapes.some((shape) => shape.kind === "label" && shape.text === "28x28 < 40" && shape.color === REDLINE_COLORS.off), JSON.stringify(plan.shapes));
     } finally {
         await browser.close();
     }
