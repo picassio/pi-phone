@@ -16291,8 +16291,10 @@ textarea.notes {
     .sg-new::before {
         inset: -5px 0;
     }
-    /* The search field: its label, which takes the taps, a thumb tall. */
-    .sessions .search {
+    /* The search field: its label, which takes the taps, a thumb tall; the pickers' too (models, branches, a list's
+     * choices: PP-427). */
+    .sessions .search,
+    .pop-menu-search {
         min-height: 40px;
     }
     .search .icon-button.small {

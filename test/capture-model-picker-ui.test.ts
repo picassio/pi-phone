@@ -176,6 +176,17 @@ for (const [viewport, label] of [[VIEWPORTS.mobile, "390"], [VIEWPORTS.desktop, 
         assert.ok(workRow && /5h 18% · wk 31%/.test(workRow) && !/resets/.test(workRow), `the Work account's figures: ${JSON.stringify(open.rows)}`);
         assert.equal(open.thinking, false, "no thinking level for the capture model");
         assert.equal(open.providers, false, "no way out to Providers, which Wiki settings coming back would close");
+        // Rows whose account line wraps (the reset time) stay whole pixels on the 4 px grid (PP-427). Their layout
+        // heights: the menu's rise scales what getBoundingClientRect measures.
+        const rows = await inPage<{ height: number; lines: number }[]>(
+            `const height = (element) => parseFloat(getComputedStyle(element).height); return JSON.stringify([...document.querySelectorAll(".model-menu .pop-menu-row")].map((row) => { const sub = row.querySelector(".pop-menu-row-sub"); return { height: height(row), lines: sub ? Math.round(height(sub) / parseFloat(getComputedStyle(sub).lineHeight)) : 0 }; }))`,
+        );
+
+        assert.deepEqual(rows.filter((row) => row.height % 4 !== 0), [], `rows on the 4 px grid: ${JSON.stringify(rows)}`);
+
+        if (label === "390") {
+            assert.ok(rows.some((row) => row.lines === 2 && row.height === 68), `a row whose account line wraps is 68 px: ${JSON.stringify(rows)}`);
+        }
         await shot(`capture-picker-${label}`, viewport.width);
 
         // Closed without a pick: nothing changes, and Wiki settings comes back.

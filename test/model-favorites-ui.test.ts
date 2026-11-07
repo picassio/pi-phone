@@ -1,5 +1,5 @@
 // Favorite models in a real Chromium (PP-350): a star in Providers › Favorite models, and the model picker's Favorites
-// filter with the star on the row. At phone size first; with PHONE_SHOTS, screenshots at 390 and 1280 px go there.
+// filter with the star on the row; on a phone, its search a thumb tall and its rows on the 4 px grid (PP-427). At phone size first; with PHONE_SHOTS, screenshots at 390 and 1280 px go there.
 import { type App, cleanUp, cleanUpAll, newSession, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -98,4 +98,28 @@ test("a model starred in Providers comes first in the picker, and alone under Fa
     await shot("favorites-picker-1280.jpg");
     await page.setViewport(VIEWPORTS.mobile);
     app.setModelFavorites(owner(app), []);
+});
+
+test("on a phone the picker's search is a thumb tall, and its rows are whole pixels on the 4 px grid (PP-427)", real, async () => {
+    await page.setViewport(VIEWPORTS.mobile);
+    await page.evaluate(`import("/store.js").then((module) => module.closeSheet()); return "null";`);
+    await until(async () => !(await exists(".model-menu")), "the picker closed");
+    // Opened searching, as `/model faux` opens it: the search shows with any number of models.
+    await page.evaluate(`import("/store.js").then((module) => module.openSheet({ type: "model", query: "faux" })); return "null";`);
+    await present(".model-menu .pop-menu-search", "the picker's search");
+    // Layout heights: the menu's rise scales what getBoundingClientRect measures.
+    const sizes = await inPage<{ search: number; rows: number[] }>(`
+        const menu = document.querySelector(".model-menu");
+        const height = (element) => parseFloat(getComputedStyle(element).height);
+        return JSON.stringify({
+            search: height(menu.querySelector(".pop-menu-search input")),
+            rows: [...menu.querySelectorAll(".pop-menu-row")].map(height),
+        });
+    `);
+
+    assert.ok(sizes.search >= 40, `the search field takes a 40 px tap: ${sizes.search}`);
+    assert.ok(sizes.rows.length >= 3, `the faux models: ${JSON.stringify(sizes.rows)}`);
+    assert.deepEqual(sizes.rows.filter((height) => height % 4 !== 0), [], `rows on the 4 px grid: ${JSON.stringify(sizes.rows)}`);
+    await shot("picker-search-390.jpg");
+    await page.evaluate(`import("/store.js").then((module) => module.closeSheet()); return "null";`);
 });

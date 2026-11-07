@@ -230,13 +230,17 @@ so Pi changes them through the settings tools; "the last session" is the one the
   toward the ground (92 % light), `--faint` 66 % (75 % light), a light palette's `--accent` and code colors 78 % and 66 %
   toward black (its fills keep the palette's accent), and words in a color on its own tint (initials, a board column's
   count) mix `--tint-ink-share` toward `--tint-ink-toward`; `test/theme-contrast.test.ts` computes them for every
-  palette. Taps (PP-400): `.button` and a dropdown (`.choice`) are 40 px tall, a small button 40 on touch; a smaller
+  palette. Taps (PP-400): `.button` and a dropdown (`.choice`) are 40 px tall, a small button 40 on touch, a search field (the session list's, the pickers': models, branches, a list's
+  choices) 40 on touch (PP-427); a smaller
   control that keeps its look (a chip, New, the composer's icons, a list's head) takes a 40 px tap through a
   `::before` layer on `(pointer: coarse)`, kept inside a scrolling row's padding, which would clip it. The grid
   (PP-401): padding, gaps, corners and sizes from 12 px up in whole pixels on the 4 px grid, a value halfway between
   two going to the one on the 8 px grid (6 and 10 to 8, 14 and 18 to 16); rem paddings as pixels; corners from the
   `--r-*` tokens (2, 4, 8, 8, 12, 12, 16, 20, 24), never a token plus or minus a pixel; rows' lines in whole pixels
   (a session row 52, the title 48, a sheet's list row 44, its separator drawn as an inset shadow, not a border).
+  Android's font scale reaches the WebView as text zoom (108 % on the owner's phone, PP-427): it multiplies every px font
+  size and line height, so there a row as tall as its lines leaves the grid (a model row 54.88 for 52, 72.16 for 68),
+  which the layout check reports; no CSS rounds after the zoom. The grid holds at 100 %, which the UI tests measure.
   Blocks as tall as their words (a message, the message box, a task's card) grow by their text's line height. Weights 400 to 600, section labels in sentence case without
   letter spacing, counts as a plain number after the label ("Settled 50"), paddings, margins and gaps on the 4 px grid
   (2 px steps and 1 to 3 px nudges inside small controls), icons on one scale with one stroke (PP-403): 16 px in
