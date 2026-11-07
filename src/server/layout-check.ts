@@ -495,8 +495,12 @@ ${PAGE_HELPERS}
       });
       if (glow) { group('glow', sig(e) + '|' + hex(glow.c), () => ({ what: name(e), property: prop, color: hex(glow.c), blur: r1(glow.blur) })); break; }
     }
-    // A pulsing dot: a small round dot that animates for ever.
-    if (r.width <= 16 && r.height <= 16 && circle && style.animationName !== 'none' && /infinite/.test(style.animationIterationCount)) group('pulsing-dot', sig(e), () => ({ what: name(e), size: r1(Math.max(r.width, r.height)), animation: trim(style.animationName, 30) }));
+    // A pulsing dot: a small round dot that animates for ever, its keyframes changing its opacity or scale; a spinner
+    // turns, it does not pulse (PP-425).
+    if (r.width <= 16 && r.height <= 16 && circle) {
+      const pulse = e.getAnimations().find((a) => a.effect && a.effect.getTiming().iterations === Infinity && a.effect.getKeyframes().some((k) => 'opacity' in k || 'scale' in k || /scale/.test(k.transform || '')));
+      if (pulse) group('pulsing-dot', sig(e), () => ({ what: name(e), size: r1(Math.max(r.width, r.height)), animation: trim(pulse.animationName || style.animationName, 30) }));
+    }
     // Candidates for the passes after this loop: cards in cards, and boxes whose words repeat.
     // A control or a list item drawn as a card (a board's task button) is not a card that holds others.
     if (card(e)) {

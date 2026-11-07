@@ -49,7 +49,7 @@ const PAGES: Record<string, string> = {
     // The nine tells adapted from Impeccable's detector (PP-415), each with one that passes beside it: a grey rule down
     // a quote, a neutral elevation shadow, a dot that pulses once, a heading skip inside the footer, justified text with
     // hyphens, a heading set tight.
-    "/slop": `${head}<style>@keyframes pulse{50%{opacity:.3}} .dot{width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block} .box{border:1px solid #cccccc;border-radius:8px;padding:8px;margin:8px 0}</style><div class="col">
+    "/slop": `${head}<style>@keyframes pulse{50%{opacity:.3}} @keyframes grow{50%{transform:scale(1.4)}} @keyframes spin{to{transform:rotate(360deg)}} .dot{width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block} .box{border:1px solid #cccccc;border-radius:8px;padding:8px;margin:8px 0}</style><div class="col">
       <h1>Title</h1><h3 id="sub">Sub</h3>
       <div id="tab" style="border-left:4px solid #8b5cf6;border-radius:12px;background:#15151f;color:#eeeeee;padding:16px">A card with a stripe</div>
       <div id="inset" style="box-shadow:inset 3px 0 0 #e0af68;padding:8px">Critical question here</div>
@@ -58,6 +58,7 @@ const PAGES: Record<string, string> = {
       <div style="box-shadow:0 4px 12px rgba(0,0,0,0.3);width:200px;height:60px">Lifted</div>
       <div id="outer" class="box">Outer card words<div id="inner" class="box" style="height:40px">Inner card words here</div></div>
       <span id="dot" class="dot" style="animation:pulse 1.5s infinite"></span> <span class="dot" style="animation:pulse 1s 1"></span>
+      <span id="grow" class="dot grow" style="animation:grow 2s infinite"></span> <span id="spin" style="display:inline-block;width:8px;height:8px;border:2px solid #888888;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite paused"></span>
       <img id="broken" src="/missing.png" alt="Shot" width="80" height="40">
       <p id="just" style="width:160px;text-align:justify">${words}</p><p style="width:160px;text-align:justify;hyphens:auto" lang="en">${words}</p>
       <p id="tight" style="line-height:1.1">${words}</p><h2 style="line-height:1.1">${words}</h2>
@@ -313,7 +314,8 @@ test("the layout check finds the tells adapted from Impeccable: broken images, s
             [["div#inset", "left", 3, "inset shadow"], ["div#tab", "left", 4, "border"]],
         );
         assert.deepEqual(of(slop, "glow").map((find) => [short(find.what), find.property, find.color, find.blur]), [["div#glowcard", "box-shadow", "#8b5cf6", 40]]);
-        assert.deepEqual(of(slop, "pulsing-dot").map((find) => [short(find.what), find.size]), [["span#dot.dot", 8]]);
+        // A dot whose opacity or scale pulses; a 12 px spinner turns, it does not pulse (PP-425).
+        assert.deepEqual(of(slop, "pulsing-dot").map((find) => short(find.what)), ["span#dot.dot", "span#grow.dot.grow"]);
         assert.deepEqual(of(slop, "justified").map((find) => short(find.what)), ["p#just"]);
         assert.deepEqual(of(slop, "tight-leading").map((find) => [short(find.what), find.ratio]), [["p#tight", 1.1]]);
         assert.deepEqual(of(slop, "repeated-text").map((find) => [short(find.what), find.text, find.times]), [["div#list.box", "Read more", 3]]);

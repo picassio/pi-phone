@@ -960,7 +960,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
     panel 80 % of the view tall); side-tab stripes (border-left or -right of 2 px on a rounded box, 3 px on a square
     one, coloured with chroma, the other sides at most 1 px or half as wide; or an inset shadow 2 to 12 px drawn as a
     stripe); glows (a coloured shadow, blur over 4 px and blur x alpha at least 3, lit area at most twice the
-    element's, with no offset or on a dark background); pulsing dots (16 px or smaller, round, animated for ever);
+    element's, with no offset or on a dark background); pulsing dots (16 px or smaller, round, animated for ever,
+    since PP-425 only when its keyframes change opacity or scale: `getAnimations()` keyframes, so a spinner, which turns, is none);
     justified text in a column of 45 characters or fewer without hyphens; tight leading (under 1.3 on body text over
     50 characters and two lines, below 24 px, not headings, bold titles or code); the same words (4 to 48 characters)
     in three or more distinct spots of one card. ui-verify holds broken images, skipped headings and nested cards to
