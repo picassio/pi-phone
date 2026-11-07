@@ -16,12 +16,15 @@ jakubkrehel/skills, unslop or auton-ui is copied.
 | pi-phone kind | Source | What it finds |
 |---|---|---|
 | `concentric` | better-ui, "Outer radius equals inner radius plus padding" | a painted surface in a painted surface with an even gap of 1 to 12 px whose corner radii are not outer = inner + gap + border (within 2 px), radii as drawn |
+| `corner-bleed` | auton-ui (PP-432), from better-ui's nested radii | a child flush in a rounded corner of a parent that does not clip it, painting there with a tighter radius, so its corner pokes out (a progress fill in a rounded bar) |
 | `tabular` | better-typography, tabular-nums on changing values and numeric columns | digits in cells, timers, progress, meters, outputs and live regions without `font-variant-numeric: tabular-nums` (monospace passes) |
 | `gradient` | unslop's signs, Impeccable | a gradient of two colours or more on a surface of 1600 px² or more (`data-allow-gradient` opts out) |
 | `side-tab` (extended) | unslop's signs | also an inset shadow along the top or bottom, and a `::before`/`::after` bar 4 px or thinner along half the box |
 | `css-tell` | better-ui, better-typography, better-accessibility | `transition: all`; line height 1 on wrapping text; a text field under 16 px on a phone (iOS zooms in); a scrolling dialog without `overscroll-behavior: contain`; a viewport that blocks zoom; `font-feature-settings: "tnum"` instead of `tabular-nums` |
 
-**pi-phone's changes.** auton-ui's 12 px cutoff for the concentric gap is kept (better-ui judges 24 px by eye). The
+**pi-phone's changes.** auton-ui's 12 px cutoff for the concentric gap is kept (better-ui judges 24 px by eye), and
+its PP-432 limits: corners of 4 px or less on both pass, fixed children are left out. A corner bleed counts only where
+the child paints at that corner (its background, or a border on a side that meets there). The
 glow's blur floor is auton-ui's 6 px; Impeccable's other glow limits stay. What a computed style cannot show is left
 out: line height set in px, `100vw` and `100vh`, `outline: none` without a `:focus-visible` replacement, `active:scale`
 and bounce easing.

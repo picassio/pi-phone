@@ -335,7 +335,8 @@ No Termux, no laptop, no cloud VM.
   labels, tight tracking and long lines, and nine tells adapted from Impeccable's detector (broken images, skipped
   heading levels, cards inside cards, side-tab stripes, glows, pulsing dots, narrow justified text, tight leading and
   the same words repeated in one card; a spinner is no pulsing dot), and the rules auton-ui proved: corners of a
-  surface nested in another that are not concentric, numbers in cells, timers and live regions without tabular figures,
+  surface nested in another that are not concentric or that poke out of a rounded parent that does not clip them (a
+  progress fill in a rounded bar), numbers in cells, timers and live regions without tabular figures,
   gradient surfaces (`data-allow-gradient` marks one the design asks for), side stripes drawn as an inset shadow or a
   `::before`/`::after` bar, and static CSS tells (`transition: all`, line height 1 on wrapping text, a field under 16 px
   on a phone, a scrolling dialog without `overscroll-behavior: contain`, a viewport that blocks zoom, `tnum` instead of

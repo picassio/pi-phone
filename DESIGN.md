@@ -970,11 +970,16 @@ so Pi changes them through the settings tools; "the last session" is the one the
   - **auton-ui's rules** (PP-430; the owner asked through session #317051 on 2026-11-07). The owner's Auton UI library
     proved them on 17 fixtures (its `doctor-responsive.mjs` CHECK items 7 and 8, `doctor-selftest.mjs`), from
     jakubkrehel/skills' better-ui and better-typography (MIT, `third_party/jakubkrehel-skills/`) and unslop's signs;
-    the 17 fixtures are ported as they are into `test/layout-check.test.ts` (9 found, 8 passed). Concentric radii
+    the fixtures are ported as they are into `test/layout-check.test.ts` (19 since PP-432: 10 found, 9 passed). Concentric radii
     (`concentric`): a painted child in a painted surface with an even gap (the same on three sides or more within 1 px,
     1 to 12 px) must have, in each corner it sits in, outer radius = inner + gap + border within 2 px, radii as drawn
     (scaled down as CSS does when they do not fit, so a pill in a pill passes); children under 20 px, square inner
-    corners, placed children and scaled boxes are left out. Tabular figures (`tabular`): numeric-looking text of two
+    corners, fixed children (absolute ones are checked since PP-432), corners of 4 px or less on both (PP-432: no curve
+    to see) and scaled boxes are left out. Corner bleed (`corner-bleed`, PP-432): a child flush (gap under 1 px) in a
+    rounded corner of a parent whose overflow is visible, painting there (its background, or a border on a side that
+    meets at the corner, so a footer's top divider passes), with a radius more than 2 px under the parent's inside
+    radius (outer minus border): its square corner pokes out of the curve, like a progress fill in a rounded bar; fix
+    it with `overflow: hidden` or a matching radius. Tabular figures (`tabular`): numeric-looking text of two
     digits or more in td, th, cell, gridcell, timer, progressbar, meter, output, `aria-live` or status without
     `tabular-nums` (a monospace first family passes). Gradient surfaces (`gradient`): a gradient of two colours or more
     on 1600 px² or more, showing (opacity above 0.05); one colour drawn as a gradient is a fill, `data-allow-gradient`

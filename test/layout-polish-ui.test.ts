@@ -180,8 +180,8 @@ test("no side-tab stripe, glow, narrow justified text, tight leading or repeated
     assert.deepEqual([...found("side-tab"), ...found("glow"), ...found("justified"), ...found("tight-leading"), ...found("repeated-text")], []);
 });
 
-test("no corners off concentric, numbers without tabular figures, gradient surfaces or static CSS tells on the main screens (PP-430)", real, () => {
-    assert.deepEqual([...found("concentric"), ...found("tabular"), ...found("gradient"), ...found("css-tell")], []);
+test("no corners off concentric or poking out of their parent, numbers without tabular figures, gradient surfaces or static CSS tells on the main screens (PP-430, PP-432)", real, () => {
+    assert.deepEqual([...found("concentric"), ...found("corner-bleed"), ...found("tabular"), ...found("gradient"), ...found("css-tell")], []);
 });
 
 test("a tool call's icon is a line icon from ICONS, never a symbol (PP-402)", () => {

@@ -344,7 +344,8 @@ dự án thật.</sub>
   tượng, chữ gradient, nhãn viết hoa, giãn chữ âm và dòng quá dài, cùng chín dấu hiệu lấy từ bộ dò của Impeccable (ảnh
   hỏng, nhảy cấp tiêu đề, thẻ lồng trong thẻ, sọc nhấn một bên, bóng phát sáng, chấm nhấp nháy, chữ căn đều trong cột
   hẹp, dòng chữ quá sát và cùng một chữ lặp trong một thẻ; biểu tượng xoay không tính là chấm nhấp nháy), và các luật
-  auton-ui đã kiểm chứng: bo góc của khối lồng trong khối không đồng tâm, số trong ô bảng, đồng hồ và vùng cập nhật
+  auton-ui đã kiểm chứng: bo góc của khối lồng trong khối không đồng tâm hoặc
+  lòi ra ngoài góc bo của khối cha không cắt nó (thanh tiến độ vuông trong thanh bo tròn), số trong ô bảng, đồng hồ và vùng cập nhật
   trực tiếp không dùng chữ số đều (tabular), nền gradient trên khối lớn (`data-allow-gradient` đánh dấu chỗ thiết kế
   cần), sọc một bên vẽ bằng bóng inset hoặc thanh `::before`/`::after`, và các dấu hiệu CSS tĩnh (`transition: all`,
   line-height 1 trên chữ xuống dòng, ô nhập chữ dưới 16 px trên điện thoại, hộp thoại cuộn thiếu

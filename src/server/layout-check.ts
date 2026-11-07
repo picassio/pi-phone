@@ -25,7 +25,8 @@
  * side stripes drawn as a vertical inset shadow or a ::before/::after bar, and the static CSS tells a computed style
  * can show (transition: all, line height 1 on wrapping text, a field under 16 px on a phone, a scrolling dialog that
  * chains its scroll to the page, a viewport that blocks zoom, font-feature-settings "tnum"). A pulsing dot is one whose
- * keyframes change its opacity or scale, never a spinner (PP-425).
+ * keyframes change its opacity or scale, never a spinner (PP-425). Since PP-432, a child's corner that pokes out of a
+ * rounded parent that does not clip it (a progress fill in a rounded bar).
  */
 
 /** One thing out of place: what it is, and the boxes that show it (x and width, CSS pixels). */
@@ -61,6 +62,7 @@ export type LayoutFind =
     | { kind: "repeated-text"; what: string; text: string; times: number; count: number }
     // PP-430, from auton-ui's doctor (third_party/jakubkrehel-skills/README.md).
     | { kind: "concentric"; what: string; in: string; inner: number; gap: number; border: number; outer: number; want: number; count: number }
+    | { kind: "corner-bleed"; what: string; in: string; inner: number; outer: number; count: number }
     | { kind: "tabular"; what: string; text: string; count: number }
     | { kind: "gradient"; what: string; area: number; image: string; count: number }
     | { kind: "css-tell"; what: string; rule: string; count: number };
@@ -607,7 +609,9 @@ ${PAGE_HELPERS}
   // Concentric radii (PP-430; better-ui: "outer radius equals inner radius plus padding"): a painted surface in a
   // painted surface with an even gap (the same on three sides or more within 1 px, 1 to 12 px; wider, they read as two
   // surfaces) curves with it in each corner it sits in: outer = inner + gap + border, within 2 px. Children under 20 px,
-  // square inner corners, placed children and scaled boxes are left out.
+  // square inner corners, corners of 4 px or less on both (no curve to see, PP-432), fixed children and scaled boxes are
+  // left out. Corner bleed (PP-432): a child flush in a rounded corner of a parent that does not clip it, with a tighter
+  // curve than the parent's inside edge (a progress fill in a rounded bar), pokes its corner out of the parent's.
   const CORNER_SIDES = [[0, 3], [0, 1], [2, 1], [2, 3]];
   for (const outer of surfaces) {
     const os = css(outer), or = outer.getBoundingClientRect();
@@ -618,14 +622,23 @@ ${PAGE_HELPERS}
     for (const inner of outer.children) {
       if (!surfaces.has(inner)) continue;
       const is = css(inner), ir = inner.getBoundingClientRect();
-      if (/absolute|fixed/.test(is.position) || inner.offsetWidth < 20 || inner.offsetHeight < 20 || !unscaled(inner, ir)) continue;
+      if (is.position === 'fixed' || inner.offsetWidth < 20 || inner.offsetHeight < 20 || !unscaled(inner, ir)) continue;
       const d = [ir.top - or.top - ob[0], or.right - ob[1] - ir.right, or.bottom - ob[2] - ir.bottom, ir.left - or.left - ob[3]];
       const g = Math.min(...d), near = (x) => Math.abs(x - g) <= 1;
-      if (g < 1 || g > 12 || d.filter(near).length < 3) continue;
       const irad = drawnRadii(is, ir);
+      if (g < 1) {
+        if (os.overflowX !== 'visible' || os.overflowY !== 'visible') continue;
+        // Only what the child paints at that corner shows: its background, or a border on a side that meets there (a
+        // footer's divider along its top does not reach the card's bottom corners).
+        const bg = colour(is.backgroundColor), filled = (bg !== null && bg[3] > 0.05) || is.backgroundImage !== 'none', iw = borderWidths(is);
+        const c = CORNER_SIDES.findIndex(([s1, s2], k) => d[s1] < 1 && d[s2] < 1 && (filled || iw[s1] >= 1 || iw[s2] >= 1) && orad[k] - (ob[s1] + ob[s2]) / 2 - irad[k] > 2);
+        if (c >= 0) group('corner-bleed', sig(inner) + '|' + sig(outer) + '|' + Math.round(irad[c]) + '|' + Math.round(orad[c]), () => ({ what: name(inner), in: name(outer), inner: r1(irad[c]), outer: r1(orad[c]) }));
+        continue;
+      }
+      if (g > 12 || d.filter(near).length < 3) continue;
       for (let c = 0; c < 4; c++) {
         const [s1, s2] = CORNER_SIDES[c];
-        if (!near(d[s1]) || !near(d[s2]) || irad[c] < 1) continue;
+        if (!near(d[s1]) || !near(d[s2]) || irad[c] < 1 || (orad[c] <= 4 && irad[c] <= 4)) continue;
         const b = (ob[s1] + ob[s2]) / 2, want = irad[c] + g + b;
         if (Math.abs(orad[c] - want) > 2) { group('concentric', sig(inner) + '|' + sig(outer) + '|' + Math.round(irad[c]) + '|' + Math.round(orad[c]), () => ({ what: name(inner), in: name(outer), inner: r1(irad[c]), gap: r1(g), border: r1(b), outer: r1(orad[c]), want: r1(want) })); break; }
       }
@@ -825,6 +838,7 @@ const KINDS: [LayoutFindKind, string][] = [
     ["tight-leading", "Tight line height on body text"],
     ["repeated-text", "The same words repeated in one card"],
     ["concentric", "Corners not concentric (outer radius = inner + gap + border)"],
+    ["corner-bleed", "Corners poking out of a rounded parent that does not clip them"],
     ["tabular", "Numbers without tabular figures"],
     ["gradient", "Gradient surfaces"],
     ["css-tell", "Static CSS tells"],
@@ -877,6 +891,8 @@ function findWords(find: LayoutFind): string {
             return `${find.what}: "${find.text}" ${find.times} times${times}`;
         case "concentric":
             return `${find.what}: radius ${find.inner} + gap ${find.gap}${find.border > 0 ? ` + border ${find.border}` : ""} in ${find.in}, whose radius is ${find.outer} (wants ${find.want})${times}`;
+        case "corner-bleed":
+            return `${find.what}: radius ${find.inner}, flush in a corner of ${find.in} (radius ${find.outer}), which does not clip it${times}`;
         case "tabular":
             return `${find.what}: "${find.text}" without tabular-nums${times}`;
         case "gradient":

@@ -28,7 +28,8 @@ const skip = chrome === undefined ? "no Chrome on this machine (CI runs it)" : f
 
 /**
  * auton-ui's doctor fixtures (PP-430; /home/ubuntu/frontend-design/scripts/doctor-selftest.mjs on the owner's devbox),
- * as they are: 9 that must be found, 8 that must pass. Its kinds by pi-phone's names: side-stripe is side-tab.
+ * as they are: 10 that must be found, 9 that must pass (19 since PP-432 added the corner bleed pair). Its kinds by
+ * pi-phone's names: side-stripe is side-tab.
  */
 const card = "border:1px solid #ddd;background:#fff;border-radius:12px;padding:16px;width:300px;height:80px";
 const AUTON: { name: string; html: string; want: LayoutFind["kind"][] }[] = [
@@ -49,10 +50,28 @@ const AUTON: { name: string; html: string; want: LayoutFind["kind"][] }[] = [
     { name: "proportional digits in a table cell", html: `<table><tbody><tr><td style="font-family:sans-serif">48,213</td></tr></tbody></table>`, want: ["tabular"] },
     { name: "tabular digits in a table cell pass", html: `<table><tbody><tr><td style="font-family:sans-serif;font-variant-numeric:tabular-nums">48,213</td></tr></tbody></table>`, want: [] },
     { name: "a timer without tabular-nums", html: `<span role="timer" style="font-family:sans-serif">03:40</span>`, want: ["tabular"] },
+    { name: "square progress fill in a rounded bar", html: `<div style="position:relative;width:200px;height:24px;border:1px solid #999;border-radius:12px;background:#f8f8f8"><span style="position:absolute;top:0;bottom:0;left:0;width:30px;border-radius:4px 0 0 4px;background:#fde4dc"></span></div>`, want: ["corner-bleed"] },
+    { name: "fill clipped by an overflow-hidden bar passes", html: `<div style="position:relative;width:200px;height:24px;border:1px solid #999;border-radius:12px;background:#f8f8f8;overflow:hidden"><span style="position:absolute;top:0;bottom:0;left:0;width:30px;background:#fde4dc"></span></div>`, want: [] },
+];
+/**
+ * PP-432's concentric thresholds: corners of 4 px or less on both have no curve to see; a fixed child is not nested in
+ * the box it sits over (left out before too, its test guards that); a placed (absolute) child is checked now. A footer
+ * whose only paint is a divider along its top, flush at a card's bottom, paints nothing in the card's corners (the
+ * board's task cards).
+ */
+const THRESHOLDS: { name: string; html: string; want: LayoutFind["kind"][] }[] = [
+    { name: "2 px in 2 px with a 4 px gap passes", html: `<div style="display:flex;width:240px;height:44px;padding:4px;border:1px solid #ddd;border-radius:2px;background:#f2f2f2"><div style="width:120px;border-radius:2px;background:#fff"></div></div>`, want: [] },
+    { name: "a fixed child over a rounded box passes", html: `<div style="width:240px;height:44px;padding:4px;border:1px solid #ddd;border-radius:12px;background:#f2f2f2"><div style="position:fixed;top:29px;left:29px;width:120px;height:44px;border-radius:12px;background:#fff"></div></div>`, want: [] },
+    { name: "a footer with only a top divider, flush in a card's bottom corners, passes", html: `<div style="width:240px;padding:12px 12px 0;border:1px solid #ddd;border-radius:12px;background:#fff">Card words<div style="margin:8px -12px 0;padding:8px 12px;border-top:1px solid #ddd">pp-3</div></div>`, want: [] },
+    { name: "an absolute child, same radius with a 4 px gap, is found", html: `<div style="position:relative;width:240px;height:44px;padding:4px;border:1px solid #ddd;border-radius:12px;background:#f2f2f2"><div style="position:absolute;top:4px;left:4px;bottom:4px;width:120px;border-radius:12px;background:#fff"></div></div>`, want: ["concentric"] },
 ];
 /** The kinds auton-ui's fixtures speak to: the tells of an assembled page, old and new. */
-const TELLS = new Set<LayoutFind["kind"]>(["side-tab", "gradient", "gradient-text", "glow", "concentric", "tabular", "css-tell", "nested-cards", "pulsing-dot"]);
-const AUTON_PAGES = Object.fromEntries(AUTON.map((fixture, i) => [`/auton/${i}`, `<!doctype html><meta name="viewport" content="width=device-width"><body style="margin:24px;font:14px sans-serif">${fixture.html}</body>`]));
+const TELLS = new Set<LayoutFind["kind"]>(["side-tab", "gradient", "gradient-text", "glow", "concentric", "corner-bleed", "tabular", "css-tell", "nested-cards", "pulsing-dot"]);
+const fixturePage = (html: string) => `<!doctype html><meta name="viewport" content="width=device-width"><body style="margin:24px;font:14px sans-serif">${html}</body>`;
+const AUTON_PAGES = Object.fromEntries([
+    ...AUTON.map((fixture, i) => [`/auton/${i}`, fixturePage(fixture.html)]),
+    ...THRESHOLDS.map((fixture, i) => [`/thresholds/${i}`, fixturePage(fixture.html)]),
+]);
 
 const head = `<!doctype html><meta name="viewport" content="width=device-width"><style>body{margin:0;font:14px sans-serif} .col{width:300px;margin:0 20px}</style>`;
 const words = "Words that wrap in their column, as a reply's do, line after line after line. ";
@@ -372,7 +391,7 @@ test("the layout check finds the tells adapted from Impeccable: broken images, s
     }
 });
 
-test("auton-ui's fixtures behave: 9 found, 8 passed, as its doctor proved them (PP-430)", { skip }, async () => {
+test("auton-ui's fixtures behave: 10 found, 9 passed, as its doctor proved them (PP-430, PP-432), and the concentric thresholds hold (PP-432)", { skip }, async () => {
     const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
 
     try {
@@ -382,8 +401,8 @@ test("auton-ui's fixtures behave: 9 found, 8 passed, as its doctor proved them (
 
         const wrong: string[] = [];
 
-        for (const [i, fixture] of AUTON.entries()) {
-            const report = await measured(page, `/auton/${i}`);
+        for (const [path, fixture] of [...AUTON.map((fixture, i) => [`/auton/${i}`, fixture] as const), ...THRESHOLDS.map((fixture, i) => [`/thresholds/${i}`, fixture] as const)]) {
+            const report = await measured(page, path);
             const kinds = [...new Set(report.found.map((find) => find.kind).filter((kind) => TELLS.has(kind)))].sort();
 
             if (JSON.stringify(kinds) !== JSON.stringify([...fixture.want].sort())) {
@@ -392,8 +411,14 @@ test("auton-ui's fixtures behave: 9 found, 8 passed, as its doctor proved them (
         }
 
         assert.deepEqual(wrong, []);
-        assert.equal(AUTON.filter((fixture) => fixture.want.length > 0).length, 9);
-        assert.equal(AUTON.filter((fixture) => fixture.want.length === 0).length, 8);
+        assert.equal(AUTON.filter((fixture) => fixture.want.length > 0).length, 10);
+        assert.equal(AUTON.filter((fixture) => fixture.want.length === 0).length, 9);
+
+        // The corner bleed with its numbers: the fill's 4 px corner in the bar's 12 px one.
+        const bar = await measured(page, "/auton/17");
+
+        assert.deepEqual(of(bar, "corner-bleed").map((find) => [find.what, find.in, find.inner, find.outer]), [["span", "div", 4, 12]]);
+        assert.match(describeLayout(bar), /\nCorners poking out of a rounded parent that does not clip them \(1\):\n- span: radius 4, flush in a corner of div \(radius 12\), which does not clip it/);
 
         // The numbers: the corner it found and the radius it wants, the digits, the gradient.
         const [corner] = of(await measured(page, "/auton/10"), "concentric");
