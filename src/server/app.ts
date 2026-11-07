@@ -650,6 +650,8 @@ export class PocketApp {
     readonly places: Places;
     /** Ports of machines opened here (`forwards.ts`). */
     readonly forwards: Forwards;
+    /** Forwards the screenshot tools opened (`#machinePort`, PP-440): how many renders use each, by its id. */
+    readonly #renderPorts = new Map<string, number>();
     /** Pi controls phones (`phone-control.ts`, PP-141): control sessions, the Never list, the phone's service channel. */
     readonly phoneControl: PhoneControl;
     readonly computerControl: ComputerControl;
@@ -1319,6 +1321,7 @@ export class PocketApp {
                       };
             },
             serverBase: () => (this.serverPort === undefined ? undefined : `http://127.0.0.1:${this.serverPort}`),
+            machinePort: (cwd, host, port) => this.#machinePort(cwd, host, port),
             render: (url, options) => this.screenshots.render(url, options),
             browserFor: (cwd, session) => this.browserFor(cwd, session),
             setBrowserPlace: (cwd, session, where) => this.setBrowserPlace(cwd, session, where),
@@ -3835,6 +3838,49 @@ export class PocketApp {
         }
 
         return frame;
+    }
+
+    /**
+     * A port of a session's machine, here, for the phone's renderer (PP-440, `PocketHost.machinePort`): a forward the
+     * owner opened stays theirs; one opened for renders closes once the last of them let go.
+     */
+    async #machinePort(cwd: string, host: string, port: number): Promise<{ port: number; close: () => void }> {
+        const { machineId } = parsePlace(cwd);
+
+        if (machineId === undefined) {
+            throw new Error("This session works on this phone, not on a machine.");
+        }
+
+        const theirs = this.forwards.list().find((each) => each.machineId === machineId && each.remotePort === port && (each.remoteHost ?? "localhost") === host);
+
+        if (theirs !== undefined && !this.#renderPorts.has(theirs.id)) {
+            return { port: theirs.localPort, close: () => {} };
+        }
+
+        const forward = await this.forwards.open(machineId, port, host);
+
+        this.#renderPorts.set(forward.id, (this.#renderPorts.get(forward.id) ?? 0) + 1);
+
+        return {
+            port: forward.localPort,
+            close: () => {
+                const left = (this.#renderPorts.get(forward.id) ?? 1) - 1;
+
+                if (left > 0) {
+                    this.#renderPorts.set(forward.id, left);
+
+                    return;
+                }
+
+                this.#renderPorts.delete(forward.id);
+
+                try {
+                    this.forwards.close(forward.id);
+                } catch {
+                    // Closed already (its ssh ended).
+                }
+            },
+        };
     }
 
     /**

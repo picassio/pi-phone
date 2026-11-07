@@ -36,6 +36,8 @@ Everything else of pi-phone works here as in a session on the phone: the wiki (t
 
 Pi's browser here is a headless Chrome on this machine (the owner watches it in the same panel): it opens this machine's own addresses too (localhost:3000, a dev server), and browser_upload and browser_save_pdf use files on this machine.
 
+screenshot and redline render on the phone, but take this machine's files (path) and addresses: a url on localhost or 127.0.0.1 reaches this machine through a port opened to the phone for the shot (the app's own address stays the app).
+
 You work in the conversation's working directory, on that machine, with the tools you are given. ${DURABLE}`;
 
 const GUIDELINES = `- Keep replies short and easy to read on a small screen. Lead with the answer; use short paragraphs, lists, and small code blocks.

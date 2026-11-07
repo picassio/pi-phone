@@ -939,6 +939,27 @@ so Pi changes them through the settings tools; "the last session" is the one the
   at `/a/office/`. Without the service polling (tests, a server not on the phone) a render fails at once, saying so.
   Allowed in plan mode. A `seeing` prompt section asks Pi to look before calling an artifact done; Effective HTML's and
   OfficeCLI's pi-phone notes point to it.
+  - **On a machine, app shells, file pages** (PP-440; reported from a session on tuanlh-devbox-01, 2026-11-07, proved there
+    live in session #370894 first). *Localhost:* the phone renders, so `http://127.0.0.1:5191` in a session on a machine
+    was the phone's (connection refused). Decided: keep rendering on the phone and open the port to it, rather than
+    render with the machine's Chrome (another renderer and layout, a machine tool required, artifacts and the app's
+    pages unreachable from there) or rewrite to the machine's LAN address (a dev server bound to loopback, Vite's
+    default, is not on it: proved live, it timed out). `screenshot` and `redline` turn a url on localhost, 127.x, [::1]
+    or 0.0.0.0 of a session on a machine into `http://127.0.0.1:<port here>` through `Forwards` (`host.machinePort`):
+    a forward the owner opened in Ports is used and stays; one opened for the shot closes after its last render. The
+    app's own port stays the app's. The answer names the machine and the port; the machine preamble says it. A page
+    whose own links name `localhost:<its port>` reaches the phone's there, which the answer's port explains.
+    *Files:* a path there is read through the session's environment as before (`workspace.downloadFile`); the 6.5 MB
+    single-file app was blank because the sandbox (an origin of its own) makes `localStorage` throw, and it read it
+    outside a try: the same on the phone. A file page now starts with `PAGE_SHIM` (`file-pages.ts`): storage in memory,
+    empty at each load, and the page's uncaught errors kept for the layout check, which says them ("The page threw:
+    …"). Artifacts keep the plain sandbox. *Full page of an app shell:* the height was the document's
+    (`getContentHeight()`, `scrollHeight`), one screen when the page scrolls in its main area. Each request carries
+    `PAGE_HEIGHT`, run by both renderers: a document that scrolls keeps its height; one that does not gets the view's
+    height plus what its scroll box (half the view or more) hides, so a box sized by the view shows everything. The
+    layout check names a box that still hides content (`scroller`: a fixed height, or the 4000 px cap). Tests:
+    `chrome-renderer.test.ts` (shells, sandboxed storage and errors), `remote-session.test.ts` (localhost through a
+    forward over the test sshd), `screenshot.test.ts`.
   - **The layout check's design rules** (PP-395, from the rules a script can measure, PP-394: the unslop, design-artifact
     and html skills and the owner's UI rules; wiki `resources/pi-phone-measurable-ui-rules`). Besides spills, it finds:
     text cut by the nearest box that hides its overflow (a text node's Range past that box: more than 2 px sideways, or

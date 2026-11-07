@@ -128,7 +128,7 @@ final class Renderer {
             for (int index = 0; index < widths.length(); index++) {
                 shots.put(shot(request.getString("url"), widths.getInt(index), request.getBoolean("fullPage"),
                         request.getInt("maxHeight"), request.getLong("settleMs"), request.optString("check", ""),
-                        request.optString("steps", ""), request.optInt("stepCount", 0)));
+                        request.optString("steps", ""), request.optInt("stepCount", 0), request.getString("height")));
             }
             reply.put("shots", shots);
         } catch (Exception e) {
@@ -139,14 +139,14 @@ final class Renderer {
 
     /** One picture at `width` CSS pixels, on the main thread, waited for here. */
     private JSONObject shot(String url, int width, boolean fullPage, int maxHeight, long settleMs, String check,
-            String steps, int stepCount) throws Exception {
+            String steps, int stepCount, String tallScript) throws Exception {
         CountDownLatch done = new CountDownLatch(1);
         Object[] result = new Object[1];
         Stage[] made = new Stage[1];
         long limit = SHOT_MS + (stepCount > 0 ? STEPS_MS : 0);
         main.post(() -> {
             try {
-                made[0] = start(url, width, fullPage, maxHeight, settleMs, check, steps, stepCount, (value) -> {
+                made[0] = start(url, width, fullPage, maxHeight, settleMs, check, steps, stepCount, tallScript, (value) -> {
                     result[0] = value;
                     done.countDown();
                 });
@@ -222,7 +222,7 @@ final class Renderer {
 
     /** Load the page in a WebView laid out at the width; once it finished and settled, take its frame (main thread). */
     private Stage start(String url, int width, boolean fullPage, int maxHeight, long settleMs, String check,
-            String steps, int stepCount, Done done) {
+            String steps, int stepCount, String tallScript, Done done) {
         int viewport = width < 600 ? 844 : 800;
         Stage stage = new Stage(width, fullPage ? Math.max(viewport, maxHeight) : viewport);
         WebView view = stage.view;
@@ -242,9 +242,17 @@ final class Renderer {
                 // The WebView's first, empty page finishing is not the page's (PP-112: a picture of nothing, 0 elements).
                 if (settled[0] || loaded == null || !(loaded.startsWith("http:") || loaded.startsWith("https:"))) return;
                 settled[0] = true;
-                whenLoaded(page, System.currentTimeMillis() + LOAD_MS, () -> main.postDelayed(() -> {
+                // The whole page's height, a box it scrolls in included (src/server/screenshots.ts PAGE_HEIGHT, PP-440):
+                // getContentHeight() was the document's alone, one screen of an app shell.
+                whenLoaded(page, System.currentTimeMillis() + LOAD_MS, () -> main.postDelayed(() -> page.evaluateJavascript(tallScript, (tall) -> {
                     try {
-                        int content = Math.max(viewport, page.getContentHeight());
+                        double pageHeight;
+                        try {
+                            pageHeight = Double.parseDouble(tall);
+                        } catch (NumberFormatException | NullPointerException e) {
+                            throw new IOException("the page's height could not be measured (" + tall + ")");
+                        }
+                        int content = Math.max(viewport, (int) Math.ceil(pageHeight));
                         int height = fullPage ? Math.min(content, maxHeight) : viewport;
                         layout(page, width, height);
                         page.invalidate();
@@ -289,7 +297,7 @@ final class Renderer {
                     } catch (Exception e) {
                         done.accept(e);
                     }
-                }, settleMs));
+                }), settleMs));
             }
 
             @Override

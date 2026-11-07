@@ -83,6 +83,13 @@ export type LayoutReport = {
     /** Elements found of each kind, all of them (`found` keeps the first groups only). */
     totals: Partial<Record<LayoutFindKind, number>>;
     summary: LayoutSummary;
+    /**
+     * The box the page scrolls in (an app shell's main area, PP-440), when it still hides content below: the picture
+     * shows `shown` of its `full` CSS pixels.
+     */
+    scroller?: { what: string; shown: number; full: number };
+    /** The page's uncaught errors, as a file page keeps them (`file-pages.ts`'s `PAGE_SHIM`, PP-440). */
+    errors?: string[];
 };
 
 /** Groups the page keeps of each kind; the words show fewer (`SHOWN`). */
@@ -873,7 +880,15 @@ ${PAGE_HELPERS}
     if (kept[g.kind] <= ${FINDS_KEPT}) found.push(g);
   }
   const summary = { fontSizes: [...sizes].sort((x, y) => x - y), colors: [...colours], families: [...families], icons: [...icons], strokes: [...strokes] };
-  return JSON.stringify({ width: W, height: innerHeight, checked: Math.min(checked, 4000), issues, more, found, totals, summary });
+  // A page that does not scroll itself but inside a box, half a screen or more (the view is as tall as the picture now),
+  // that still hides content below (an app shell, PP-440): the most hidden one.
+  let shellBox;
+  for (const e of document.body && document.documentElement.scrollHeight <= innerHeight + 1 ? document.body.querySelectorAll('*') : []) {
+    if (e.clientHeight < Math.min(VH, 800) / 2 || e.clientWidth < W / 2 || e.scrollHeight <= e.clientHeight + 2 || !/^(auto|scroll|overlay)$/.test(css(e).overflowY)) continue;
+    if (!shellBox || e.scrollHeight - e.clientHeight > shellBox.full - shellBox.shown) shellBox = { what: name(e), shown: e.clientHeight, full: e.scrollHeight };
+  }
+  const errors = Array.isArray(window.__piPageErrors) ? window.__piPageErrors.slice(0, 5).map((x) => String(x).slice(0, 300)) : [];
+  return JSON.stringify(Object.assign({ width: W, height: innerHeight, checked: Math.min(checked, 4000), issues, more, found, totals, summary }, shellBox ? { scroller: shellBox } : {}, errors.length ? { errors } : {}));
 })()`;
 
 /** Each kind's heading, in the order the words give them. */
@@ -976,6 +991,16 @@ function summaryWords(summary: LayoutSummary): string | undefined {
     return parts.length === 0 ? undefined : `Type and colour: ${parts.join("; ")}.`;
 }
 
+/** What the picture leaves out (PP-440): the rest of the box the page scrolls in, and the errors the page threw. */
+function pageNotes(report: LayoutReport): string[] {
+    const { scroller, errors = [] } = report;
+
+    return [
+        ...(scroller === undefined ? [] : [`The page scrolls inside ${scroller.what}: the picture shows ${scroller.shown} of its ${scroller.full} px, the rest is not in it.`]),
+        ...(errors.length === 0 ? [] : [`The page threw: ${errors.join("; ")}`]),
+    ];
+}
+
 /** The report in words for Pi: one line when all is in place, else each issue with its numbers, grouped and capped. */
 export function describeLayout(report: LayoutReport): string {
     const head = `Layout check at ${report.width} px (${report.checked} elements)`;
@@ -986,6 +1011,7 @@ export function describeLayout(report: LayoutReport): string {
         return [
             `${head}: nothing spills out of its box or its parent, the page is no wider than the screen, and no text is cut, covered, too small or too faint; tap targets and sizes are in order.`,
             ...(summary === undefined ? [] : [summary]),
+            ...pageNotes(report),
         ].join("\n");
     }
 
@@ -1025,7 +1051,7 @@ export function describeLayout(report: LayoutReport): string {
         lines.push(summary);
     }
 
-    return lines.join("\n");
+    return [...lines, ...pageNotes(report)].join("\n");
 }
 
 const isFind = (value: unknown): value is LayoutFind =>
@@ -1055,6 +1081,16 @@ export function parseLayout(text: unknown, width: number): LayoutReport | undefi
             value.summary === null
         ) {
             return undefined;
+        }
+
+        const { scroller, errors } = value;
+
+        if (scroller !== undefined && (typeof scroller?.what !== "string" || typeof scroller.shown !== "number" || typeof scroller.full !== "number")) {
+            delete value.scroller;
+        }
+
+        if (errors !== undefined && !(Array.isArray(errors) && errors.every((each) => typeof each === "string"))) {
+            delete value.errors;
         }
 
         if (value.width > width + 1 && !value.issues.some((issue) => issue.kind === "page-wider")) {

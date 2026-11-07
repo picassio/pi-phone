@@ -373,6 +373,12 @@ export interface PocketHost {
     machineOf(cwd: string): { name: string; address: string; path: string; platform: string; tools: Record<string, string> } | undefined;
     /** The app's own address for the phone's WebView (`http://127.0.0.1:<port>`), once it listens. */
     serverBase(): string | undefined;
+    /**
+     * A port on the machine a session in `cwd` works on, at `host` there (`localhost`, `127.0.0.1`), opened here for the
+     * phone's renderer (PP-440, `forwards.ts`): its port here, and `close`, which closes it once the last user let go,
+     * unless it was open before (the owner's, in Ports). Fails for a session on this phone.
+     */
+    machinePort(cwd: string, host: string, port: number): Promise<{ port: number; close: () => void }>;
     /** Pictures of a page, rendered by the app's service on the phone (`screenshots.ts`). */
     /** `check`: the script the page runs before it is pictured, whose answer comes back (default the layout check). */
     /** `timeoutMs`: how long the phone may take to answer (default 90 s); `steps`: run in the page first (PP-423). */

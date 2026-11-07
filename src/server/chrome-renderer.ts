@@ -121,7 +121,14 @@ export class ChromeRenderer {
 
             const evaluate = async <T>(expression: string): Promise<T> =>
                 ((await cdp.send("Runtime.evaluate", { expression, returnByValue: true })) as { result: { value: T } }).result.value;
-            const content = Math.max(viewport, Math.ceil(await evaluate<number>("Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0)")));
+            // The whole page's height, a box it scrolls in included (`PAGE_HEIGHT`, PP-440).
+            const measured = await evaluate<unknown>(request.height);
+
+            if (typeof measured !== "number" || !Number.isFinite(measured)) {
+                throw new Error(`the page's height could not be measured (${String(measured)})`);
+            }
+
+            const content = Math.max(viewport, Math.ceil(measured));
             const height = request.fullPage ? Math.min(content, request.maxHeight) : viewport;
 
             if (height !== viewport) {

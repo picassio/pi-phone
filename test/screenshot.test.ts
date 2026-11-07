@@ -10,6 +10,8 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
+import { loopbackOf } from "../src/server/extensions/screenshot.ts";
+import { PAGE_SHIM } from "../src/server/file-pages.ts";
 import { Screenshots } from "../src/server/screenshots.ts";
 import { isPng } from "../src/server/markup.ts";
 
@@ -286,6 +288,19 @@ test("Pi's screenshot: an artifact and a file, at the widths asked, as images it
     }
 });
 
+test("a machine's own addresses in a url: localhost, 127.x, [::1], 0.0.0.0, with the port they mean (PP-440)", () => {
+    const of = (url: string) => loopbackOf(new URL(url));
+
+    assert.deepEqual(of("http://localhost:5173/x"), { host: "localhost", port: 5173 });
+    assert.deepEqual(of("http://app.localhost:3000/"), { host: "localhost", port: 3000 });
+    assert.deepEqual(of("http://127.0.0.1:5191"), { host: "127.0.0.1", port: 5191 });
+    assert.deepEqual(of("http://127.0.1.1/"), { host: "127.0.1.1", port: 80 });
+    assert.deepEqual(of("https://[::1]/"), { host: "[::1]", port: 443 });
+    assert.deepEqual(of("http://0.0.0.0:8080/"), { host: "127.0.0.1", port: 8080 });
+    assert.equal(of("http://192.168.1.61:5191/"), undefined);
+    assert.equal(of("https://example.com/"), undefined);
+});
+
 test("an HTML file of a session as its own page, in the artifacts' sandbox", async () => {
     const { createHandler } = await import("../src/server/http.ts");
     const server = createServer(createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }));
@@ -304,7 +319,11 @@ test("an HTML file of a session as its own page, in the artifacts' sandbox", asy
 
         assert.equal(page.status, 200);
         assert.match(page.headers.get("content-security-policy") ?? "", /^sandbox /);
-        assert.match(await page.text(), /<h1>Hello<\/h1>/);
+        // Storage in memory and its errors kept, before any script of its own: after the doctype, which stays first (PP-440).
+        const html = await page.text();
+
+        assert.ok(html.startsWith(`<!doctype html>${PAGE_SHIM}<base href="/a/file/g/`), html.slice(0, 80));
+        assert.match(html, /<h1>Hello<\/h1>$/);
         assert.equal((await get(join(work, "notes.txt"))).status, 400);
     } finally {
         server.closeAllConnections();
@@ -330,7 +349,7 @@ test("the files beside an HTML page load for it, from its folder and under it on
     try {
         const page = await fetch(`${base}/a/file/${String(id)}?path=${encodeURIComponent(join(site, "page.html"))}`, { headers: { authorization: `Bearer ${app.config.ownerToken}` } });
         const html = await page.text();
-        const href = /<head><base href="(\/a\/file\/g\/[\w-]+\/)"><link/.exec(html)?.[1];
+        const href = /<head><script>.*?<\/script><base href="(\/a\/file\/g\/[\w-]+\/)"><link/.exec(html)?.[1];
 
         assert.ok(href, html);
 
@@ -354,7 +373,7 @@ test("the files beside an HTML page load for it, from its folder and under it on
         // A page with a base of its own keeps it.
         const based = await fetch(`${base}/a/file/${String(id)}?path=${encodeURIComponent(join(site, "based.html"))}`, { headers: { authorization: `Bearer ${app.config.ownerToken}` } });
 
-        assert.equal(await based.text(), '<html><head><base href="https://example.com/"></head></html>');
+        assert.equal(await based.text(), `<html><head>${PAGE_SHIM}<base href="https://example.com/"></head></html>`);
     } finally {
         server.closeAllConnections();
         await new Promise<void>((resolve) => server.close(() => resolve()));

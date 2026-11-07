@@ -87,9 +87,28 @@ const DESCRIPTION =
 /** In every prompt while the module is on. */
 export const SEEING = `Seeing your work: after you make or change an artifact, an HTML page, or an Office file, look at it with screenshot (390, 1280 and 1920 px) and fix what you see before you call it done. Check app changes in the live app (http://127.0.0.1:8787/s/<id>, or a sheet by /?sheet=...), not only a test page. Go by the layout check's numbers more than the picture; when the picture, the numbers, or a test page disagree, find out why before you call it right, never explain it away. For pixel-perfect work, keep a reference picture (the mockup, or a screenshot saved with save or path once it is right) and compare each new screenshot with it with image_compare. To check spacing, radii and type against a spec, use redline.`;
 
+/**
+ * The machine's own address in a url (PP-440): localhost, 127.x, [::1] or 0.0.0.0, as the host to reach there (0.0.0.0
+ * listens on 127.0.0.1 too) and the port; undefined for any other address.
+ */
+export function loopbackOf(url: URL): { host: string; port: number } | undefined {
+    const name = url.hostname;
+    const host = name === "localhost" || name.endsWith(".localhost") ? "localhost" : name === "[::1]" ? "[::1]" : name === "0.0.0.0" ? "127.0.0.1" : /^127\.\d+\.\d+\.\d+$/.test(name) ? name : undefined;
+
+    return host === undefined ? undefined : { host, port: url.port === "" ? (url.protocol === "https:" ? 443 : 80) : Number(url.port) };
+}
+
 export default function createScreenshot(host: PocketHost) {
-    /** The address the phone renders for an artifact of this session, a file, or a web page, and its name in answers. */
-    const pageOf = (args: { artifact?: string; path?: string; url?: string; fullPage?: boolean }, conversation: string): { url: string; what: string } | { error: string } => {
+    /**
+     * The address the phone renders for an artifact of this session, a file, or a web page, and its name in answers. In a
+     * session on a machine, a url on that machine's loopback goes through a port of it opened here for the render
+     * (`close` after it), as the phone's own localhost is not the machine (PP-440); the app's own address stays the app.
+     */
+    const pageOf = async (
+        args: { artifact?: string; path?: string; url?: string; fullPage?: boolean },
+        conversation: string,
+        cwd: string,
+    ): Promise<{ url: string; what: string; close?: () => void } | { error: string }> => {
         const base = host.serverBase();
 
         if (base === undefined) {
@@ -97,7 +116,24 @@ export default function createScreenshot(host: PocketHost) {
         }
 
         if (args.url !== undefined) {
-            return /^https?:\/\//i.test(args.url) ? { url: args.url, what: args.url } : { error: "url is an http or https address." };
+            if (!/^https?:\/\//i.test(args.url)) {
+                return { error: "url is an http or https address." };
+            }
+
+            const url = new URL(args.url);
+            const loopback = loopbackOf(url);
+            const machine = host.machineOf(cwd);
+
+            if (machine === undefined || loopback === undefined || loopback.port === Number(new URL(base).port)) {
+                return { url: args.url, what: args.url };
+            }
+
+            const opened = await host.machinePort(cwd, loopback.host, loopback.port);
+
+            url.hostname = "127.0.0.1";
+            url.port = String(opened.port);
+
+            return { url: url.href, what: `${args.url} (on ${machine.name}, through its port opened to the phone's ${opened.port})`, close: opened.close };
         }
 
         if (args.artifact !== undefined) {
@@ -153,20 +189,26 @@ export default function createScreenshot(host: PocketHost) {
                 return reply(steps.error, true);
             }
 
-            const page = pageOf(args, String(api.conversationId));
-
-            if ("error" in page) {
-                return reply(page.error, true);
-            }
-
-            const { url, what } = page;
-
             const kind = args.save === undefined ? undefined : /\.png$/i.test(args.save) ? "png" : /\.jpe?g$/i.test(args.save) ? "jpeg" : "bad";
 
             if (kind === "bad") {
                 return reply("Give save a path ending in .png or .jpg.", true);
             }
 
+            const cwd = (await api.agent(context)).cwd ?? "";
+            let page;
+
+            try {
+                page = await pageOf(args, String(api.conversationId), cwd);
+            } catch (error) {
+                return reply(error instanceof Error ? error.message : String(error), true);
+            }
+
+            if ("error" in page) {
+                return reply(page.error, true);
+            }
+
+            const { url, what } = page;
             let shots;
             const saved: string[] = [];
 
@@ -181,7 +223,7 @@ export default function createScreenshot(host: PocketHost) {
                 // Saved, one file per width (and part): for image_markup and documents (PP-119).
                 if (args.save !== undefined) {
                     const save = args.save;
-                    const env = host.envOf((await api.agent(context)).cwd ?? "");
+                    const env = host.envOf(cwd);
                     const dot = save.lastIndexOf(".");
 
                     for (const shot of shots) {
@@ -206,6 +248,8 @@ export default function createScreenshot(host: PocketHost) {
                 }
             } catch (error) {
                 return reply(error instanceof Error ? error.message : String(error), true);
+            } finally {
+                page.close?.();
             }
 
             return {
@@ -407,14 +451,21 @@ export default function createScreenshot(host: PocketHost) {
                 return reply(steps.error, true);
             }
 
-            const page = pageOf(args, String(api.conversationId));
+            const cwd = (await api.agent(context)).cwd ?? "";
+            let page;
+
+            try {
+                page = await pageOf(args, String(api.conversationId), cwd);
+            } catch (error) {
+                return reply(error instanceof Error ? error.message : String(error), true);
+            }
 
             if ("error" in page) {
                 return reply(page.error, true);
             }
 
             try {
-                const env = host.envOf((await api.agent(context)).cwd ?? "");
+                const env = host.envOf(cwd);
                 const spec = await specFrom(args.spec, async (path) => {
                     const read = await env.readTextFile(path, context);
 
@@ -475,6 +526,8 @@ export default function createScreenshot(host: PocketHost) {
                 };
             } catch (error) {
                 return reply(error instanceof Error ? error.message : String(error), true);
+            } finally {
+                page.close?.();
             }
         },
     });

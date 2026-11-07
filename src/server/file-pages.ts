@@ -58,16 +58,46 @@ export function folderOf(path: string): string {
     return cut < 0 ? "" : cut === 0 ? "/" : path.slice(0, cut);
 }
 
-/** `<base href>` put in an HTML page, first in its head (or first of all), unless it names a base of its own. */
+/** Where a tag goes first in a page: just inside its head, else after its doctype (before it, a page is in quirks mode), else first of all. */
+function headStart(html: string): number {
+    const head = /<head(\s[^>]*)?>/i.exec(html) ?? /^\s*<!doctype[^>]*>/i.exec(html);
+
+    return head === null ? 0 : head.index + head[0].length;
+}
+
+/** `<base href>` put in an HTML page, first in its head, unless it names a base of its own. */
 export function withBase(html: string, href: string): string {
     if (/<base[\s>]/i.test(html)) {
         return html;
     }
 
-    const tag = `<base href="${href}">`;
-    const head = /<head(\s[^>]*)?>/i.exec(html);
+    const at = headStart(html);
 
-    return head === null ? tag + html : html.slice(0, head.index + head[0].length) + tag + html.slice(head.index + head[0].length);
+    return `${html.slice(0, at)}<base href="${href}">${html.slice(at)}`;
+}
+
+/**
+ * What a file page runs before its own scripts (PP-440). The sandbox gives the page an origin of its own, where
+ * `localStorage` and `sessionStorage` throw a SecurityError: an app that reads them outside a try (a single-file React
+ * build) drew nothing, a blank screenshot. Here both are storage in memory, empty at each load, as on a first visit. The
+ * page's uncaught errors are kept in `window.__piPageErrors`, which the layout check reports (`layout-check.ts`).
+ */
+export const PAGE_SHIM =
+    "<script>(function(){var w=window,errors=w.__piPageErrors=[];" +
+    'function say(x,m){if(errors.length<20)errors.push(x&&x.name?x.name+": "+x.message:String(m||x))}' +
+    'w.addEventListener("error",function(e){if(e.target===w)say(e.error,e.message)});' +
+    'w.addEventListener("unhandledrejection",function(e){say(e.reason,"Unhandled rejection")});' +
+    "function store(){var d=new Map();return{get length(){return d.size},key:function(i){var k=Array.from(d.keys())[i];return k===undefined?null:k}," +
+    "getItem:function(k){k=String(k);return d.has(k)?d.get(k):null},setItem:function(k,v){d.set(String(k),String(v))}," +
+    "removeItem:function(k){d.delete(String(k))},clear:function(){d.clear()}}}" +
+    'Object.defineProperty(w,"localStorage",{value:store(),configurable:true});' +
+    'Object.defineProperty(w,"sessionStorage",{value:store(),configurable:true})})()</script>';
+
+/** `PAGE_SHIM` put first in an HTML page, before any script of its own. */
+export function withPageShim(html: string): string {
+    const at = headStart(html);
+
+    return `${html.slice(0, at)}${PAGE_SHIM}${html.slice(at)}`;
 }
 
 /** Content types of the files a page loads beside it, by extension. */

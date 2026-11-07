@@ -1006,6 +1006,87 @@ test("a port of the machine opens here: its dev server answers at the forward's 
     }
 });
 
+test("screenshot of the machine's localhost in a session there: rendered through a port opened to the phone, closed after; the app's own address stays the app (PP-440)", { skip }, async () => {
+    const { createServer: createHttpServer } = await import("node:http");
+    const { createRequire } = await import("node:module");
+    const devServer = createHttpServer((request, response) => response.end(`dev server here: ${request.url}`));
+
+    await new Promise<void>((resolve) => devServer.listen(0, "127.0.0.1", resolve));
+    const port = (devServer.address() as { port: number }).port;
+    const photon = createRequire(import.meta.url)("@silvia-odwyer/photon-node") as {
+        PhotonImage: new (raw: Uint8Array, width: number, height: number) => { get_bytes_jpeg(quality: number): Uint8Array; free(): void };
+    };
+    const image = new photon.PhotonImage(new Uint8Array(8 * 8 * 4).fill(255), 8, 8);
+    const jpeg = Buffer.from(image.get_bytes_jpeg(80)).toString("base64");
+
+    image.free();
+    // Stands in for the phone's renderer: loads each page as the phone would, from the phone's side.
+    const seen: { url: string; body: string }[] = [];
+    const stop = new AbortController();
+    const renders = (async () => {
+        let at = -1;
+
+        while (!stop.signal.aborted) {
+            const { seq, requests } = await app.screenshots.after(at, stop.signal);
+
+            for (const request of requests) {
+                const body = await fetch(request.url).then((answer) => answer.text(), (error: Error) => `unreachable: ${error.message}`);
+
+                seen.push({ url: request.url, body });
+                app.screenshots.answer(request.id, { shots: request.widths.map((width) => ({ width, height: 844, parts: [jpeg] })) });
+            }
+
+            at = seq;
+        }
+    })();
+    const before = app.serverPort;
+
+    app.serverPort = 8799;
+
+    try {
+        const { id } = await app.commands.createSession(owner(app), { cwd: `machine:${machineId}:${join(remoteHome, "project")}` });
+
+        await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+        const ask = async (text: string) => {
+            const { submissionId } = await app.commands.submit(id, owner(app), { text, requestId: crypto.randomUUID() });
+
+            await (await app.harness.submission(submissionId, context))!.wait(context);
+            await app.harness.waitForIdle(context);
+
+            return (await modelTexts(app, id)).at(-1)!;
+        };
+
+        calls["shoot the machine's localhost"] = ["screenshot", { url: `http://localhost:${port}/app?tab=2`, widths: [390] }];
+        const answer = await ask("shoot the machine's localhost");
+        const local = /^http:\/\/127\.0\.0\.1:(\d+)\/app\?tab=2$/.exec(seen[0]?.url ?? "");
+
+        assert.ok(local !== null && Number(local[1]) !== port, `rendered through a port here, not the phone's own ${port}: ${seen[0]?.url}`);
+        assert.equal(seen[0]!.body, "dev server here: /app?tab=2", "the phone's side reached the machine's server");
+        assert.match(answer, new RegExp(`localhost:${port}/app\\?tab=2 \\(on box, through its port opened to the phone's ${local![1]}\\), as the phone renders it: 390×844`));
+        assert.deepEqual(app.forwards.list(), [], "the port closed after the shot");
+
+        // A port the owner opened stays open.
+        const theirs = await app.forwards.open(machineId, port, "127.0.0.1");
+
+        calls["shoot 127.0.0.1 there"] = ["screenshot", { url: `http://127.0.0.1:${port}/`, widths: [390] }];
+        await ask("shoot 127.0.0.1 there");
+        assert.equal(seen[1]!.url, `http://127.0.0.1:${theirs.localPort}/`);
+        assert.deepEqual(app.forwards.list().map((each) => each.id), [theirs.id]);
+        app.forwards.close(theirs.id);
+
+        // The app's own address is the app, not the machine.
+        calls["shoot the app"] = ["screenshot", { url: "http://127.0.0.1:8799/?sheet=hooks", widths: [390] }];
+        await ask("shoot the app");
+        assert.equal(seen[2]!.url, "http://127.0.0.1:8799/?sheet=hooks");
+        assert.deepEqual(app.forwards.list(), []);
+    } finally {
+        stop.abort();
+        await renders;
+        app.serverPort = before;
+        devServer.close();
+    }
+});
+
 test("Pi reaches machines with machine_run and machine_copy, never ssh; the app's key stores are refused; ~/.ssh stays empty", { skip }, async () => {
     const { home } = await import("./helpers.ts");
     const note = join(root, "note.txt");

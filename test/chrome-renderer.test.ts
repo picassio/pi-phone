@@ -7,7 +7,9 @@ import { execFileSync } from "node:child_process";
 import { createServer, type IncomingHttpHeaders, type Server } from "node:http";
 import { after, before, test } from "node:test";
 import { ChromeRenderer } from "../src/server/chrome-renderer.ts";
+import { withPageShim } from "../src/server/file-pages.ts";
 import { imageSize } from "../src/server/image-guard.ts";
+import { describeLayout } from "../src/server/layout-check.ts";
 import { Screenshots } from "../src/server/screenshots.ts";
 
 after(() => cleanUp());
@@ -52,6 +54,23 @@ before(async () => {
             return;
         }
 
+        const shell = SHELLS[request.url ?? ""];
+
+        if (shell !== undefined) {
+            response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+            response.end(shell);
+
+            return;
+        }
+
+        if (request.url === "/sandboxed" || request.url === "/sandboxed-bare") {
+            // As the app serves a file page (http/artifacts.ts): in the sandbox, with or without the shim (PP-440).
+            response.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-security-policy": "sandbox allow-scripts" });
+            response.end(request.url === "/sandboxed" ? withPageShim(STORAGE_PAGE) : STORAGE_PAGE);
+
+            return;
+        }
+
         response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         response.end(
             request.url === "/menu"
@@ -82,6 +101,20 @@ document.getElementById("open").addEventListener("click", () => setTimeout(() =>
 document.getElementById("q").addEventListener("input", (event) => { document.getElementById("said").textContent = "typed " + event.target.value; });
 document.addEventListener("keydown", (event) => { if (event.key === "Escape") document.getElementById("menu").hidden = true; });
 </script>`;
+
+/**
+ * App shells (PP-440): the page does not scroll, its main area does, 30 rows of 96 px under a 48 px header. `/shell`'s main
+ * area follows the view's height; `/fixed-shell`'s is 600 px whatever the view.
+ */
+const shellPage = (main: string) => `<!doctype html><meta name="viewport" content="width=device-width"><style>
+html,body{margin:0;height:100%;overflow:hidden;font:16px/24px sans-serif}.shell{display:flex;flex-direction:column;height:100vh}
+header{height:48px;flex:none}main{${main};overflow-y:auto}.row{height:96px}</style>
+<div class="shell"><header>App</header><main id="m">${Array.from({ length: 30 }, (_, i) => `<div class="row">Row ${i + 1}</div>`).join("")}</main></div>`;
+const SHELLS: Record<string, string> = { "/shell": shellPage("flex:1"), "/fixed-shell": shellPage("height:600px;flex:none") };
+
+/** A module that awaits, then reads localStorage outside a try, as a single-file React build does; then an error later. */
+const STORAGE_PAGE = `<!doctype html><html><head><meta name="viewport" content="width=device-width"></head><body><h1 id="a">before</h1>
+<script type="module">const said = await Promise.resolve("ran"); const a = document.getElementById("a"); a.textContent = said; a.textContent += ", stored " + localStorage.getItem("theme"); localStorage.setItem("theme", "dark"); a.textContent += " then " + localStorage.getItem("theme"); setTimeout(() => { throw new TypeError("boom"); }, 0);</script></body></html>`;
 
 /** What the menu page shows, as a check script answers it. */
 const MENU_STATE = `JSON.stringify({ open: !document.getElementById("menu").hidden, said: document.getElementById("said").textContent })`;
@@ -136,6 +169,57 @@ test("the server's renderer signs in only to the app, pictures tall pages in par
         await assert.rejects(screenshots.render(menu, { widths: [390], settleMs: 0, steps: [{ click: "#open" }, { click: "#nope" }] }), /a step failed: step 2 \(click "#nope"\): nothing matches "#nope"/);
         await assert.rejects(screenshots.render(menu, { widths: [390], settleMs: 0, steps: [{ click: "#gone" }] }), /step 1 \(click "#gone"\): "#gone" matches an element that is not visible/);
         await assert.rejects(screenshots.render(menu, { widths: [390], settleMs: 0, steps: [{ wait: ".never" }] }), /step 1 \(wait for "\.never"\): nothing visible matched within 5 s/);
+    } finally {
+        await renderer.stop();
+    }
+});
+
+test("a whole page that scrolls in its main area is pictured whole; a file page in the sandbox has storage and says its errors (PP-440)", { skip: chrome === undefined ? "no Chrome on this machine (CI runs it)" : false }, async () => {
+    const screenshots = new Screenshots();
+    const renderer = new ChromeRenderer(screenshots, { binary: chrome!, flags: ["--no-sandbox"], base: `http://127.0.0.1:${appPort}`, token: () => "owner-token", log: () => {} });
+
+    void renderer.run();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    try {
+        // Laid out as tall as the view plus what the main area hid: 844 + (2880 - 796), all 30 rows in the picture.
+        const [shell] = await screenshots.render(`http://127.0.0.1:${appPort}/shell`, { widths: [390], settleMs: 100 });
+
+        assert.equal(shell!.height, 2928);
+        assert.deepEqual(shell!.parts.map((part) => imageSize(part)?.height), [2000, 928]);
+        assert.equal(shell!.layout?.scroller, undefined, "nothing left hidden");
+
+        const [first] = await screenshots.render(`http://127.0.0.1:${appPort}/shell`, { widths: [390], settleMs: 100, fullPage: false });
+
+        assert.equal(first!.height, 844, "the first screen only, when asked");
+        assert.deepEqual(first!.layout?.scroller, { what: 'main#m "Row 1Row 2Row 3Row 4Row 5Row 6"', shown: 796, full: 2880 });
+
+        // A main area of a fixed height hides the rest whatever the view: said with its numbers.
+        const [fixed] = await screenshots.render(`http://127.0.0.1:${appPort}/fixed-shell`, { widths: [390], settleMs: 100 });
+
+        assert.deepEqual(fixed!.layout?.scroller, { what: 'main#m "Row 1Row 2Row 3Row 4Row 5Row 6"', shown: 600, full: 2880 });
+        assert.match(describeLayout(fixed!.layout!), /The page scrolls inside main#m "Row 1[^"]*": the picture shows 600 of its 2880 px, the rest is not in it\./);
+
+        // A document that scrolls itself keeps its own height.
+        const [tall] = await screenshots.render(`http://127.0.0.1:${appPort}/tall`, { widths: [390], settleMs: 100 });
+
+        assert.equal(tall!.height, 3500);
+        assert.equal(tall!.layout?.scroller, undefined);
+
+        // Without the shim, the sandbox's storage throws: the module stops at it, a blank page in a real app.
+        const words = `document.getElementById("a").textContent`;
+        const [bare] = await screenshots.render(`http://127.0.0.1:${appPort}/sandboxed-bare`, { widths: [390], settleMs: 200, check: words });
+
+        assert.equal(bare!.check, "ran", "stopped at localStorage");
+
+        const [shimmed] = await screenshots.render(`http://127.0.0.1:${appPort}/sandboxed`, { widths: [390], settleMs: 200, check: words });
+
+        assert.equal(shimmed!.check, "ran, stored null then dark", "storage in memory, empty at first");
+
+        const [checked] = await screenshots.render(`http://127.0.0.1:${appPort}/sandboxed`, { widths: [390], settleMs: 200 });
+
+        assert.deepEqual(checked!.layout?.errors, ["TypeError: boom"]);
+        assert.match(describeLayout(checked!.layout!), /The page threw: TypeError: boom/);
     } finally {
         await renderer.stop();
     }

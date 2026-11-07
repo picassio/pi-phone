@@ -8,7 +8,7 @@ import { marked } from "marked";
 import type { PocketApp } from "../app.ts";
 import type { User } from "../config.ts";
 import { HttpError } from "../errors.ts";
-import { fileType, folderOf, withBase } from "../file-pages.ts";
+import { fileType, folderOf, withBase, withPageShim } from "../file-pages.ts";
 import { wholeWorkbookPage } from "../officecli.ts";
 import { conversationId, escapeHtml, send } from "./io.ts";
 
@@ -163,8 +163,9 @@ export async function artifact(
 
         const conversation = conversationId(parts[1]);
         const { data } = await app.workspace.downloadFile(conversation, user, path);
-        // Its stylesheets, scripts, and pictures beside it come from its folder (PP-113).
-        const body = svg ? data : withBase(data.toString("utf8"), `/a/file/g/${app.filePages.grant(conversation, user.id, folderOf(path))}/`);
+        // Its stylesheets, scripts, and pictures beside it come from its folder (PP-113); storage in memory and its errors
+        // kept, as the sandbox has none (PP-440).
+        const body = svg ? data : withPageShim(withBase(data.toString("utf8"), `/a/file/g/${app.filePages.grant(conversation, user.id, folderOf(path))}/`));
 
         return send(response, 200, body, svg ? "image/svg+xml" : "text/html; charset=utf-8", {
             "content-security-policy": ARTIFACT_CSP,

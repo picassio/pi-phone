@@ -36,7 +36,23 @@ export type RenderRequest = {
      */
     steps: string;
     stepCount: number;
+    /** A script the renderer runs once the page settled, for how tall a whole-page picture is (`PAGE_HEIGHT`, PP-440). */
+    height: string;
 };
+
+/**
+ * How tall the whole page is, in CSS pixels, for a full-page picture (PP-440): the document's height; or for a page that
+ * does not scroll itself but inside a box of half the view or more (an app shell's main area), the view's height plus
+ * what that box hides below. Laid out that tall, a box sized by the view (100vh, a flex column) shows all of it; the
+ * layout check says what one of a fixed height still hides.
+ */
+export const PAGE_HEIGHT =
+    "(() => { const root = Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0); let hidden = 0; " +
+    "if (root > innerHeight + 1) return Math.ceil(root); " +
+    "for (const e of document.body ? document.body.querySelectorAll('*') : []) { " +
+    "if (e.clientHeight < innerHeight / 2 || e.clientWidth < innerWidth / 2 || e.scrollHeight <= e.clientHeight || !/^(auto|scroll|overlay)$/.test(getComputedStyle(e).overflowY)) continue; " +
+    "hidden = Math.max(hidden, e.scrollHeight - e.clientHeight); } " +
+    "return Math.ceil(Math.max(root, innerHeight + hidden)); })()";
 
 /** A picture of the page at one width: `width` × `height` CSS pixels, as JPEGs from the top, each at most 2000 tall. */
 export type Shot = {
@@ -112,6 +128,7 @@ export class Screenshots {
             check,
             steps: steps.length === 0 ? "" : stepsScript(steps),
             stepCount: steps.length,
+            height: PAGE_HEIGHT,
         };
 
         this.#requests.push(request);

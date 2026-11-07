@@ -334,7 +334,11 @@ dự án thật.</sub>
 - **Pi nhìn thấy việc mình làm.** `screenshot` dựng một artifact, một tệp HTML hoặc Office, hay một trang web trong
   WebView của chính điện thoại, ở độ rộng điện thoại, máy tính và màn hình lớn (390, 1280 và 1920 px), kể cả khi tắt
   màn hình, nên Pi kiểm tra trang trước khi coi là xong. Một tệp HTML tải stylesheet, script và hình ảnh từ chính thư mục của nó, nên trang liên kết tới CSS của
-  ứng dụng sẽ hiện đúng kiểu.
+  ứng dụng sẽ hiện đúng kiểu. `localStorage` và `sessionStorage` của nó dùng được, trong bộ nhớ và trống ở mỗi lần chụp,
+  nên một ứng dụng một tệp đọc chúng vẫn vẽ ra thay vì trang trắng, và các lỗi trang ném ra được liệt kê dưới ảnh. Trang
+  của một ứng dụng cuộn trong vùng chính, không phải body, được chụp trọn (tới 4000 px), hoặc lượt kiểm tra nói ảnh bỏ
+  sót bao nhiêu. Trong một phiên trên máy, `screenshot` và `redline` lấy tệp của máy đó, và địa chỉ `localhost` hay
+  `127.0.0.1` ở đó là của máy: ứng dụng mở cổng đó về điện thoại cho lần chụp rồi đóng lại.
 - **Ảnh chụp có số đo.** Mỗi độ rộng của `screenshot` đi kèm một lượt kiểm tra bố cục mà trang chạy trước khi vẽ: thứ
   gì tràn khỏi khung hoặc khung cha, và trang có rộng hơn màn hình không, kèm kích thước. Nó còn tìm những thứ khiến
   trang trông chưa hoàn thiện: chữ bị khung cắt (dấu ba chấm, dòng bị xén), phần tử đè lên chữ hoặc nút của phần tử
