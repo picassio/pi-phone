@@ -267,7 +267,8 @@ dự án thật.</sub>
   thoại, hoặc như trên máy tính (1280 px, Chrome máy tính, không cảm ứng) bằng **Điện thoại / Máy tính** trong khung hoặc
   `browser_size`. Mỗi cú nhấp được kiểm tra trước: phần tử đúng như đã đọc, vẫn trong tầm nhìn, không bị gì che; và
   kiểm tra cả ở chỗ trang nhận nó, nên bố cục xê dịch ngay trước đó (dữ liệu về từng đợt) không bao giờ làm nhấp nhầm
-  thứ khác: Pi nhắm lại phần tử, hoặc báo nó cứ xê dịch và không nhấp gì. Bạn
+  thứ khác: Pi nhắm lại phần tử, hoặc báo nó cứ xê dịch và không nhấp gì. `browser_open` luôn tải lại trang từ đầu,
+  kể cả khi địa chỉ chỉ khác phần # (một route của ứng dụng một trang), nên không bao giờ hiện trạng thái cũ của ứng dụng. Bạn
   xem trực tiếp trong khung Trình duyệt (bên cạnh cuộc trò chuyện trên màn hình rộng, nơi nó tự mở khi Pi bắt đầu
   duyệt web; trên điện thoại, một bản xem trước trực tiếp nhỏ phía trên ô nhập sẽ mở nó), và có thể **Tiếp quản**
   và **Trả lại**: khi tiếp quản, chạm vào trang và gõ trên bàn phím, phím của bạn đi thẳng vào trang; vuốt (hoặc

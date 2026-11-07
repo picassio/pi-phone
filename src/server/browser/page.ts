@@ -1573,16 +1573,36 @@ export class BrowserPage {
         return answer.result?.value as T;
     }
 
-    /** Open an address, and wait for it to load (15 seconds at most; a slow page is read as it is). */
+    /**
+     * Open an address, and wait for it to load (15 seconds at most; a slow page is read as it is). Always a new document
+     * (PP-449): an address that differs from the page's only in its #part is a same-document navigation to Chrome (no
+     * loader), where a single-page app keeps its old state, so the page is loaded again at the new address.
+     */
     async navigate(url: string): Promise<void> {
         if (this.#blockLocal && isLocalAddress(url)) {
             throw new Error(`Pi's browser does not open ${url}: it is this device or its local network.`);
         }
 
-        const answer = await this.cdp.send<{ errorText?: string }>("Page.navigate", { url });
+        const answer = await this.cdp.send<{ errorText?: string; loaderId?: string }>("Page.navigate", { url });
 
         if (answer.errorText !== undefined && answer.errorText !== "") {
             throw new Error(answer.errorText === "net::ERR_BLOCKED_BY_CLIENT" ? `Pi's browser does not open ${url}: it is this device or its local network.` : `Could not open ${url}: ${answer.errorText}`);
+        }
+
+        if (answer.loaderId === undefined || answer.loaderId === "") {
+            // The new #part is in a moment later: a reload before it would load the old address.
+            const target = new URL(url).href;
+
+            for (const until = Date.now() + 2000; Date.now() < until && (await this.evaluate<string>("location.href").catch(() => "")) !== target; ) {
+                await new Promise((resolve) => setTimeout(resolve, 25));
+            }
+
+            const before = this.#loads;
+
+            await this.cdp.send("Page.reload", {});
+            await this.#followNavigation(before, 5000);
+
+            return;
         }
 
         await this.settle(15_000);
@@ -1774,11 +1794,11 @@ export class BrowserPage {
     }
 
     /**
-     * After input that may navigate (a link, a submit, Enter): if the main frame starts loading within a moment, wait
-     * for it to finish (15 seconds at most), so the next read is of the new page, not the old one.
+     * After input that may navigate (a link, a submit, Enter): if the main frame starts loading within a moment (`start`
+     * ms), wait for it to finish (15 seconds at most), so the next read is of the new page, not the old one.
      */
-    async #followNavigation(before: number): Promise<void> {
-        const until = Date.now() + 300;
+    async #followNavigation(before: number, start = 300): Promise<void> {
+        const until = Date.now() + start;
 
         while (Date.now() < until && this.#loads === before) {
             await new Promise((resolve) => setTimeout(resolve, 25));

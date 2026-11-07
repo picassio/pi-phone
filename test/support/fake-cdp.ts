@@ -209,7 +209,8 @@ export class FakeCdp {
         if (method === "Page.navigate") {
             target.url = String(params.url);
             target.title = new URL(target.url).hostname;
-            answer({});
+            // A new document, as Chrome answers one (a same-document navigation has no loader, PP-449).
+            answer({ frameId: "main", loaderId: `loader-${target.url}` });
 
             return reply({ method: "Page.frameNavigated", params: { frame: { id: "main", url: target.url } } });
         }

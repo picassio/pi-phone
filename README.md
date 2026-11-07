@@ -259,7 +259,8 @@ No Termux, no laptop, no cloud VM.
   desktop Chrome, no touch) with **Phone / Desktop** in the panel or `browser_size`.
   Each click is checked first: the element as read, still in view, nothing over it; and where the page hears it, so a
   layout that shifts just before (data that comes in steps) never clicks something else: Pi points at the element
-  again, or says it kept moving and clicks nothing. You watch it live in the Browser panel (beside the conversation on wide screens, where
+  again, or says it kept moving and clicks nothing. `browser_open` always loads the page anew, also when only the
+  address's #part differs (a single-page app's route), so it never shows the app's old state. You watch it live in the Browser panel (beside the conversation on wide screens, where
   it opens by itself when Pi starts browsing; on a phone, a small live preview above the message box opens it), and can
   **Take over** and **Hand back**: taken over, tap the page and type on your keyboard, and your keys go straight to it;
   swipe (or use the wheel) to scroll what is under your finger, an open list's own scroll area included.

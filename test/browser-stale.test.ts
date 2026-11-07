@@ -1,5 +1,6 @@
 // Pi's browser on pages that change under it, with a Chrome on the machine (CI): a layout that shifts between Pi's
-// check of a control and its click (PP-447); a list whose options a portal renders a moment after it opens (PP-448).
+// check of a control and its click (PP-447); a list whose options a portal renders a moment after it opens (PP-448); an
+// address that differs only in its #part (PP-449).
 import { cleanUp, cleanUpAll } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -71,10 +72,36 @@ const PAGES: Record<string, string> = {
 
 let server: Server;
 let port = 0;
+/** The single-page app's (`/app`): the signed-in person's role on the server, and how many times its document loaded. */
+let role = "viewer";
+let loads = 0;
 
 before(async () => {
     server = createServer((request, response) => {
-        const page = PAGES[(request.url ?? "/").split("?")[0]!];
+        const path = (request.url ?? "/").split("?")[0]!;
+
+        if (path === "/api/me") {
+            response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+            response.end(JSON.stringify({ role }));
+
+            return;
+        }
+
+        // A single-page app with routes in the #part; its role comes from the server when its document loads.
+        if (path === "/app") {
+            loads += 1;
+            response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" });
+            response.end(`<!doctype html><title>App</title><p id="who">Loading</p><p id="route"></p><p>Document load ${loads}</p>
+                <script>
+                    fetch('/api/me', { cache: 'no-store' }).then((r) => r.json()).then((me) => { who.textContent = 'Role ' + me.role; });
+                    const show = () => { route.textContent = 'Route ' + (location.hash || '#/'); };
+                    addEventListener('hashchange', show); show();
+                </script>`);
+
+            return;
+        }
+
+        const page = PAGES[path];
 
         response.writeHead(page === undefined ? 404 : 200, { "content-type": "text/html; charset=utf-8" });
         response.end(page ?? "not here");
@@ -149,6 +176,36 @@ test("with Chrome: browser_select opens a combobox whose options a portal render
         // Never opens: said so, with the page now; the link above was not followed.
         await assert.rejects(browser.select(1, number(chosen, /\[(\d+)\] combobox "Status: Any"/), "Open"), /\[\d+\] Status: Any did not open: no list of options showed within 3 s of the click, and nothing else was clicked\./);
         assert.match(await browser.snapshot(1), /^Combo — http:\/\/pi\.test\/combo\n/);
+    } finally {
+        await browser.close();
+    }
+});
+
+test("with Chrome: browser_open loads the page anew when only the address's #part differs, or nothing does, as when the query differs (PP-449)", { skip }, async () => {
+    const browser = browserHere();
+    /** The page once the app has asked the server who is signed in. */
+    const settled = async (page: string) => (/Role \w+/.test(page) ? page : browser.wait(1, { text: "Role " }));
+
+    try {
+        role = "viewer";
+        loads = 0;
+
+        const first = await settled(await browser.open(1, "http://pi.test/app?v=22#/reviews"));
+
+        assert.match(first, /Role viewer\nRoute #\/reviews\nDocument load 1/);
+
+        // The role changes on the server; only the #part of the address differs.
+        role = "admin";
+
+        const hash = await settled(await browser.open(1, "http://pi.test/app?v=22#/trace"));
+
+        assert.match(hash, /Role admin\nRoute #\/trace\nDocument load 2/);
+
+        // The same address again, and one whose query differs.
+        role = "reviewer";
+        assert.match(await settled(await browser.open(1, "http://pi.test/app?v=22#/trace")), /Role reviewer\nRoute #\/trace\nDocument load 3/);
+        role = "owner";
+        assert.match(await settled(await browser.open(1, "http://pi.test/app?v=23#/trace")), /Role owner\nRoute #\/trace\nDocument load 4/);
     } finally {
         await browser.close();
     }

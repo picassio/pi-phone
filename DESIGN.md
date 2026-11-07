@@ -1794,6 +1794,14 @@ so Pi changes them through the settings tools; "the last session" is the one the
   the option by name with a guarded click. No option and no sign it opened (its aria-expanded, unless the page drew
   the control again; a listbox or menu showing) is refused as stale with the page now: it did not open, nothing else
   was clicked.
+- **`browser_open` is always a new document** (PP-449, the same console: after its role changed on the server,
+  opening the app's address with another #route showed the old role). An address that differs from the page's only in
+  its #part (or not at all, with one) is a same-document navigation to Chrome: `Page.navigate` answers without a
+  `loaderId`, only the hash changes, and a single-page app keeps its state. Then `navigate` waits for the new address
+  (2 s at most; a reload sent before it would load the old one) and sends `Page.reload`, waiting for its load (5 s to
+  start). The query changing is a new document already (checked with Chrome 155). bfcache plays no part:
+  `Page.navigate` never takes a page from it. The tool's description says so ("Always a fresh load, even for a #part
+  change"). The panel's address bar goes through the same `navigate`.
 - **Selecting text in Pi's browser** (`browser_select_text`, `BrowserPage.selectText`, `SELECT_TEXT`, PP-376): in a
   field (input with a selection, textarea) its own selection (`setSelectionRange`, focused): all, a text in its value,
   or characters start to end (clamped). Elsewhere a DOM range set with `setBaseAndExtent` over the visible text nodes

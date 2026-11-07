@@ -304,7 +304,7 @@ export default function createBrowser(host: PocketHost) {
         defineTool({
             name: "browser_open",
             description:
-                "Open a web address (or search for words) in Pi's browser, which the person can watch. Answers with the page as numbered controls and its visible text. " +
+                "Open a web address (or search for words) in Pi's browser, which the person can watch. Answers with the page as numbered controls and its visible text. Always a fresh load, even for a #part change. " +
                 "With machine, this session browses on that machine of the owner's from now on (its Chrome, its own addresses such as localhost:3000, its files for uploads), or on the phone again.",
             parameters: obj({ url: str({ description: "An address like example.com, or words to search for" }), machine: machineArg }, { open: true }),
             execute: async (args, api, context) => {
