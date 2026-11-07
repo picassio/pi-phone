@@ -42,11 +42,17 @@ export const DECLARED: ReadonlySet<string> = new Set([
 /** How much of the request the Only listing may take: Pi's default inline budget, at 4 characters a token. */
 const INLINE_CHARS = DEFAULT_CODEMODE_INLINE_BUDGET * 4;
 
+/**
+ * What a script's `tools.bash` gives (PP-442): Pi Durable's declaration, an object, not text as most tools'; a script
+ * that printed it read `[object Object]`. Said in both modes' sections, since neither shows a tool's return type.
+ */
+export const BASH_RESULT = "tools.bash gives { output, exitCode, truncated }, not text; a failed command does not throw.";
+
 export const ONLY_GUIDE =
-    "Your other tools are not declared: call them only from a codemode script, `await tools.<name>({ ...args })`. Where this prompt says to use one of them (read, bash, edit, write, the rest), call it from a script. One script batches independent calls (Promise.allSettled), chains them, or filters large output. The rarer tools are callable too: find them with `searchTools(query)` and read one's parameters with `describeTool(name)`.";
+    `Your other tools are not declared: call them only from a codemode script, \`await tools.<name>({ ...args })\`. Where this prompt says to use one of them (read, bash, edit, write, the rest), call it from a script. One script batches independent calls (Promise.allSettled), chains them, or filters large output. ${BASH_RESULT} The rarer tools are callable too: find them with \`searchTools(query)\` and read one's parameters with \`describeTool(name)\`.`;
 
 /** The section in On mode: the model sees its tools already. */
-export const ON_GUIDE = "Use codemode to batch independent tool calls (Promise.allSettled), chain them, or filter large output.";
+export const ON_GUIDE = `Use codemode to batch independent tool calls (Promise.allSettled), chain them, or filter large output. ${BASH_RESULT}`;
 
 /** The Only section: each tool for scripts with its parameters, smallest first within the budget, then the names. */
 export function onlyListing(tools: readonly ToolRegistration[]): string {

@@ -56,7 +56,7 @@ const RULES = `Secrets: the person keeps API keys and tokens in Settings > Secre
 - In bash, use a secret as an environment variable by its name: curl -H "Authorization: Bearer $DEEPSEEK_API_KEY" ..., NODE_AUTH_TOKEN=$NPM_TOKEN npm publish, printf '%s' "$NPM_TOKEN" | gh secret set NPM_TOKEN. Only the secrets a command names are set for it.
 - Never print, echo, or log a value, and never write one into a file you read back or into the wiki. Output that holds a value shows [secret NAME] instead.
 - When you need a secret that is not listed, call secret_request with a name and what it is for: the person types it into a hidden field on the call's card. Never ask anyone to paste a key, token, or password into the chat.
-- To keep a value a command makes (a generated key, gh auth token), use secret_save: the owner sees the whole command on a card first, and it stores the command's output without showing it.`;
+- To keep a value a command makes (gh auth token), use secret_save: the owner sees the whole command on a card first; its output is kept unseen.`;
 
 /** With secrets as a tool (PP-276): how Pi finds the secrets it may use, instead of a list in the prompt. */
 const FIND_THEM =

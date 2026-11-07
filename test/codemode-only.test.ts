@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { PlanDoc } from "../src/server/docs.ts";
-import { DECLARED, ON_GUIDE } from "../src/server/extensions/codemode.ts";
+import { BASH_RESULT, DECLARED, ON_GUIDE, ONLY_GUIDE } from "../src/server/extensions/codemode.ts";
 
 type System = { role: string; sections?: Record<string, string>; toolsAdded?: { name: string }[] };
 
@@ -33,6 +33,10 @@ const model = scriptedModel(
 
         if (role === "user" && text.includes("run a script")) {
             return call("codemode", { code: 'return await tools.late_tool({ text: "hi" })' });
+        }
+
+        if (role === "user" && text.includes("run bash in a script")) {
+            return call("codemode", { code: 'const r = await tools.bash({ command: "echo hi; exit 3" }); return typeof r + " " + Object.keys(r).sort().join(",") + " " + r.exitCode + " " + r.output.trim();' });
         }
 
         if (role === "user" && text.includes("spawn a helper")) {
@@ -101,6 +105,17 @@ test("in Only mode a script calls a hidden tool, read-only ones in plan mode too
     await app.harness.commit(async (tx) => void ((await tx.doc(PlanDoc, id)).on = true), context);
     await say(app, id, "run a script");
     assert.match(result, /late:hi/);
+});
+
+test("a script's tools.bash gives what both modes' sections say: { output, exitCode, truncated }, a failed command not thrown (PP-442)", async () => {
+    for (const each of ["on", "only"]) {
+        await mode(each);
+        await say(app, await newSession(app), "run bash in a script");
+        assert.match(result, /object exitCode,output,truncated 3 hi/, each);
+    }
+
+    assert.ok(BASH_RESULT.includes("{ output, exitCode, truncated }"));
+    assert.ok(ON_GUIDE.includes(BASH_RESULT) && ONLY_GUIDE.includes(BASH_RESULT));
 });
 
 test("in Only mode, a subagent given a tool that only scripts call also gets codemode", async () => {

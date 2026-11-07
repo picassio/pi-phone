@@ -404,7 +404,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
   **Codemode's mode** (PP-379, from pi-pocket 0.28.0; `config.codemodeMode`, setting `codemode.mode`, the owner's, for
   every session: a session's selection cannot hold it, as subagents would then start in Only mode by default). pi-phone
   builds the codemode extension itself from Pi Durable's `createCodemodeTool` with a section of its own: in `on` one
-  line (Pi Durable's section listed every tool the model already had again, 11,700 characters a session). In `only`
+  line (Pi Durable's section listed every tool the model already had again, 11,700 characters a session). Both modes'
+  sections say `BASH_RESULT`: a script's `tools.bash` gives `{ output, exitCode, truncated }`, not text, and a failed
+  command does not throw (PP-442: a script printed `[object Object]`; neither section shows a return type). In `only`
   its `wraps` getter (read at each resolve, so tools of modules turned on later count; `host.toolNames()`) takes `model`
   out of every tool's `callers` but `DECLARED` (codemode, and the tools whose transcript card reads their call's
   details: artifact, subagent, image_generate, video_generate, audio_speak, audio_transcribe, browser_run, show_screen,
