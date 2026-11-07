@@ -987,7 +987,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
     whose only paint is a top divider passes (the board's task cards). The report suggests the fix: `overflow: hidden`
     on the parent, or the fill in an absolute `inset: 0` overflow-hidden layer with `border-radius: inherit`. Tabular figures (`tabular`): numeric-looking text of two
     digits or more in td, th, cell, gridcell, timer, progressbar, meter, output, `aria-live` or status without
-    `tabular-nums` (a monospace first family passes). Gradient surfaces (`gradient`): a gradient of two colours or more
+    `tabular-nums` (a monospace first family passes); a reply's markdown tables set it on every cell (PP-431). Gradient surfaces (`gradient`): a gradient of two colours or more
     on 1600 px² or more, showing (opacity above 0.05); one colour drawn as a gradient is a fill, `data-allow-gradient`
     opts out. Side stripes, extended: an inset shadow `0 Ypx 0` along the top or bottom too, and a `::before`/`::after`
     bar (absolute, 4 px or thinner along half the box or more, coloured, on a rounded or painted box); tabs and

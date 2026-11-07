@@ -1806,6 +1806,8 @@ kbd {
 .md table:not(.dv-table) :is(td, th) {
     padding: 8px 12px;
     text-align: left;
+    /* A column of numbers lines up (PP-431). */
+    font-variant-numeric: tabular-nums;
     /* Words break only when longer than the cell can be, and a cell keeps room for a few words: a crowded table
      * scrolls sideways instead of crushing its columns. */
     overflow-wrap: break-word;

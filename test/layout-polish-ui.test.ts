@@ -1,6 +1,6 @@
 // pi-phone's own main screens under the layout check (PP-395's `layoutCheck`, the one `screenshot` runs), in a real
 // browser at 390 and 1280 px, in a dark palette (Tokyo Night) and a light one (Catppuccin Latte): the session list, a
-// session with a reply, Dictation, Machines, a project board, and a reply's More sheet. What the polish tickets fixed
+// session with a reply (with a table of numbers, in tabular figures: PP-431), Dictation, Machines, a project board, and a reply's More sheet. What the polish tickets fixed
 // stays fixed: no emoji or symbol glyphs as icons (PP-402); hints at 3:1 and words at 4.5:1, no text under 12 px
 // (PP-399); every control a 40 px tap on a phone, its own box or a layer past it (PP-400); padding, gaps, corners and
 // control heights on the 4 px grid (PP-401); icons at 16, 20 or 24 px with stroke 2 (PP-403); none of the tells
@@ -28,6 +28,11 @@ const REPLY = [
     "",
     "- First point",
     "- Second point",
+    "",
+    "| Step | Runs | Time |",
+    "| --- | --- | --- |",
+    "| Check | 12 | 1.5 s |",
+    "| Fix | 3 | 20 ms |",
 ].join("\n");
 
 let app: App;
@@ -35,6 +40,8 @@ let server: Server;
 let browsers: Browsers;
 /** Each screen's report, by `<screen>-<palette>-<width>`. */
 const reports = new Map<string, LayoutReport>();
+/** The reply's table on the session screen, by `<palette>-<width>`: each cell's text and its figures. */
+const tableCells = new Map<string, string[]>();
 
 after(() => cleanUpAll(() => browsers?.closeAll({ final: true }), () => server?.closeAllConnections(), () => server?.close(), () => app?.close(), () => cleanUp()));
 
@@ -112,6 +119,13 @@ before(async () => {
                 assert.ok(report, `${name}: the layout check gave a report`);
                 reports.set(name, report);
 
+                if (screen === "session") {
+                    tableCells.set(
+                        `${palette}-${viewport.width}`,
+                        JSON.parse(await page.evaluate(`return JSON.stringify([...document.querySelectorAll(".md table td")].map((cell) => cell.textContent.trim() + " " + getComputedStyle(cell).fontVariantNumeric))`)) as string[],
+                    );
+                }
+
                 if (SHOTS !== undefined) {
                     mkdirSync(SHOTS, { recursive: true });
                     writeFileSync(join(SHOTS, `${name}.jpg`), Buffer.from((await page.screenshot()).data, "base64"));
@@ -182,6 +196,14 @@ test("no side-tab stripe, glow, narrow justified text, tight leading or repeated
 
 test("no corners off concentric or poking out of their parent, numbers without tabular figures, gradient surfaces or static CSS tells on the main screens (PP-430, PP-432)", real, () => {
     assert.deepEqual([...found("concentric"), ...found("corner-bleed"), ...found("tabular"), ...found("gradient"), ...found("css-tell")], []);
+});
+
+test("a reply's table shows its numbers in tabular figures (PP-431)", real, () => {
+    assert.equal(tableCells.size, 4);
+
+    for (const [name, cells] of tableCells) {
+        assert.deepEqual(cells, ["Check tabular-nums", "12 tabular-nums", "1.5 s tabular-nums", "Fix tabular-nums", "3 tabular-nums", "20 ms tabular-nums"], name);
+    }
 });
 
 test("a tool call's icon is a line icon from ICONS, never a symbol (PP-402)", () => {
