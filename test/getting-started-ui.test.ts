@@ -162,6 +162,20 @@ test("Menu › Getting started opens the guide; the checklist bar follows Pi's t
     await until(async () => (await inPage<string>(`document.querySelector(".sheet")?.innerText ?? ""`)).includes("Appearance"), "Appearance opened by the tap");
     await inPage(`(async () => (await import("/store.js")).closeSheet())()`);
 
+    // A card for Menu › Hooks (PP-426), under the first in the chat, opens that sheet.
+    await inPage(`(async () => {
+        const { h, render } = await import("preact");
+        const { ScreenCard } = await import("/guide.js");
+        const box = document.createElement("div");
+        box.id = "hooks-card";
+        document.querySelector("[data-part=screen-card]").after(box);
+        render(h(ScreenCard, { args: { screen: "hooks", why: "Turn a check on or off." } }), box);
+    })()`);
+    assert.match(await inPage<string>(`document.querySelector("#hooks-card [data-part=screen-card]")?.innerText ?? ""`), /Hooks[\s\S]*Turn a check on or off\.[\s\S]*Open/);
+    await inPage(`document.querySelector("#hooks-card [data-part=screen-card] button").click()`);
+    await until(async () => (await inPage<string>(`document.querySelector(".sheet")?.innerText ?? ""`)).includes("Check artifacts on publish"), "Menu › Hooks opened by the tap");
+    await inPage(`(async () => { (await import("/store.js")).closeSheet(); const { render } = await import("preact"); const box = document.getElementById("hooks-card"); render(null, box); box.remove(); })()`);
+
     // Opened: the whole list.
     await inPage(`document.querySelector("[data-part=guide-checklist] .guide-head").click()`);
     await until(async () => (await bar()).includes("Voice and dictation"), "the whole list");

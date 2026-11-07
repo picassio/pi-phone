@@ -46,6 +46,7 @@ const SCREENS = () => ({
     "web-access": { name: t("Web access"), open: () => openSheet({ type: "web-access" }) },
     spend: { name: t("Spend"), open: () => openSheet({ type: "spend" }) },
     github: { name: t("GitHub"), open: () => openSheet({ type: "github" }) },
+    hooks: { name: t("Hooks"), open: () => openSheet({ type: "hooks" }) },
     "android-notifications": { name: t("Android's notification settings"), app: true, open: () => window.PiPhoneApp.openNotificationSettings() },
     "android-battery": { name: t("Run with the screen off"), app: true, open: () => window.PiPhoneApp.runUnrestricted() },
     "android-accessibility": { name: t("Android's Accessibility settings"), app: true, open: () => window.PiPhoneApp.openSettings("accessibility") },

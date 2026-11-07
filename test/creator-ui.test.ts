@@ -224,7 +224,7 @@ test("at 390 px: Make a drop-in, Make it, the progress card through install and 
     const checked = await submit("please the clock is checked");
 
     await settle(checked.submissionId);
-    await sees(".made-card", "Checked in the app at 390 and 1280 px");
+    await sees(".made-card", "Checked in the app at 390, 1280 and 1920 px");
     // Under its extension_create call (the owner, PP-375: at the end it took room); when it waits for the owner and is
     // scrolled away, the waiting bar at the top leads back to it.
     assert.equal(

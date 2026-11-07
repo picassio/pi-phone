@@ -378,7 +378,8 @@ dự án thật.</sub>
   báo cáo kèm số đếm trước và sau cùng hình redline
   hoặc hình khác biệt. Các skill HTML, design-system và unslop đều kết thúc bằng nó.
 - **Hook.** **Menu › Hook** liệt kê các bước kiểm tra pi-phone tự chạy quanh công việc của Pi, nên chúng vẫn diễn ra
-  cả khi Pi quên, mỗi hook một công tắc (Pi bật hoặc tắt bằng `setting_change hooks.<id>`, sau khi bạn duyệt thẻ):
+  cả khi Pi quên, mỗi hook một công tắc (Pi bật hoặc tắt bằng `setting_change hooks.<id>`, sau khi bạn duyệt thẻ, và mở trang này
+  cho bạn bằng `show_screen hooks`):
   **Kiểm tra artifact khi xuất bản**: khi Pi xuất bản một artifact HTML, SVG hoặc tương tác, app dựng nó ở 390, 1280 và
   1920 px và chính kết quả của công cụ artifact mang theo những gì layout check tìm thấy (chữ bị cắt, phần tử đè nhau,
   vùng chạm nhỏ, độ tương phản thấp), nên Pi thấy ngay trong lệnh gọi đó; độ rộng nào điện thoại không dựng được thì

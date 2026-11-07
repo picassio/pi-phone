@@ -146,10 +146,10 @@ function stepsOf(state) {
                 : ["todo", t("Installed, switched off")],
         state.enabled ? ["done", t("Switched on")] : installed ? ["now", t("Waiting for you to switch it on")] : ["todo", t("Switched on by you")],
         build.checked
-            ? ["done", t("Checked in the app at 390 and 1280 px: {note}", { note: build.checked.note || "" })]
+            ? ["done", t("Checked in the app at 390, 1280 and 1920 px: {note}", { note: build.checked.note || "" })]
             : state.enabled
-              ? ["now", t("Pi checks it in the app at 390 and 1280 px")]
-              : ["todo", t("Checked in the app at 390 and 1280 px")],
+              ? ["now", t("Pi checks it in the app at 390, 1280 and 1920 px")]
+              : ["todo", t("Checked in the app at 390, 1280 and 1920 px")],
     ];
 }
 

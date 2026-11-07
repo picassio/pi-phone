@@ -18,7 +18,7 @@ Copyright (c) 2026 DeepSeek).
    their links), and its newest error in a tab, which a picture may not show.
 2. **Its tools:** call each once with real arguments, then a wrong one: the answers are what Pi should read.
 3. **Its page or sheet:** `screenshot` with url `http://127.0.0.1:8787/?page=<name>:<page id>` (or
-   `?sheet=<name>:<sheet id>`), widths 390 and 1280. Go by the layout check's numbers (what spills out of its box,
+   `?sheet=<name>:<sheet id>`), widths 390, 1280 and 1920. Go by the layout check's numbers (what spills out of its box,
    a page wider than the screen) over the picture. Look for: the theme's colours (no colour of its own), text that
    fits at 390 px, a state as a StateTag, line icons only, the app's dropdowns, nothing cut off. A page that shows
    "failed to load in this browser" or "failed: …" names its error: fix that first.
@@ -39,6 +39,6 @@ Copyright (c) 2026 DeepSeek).
 
 ## What to report
 
-Where it is (rail, menu, launcher; its tools), what you checked and how (tool calls, screenshots at 390 and 1280), and
+Where it is (rail, menu, launcher; its tools), what you checked and how (tool calls, screenshots at 390, 1280 and 1920), and
 what you could not check (a menu row you did not open, the other theme, another person's access). The owner turns it
 off in Settings › Extensions; it stays off after an update until turned on again.

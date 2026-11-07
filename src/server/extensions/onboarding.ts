@@ -34,6 +34,7 @@ export const SCREENS = [
     "web-access",
     "spend",
     "github",
+    "hooks",
     "android-notifications",
     "android-battery",
     "android-accessibility",
@@ -133,7 +134,7 @@ export default function createOnboarding(host: PocketHost) {
         description:
             "Put a card in the chat with a button that opens one of the app's screens, or one of Android's (in the pi-phone app on the phone), for the person to act there: " +
             "turn on Accessibility for phone control, allow the microphone, sign in to a provider. Nothing opens until they tap it. " +
-            "screen: providers, default-model, appearance, notifications, dictation, voice, assistant, this-phone, phone-control, computer-control, machines, ssh-keys, secrets, pi-browser, web-access, spend, github; " +
+            "screen: providers, default-model, appearance, notifications, dictation, voice, assistant, this-phone, phone-control, computer-control, machines, ssh-keys, secrets, pi-browser, web-access, spend, github, hooks; " +
             "Android's: android-notifications, android-battery (run with the screen off), android-accessibility, android-app-info (Allow restricted settings), android-default-apps (the digital assistant app), microphone.",
         parameters: obj({
             screen: union(SCREENS.map((each) => literal(each))),

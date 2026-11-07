@@ -1312,7 +1312,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
     verify): when a drop-in is the answer (not a setting, a theme, an artifact or an OpenUI answer); deliver a small
     working version first from a template in the session folder (`<cwd>/<name>/`), check it, `extension_install` the
     folder (the owner's card; it lands off), the owner turns it on (or `setting_change`, a card), look at it with
-    `screenshot` of `http://127.0.0.1:8787/?page=<module>:<id>` at 390 and 1280 px, fix the same files, report what
+    `screenshot` of `http://127.0.0.1:8787/?page=<module>:<id>` at 390, 1280 and 1920 px, fix the same files, report what
     was not checked; never a mock preview. The rules: no secrets in chat (`host.ask`, Secrets), never write the
     drop-in folder or reach into the app, data in `<data>/extension-data/<name>/` (an update replaces `<name>/`), the
     owner's UI rules (no emoji, `ICONS` names only, `pocket.Choice`/`MultiChoice` never `<select>`, `StateTag`, whole
@@ -1377,7 +1377,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
     - **4. Install**: the `extension` card (the same as `extension_install`'s, from the scratch folder), then
       `installDropIn(..., { creator: true })` (lands off), then the version kept. Switch it on: the progress card's
       button posts `/api/extensions/<file>` (owner's), as Settings does; `setting_change` too. `extension_made
-      checked` (needs it on) records Pi's look at 390 and 1280 px.
+      checked` (needs it on) records Pi's look at 390, 1280 and 1920 px (PP-426).
     - **5. Progress card**: `MadeCard` under the activity group of the `extension_create` call (outside the group, so
       folding does not hide it), from `GET /api/x/extension-builder/made/<name>` and the module's `made` events
       (`web.send` on every change; a browser part `extension-builder-web/` exists for that, and names the tools'
@@ -1858,7 +1858,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
   `guide` and `web/guide.js` shows as a bar under the header (one line on a phone, the list on wide screens); `finish`
   settles the session. Tests: `test/onboarding.test.ts`, `test/getting-started-ui.test.ts` (devbox).
   `show_screen` (same module, owner's decision C): a card in the chat with an Open button for one of the app's sheets or
-  Android's settings (`SCREENS`; the bridge's `openSettings`, `openNotificationSettings`, `runUnrestricted`, `askMic`,
+  Android's settings (`SCREENS`, Menu › Hooks among them since PP-426; the bridge's `openSettings`, `openNotificationSettings`, `runUnrestricted`, `askMic`,
   only in the app); nothing opens without the tap. Settings a guide needed: `dictation.language` (per person,
   `User.dictation`; their devices follow it, Menu › Dictation sets it) and `notifications.device` (target: a web push
   device; off forgets it, on only on the device itself).

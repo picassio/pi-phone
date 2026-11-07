@@ -13,7 +13,7 @@
  *    installs it through the install card (the same as `extension_install`'s): it lands switched off, and its files are
  *    kept as a version (`made-drop-ins.ts`).
  * 4. The owner switches it on (the progress card's Switch it on, Settings › Extensions, or `setting_change`); Pi looks at
- *    it in the live app with `screenshot` at 390 and 1280 px, has the subagent fix what it saw (each fix a new version
+ *    it in the live app with `screenshot` at 390, 1280 and 1920 px, has the subagent fix what it saw (each fix a new version
  *    through the same card), and says `extension_made checked`.
  * 5. Keep ends the flow; Undo (back to the previous version, or removed from the first) and Restore (a kept version)
  *    ask on a card when Pi asks, and are the owner's buttons on the progress card and in Settings › Extensions.
@@ -307,7 +307,7 @@ export function createCreator(host: PocketHost, web: ExtensionWeb, made: () => M
     const madeTool = defineTool({
         name: "extension_made",
         description:
-            "The next steps of a drop-in made with extension_create (made-<name>). install: once its subagent's report ends READY, check it (without running its code) and install it on the owner's card, switched off, keeping the version; checked: you looked at it switched on in the live app with screenshot at 390 and 1280 px, with a one-line note; keep: the owner keeps it (ends the flow); undo: back to the previous version, or remove it if it is the first (owner's card); restore: install a kept version (owner's card); list: the drop-ins made, with their versions.",
+            "The next steps of a drop-in made with extension_create (made-<name>). install: once its subagent's report ends READY, check it (without running its code) and install it on the owner's card, switched off, keeping the version; checked: you looked at it switched on in the live app with screenshot at 390, 1280 and 1920 px, with a one-line note; keep: the owner keeps it (ends the flow); undo: back to the previous version, or remove it if it is the first (owner's card); restore: install a kept version (owner's card); list: the drop-ins made, with their versions.",
         parameters: obj({
             action: union([literal("install"), literal("checked"), literal("keep"), literal("undo"), literal("restore"), literal("list")]),
             name: opt(str({ description: "Its name, like pomodoro or made-pomodoro" })),
@@ -421,7 +421,7 @@ export function createCreator(host: PocketHost, web: ExtensionWeb, made: () => M
                     changed(store.save(state));
 
                     return reply(
-                        `Installed ${module} version ${version.n}, switched off. The owner switches it on (the progress card's Switch it on, Settings › Extensions, or setting_change extensions.${module}.ts on). Then look at it with screenshot at 390 and 1280 px (extension_inspect ${module} gives its page and sheet links), have its subagent fix what is wrong (then install again: a new version), and call extension_made checked with a one-line note when it works.`,
+                        `Installed ${module} version ${version.n}, switched off. The owner switches it on (the progress card's Switch it on, Settings › Extensions, or setting_change extensions.${module}.ts on). Then look at it with screenshot at 390, 1280 and 1920 px (extension_inspect ${module} gives its page and sheet links), have its subagent fix what is wrong (then install again: a new version), and call extension_made checked with a one-line note when it works.`,
                     );
                 }
 

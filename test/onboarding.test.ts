@@ -170,7 +170,7 @@ test("the guide tool keeps the checklist the bar shows: set, tick, finish settle
 
 // ─── What a guide sets up besides the registry's settings (PP-235) ───
 
-test("show_screen puts a card in the chat and opens nothing; a screen it does not know is refused", async () => {
+test("show_screen puts a card in the chat and opens nothing, Menu › Hooks too (PP-426); a screen it does not know is refused", async () => {
     const results: string[] = [];
     const app = await openApp(
         scriptedModel((context) => {
@@ -178,6 +178,10 @@ test("show_screen puts a card in the chat and opens nothing; a screen it does no
 
             if (role === "user" && text.includes("turn on phone control")) {
                 return fauxAssistantMessage([fauxToolCall("show_screen", { screen: "android-accessibility", why: "Turn on pi: phone control." } as never)], { stopReason: "toolUse" });
+            }
+
+            if (role === "user" && text.includes("the hooks")) {
+                return fauxAssistantMessage([fauxToolCall("show_screen", { screen: "hooks", why: "Turn a check on or off." } as never)], { stopReason: "toolUse" });
             }
 
             if (role === "user" && text.includes("the kitchen")) {
@@ -200,8 +204,11 @@ test("show_screen puts a card in the chat and opens nothing; a screen it does no
     await app.commands.submit(id, owner(app), { text: "turn on phone control", requestId: crypto.randomUUID() });
     await until(() => results.some((each) => each.includes("open android-accessibility")), "the card's result");
     assert.match(results.find((each) => each.includes("android-accessibility"))!, /Nothing opens until they tap it/);
+    await app.commands.submit(id, owner(app), { text: "show me the hooks", requestId: crypto.randomUUID() });
+    await until(() => results.length >= 2, "the hooks card's result");
+    assert.match(results.at(-1)!, /A card with a button to open hooks/);
     await app.commands.submit(id, owner(app), { text: "show me the kitchen", requestId: crypto.randomUUID() });
-    await until(() => results.length >= 2, "the refusal");
+    await until(() => results.length >= 3, "the refusal");
     assert.doesNotMatch(results.at(-1)!, /A card with a button/);
 });
 

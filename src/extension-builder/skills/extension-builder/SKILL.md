@@ -51,7 +51,7 @@ What the subagent does (and you, making one by hand with `extension_install`):
 6. Look at it in the live app with the `screenshot` tool (Pi's browser never opens the app's own address): url
    `http://127.0.0.1:8787/?page=<name>:<page id>` (or `?sheet=<name>:<sheet id>`); for what a tap shows, a session's
    address with `?run=<name>:<row id>` (a session menu, menu or launcher row runs, as a tap would: an overlay it opens)
-   or `?panelTab=<name>:<tab id>`, e.g. `http://127.0.0.1:8787/s/<session>?run=<name>:<row id>`; widths 390 and 1280,
+   or `?panelTab=<name>:<tab id>`, e.g. `http://127.0.0.1:8787/s/<session>?run=<name>:<row id>`; widths 390, 1280 and 1920,
    and trust the layout check's numbers. For a tool, call it. The installed drop-in is the preview: never a mock page,
    an HTML copy, or pictures of something else. In the Creator flow, then call `extension_made` `checked` with what
    you saw, so its card offers Keep.

@@ -368,7 +368,8 @@ No Termux, no laptop, no cloud VM.
   inside a card left, and a report with the counts
   before and after and the redline or diff picture. The HTML, design-system and unslop skills end with it.
 - **Hooks.** **Menu › Hooks** lists the checks pi-phone runs around Pi's work by itself, so they happen even when Pi
-  forgets them, each with a switch (Pi turns one on or off with `setting_change hooks.<id>`, after your card). **Check
+  forgets them, each with a switch (Pi turns one on or off with `setting_change hooks.<id>`, after your card, and opens the page for you with
+  `show_screen hooks`). **Check
   artifacts on publish**: when Pi publishes an HTML, SVG or interactive artifact, the app renders it at 390, 1280 and
   1920 px and the artifact tool's own result carries the layout check's findings (cut text, overlaps, small tap
   targets, low contrast), so Pi sees them in the same call; a width the phone could not render says why, and the
