@@ -4,7 +4,7 @@
 // stays fixed: no emoji or symbol glyphs as icons (PP-402); hints at 3:1 and words at 4.5:1, no text under 12 px
 // (PP-399); every control a 40 px tap on a phone, its own box or a layer past it (PP-400); padding, gaps, corners and
 // control heights on the 4 px grid (PP-401); icons at 16, 20 or 24 px with stroke 2 (PP-403); none of the tells
-// adapted from Impeccable (PP-415) but a live state's pulse. With PHONE_SHOTS, screenshots go there.
+// adapted from Impeccable (PP-415) but a live state's pulse, nor auton-ui's (PP-430). With PHONE_SHOTS, screenshots go there.
 import { type App, cleanUp, cleanUpAll, newSession, openApp, owner, root, say, scriptedModel, until, work } from "./helpers.ts";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import assert from "node:assert/strict";
@@ -178,6 +178,10 @@ test("no broken image, skipped heading level or card inside a card on the main s
 /** A pulse is pi-phone's sign of a live or working state (unslop's pass, PP-328): the other tells are held to none. */
 test("no side-tab stripe, glow, narrow justified text, tight leading or repeated words on the main screens (PP-415)", real, () => {
     assert.deepEqual([...found("side-tab"), ...found("glow"), ...found("justified"), ...found("tight-leading"), ...found("repeated-text")], []);
+});
+
+test("no corners off concentric, numbers without tabular figures, gradient surfaces or static CSS tells on the main screens (PP-430)", real, () => {
+    assert.deepEqual([...found("concentric"), ...found("tabular"), ...found("gradient"), ...found("css-tell")], []);
 });
 
 test("a tool call's icon is a line icon from ICONS, never a symbol (PP-402)", () => {

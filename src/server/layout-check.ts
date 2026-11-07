@@ -18,6 +18,14 @@
  * detector (https://github.com/pbakaus/impeccable, commit c8891a9ae865d6ee311836ae5199bfce0fe115b1, Copyright Paul
  * Bakaus, licensed under the Apache License 2.0; see third_party/impeccable/LICENSE and README.md): reimplemented here
  * in a page script with fewer exceptions, their thresholds kept where they apply.
+ *
+ * Since PP-430 it also takes the rules auton-ui proved on its fixtures (the owner's Auton UI library, from jakubkrehel/skills'
+ * better-ui and better-typography, MIT, and heydamir/unslop's signs, CC BY 4.0; see third_party/jakubkrehel-skills/):
+ * nested surfaces whose corners are not concentric, numbers people compare without tabular figures, gradient surfaces,
+ * side stripes drawn as a vertical inset shadow or a ::before/::after bar, and the static CSS tells a computed style
+ * can show (transition: all, line height 1 on wrapping text, a field under 16 px on a phone, a scrolling dialog that
+ * chains its scroll to the page, a viewport that blocks zoom, font-feature-settings "tnum"). A pulsing dot is one whose
+ * keyframes change its opacity or scale, never a spinner (PP-425).
  */
 
 /** One thing out of place: what it is, and the boxes that show it (x and width, CSS pixels). */
@@ -45,12 +53,17 @@ export type LayoutFind =
     | { kind: "broken-image"; what: string; src: string; count: number }
     | { kind: "skipped-heading"; what: string; from: number; to: number; count: number }
     | { kind: "nested-cards"; what: string; in: string; count: number }
-    | { kind: "side-tab"; what: string; side: "left" | "right"; width: number; how: "border" | "inset shadow"; count: number }
+    | { kind: "side-tab"; what: string; side: "left" | "right" | "top" | "bottom"; width: number; how: "border" | "inset shadow" | "::before" | "::after"; count: number }
     | { kind: "glow"; what: string; property: string; color: string; blur: number; count: number }
     | { kind: "pulsing-dot"; what: string; size: number; animation: string; count: number }
     | { kind: "justified"; what: string; chars: number; count: number }
     | { kind: "tight-leading"; what: string; size: number; ratio: number; count: number }
-    | { kind: "repeated-text"; what: string; text: string; times: number; count: number };
+    | { kind: "repeated-text"; what: string; text: string; times: number; count: number }
+    // PP-430, from auton-ui's doctor (third_party/jakubkrehel-skills/README.md).
+    | { kind: "concentric"; what: string; in: string; inner: number; gap: number; border: number; outer: number; want: number; count: number }
+    | { kind: "tabular"; what: string; text: string; count: number }
+    | { kind: "gradient"; what: string; area: number; image: string; count: number }
+    | { kind: "css-tell"; what: string; rule: string; count: number };
 
 export type LayoutFindKind = LayoutFind["kind"];
 
@@ -430,6 +443,25 @@ ${PAGE_HELPERS}
   };
   const BORDER_SAFE = /^(blockquote|nav|a|input|textarea|select|pre|code|span|th|td|tr|li|button|hr|img|svg)$/;
   const nestedCandidates = [], headings = [], containers = [];
+  // PP-430, auton-ui's rules (better-ui, better-typography, unslop; third_party/jakubkrehel-skills/README.md). A surface
+  // is painted: a background, a border or a shadow. Corners as drawn: CSS shrinks radii that do not fit their box, so a
+  // pill in a pill compares as pills. A scaled box (a zoomed canvas) scales its rect, not its radii.
+  const painted = (st) => { const bg = colour(st.backgroundColor); return (bg !== null && bg[3] > 0.05) || st.backgroundImage !== 'none' || borderWidths(st).some((w) => w >= 1) || shadows(st.boxShadow).some((l) => l.c !== null && l.c[3] > 0.05); };
+  const drawnRadii = (st, r) => {
+    const v = [st.borderTopLeftRadius, st.borderTopRightRadius, st.borderBottomRightRadius, st.borderBottomLeftRadius].map((x) => { const first = x.split(' ')[0]; return first.endsWith('%') ? parseFloat(first) / 100 * r.width : px(first); });
+    const f = Math.min(1, r.width / (v[0] + v[1] || 1), r.width / (v[3] + v[2] || 1), r.height / (v[0] + v[3] || 1), r.height / (v[1] + v[2] || 1));
+    return v.map((x) => x * f);
+  };
+  const unscaled = (e, r) => Math.abs(r.width / (e.offsetWidth || r.width) - 1) <= 0.02;
+  const surfaces = new Set();
+  // One colour drawn as a gradient (a tint over a fill, corner marks) is a fill, not a gradient.
+  const flatGradient = (v) => splitTop(v).every((layer) => !/gradient\(/.test(layer) || new Set(layer.match(/(?:rgba?|color|oklab|oklch|hsla?|lab|lch)\([^()]*\)|transparent/g) || []).size <= 1);
+  const MONO = /mono|menlo|consolas|courier/i;
+  const TABULAR = 'td,th,[role=cell],[role=gridcell],[role=timer],[role=progressbar],[role=meter],output,[aria-live],[role=status]';
+  const NUMERIC = /^[\s$€£¥₫+\-−~≈<>]*\d[\d.,:\s]*(%|ms|s|k|K|M|B|h|m|d|px)?$/;
+  const FIELD = 'input:not([type]),input[type=text],input[type=search],input[type=email],input[type=url],input[type=tel],input[type=password],input[type=number],textarea,select';
+  const SCROLL_LAYER = 'dialog,[role=dialog],[role=alertdialog],[aria-modal=true]';
+  const tell = (e, rule) => group('css-tell', sig(e) + '|' + rule, () => ({ what: name(e), rule }));
 
   for (const e of document.body ? document.body.querySelectorAll('*') : []) {
     if (++checked > 4000) break;
@@ -465,22 +497,41 @@ ${PAGE_HELPERS}
       if (style.stroke !== 'none' && style.strokeWidth) strokes.add(style.strokeWidth);
       if (Math.abs(r.width - Math.round(r.width)) > 0.01 || Math.abs(r.height - Math.round(r.height)) > 0.01) group('off-grid', 'icon|' + r2(r.width), () => ({ what: name(e), property: 'icon width', value: r2(r.width) }));
     }
-    if ((style.webkitBackgroundClip === 'text' || style.backgroundClip === 'text') && style.backgroundImage !== 'none') group('gradient-text', sig(e), () => ({ what: name(e) }));
+    if ((style.webkitBackgroundClip === 'text' || style.backgroundClip === 'text') && /gradient\(/.test(style.backgroundImage)) group('gradient-text', sig(e), () => ({ what: name(e) }));
+    // Gradient surfaces (PP-430): a gradient of two colours or more on 1600 px² or more; [data-allow-gradient] marks one
+    // the design asks for (a fade over folded content).
+    else if (/gradient\(/.test(style.backgroundImage) && r.width * r.height >= 1600 && !e.hasAttribute('data-allow-gradient') && !flatGradient(style.backgroundImage)) group('gradient', sig(e), () => ({ what: name(e), area: Math.round(r.width * r.height), image: trim(style.backgroundImage, 60) }));
+    if (tag !== 'svg' && painted(style)) surfaces.add(e);
     // Broken images: loaded, with nothing to draw.
     if (tag === 'img' && e.complete && e.naturalWidth === 0 && (e.currentSrc || e.getAttribute('src'))) group('broken-image', sig(e) + '|' + (e.currentSrc || e.getAttribute('src')), () => ({ what: name(e), src: trim(e.currentSrc || e.getAttribute('src'), 80) }));
     if (/^h[1-6]$/.test(tag)) headings.push(e);
     const radii = corners(style);
     const circle = Math.abs(r.width - r.height) <= Math.max(r.width, r.height) * 0.1 && radii.every((v) => v >= Math.min(r.width, r.height) / 2 - 0.5);
     // Side-tab: a coloured stripe down one side of a card (border-left or -right of 2 px or more on a rounded box, 3 px
-    // or more on a square one, the other sides at most 1 px or half as wide), or an inset shadow drawn as one.
-    if (!BORDER_SAFE.test(tag) && !circle && (e.textContent || '').trim()) {
+    // or more on a square one, the other sides at most 1 px or half as wide), or an inset shadow drawn as one on any side,
+    // or a ::before or ::after bar (PP-430). A tab's underline and a separator are not stripes.
+    if (!BORDER_SAFE.test(tag) && !circle && (e.textContent || '').trim() && !e.matches('[role=tab],[role=separator]')) {
       const widths = borderWidths(style);
       for (const i of [1, 3]) {
         const w = widths[i], others = Math.max(...widths.filter((_, j) => j !== i));
         if (w >= 2 && (others <= 1 || w >= others * 2) && chroma(colour(style['border' + SIDE[i] + 'Color'])) && (radii.some((v) => v > 0) || w >= 3)) group('side-tab', sig(e) + '|' + i + '|' + w, () => ({ what: name(e), side: i === 1 ? 'right' : 'left', width: r1(w), how: 'border' }));
       }
       for (const l of shadows(style.boxShadow)) {
-        if (l.inset && l.y === 0 && l.blur === 0 && l.spread === 0 && Math.abs(l.x) >= 2 && Math.abs(l.x) <= 12 && chroma(l.c)) group('side-tab', sig(e) + '|inset|' + l.x, () => ({ what: name(e), side: l.x > 0 ? 'left' : 'right', width: r1(Math.abs(l.x)), how: 'inset shadow' }));
+        if (!l.inset || l.blur !== 0 || l.spread !== 0 || !chroma(l.c)) continue;
+        const along = l.y === 0 ? Math.abs(l.x) : l.x === 0 ? Math.abs(l.y) : 0;
+        const side = l.y === 0 ? (l.x > 0 ? 'left' : 'right') : (l.y > 0 ? 'top' : 'bottom');
+        if (along >= 2 && along <= 12) group('side-tab', sig(e) + '|inset|' + l.x + '|' + l.y, () => ({ what: name(e), side, width: r1(along), how: 'inset shadow' }));
+      }
+      // A bar: absolute, 4 px or thinner along half the box or more, in a colour, on a rounded or painted box.
+      if (radii.some((v) => v > 0) || painted(style)) for (const which of ['::before', '::after']) {
+        const ps = getComputedStyle(e, which);
+        if (ps.content === 'none' || ps.content === 'normal' || ps.display === 'none' || ps.position !== 'absolute' || !chroma(colour(ps.backgroundColor))) continue;
+        const w = px(ps.width), h = px(ps.height);
+        const upright = w > 0 && w <= 4 && h >= r.height * 0.5, lying = h > 0 && h <= 4 && w >= r.width * 0.5;
+        if (!upright && !lying) continue;
+        const side = upright ? (px(ps.left) <= px(ps.right) ? 'left' : 'right') : (px(ps.top) <= px(ps.bottom) ? 'top' : 'bottom');
+        group('side-tab', sig(e) + '|' + which, () => ({ what: name(e), side, width: r1(upright ? w : h), how: which }));
+        break;
       }
     }
     // Glow: a coloured shadow with a soft blur and no offset, or any on a dark background; a halo many times its
@@ -488,7 +539,7 @@ ${PAGE_HELPERS}
     const dark = (() => { const b = backdrop(e); return b !== null && lum(b) < 0.1; });
     for (const [prop, value] of [['box-shadow', style.boxShadow], ['text-shadow', style.textShadow]]) {
       const glow = shadows(value).find((l) => {
-        if (l.inset || !chroma(l.c) || l.blur <= 4 || l.blur * l.c[3] * opacityOf(e) < 3) return false;
+        if (l.inset || !chroma(l.c) || l.blur < 6 || l.blur * l.c[3] * opacityOf(e) < 3) return false;
         const reach = l.blur / 2 + l.spread, area = r.width * r.height;
         if (reach <= 0 || (r.width + 2 * reach) * (r.height + 2 * reach) - area > area * 2) return false;
         return (l.x === 0 && l.y === 0) || dark();
@@ -501,6 +552,14 @@ ${PAGE_HELPERS}
       const pulse = e.getAnimations().find((a) => a.effect && a.effect.getTiming().iterations === Infinity && a.effect.getKeyframes().some((k) => 'opacity' in k || 'scale' in k || /scale/.test(k.transform || '')));
       if (pulse) group('pulsing-dot', sig(e), () => ({ what: name(e), size: r1(Math.max(r.width, r.height)), animation: trim(pulse.animationName || style.animationName, 30) }));
     }
+    // Static CSS tells a computed style shows (PP-430): a transition on every property; font-feature-settings "tnum"
+    // where it is set, not font-variant-numeric; a field under 16 px on a phone (iOS zooms the page into it); a scroller
+    // in a dialog that passes its scroll on to the page.
+    const durations = style.transitionDuration.split(',').map(px);
+    if (style.transitionProperty.split(',').some((p, i) => p.trim() === 'all' && durations[i % durations.length] > 0)) tell(e, 'transition: all');
+    if (/tnum/.test(style.fontFeatureSettings) && !/tabular-nums/.test(style.fontVariantNumeric) && !(e.parentElement && /tnum/.test(css(e.parentElement).fontFeatureSettings))) tell(e, 'font-feature-settings "tnum" instead of font-variant-numeric: tabular-nums');
+    if (PW <= ${PHONE_MAX} && e.matches(FIELD) && px(style.fontSize) < 16) tell(e, 'field text ' + r1(px(style.fontSize)) + ' px on a phone (under 16 px iOS zooms in)');
+    if (/auto|scroll/.test(style.overflowY) && e.scrollHeight > e.clientHeight + 1 && style.overscrollBehaviorY === 'auto' && e.closest(SCROLL_LAYER)) tell(e, 'scrolling dialog without overscroll-behavior: contain');
     // Candidates for the passes after this loop: cards in cards, and boxes whose words repeat.
     // A control or a list item drawn as a card (a board's task button) is not a card that holds others.
     if (card(e)) {
@@ -545,6 +604,37 @@ ${PAGE_HELPERS}
     nested.push([e, outer]);
   }
   for (const [e, outer] of nested) if (!nested.some(([x]) => x !== e && e.contains(x))) group('nested-cards', sig(e) + '|' + sig(outer), () => ({ what: name(e), in: name(outer) }));
+  // Concentric radii (PP-430; better-ui: "outer radius equals inner radius plus padding"): a painted surface in a
+  // painted surface with an even gap (the same on three sides or more within 1 px, 1 to 12 px; wider, they read as two
+  // surfaces) curves with it in each corner it sits in: outer = inner + gap + border, within 2 px. Children under 20 px,
+  // square inner corners, placed children and scaled boxes are left out.
+  const CORNER_SIDES = [[0, 3], [0, 1], [2, 1], [2, 3]];
+  for (const outer of surfaces) {
+    const os = css(outer), or = outer.getBoundingClientRect();
+    if (or.width < 16 || or.height < 16 || !unscaled(outer, or)) continue;
+    const orad = drawnRadii(os, or);
+    if (Math.max(...orad) < 2) continue;
+    const ob = SIDE.map((k) => px(os['border' + k + 'Width']));
+    for (const inner of outer.children) {
+      if (!surfaces.has(inner)) continue;
+      const is = css(inner), ir = inner.getBoundingClientRect();
+      if (/absolute|fixed/.test(is.position) || inner.offsetWidth < 20 || inner.offsetHeight < 20 || !unscaled(inner, ir)) continue;
+      const d = [ir.top - or.top - ob[0], or.right - ob[1] - ir.right, or.bottom - ob[2] - ir.bottom, ir.left - or.left - ob[3]];
+      const g = Math.min(...d), near = (x) => Math.abs(x - g) <= 1;
+      if (g < 1 || g > 12 || d.filter(near).length < 3) continue;
+      const irad = drawnRadii(is, ir);
+      for (let c = 0; c < 4; c++) {
+        const [s1, s2] = CORNER_SIDES[c];
+        if (!near(d[s1]) || !near(d[s2]) || irad[c] < 1) continue;
+        const b = (ob[s1] + ob[s2]) / 2, want = irad[c] + g + b;
+        if (Math.abs(orad[c] - want) > 2) { group('concentric', sig(inner) + '|' + sig(outer) + '|' + Math.round(irad[c]) + '|' + Math.round(orad[c]), () => ({ what: name(inner), in: name(outer), inner: r1(irad[c]), gap: r1(g), border: r1(b), outer: r1(orad[c]), want: r1(want) })); break; }
+      }
+    }
+  }
+  // A viewport that blocks zoom.
+  const viewport = document.querySelector('meta[name=viewport]');
+  const zoom = viewport && /maximum-scale\s*=\s*(0*1(\.0*)?|0?\.\d+)(?![\d.])|user-scalable\s*=\s*(no|0)\b/i.exec(viewport.getAttribute('content') || '');
+  if (zoom) tell(viewport, 'viewport ' + zoom[0].replace(/\s+/g, '') + ' blocks zoom');
   // Skipped heading levels: an h1 followed by an h3, outside a footer.
   for (let i = 1; i < headings.length; i++) {
     const from = Number(headings[i - 1].tagName[1]), to = Number(headings[i].tagName[1]);
@@ -645,10 +735,16 @@ ${PAGE_HELPERS}
       if (chars <= 45) group('justified', sig(p), () => ({ what: name(p), chars }));
     }
     const pitch = px(s.lineHeight);
+    let tight = false;
     if (pitch > 0 && size < 24 && lineTops.size >= 2 && words.length > 50 && Number(s.fontWeight) < 600 && !p.closest('h1,h2,h3,h4,h5,h6,[role=heading],pre,code,samp')) {
       const ratio = Math.round(pitch / size * 100) / 100;
-      if (ratio < 1.3) group('tight-leading', sig(p) + '|' + ratio, () => ({ what: name(p), size: r1(size), ratio }));
+      if (ratio < 1.3) { tight = true; group('tight-leading', sig(p) + '|' + ratio, () => ({ what: name(p), size: r1(size), ratio })); }
     }
+    // Leading 1 on text that wraps, headings too (PP-430): the lines touch.
+    if (!tight && pitch > 0 && pitch / size <= 1.05 && lineTops.size >= 2 && !p.closest('pre,code,samp')) tell(p, 'line height ' + r2(pitch / size) + '× on wrapping text');
+    // Numbers people compare or watch change (cells, timers, live regions, progress) in tabular figures (PP-430,
+    // better-typography); a monospace face is tabular, and "tnum" is its own tell above.
+    if (NUMERIC.test(words) && (words.match(/\d/g) || []).length >= 2 && p.closest(TABULAR) && !/tabular-nums/.test(s.fontVariantNumeric) && !/tnum/.test(s.fontFeatureSettings) && !MONO.test(s.fontFamily.split(',')[0])) group('tabular', sig(p), () => ({ what: name(p), text: trim(words, 16) }));
     // Contrast, WCAG AA: 4.5, or 3 for large text (24 px, or 18.66 px bold); disabled controls are exempt.
     // Over a gradient (PP-414): measured where the words sit (three points on the first line, the middle of the last),
     // the lowest of them, with the element that paints it.
@@ -728,6 +824,10 @@ const KINDS: [LayoutFindKind, string][] = [
     ["justified", "Justified text in a narrow column"],
     ["tight-leading", "Tight line height on body text"],
     ["repeated-text", "The same words repeated in one card"],
+    ["concentric", "Corners not concentric (outer radius = inner + gap + border)"],
+    ["tabular", "Numbers without tabular figures"],
+    ["gradient", "Gradient surfaces"],
+    ["css-tell", "Static CSS tells"],
 ];
 
 /** One finding in words, with its numbers. */
@@ -764,7 +864,7 @@ function findWords(find: LayoutFind): string {
         case "nested-cards":
             return `${find.what}: inside ${find.in}${times}`;
         case "side-tab":
-            return `${find.what}: ${find.width} px ${find.side} ${find.how === "border" ? "border" : "inset shadow"}${times}`;
+            return `${find.what}: ${find.width} px ${find.side} ${find.how === "border" || find.how === "inset shadow" ? find.how : `${find.how} bar`}${times}`;
         case "glow":
             return `${find.what}: ${find.property} ${find.color}, blur ${find.blur} px${times}`;
         case "pulsing-dot":
@@ -775,6 +875,14 @@ function findWords(find: LayoutFind): string {
             return `${find.what}: line height ${find.ratio}× at ${find.size} px (needs 1.3)${times}`;
         case "repeated-text":
             return `${find.what}: "${find.text}" ${find.times} times${times}`;
+        case "concentric":
+            return `${find.what}: radius ${find.inner} + gap ${find.gap}${find.border > 0 ? ` + border ${find.border}` : ""} in ${find.in}, whose radius is ${find.outer} (wants ${find.want})${times}`;
+        case "tabular":
+            return `${find.what}: "${find.text}" without tabular-nums${times}`;
+        case "gradient":
+            return `${find.what}: ${find.image} on ${find.area} px²${times}`;
+        case "css-tell":
+            return `${find.what}: ${find.rule}${times}`;
     }
 }
 

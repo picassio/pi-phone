@@ -334,7 +334,12 @@ No Termux, no laptop, no cloud VM.
   whole pixels, text under WCAG AA contrast (over a gradient too, measured where the words sit) or under 12 px, emoji and symbols used as icons, gradient text, uppercase
   labels, tight tracking and long lines, and nine tells adapted from Impeccable's detector (broken images, skipped
   heading levels, cards inside cards, side-tab stripes, glows, pulsing dots, narrow justified text, tight leading and
-  the same words repeated in one card), grouped with their numbers, and says when a page uses too many font sizes,
+  the same words repeated in one card; a spinner is no pulsing dot), and the rules auton-ui proved: corners of a
+  surface nested in another that are not concentric, numbers in cells, timers and live regions without tabular figures,
+  gradient surfaces (`data-allow-gradient` marks one the design asks for), side stripes drawn as an inset shadow or a
+  `::before`/`::after` bar, and static CSS tells (`transition: all`, line height 1 on wrapping text, a field under 16 px
+  on a phone, a scrolling dialog without `overscroll-behavior: contain`, a viewport that blocks zoom, `tnum` instead of
+  `tabular-nums`), grouped with their numbers, and says when a page uses too many font sizes,
   text colours or icon sizes. Pi's browser gives the same check with `browser_screenshot`, and alone with
   `browser_layout_check`. Pi goes by the numbers.
 - **Steps before the shot.** `screenshot` and `redline` take `steps` that run in the page before each width's picture
@@ -958,6 +963,9 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
 - **[Impeccable](https://github.com/pbakaus/impeccable)** by Paul Bakaus (Apache 2.0): nine of its detector's rules,
   reimplemented in the screenshot layout check, and three lines of its craft floor, adapted in the unslop note;
   licence and list in `third_party/impeccable/`.
+- **[jakubkrehel/skills](https://github.com/jakubkrehel/skills)** by Jakub Krehel (MIT): the better-ui and
+  better-typography checks (concentric radii, tabular figures, static CSS tells) that auton-ui proved, reimplemented in
+  the screenshot layout check with unslop's stripe and gradient signs; licence and list in `third_party/jakubkrehel-skills/`.
 - **[pi-review](https://github.com/earendil-works/pi-review)** by Earendil (MIT): its review rubric, as written, in
   `third_party/pi-review/`, which `/review`'s subagent follows.
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)** by Lauren Tan ([@poteto](https://github.com/poteto),

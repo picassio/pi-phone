@@ -26,6 +26,34 @@ const chrome = ["google-chrome", "google-chrome-stable", "chromium", "chromium-b
 });
 const skip = chrome === undefined ? "no Chrome on this machine (CI runs it)" : false;
 
+/**
+ * auton-ui's doctor fixtures (PP-430; /home/ubuntu/frontend-design/scripts/doctor-selftest.mjs on the owner's devbox),
+ * as they are: 9 that must be found, 8 that must pass. Its kinds by pi-phone's names: side-stripe is side-tab.
+ */
+const card = "border:1px solid #ddd;background:#fff;border-radius:12px;padding:16px;width:300px;height:80px";
+const AUTON: { name: string; html: string; want: LayoutFind["kind"][] }[] = [
+    { name: "border-left stripe on a rounded card", html: `<div style="${card};border-left:3px solid #d97706">Pending</div>`, want: ["side-tab"] },
+    { name: "inset-shadow stripe on a rounded card", html: `<div style="${card};box-shadow:inset 3px 0 0 #2563eb">Running</div>`, want: ["side-tab"] },
+    { name: "::before bar on a rounded card", html: `<style>.q{position:relative}.q::before{content:"";position:absolute;left:8px;top:8px;bottom:8px;width:2px;background:#2563eb}</style><div class="q" style="${card}">Quote</div>`, want: ["side-tab"] },
+    { name: "blockquote rule (no radius, no fill) passes", html: `<blockquote style="border-left:2px solid #999;padding-left:12px;margin:0">A quote</blockquote>`, want: [] },
+    { name: "a plain neutral hairline card passes", html: `<div style="${card}">Fine</div>`, want: [] },
+    { name: "purple gradient card", html: `<div style="${card};background:linear-gradient(135deg,#667eea,#764ba2)">Hero</div>`, want: ["gradient"] },
+    { name: "allowed gradient (data-allow-gradient) passes", html: `<div data-allow-gradient style="width:300px;height:48px;background:linear-gradient(to top,#f8f8f8,transparent)"></div>`, want: [] },
+    { name: "gradient text", html: `<h1 style="background:linear-gradient(90deg,#6366f1,#ec4899);-webkit-background-clip:text;background-clip:text;color:transparent;width:300px">Supercharge</h1>`, want: ["gradient-text"] },
+    { name: "coloured glow", html: `<div style="${card};box-shadow:0 0 20px rgba(139,92,246,.5)">Glow</div>`, want: ["glow"] },
+    { name: "neutral drop shadow passes", html: `<div style="${card};box-shadow:0 4px 12px rgba(0,0,0,.08)">Lift</div>`, want: [] },
+    { name: "same radius nested with a 4px gap", html: `<div style="display:flex;width:240px;height:44px;padding:4px;border:1px solid #ddd;border-radius:12px;background:#f2f2f2"><div style="width:120px;border-radius:12px;background:#fff"></div></div>`, want: ["concentric"] },
+    { name: "concentric pair (20 = 15 + 4 + 1) passes", html: `<div style="display:flex;width:240px;height:44px;padding:4px;border:1px solid #ddd;border-radius:20px;background:#f2f2f2"><div style="width:120px;border-radius:15px;background:#fff"></div></div>`, want: [] },
+    { name: "pill in a pill passes (radii clamp to half the height)", html: `<div style="display:flex;width:240px;height:44px;padding:4px;border:1px solid #ddd;border-radius:999px;background:#f2f2f2"><div style="width:120px;border-radius:999px;background:#fff"></div></div>`, want: [] },
+    { name: "wide padding reads as separate surfaces", html: `<div style="width:300px;padding:20px;border:1px solid #ddd;border-radius:16px;background:#fff"><div style="height:60px;border-radius:16px;background:#f2f2f2"></div></div>`, want: [] },
+    { name: "proportional digits in a table cell", html: `<table><tbody><tr><td style="font-family:sans-serif">48,213</td></tr></tbody></table>`, want: ["tabular"] },
+    { name: "tabular digits in a table cell pass", html: `<table><tbody><tr><td style="font-family:sans-serif;font-variant-numeric:tabular-nums">48,213</td></tr></tbody></table>`, want: [] },
+    { name: "a timer without tabular-nums", html: `<span role="timer" style="font-family:sans-serif">03:40</span>`, want: ["tabular"] },
+];
+/** The kinds auton-ui's fixtures speak to: the tells of an assembled page, old and new. */
+const TELLS = new Set<LayoutFind["kind"]>(["side-tab", "gradient", "gradient-text", "glow", "concentric", "tabular", "css-tell", "nested-cards", "pulsing-dot"]);
+const AUTON_PAGES = Object.fromEntries(AUTON.map((fixture, i) => [`/auton/${i}`, `<!doctype html><meta name="viewport" content="width=device-width"><body style="margin:24px;font:14px sans-serif">${fixture.html}</body>`]));
+
 const head = `<!doctype html><meta name="viewport" content="width=device-width"><style>body{margin:0;font:14px sans-serif} .col{width:300px;margin:0 20px}</style>`;
 const words = "Words that wrap in their column, as a reply's do, line after line after line. ";
 const PAGES: Record<string, string> = {
@@ -69,6 +97,16 @@ const PAGES: Record<string, string> = {
     // Words over gradients (PP-414): one colour drawn as a gradient, the dark half of a hard-stop band, and a radial
     // glow in the far corner that has faded to nothing where the words are (no worst-stop guess).
     "/gradient-bg": `${head}<div class="col"><div id="flat" style="background:linear-gradient(#777777,#777777);padding:8px"><span id="grey" style="color:#888888">Grey on grey</span></div><div id="band" style="background:linear-gradient(90deg,#1a1b26 0%,#1a1b26 50%,#ffffff 50%,#ffffff 100%);padding:8px 0"><span id="left" style="color:#3b3f55">Dark</span></div><div id="glow" style="background-color:#1a1b26;background-image:radial-gradient(circle at 100% 0%,#ffffff,rgba(255,255,255,0) 40px);padding:8px"><span id="calm" style="color:#c0caf5">Calm words</span></div><div id="photo" style="background:#1a1b26 url(data:image/gif;base64,R0lGODlhAQABAAAAACw=);padding:8px"><span style="color:#3b3f55">Over a picture</span></div></div>`,
+    // The static CSS tells (PP-430), each with one that passes beside it, and side stripes in their other disguises: an
+    // inset shadow along the top, a bar drawn by ::after; a tab's underline is not one.
+    "/tells": `<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"><style>body{margin:0;font:14px sans-serif} .col{width:300px;margin:0 20px} .bar,.tab{position:relative;border-radius:8px;padding:8px} .bar::after,.tab::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:#2563eb}</style><div class="col">
+      <div id="all" style="transition:all .2s">Moves</div><div style="transition:opacity .2s">Fades</div>
+      <p id="tnum" style="font-feature-settings:'tnum'">12,345</p><p style="font-variant-numeric:tabular-nums">12,345</p>
+      <input id="small" style="font-size:14px;height:40px"> <input style="font-size:16px;height:40px">
+      <div id="scroll" role="dialog" style="height:80px;overflow-y:auto"><p style="height:240px">Long</p></div><div role="dialog" style="height:80px;overflow-y:auto;overscroll-behavior:contain"><p style="height:240px">Held</p></div>
+      <h2 id="one" style="line-height:1;width:120px">A heading that wraps over lines</h2><h2 style="line-height:1">Short</h2>
+      <div id="top" style="box-shadow:inset 0 3px 0 #2563eb;padding:8px">Top stripe</div><div id="bar" class="bar">Bar under</div><div class="tab" role="tab">Tab</div></div>`,
+    ...AUTON_PAGES,
 };
 let server: Server;
 let port = 0;
@@ -329,6 +367,77 @@ test("the layout check finds the tells adapted from Impeccable: broken images, s
         assert.match(text, /\nThe same words repeated in one card \(1\):\n- div#list\.box "Read moreRead moreRead more": "Read more" 3 times(\n|$)/);
         // Pages in place stay in place.
         assert.deepEqual((await measured(page, "/clean")).found, []);
+    } finally {
+        await engine.close();
+    }
+});
+
+test("auton-ui's fixtures behave: 9 found, 8 passed, as its doctor proved them (PP-430)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+
+        await page.init({ width: 390, height: 844, mobile: true });
+
+        const wrong: string[] = [];
+
+        for (const [i, fixture] of AUTON.entries()) {
+            const report = await measured(page, `/auton/${i}`);
+            const kinds = [...new Set(report.found.map((find) => find.kind).filter((kind) => TELLS.has(kind)))].sort();
+
+            if (JSON.stringify(kinds) !== JSON.stringify([...fixture.want].sort())) {
+                wrong.push(`${fixture.name}: wants [${fixture.want.join(", ")}], found [${kinds.join(", ")}] ${JSON.stringify(report.found.filter((find) => TELLS.has(find.kind)))}`);
+            }
+        }
+
+        assert.deepEqual(wrong, []);
+        assert.equal(AUTON.filter((fixture) => fixture.want.length > 0).length, 9);
+        assert.equal(AUTON.filter((fixture) => fixture.want.length === 0).length, 8);
+
+        // The numbers: the corner it found and the radius it wants, the digits, the gradient.
+        const [corner] = of(await measured(page, "/auton/10"), "concentric");
+
+        assert.deepEqual(corner && [corner.inner, corner.gap, corner.border, corner.outer, corner.want], [12, 4, 1, 12, 17]);
+
+        const ring = describeLayout(await measured(page, "/auton/10"));
+
+        assert.match(ring, /\nCorners not concentric \(outer radius = inner \+ gap \+ border\) \(1\):\n- div: radius 12 \+ gap 4 \+ border 1 in div, whose radius is 12 \(wants 17\)/);
+        assert.deepEqual(of(await measured(page, "/auton/14"), "tabular").map((find) => [find.what, find.text]), [['td "48,213"', "48,213"]]);
+        assert.deepEqual(of(await measured(page, "/auton/2"), "side-tab").map((find) => [find.side, find.width, find.how]), [["left", 2, "::before"]]);
+        assert.match(describeLayout(await measured(page, "/auton/5")), /\nGradient surfaces \(1\):\n- div "Hero": linear-gradient\(135deg, rgb\(102, 126, 234\), rgb\(118, 75, 1.* on \d+ px²/);
+    } finally {
+        await engine.close();
+    }
+});
+
+test("the layout check finds the static CSS tells a computed style shows, and side stripes along the top or drawn by ::after (PP-430)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+
+        await page.init({ width: 390, height: 844, mobile: true });
+
+        const tells = await measured(page, "/tells");
+        const short = (what: string) => what.replace(/ ".*$/, "");
+
+        assert.deepEqual(of(tells, "css-tell").map((find) => [short(find.what), find.rule]).sort(), [
+            ["div#all", "transition: all"],
+            ["div#scroll", "scrolling dialog without overscroll-behavior: contain"],
+            ["h2#one", "line height 1× on wrapping text"],
+            ["input#small", "field text 14 px on a phone (under 16 px iOS zooms in)"],
+            ["meta", "viewport maximum-scale=1 blocks zoom"],
+            ["p#tnum", 'font-feature-settings "tnum" instead of font-variant-numeric: tabular-nums'],
+        ]);
+        assert.deepEqual(of(tells, "side-tab").map((find) => [short(find.what), find.side, find.width, find.how]).sort(), [
+            ["div#bar.bar", "bottom", 2, "::after"],
+            ["div#top", "top", 3, "inset shadow"],
+        ]);
+        assert.match(describeLayout(tells), /\nStatic CSS tells \(6\):\n/);
+        assert.match(describeLayout(tells), /- div#bar\.bar "Bar under": 2 px bottom ::after bar/);
+        // At a desktop's width a small field is no tell.
+        assert.ok(!of(await measured(page, "/tells", 1280), "css-tell").some((find) => find.what.startsWith("input")));
     } finally {
         await engine.close();
     }

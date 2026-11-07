@@ -343,7 +343,12 @@ dự án thật.</sub>
   không tròn điểm ảnh, chữ có độ tương phản dưới chuẩn WCAG AA (cả trên nền gradient, đo đúng chỗ chữ nằm) hoặc nhỏ hơn 12 px, emoji và ký hiệu dùng làm biểu
   tượng, chữ gradient, nhãn viết hoa, giãn chữ âm và dòng quá dài, cùng chín dấu hiệu lấy từ bộ dò của Impeccable (ảnh
   hỏng, nhảy cấp tiêu đề, thẻ lồng trong thẻ, sọc nhấn một bên, bóng phát sáng, chấm nhấp nháy, chữ căn đều trong cột
-  hẹp, dòng chữ quá sát và cùng một chữ lặp trong một thẻ), gom nhóm kèm số đo, và báo khi trang dùng quá nhiều
+  hẹp, dòng chữ quá sát và cùng một chữ lặp trong một thẻ; biểu tượng xoay không tính là chấm nhấp nháy), và các luật
+  auton-ui đã kiểm chứng: bo góc của khối lồng trong khối không đồng tâm, số trong ô bảng, đồng hồ và vùng cập nhật
+  trực tiếp không dùng chữ số đều (tabular), nền gradient trên khối lớn (`data-allow-gradient` đánh dấu chỗ thiết kế
+  cần), sọc một bên vẽ bằng bóng inset hoặc thanh `::before`/`::after`, và các dấu hiệu CSS tĩnh (`transition: all`,
+  line-height 1 trên chữ xuống dòng, ô nhập chữ dưới 16 px trên điện thoại, hộp thoại cuộn thiếu
+  `overscroll-behavior: contain`, viewport chặn phóng to, `tnum` thay vì `tabular-nums`), gom nhóm kèm số đo, và báo khi trang dùng quá nhiều
   cỡ chữ, màu chữ hoặc cỡ biểu tượng. Trình duyệt của Pi cho cùng phép kiểm tra đó với `browser_screenshot`, và riêng
   bằng `browser_layout_check`. Pi dựa vào các con số.
 - **Các bước trước khi chụp.** `screenshot` và `redline` nhận `steps` chạy trong trang trước ảnh và layout check của
@@ -984,6 +989,10 @@ pi-phone phần lớn là công sức của người khác, được ghép lại
 - **[Impeccable](https://github.com/pbakaus/impeccable)** của Paul Bakaus (Apache 2.0): chín luật trong bộ dò của nó,
   viết lại trong phép kiểm tra bố cục của ảnh chụp, và ba dòng trong mức sàn tay nghề (craft floor), chuyển thể vào
   ghi chú của unslop; giấy phép và danh sách trong `third_party/impeccable/`.
+- **[jakubkrehel/skills](https://github.com/jakubkrehel/skills)** của Jakub Krehel (MIT): các phép kiểm của better-ui
+  và better-typography (bo góc đồng tâm, chữ số đều, dấu hiệu CSS tĩnh) mà auton-ui đã kiểm chứng, viết lại trong phép
+  kiểm tra bố cục của ảnh chụp cùng các dấu hiệu sọc và gradient của unslop; giấy phép và danh sách trong
+  `third_party/jakubkrehel-skills/`.
 - **[pi-review](https://github.com/earendil-works/pi-review)** của Earendil (MIT): bộ tiêu chí review của nó, giữ nguyên, trong
   `third_party/pi-review/`, mà subagent của `/review` làm theo.
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)** của Lauren Tan ([@poteto](https://github.com/poteto),

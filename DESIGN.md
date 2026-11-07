@@ -959,7 +959,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
     the outer card's edges, inside a menu, listbox, tab list, radio group or toolbar; the outer card not a dialog or a
     panel 80 % of the view tall); side-tab stripes (border-left or -right of 2 px on a rounded box, 3 px on a square
     one, coloured with chroma, the other sides at most 1 px or half as wide; or an inset shadow 2 to 12 px drawn as a
-    stripe); glows (a coloured shadow, blur over 4 px and blur x alpha at least 3, lit area at most twice the
+    stripe); glows (a coloured shadow, blur 6 px or more since PP-430 and blur x alpha at least 3, lit area at most twice the
     element's, with no offset or on a dark background); pulsing dots (16 px or smaller, round, animated for ever,
     since PP-425 only when its keyframes change opacity or scale: `getAnimations()` keyframes, so a spinner, which turns, is none);
     justified text in a column of 45 characters or fewer without hyphens; tight leading (under 1.3 on body text over
@@ -967,6 +967,28 @@ so Pi changes them through the settings tools; "the last session" is the one the
     in three or more distinct spots of one card. ui-verify holds broken images, skipped headings and nested cards to
     zero; the others are fixed in what Pi made unless the design asks for them (a live state's pulse).
     `test/layout-polish-ui.test.ts` holds pi-phone's main screens to none but the pulse.
+  - **auton-ui's rules** (PP-430; the owner asked through session #317051 on 2026-11-07). The owner's Auton UI library
+    proved them on 17 fixtures (its `doctor-responsive.mjs` CHECK items 7 and 8, `doctor-selftest.mjs`), from
+    jakubkrehel/skills' better-ui and better-typography (MIT, `third_party/jakubkrehel-skills/`) and unslop's signs;
+    the 17 fixtures are ported as they are into `test/layout-check.test.ts` (9 found, 8 passed). Concentric radii
+    (`concentric`): a painted child in a painted surface with an even gap (the same on three sides or more within 1 px,
+    1 to 12 px) must have, in each corner it sits in, outer radius = inner + gap + border within 2 px, radii as drawn
+    (scaled down as CSS does when they do not fit, so a pill in a pill passes); children under 20 px, square inner
+    corners, placed children and scaled boxes are left out. Tabular figures (`tabular`): numeric-looking text of two
+    digits or more in td, th, cell, gridcell, timer, progressbar, meter, output, `aria-live` or status without
+    `tabular-nums` (a monospace first family passes). Gradient surfaces (`gradient`): a gradient of two colours or more
+    on 1600 px² or more, showing (opacity above 0.05); one colour drawn as a gradient is a fill, `data-allow-gradient`
+    opts out. Side stripes, extended: an inset shadow `0 Ypx 0` along the top or bottom too, and a `::before`/`::after`
+    bar (absolute, 4 px or thinner along half the box or more, coloured, on a rounded or painted box); tabs and
+    separators pass. Gradient text needs a gradient (not any background image). Static CSS tells (`css-tell`), only
+    those a computed style or the document shows: `transition: all` with a duration; line height 1.05 or less on text
+    of two lines or more (headings too; not code, and not twice with tight leading); a text field under 16 px on a
+    phone; a scroller in a dialog without `overscroll-behavior: contain`; a viewport `maximum-scale` of 1 or less or
+    `user-scalable=no`; `font-feature-settings: "tnum"` where it is set without `tabular-nums`. Skipped, as a computed
+    style cannot show them: line height set in px (every line height computes to px), `100vw`/`100vh` (computed to
+    px), `outline: none` without a `:focus-visible` replacement (needs the stylesheet and a focus state), `active:scale`
+    and bounce easing (a pointer state, motion). The main screens stay at none of these (`layout-polish-ui.test.ts`);
+    ui-verify treats them as it treats Impeccable's tells (fixed in what Pi made unless the design asks).
   - **Pixel compare** (`image_compare`, `image-compare.ts`, PP-396): for pixel-perfect work, a picture against a
     reference (a mockup or design file, or a screenshot kept once it was right: `screenshot`'s save,
     `browser_screenshot`'s path). A tool of its own, not a `compare` option on the screenshot tools: one place for any
@@ -1235,6 +1257,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
 - **Impeccable's rules** (`third_party/impeccable/`, PP-415): no file copied; nine detector rules of pbakaus/impeccable
   (Apache-2.0, Paul Bakaus) at `c8891a9` reimplemented in `src/server/layout-check.ts` (see the layout check above),
   with upstream's LICENSE and a README naming each rule, what was kept and what changed. Nothing to sync.
+- **jakubkrehel/skills' checks** (`third_party/jakubkrehel-skills/`, PP-430): no file copied; the better-ui and
+  better-typography checks auton-ui proved, reimplemented in `src/server/layout-check.ts`, with upstream's MIT LICENSE
+  and a README naming each rule and its source. Nothing to sync.
 - **Design & video** (`extensions/design.ts`, PP-247; owner's decision of 2026-10-29): the built-in extension that
   owns all of the above, so the owner can drop it in one switch (Settings › Extensions, or `extensions.design.ts` with
   `setting_change`). On by default. While on, `PocketApp.builtInSkills()` adds `DESIGN_SKILLS` (`src/design/skills/`,
