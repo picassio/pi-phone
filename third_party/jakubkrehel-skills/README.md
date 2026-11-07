@@ -24,7 +24,7 @@ jakubkrehel/skills, unslop or auton-ui is copied.
 
 **pi-phone's changes.** auton-ui's 12 px cutoff for the concentric gap is kept (better-ui judges 24 px by eye), and
 its PP-432 limits: corners of 4 px or less on both pass, fixed children are left out. A corner bleed counts only where
-the child paints at that corner (its background, or a border on a side that meets there). The
+the child paints at that corner (its background, its shadow, or a border on a side that meets there). The
 glow's blur floor is auton-ui's 6 px; Impeccable's other glow limits stay. What a computed style cannot show is left
 out: line height set in px, `100vw` and `100vh`, `outline: none` without a `:focus-visible` replacement, `active:scale`
 and bounce easing.

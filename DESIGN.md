@@ -975,11 +975,13 @@ so Pi changes them through the settings tools; "the last session" is the one the
     1 to 12 px) must have, in each corner it sits in, outer radius = inner + gap + border within 2 px, radii as drawn
     (scaled down as CSS does when they do not fit, so a pill in a pill passes); children under 20 px, square inner
     corners, fixed children (absolute ones are checked since PP-432), corners of 4 px or less on both (PP-432: no curve
-    to see) and scaled boxes are left out. Corner bleed (`corner-bleed`, PP-432): a child flush (gap under 1 px) in a
-    rounded corner of a parent whose overflow is visible, painting there (its background, or a border on a side that
-    meets at the corner, so a footer's top divider passes), with a radius more than 2 px under the parent's inside
-    radius (outer minus border): its square corner pokes out of the curve, like a progress fill in a rounded bar; fix
-    it with `overflow: hidden` or a matching radius. Tabular figures (`tabular`): numeric-looking text of two
+    to see) and scaled boxes are left out. Corner bleed (`corner-bleed`, PP-432, auton-ui's definition): a painted
+    child of 20 x 20 px or more, less than 1 px from both edges of a rounded corner of its parent (after the parent's
+    border), the parent's overflow visible, and parent radius minus parent border minus child radius over 2 px, radii
+    as drawn: its corner pokes out of the curve, like a progress fill in a rounded bar. pi-phone adds one limit: the
+    child must paint at that corner (its background, its shadow, or a border on a side that meets there), so a footer
+    whose only paint is a top divider passes (the board's task cards). The report suggests the fix: `overflow: hidden`
+    on the parent, or the fill in an absolute `inset: 0` overflow-hidden layer with `border-radius: inherit`. Tabular figures (`tabular`): numeric-looking text of two
     digits or more in td, th, cell, gridcell, timer, progressbar, meter, output, `aria-live` or status without
     `tabular-nums` (a monospace first family passes). Gradient surfaces (`gradient`): a gradient of two colours or more
     on 1600 px² or more, showing (opacity above 0.05); one colour drawn as a gradient is a fill, `data-allow-gradient`

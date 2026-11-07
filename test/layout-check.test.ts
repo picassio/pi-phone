@@ -63,6 +63,7 @@ const THRESHOLDS: { name: string; html: string; want: LayoutFind["kind"][] }[] =
     { name: "2 px in 2 px with a 4 px gap passes", html: `<div style="display:flex;width:240px;height:44px;padding:4px;border:1px solid #ddd;border-radius:2px;background:#f2f2f2"><div style="width:120px;border-radius:2px;background:#fff"></div></div>`, want: [] },
     { name: "a fixed child over a rounded box passes", html: `<div style="width:240px;height:44px;padding:4px;border:1px solid #ddd;border-radius:12px;background:#f2f2f2"><div style="position:fixed;top:29px;left:29px;width:120px;height:44px;border-radius:12px;background:#fff"></div></div>`, want: [] },
     { name: "a footer with only a top divider, flush in a card's bottom corners, passes", html: `<div style="width:240px;padding:12px 12px 0;border:1px solid #ddd;border-radius:12px;background:#fff">Card words<div style="margin:8px -12px 0;padding:8px 12px;border-top:1px solid #ddd">pp-3</div></div>`, want: [] },
+    { name: "a fill painted only by its shadow, flush in a rounded bar, is found", html: `<div style="position:relative;width:200px;height:24px;border:1px solid #999;border-radius:12px;background:#f8f8f8"><span style="position:absolute;top:0;bottom:0;left:0;width:30px;box-shadow:0 0 0 1px #2563eb"></span></div>`, want: ["corner-bleed"] },
     { name: "an absolute child, same radius with a 4 px gap, is found", html: `<div style="position:relative;width:240px;height:44px;padding:4px;border:1px solid #ddd;border-radius:12px;background:#f2f2f2"><div style="position:absolute;top:4px;left:4px;bottom:4px;width:120px;border-radius:12px;background:#fff"></div></div>`, want: ["concentric"] },
 ];
 /** The kinds auton-ui's fixtures speak to: the tells of an assembled page, old and new. */
@@ -418,7 +419,7 @@ test("auton-ui's fixtures behave: 10 found, 9 passed, as its doctor proved them 
         const bar = await measured(page, "/auton/17");
 
         assert.deepEqual(of(bar, "corner-bleed").map((find) => [find.what, find.in, find.inner, find.outer]), [["span", "div", 4, 12]]);
-        assert.match(describeLayout(bar), /\nCorners poking out of a rounded parent that does not clip them \(1\):\n- span: radius 4, flush in a corner of div \(radius 12\), which does not clip it/);
+        assert.match(describeLayout(bar), /\nCorners poking out of a rounded parent that does not clip them \(1\):\n- span: radius 4, flush in a corner of div \(radius 12\), which does not clip it; clip it with overflow: hidden on the parent, or wrap the fill in an absolute inset-0 overflow-hidden layer with border-radius: inherit(\n|$)/);
 
         // The numbers: the corner it found and the radius it wants, the digits, the gradient.
         const [corner] = of(await measured(page, "/auton/10"), "concentric");

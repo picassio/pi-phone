@@ -628,9 +628,10 @@ ${PAGE_HELPERS}
       const irad = drawnRadii(is, ir);
       if (g < 1) {
         if (os.overflowX !== 'visible' || os.overflowY !== 'visible') continue;
-        // Only what the child paints at that corner shows: its background, or a border on a side that meets there (a
-        // footer's divider along its top does not reach the card's bottom corners).
-        const bg = colour(is.backgroundColor), filled = (bg !== null && bg[3] > 0.05) || is.backgroundImage !== 'none', iw = borderWidths(is);
+        // Only what the child paints at that corner shows: its background, its shadow, or a border on a side that meets
+        // there (a footer's divider along its top does not reach the card's bottom corners).
+        const bg = colour(is.backgroundColor), iw = borderWidths(is);
+        const filled = (bg !== null && bg[3] > 0.05) || is.backgroundImage !== 'none' || shadows(is.boxShadow).some((l) => !l.inset && l.c !== null && l.c[3] > 0.05);
         const c = CORNER_SIDES.findIndex(([s1, s2], k) => d[s1] < 1 && d[s2] < 1 && (filled || iw[s1] >= 1 || iw[s2] >= 1) && orad[k] - (ob[s1] + ob[s2]) / 2 - irad[k] > 2);
         if (c >= 0) group('corner-bleed', sig(inner) + '|' + sig(outer) + '|' + Math.round(irad[c]) + '|' + Math.round(orad[c]), () => ({ what: name(inner), in: name(outer), inner: r1(irad[c]), outer: r1(orad[c]) }));
         continue;
@@ -892,7 +893,7 @@ function findWords(find: LayoutFind): string {
         case "concentric":
             return `${find.what}: radius ${find.inner} + gap ${find.gap}${find.border > 0 ? ` + border ${find.border}` : ""} in ${find.in}, whose radius is ${find.outer} (wants ${find.want})${times}`;
         case "corner-bleed":
-            return `${find.what}: radius ${find.inner}, flush in a corner of ${find.in} (radius ${find.outer}), which does not clip it${times}`;
+            return `${find.what}: radius ${find.inner}, flush in a corner of ${find.in} (radius ${find.outer}), which does not clip it; clip it with overflow: hidden on the parent, or wrap the fill in an absolute inset-0 overflow-hidden layer with border-radius: inherit${times}`;
         case "tabular":
             return `${find.what}: "${find.text}" without tabular-nums${times}`;
         case "gradient":
