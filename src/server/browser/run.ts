@@ -608,7 +608,7 @@ export async function runGoal(page: RunPage, decider: Decider, options: RunOptio
                     const name = answers.value_for_field?.choice;
 
                     if (name === undefined || name === NONE_VALUE || options.values[name] === undefined) {
-                        return finish("stopped", "needs_value", `[${target.index}] ${target.label} needs a value none of the supplied ones fits: supply it in values and run again.`);
+                        return finish("stopped", "needs_value", `[${target.index}] ${target.label} needs a value none of the supplied ones fits.`);
                     }
 
                     const secret = (options.secrets ?? []).includes(name);
@@ -660,7 +660,12 @@ export async function runGoal(page: RunPage, decider: Decider, options: RunOptio
  * A run's report for Pi: how it ended, its time and cost, then, fenced as the page's (`fencedPage`), why it stopped,
  * its steps (named by the page's controls) and the page as it is: a page's words never pass for the run's own.
  * computer_run's (PP-180) is the same, fenced as a window's, with the window as it is.
+ * A run stopped for a value nobody gave says what to do next, in the run's own words outside the fence, right under
+ * its first line (PP-453): told only "supply it in values", gemini-3.1-flash-lite made an email up and ran again
+ * (4 of 4); the same words after the fence it overlooked, and opened the page again (4 of 4).
  */
+export const NEEDS_VALUE_NEXT = "Ask the person for the missing value before anything else (or use one of their saved secrets by name); never make one up.";
+
 export function report(
     result: Pick<RunResult, "status" | "reason" | "detail" | "steps" | "decisions" | "cost" | "ms">,
     decider: string,
@@ -674,6 +679,7 @@ export function report(
 
     return [
         `${head}. ${(result.ms / 1000).toFixed(1)} s, ${result.decisions} ${result.decisions === 1 ? "decision" : "decisions"} by ${decider}${result.cost > 0 ? `, $${result.cost.toFixed(5)}` : ""}.`,
+        ...(result.reason === "needs_value" ? [NEEDS_VALUE_NEXT] : []),
         fence([...(result.detail ? [`Why it stopped: ${result.detail}`] : []), ...lines, "", now, page].join("\n")),
     ].join("\n");
 }

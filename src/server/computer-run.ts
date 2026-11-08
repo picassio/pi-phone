@@ -338,7 +338,7 @@ export async function runOnComputer(window: RunWindow, decider: Decider, options
                 const name = answers.value_for_field?.choice;
 
                 if (name === undefined || name === NONE_VALUE || options.values[name] === undefined) {
-                    return finish("stopped", "needs_value", `[${target.index}] ${target.label} needs a value none of the supplied ones fits: supply it in values and run again.`);
+                    return finish("stopped", "needs_value", `[${target.index}] ${target.label} needs a value none of the supplied ones fits.`);
                 }
 
                 const secret = secretNames.includes(name);

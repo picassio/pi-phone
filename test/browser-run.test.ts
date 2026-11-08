@@ -244,6 +244,15 @@ test("a run stops with a reason: a field needing a value nobody supplied, done w
     assert.equal(needs.reason, "needs_value");
     assert.match(needs.detail ?? "", /\[1\] Search needs a value/);
 
+    // What to do next, in the run's own words right under its first line, outside the fence (PP-453): ask, never
+    // invent. "supply it in values and run again" alone had gemini-3.1-flash-lite make an email up 4 times of 4.
+    const told = report(needs, "a script", "the page").split("\n");
+
+    assert.equal(told[1], "Ask the person for the missing value before anything else (or use one of their saved secrets by name); never make one up.");
+    assert.match(told[2]!, /^Inside the page tags below/, "the fence comes after it");
+    assert.doesNotMatch(needs.detail ?? "", /supply it in values and run again/);
+    assert.doesNotMatch(report({ ...needs, reason: "blocked" }, "a script", "the page"), /Ask the person for the missing value/, "only for a missing value");
+
     const unverified = await runGoal(shop().runPage, scripted([["DONE", undefined, undefined, 0.2]]), options());
 
     assert.equal(unverified.reason, "unverified_done");

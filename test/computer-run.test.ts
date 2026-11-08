@@ -190,6 +190,9 @@ test("a run stops on a missing value, on three steps that change nothing, on an 
 
     assert.equal(missing.reason, "needs_value");
     assert.match(missing.detail!, /\[2\] text needs a value/);
+    // As browser_run's (PP-453): ask the person, outside the fence, under the first line.
+    assert.equal(report(missing, "a script", missing.window, fencedScreen, "The window now:").split("\n")[1], "Ask the person for the missing value before anything else (or use one of their saved secrets by name); never make one up.");
+    assert.doesNotMatch(missing.detail!, /supply it in values and run again/);
 
     const scrolling = demoWindow();
     const stuck = await runOnComputer(scrolling.window, scripted([() => choose("SCROLL_DOWN")]), { goal: "g", values: {}, maxSteps: 10, timeMs: 60_000, progress: () => {} });
