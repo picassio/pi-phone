@@ -16,7 +16,7 @@ import { isPng, markUp } from "../markup.ts";
 import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
 import { type ClientEntry, projectEntry } from "../projection.ts";
 import { checkSteps, MAX_STEPS, type RenderStep, STEPS_MS, stepWords } from "../render-steps.ts";
-import { reminderText, startsTurn, uncheckedUi } from "../ui-reminder.ts";
+import { isThrowaway, reminderText, startsTurn, uncheckedUi } from "../ui-reminder.ts";
 
 /** The most entries read back for one turn. */
 const TURN_ENTRIES = 3000;
@@ -546,7 +546,34 @@ export default function createScreenshot(host: PocketHost) {
                     }
 
                     // Once a turn: its transcript holds the reminder once sent (`uncheckedUi`), a restart included.
-                    const files = uncheckedUi(await turnEntries(api, context), !host.hookOn("artifactCheck"));
+                    const entries = await turnEntries(api, context);
+                    const artifactsUnchecked = !host.hookOn("artifactCheck");
+                    const edited = uncheckedUi(entries, artifactsUnchecked);
+
+                    if (edited.length === 0) {
+                        return undefined;
+                    }
+
+                    // Throwaway files (temp folders, test fixtures; PP-446) do not count: each path as the session's
+                    // place resolves it (`~`, relative). One it cannot resolve (a machine gone) still counts.
+                    const cwd = host.cwdOf(api.conversationId);
+                    const env = host.envOf(cwd);
+                    const temps = host.tempFolders(cwd);
+                    const absolute = new Map<string, string>();
+
+                    for (const path of edited) {
+                        const resolved = await env.absolutePath(path, context);
+
+                        if (resolved.ok) {
+                            absolute.set(path, resolved.value);
+                        }
+                    }
+
+                    const files = uncheckedUi(entries, artifactsUnchecked, (path) => {
+                        const found = absolute.get(path);
+
+                        return found !== undefined && isThrowaway(found, temps);
+                    });
 
                     return files.length === 0 ? undefined : { continue: reminderText(files) };
                 },

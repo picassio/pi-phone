@@ -1143,7 +1143,14 @@ so Pi changes them through the settings tools; "the last session" is the one the
     edits while `artifactCheck` is off). Any: `continue` with `[via hook ui-reminder] …` naming them, which the
     transcript shows as sent by the hook. Once a turn because the turn's transcript then holds the reminder, so a restart
     that runs the hook again sends none twice (a memo in the generation task did not hold across its continues: the first
-    try, with one, looped). Subagents have the same hook (they drop only the subagent tools).
+    try, with one, looped). Subagents have the same hook (they drop only the subagent tools). Throwaway files do not
+    count (PP-446; probe pages in `~/tmp` and checked-elsewhere fixtures cost a turn of explaining each): an edit whose
+    path, resolved by the session's place (`env.absolutePath`: `~`, relative), is under the place's temp folders
+    (`host.tempFolders`: on the phone `/tmp`, `~/tmp`, `$TMPDIR`, `os.tmpdir()`; on a machine `/tmp` and `~/tmp` there)
+    or under a folder named `fixtures`, `__fixtures__` or `test-fixtures` at any depth (`isThrowaway`). Paths resolve
+    only when the turn has unchecked UI edits; one that does not resolve (a machine gone) still counts, as a hook that
+    threw would lose the turn's answer. Tests give the app `tempFolders` (their folders are all under the system's temp
+    folder).
 - **Server edition** (`--platform server`, PP-20; the owner's decision of 2026-10-20, board epic PP-19): the same server in
   Docker (`Dockerfile`, `deploy/`), behind Caddy. `main.ts` runs as `phone` unless told `--platform server` (the image sets `PI_PHONE_PLATFORM=server`). On a
   server, Pi's browser is a `ChromeEngine` with its profile kept in `~/.pi/mobile/browser`, screenshots come from

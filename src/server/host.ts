@@ -371,6 +371,8 @@ export interface PocketHost {
     readonly home: string;
     /** The machine a session's cwd is on (`places.ts`), with what the prompt says about it; undefined on this phone. */
     machineOf(cwd: string): { name: string; address: string; path: string; platform: string; tools: Record<string, string> } | undefined;
+    /** The temp folders of the place a session in `cwd` works on (PP-446, `ui-reminder.ts`): absolute paths there. */
+    tempFolders(cwd: string): readonly string[];
     /** The app's own address for the phone's WebView (`http://127.0.0.1:<port>`), once it listens. */
     serverBase(): string | undefined;
     /**

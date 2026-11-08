@@ -396,7 +396,9 @@ dự án thật.</sub>
   nói lý do, và artifact vẫn được xuất bản. **Nhắc kiểm tra giao diện trước khi xong**: khi Pi kết thúc một lượt mà
   đã sửa tệp giao diện (HTML, CSS, SVG, component, script trong thư mục `web/`) sau lần chụp màn hình hoặc redline cuối,
   app gửi Pi một tin nhắn tiếp theo nêu các tệp đó và yêu cầu kiểm tra ở 390, 1280 và 1920 px, hoặc nói vì sao không;
-  mỗi lượt một lần, cả trong subagent, và phiên hiện tin đó là do hook gửi. Bên cạnh là các hành vi tự động có cài
+  mỗi lượt một lần, cả trong subagent, và phiên hiện tin đó là do hook gửi. Tệp dùng rồi bỏ không tính: tệp trong thư
+  mục tạm (`/tmp`, `~/tmp`, và trên điện thoại `$TMPDIR`; trên máy, thư mục tạm của máy đó) hoặc trong thư mục
+  `fixtures`, `__fixtures__` hay `test-fixtures`. Bên cạnh là các hành vi tự động có cài
   đặt riêng (ghi phiên không hoạt động vào wiki, nén ngữ cảnh đầy) cùng giá trị hiện tại của chúng.
 - **Hình ảnh.** `image_generate` tạo và sửa hình ảnh (sửa tối đa năm hình một lần; tạo 1 đến 4 hình; 1:1, 16:9,
   9:16, 4:3 hoặc 3:4) bằng mô hình bạn chọn ở **Menu › Hình ảnh** (`image.model`): GPT Image 2.5 qua đăng nhập

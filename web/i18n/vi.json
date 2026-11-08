@@ -3665,7 +3665,7 @@
     "Each time Pi publishes an HTML, SVG or interactive artifact.": "Mỗi lần Pi xuất bản một artifact HTML, SVG hoặc tương tác.",
     "Remind to check UI before finishing": "Nhắc kiểm tra giao diện trước khi xong",
     "the hook {name}": "hook {name}",
-    "Sends Pi one follow-up naming the UI files it changed after its last screenshot, asking it to check them at 390, 1280 and 1920 px or say why not.": "Gửi Pi một tin nhắn tiếp theo nêu các tệp giao diện nó đã sửa sau lần chụp màn hình cuối, yêu cầu kiểm tra chúng ở 390, 1280 và 1920 px hoặc nói vì sao không.",
+    "Sends Pi one follow-up naming the UI files it changed after its last screenshot, asking it to check them at 390, 1280 and 1920 px or say why not. Files in temp and test fixture folders are skipped.": "Gửi Pi một tin nhắn tiếp theo nêu các tệp giao diện nó đã sửa sau lần chụp màn hình cuối, yêu cầu kiểm tra chúng ở 390, 1280 và 1920 px hoặc nói vì sao không. Bỏ qua tệp trong thư mục tạm và thư mục fixture của test.",
     "When Pi ends a turn with UI files edited after its last check; once a turn, subagents too.": "Khi Pi kết thúc một lượt mà có tệp giao diện được sửa sau lần kiểm tra cuối; mỗi lượt một lần, cả subagent.",
     "Only when asked": "Chỉ khi được yêu cầu",
     "After {n} min idle": "Sau {n} phút không hoạt động",

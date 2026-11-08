@@ -387,7 +387,9 @@ No Termux, no laptop, no cloud VM.
   artifact is published all the same. **Remind to check UI before finishing**: when Pi ends a turn having changed UI
   files (HTML, CSS, SVG, components, a `web/` folder's scripts) after its last screenshot or redline, the app sends it
   one follow-up naming them and asking it to check them at 390, 1280 and 1920 px, or say why not; once a turn, in
-  subagents too, and the session shows it as sent by the hook. Beside them, the automatic behaviours that keep
+  subagents too, and the session shows it as sent by the hook. Throwaway files do not count: those under a temp folder
+  (`/tmp`, `~/tmp`, and on the phone `$TMPDIR`; on a machine, its own) or a `fixtures`, `__fixtures__` or
+  `test-fixtures` folder. Beside them, the automatic behaviours that keep
   settings of their own (capturing idle sessions into the wiki, compacting a full context) show their value now.
 - **Images.** `image_generate` makes and edits images (up to five to edit at once; 1 to 4 at a time; 1:1, 16:9, 9:16,
   4:3 or 3:4) with the model you pick in **Menu › Images** (`image.model`): GPT Image 2.5 on your ChatGPT sign-in (on

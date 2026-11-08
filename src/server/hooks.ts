@@ -43,7 +43,7 @@ export const HOOKS: readonly HookInfo[] = [
     {
         id: "uiReminder",
         title: "Remind to check UI before finishing",
-        does: "Sends Pi one follow-up naming the UI files it changed after its last screenshot, asking it to check them at 390, 1280 and 1920 px or say why not.",
+        does: "Sends Pi one follow-up naming the UI files it changed after its last screenshot, asking it to check them at 390, 1280 and 1920 px or say why not. Files in temp and test fixture folders are skipped.",
         when: "When Pi ends a turn with UI files edited after its last check; once a turn, subagents too.",
         default: true,
         owner: true,

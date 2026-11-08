@@ -3,7 +3,7 @@
 // No server of a test on a port fetch refuses (PP-404).
 import "./support/safe-ports.ts";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
@@ -102,6 +102,9 @@ export function openApp(
         home,
         // Off unless a test stands one in (test/officecli.test.ts): on the phone the bundled binary would run.
         officecli: { runs: false },
+        // Every test folder is under the system's temp folder, whose files the UI reminder leaves out (PP-446): the
+        // tests' only temp folder is ~/tmp, as Pi's tools resolve `~`.
+        tempFolders: [join(homedir(), "tmp")],
         ...(now === undefined ? {} : { now }),
         ...extra,
     }).then((app) => {

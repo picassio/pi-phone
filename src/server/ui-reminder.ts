@@ -11,7 +11,12 @@
  *   `image_compare`.
  * A call whose result is an error did neither. The turn starts at the newest message from a person (or a session, a
  * schedule): the app's own follow-ups (this reminder, a goal's check) do not start one.
+ *
+ * Throwaway files are not UI anyone looks at (PP-446): edits under the place's temp folders (`/tmp`, `~/tmp`, and on the
+ * phone `$TMPDIR` and `os.tmpdir()`; `PocketHost.tempFolders`) or under a fixtures folder at any depth do not count.
  */
+import { tmpdir } from "node:os";
+import { posix } from "node:path";
 import { GOAL_PREFIX } from "./goals.ts";
 import type { ClientEntry } from "./projection.ts";
 
@@ -32,6 +37,41 @@ export function isUiFile(path: string): boolean {
     return /\.(html?|css|svg|jsx|tsx|vue|svelte)$/i.test(plain) || /(^|\/)web\/(.+\/)?[^/]+\.m?js$/i.test(plain);
 }
 
+/** Folders of test fixtures, at any depth: files made for tests to load, not for anyone to look at (PP-446). */
+const FIXTURE_FOLDERS: ReadonlySet<string> = new Set(["fixtures", "__fixtures__", "test-fixtures"]);
+
+const forwardSlashes = (path: string): string => posix.normalize(path.replaceAll("\\", "/"));
+
+/**
+ * A throwaway file (PP-446): under one of `temps` (the place's temp folders), or under a folder named fixtures,
+ * __fixtures__ or test-fixtures. `path` is absolute, as the session's place resolves it.
+ */
+export function isThrowaway(path: string, temps: readonly string[]): boolean {
+    const plain = forwardSlashes(path);
+
+    return (
+        plain
+            .split("/")
+            .slice(0, -1)
+            .some((folder) => FIXTURE_FOLDERS.has(folder)) ||
+        temps.some((temp) => {
+            const root = forwardSlashes(temp).replace(/\/+$/, "");
+
+            return root !== "" && plain.startsWith(`${root}/`);
+        })
+    );
+}
+
+/** The phone's temp folders (PP-446): `/tmp`, `~/tmp`, `$TMPDIR` and `os.tmpdir()`. */
+export function phoneTempFolders(home: string): string[] {
+    const env = process.env.TMPDIR;
+
+    return [...new Set(["/tmp", posix.join(forwardSlashes(home), "tmp"), ...(env === undefined || env === "" ? [] : [env]), tmpdir()])];
+}
+
+/** A machine's temp folders (PP-446): `/tmp` and `~/tmp` there. */
+export const machineTempFolders = (home: string): string[] => ["/tmp", posix.join(forwardSlashes(home), "tmp")];
+
 /** A tool call in the turn, in the order Pi made it: what it did to the UI, if anything. */
 type Step = { kind: "edit"; what: string } | { kind: "check" };
 
@@ -51,12 +91,12 @@ function nestedArgs(args: unknown): Record<string, unknown> {
     }
 }
 
-function stepOf(name: string, args: Record<string, unknown>, artifactsUnchecked: boolean): Step | undefined {
+function stepOf(name: string, args: Record<string, unknown>, artifactsUnchecked: boolean, skip: (path: string) => boolean): Step | undefined {
     if (UI_CHECKS.has(name)) {
         return { kind: "check" };
     }
 
-    if (EDITORS.has(name) && typeof args.path === "string" && isUiFile(args.path)) {
+    if (EDITORS.has(name) && typeof args.path === "string" && isUiFile(args.path) && !skip(args.path)) {
         return { kind: "edit", what: args.path };
     }
 
@@ -72,9 +112,10 @@ export const startsTurn = (entry: ClientEntry): boolean => entry.kind === "user"
 
 /**
  * The UI files the turn changed after its last check, in the order first changed; empty when there are none. `entries`
- * are the turn's, oldest first (from the message that started it).
+ * are the turn's, oldest first (from the message that started it). `skip`: edited paths, as Pi wrote them, that do not
+ * count (throwaway files, `isThrowaway`).
  */
-export function uncheckedUi(entries: readonly ClientEntry[], artifactsUnchecked: boolean): string[] {
+export function uncheckedUi(entries: readonly ClientEntry[], artifactsUnchecked: boolean, skip: (path: string) => boolean = () => false): string[] {
     // Once a turn: a turn that got its reminder gets no other, whatever Pi does after it.
     if (entries.some((entry) => entry.kind === "user" && entry.text.startsWith(REMINDER_PREFIX))) {
         return [];
@@ -87,7 +128,7 @@ export function uncheckedUi(entries: readonly ClientEntry[], artifactsUnchecked:
         if (entry.kind === "assistant") {
             for (const block of entry.blocks) {
                 if (block.type === "toolCall" && block.name !== CODEMODE && !failed.has(block.id)) {
-                    const step = stepOf(block.name, block.args, artifactsUnchecked);
+                    const step = stepOf(block.name, block.args, artifactsUnchecked, skip);
 
                     if (step !== undefined) {
                         steps.push(step);
@@ -99,7 +140,7 @@ export function uncheckedUi(entries: readonly ClientEntry[], artifactsUnchecked:
 
             for (const call of Array.isArray(calls) ? (calls as { name?: unknown; status?: unknown; args?: unknown }[]) : []) {
                 if (typeof call.name === "string" && call.status === "ok") {
-                    const step = stepOf(call.name, nestedArgs(call.args), artifactsUnchecked);
+                    const step = stepOf(call.name, nestedArgs(call.args), artifactsUnchecked, skip);
 
                     if (step !== undefined) {
                         steps.push(step);

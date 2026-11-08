@@ -1,14 +1,17 @@
 // The hook "Remind to check UI before finishing" (PP-422, src/server/ui-reminder.ts): a turn that ends with a UI file
 // changed after Pi's last look gets one follow-up naming it, sent by the hook (as the transcript shows); a look after the
 // edit, a change to no UI file, or the hook off gets none; and a turn gets it once at most, however Pi ends again.
+// Throwaway files (PP-446): an edit under a temp folder (~/tmp) or a fixtures folder gets none.
 import { type App, cleanUp, context, lastText, modelTexts, newSession, openApp, owner, scriptedModel, work } from "./helpers.ts";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import type { ClientEntry } from "../src/server/projection.ts";
-import { isUiFile, REMINDER_PREFIX, uncheckedUi } from "../src/server/ui-reminder.ts";
+import { isThrowaway, isUiFile, machineTempFolders, phoneTempFolders, REMINDER_PREFIX, uncheckedUi } from "../src/server/ui-reminder.ts";
 import { Screenshots } from "../src/server/screenshots.ts";
 
 const CSS = join(work, "site", "style.css");
@@ -18,6 +21,10 @@ const SCRIPTS: [RegExp, ReturnType<typeof fauxToolCall>[]][] = [
     [/edit the css$/, [write(CSS)]],
     [/edit and look$/, [write(CSS), fauxToolCall("screenshot", { path: join(work, "site", "page.html"), widths: [390] })]],
     [/edit the code$/, [write(join(work, "src", "app.ts"))]],
+    // Throwaway files (PP-446): a probe page in ~/tmp, a test's fixture page (relative to the session's folder).
+    [/edit a temp css$/, [write("~/tmp/x/style.css")]],
+    [/edit a fixture$/, [write("test/fixtures/page.html")]],
+    [/edit the web css$/, [write("web/x.css")]],
     // Told by the hook, Pi edits again and ends without a look: no second reminder.
     [/^\[via hook ui-reminder\] /, [write(CSS)]],
 ];
@@ -104,6 +111,29 @@ test("an edit then a screenshot, or an edit of no UI file, ends the turn without
     assert.match(code.texts.at(-1)!, /done: edit the code/);
 });
 
+test("a CSS edit in ~/tmp/x/ ends the turn without a reminder", async () => {
+    const temp = await ask("edit a temp css");
+
+    assert.deepEqual(temp.reminders, [], temp.texts.join("\n"));
+    assert.ok(existsSync(join(homedir(), "tmp", "x", "style.css")), "the write ran");
+    assert.match(temp.texts.at(-1)!, /done: edit a temp css/);
+});
+
+test("a test/fixtures/page.html edit ends the turn without a reminder", async () => {
+    const fixture = await ask("edit a fixture");
+
+    assert.deepEqual(fixture.reminders, [], fixture.texts.join("\n"));
+    assert.ok(existsSync(join(work, "test", "fixtures", "page.html")), "the write ran");
+    assert.match(fixture.texts.at(-1)!, /done: edit a fixture/);
+});
+
+test("a web/x.css edit still gets the reminder", async () => {
+    const web = await ask("edit the web css");
+
+    assert.equal(web.reminders.length, 1, web.texts.join("\n"));
+    assert.ok(web.reminders[0]!.includes(`${REMINDER_PREFIX}You changed UI after your last look at it: web/x.css.`), web.reminders[0]!);
+});
+
 test("with the hook off, nothing is sent", async () => {
     app.setHook(owner(app), "uiReminder", false);
 
@@ -156,4 +186,33 @@ test("what counts: UI files by kind, a codemode script's calls, failed calls not
     ];
 
     assert.deepEqual(uncheckedUi([start, ...script], false), ["web/sheets/x.js"]);
+});
+
+test("throwaway files: under a temp folder or a fixtures folder at any depth; the phone's and a machine's temp folders", () => {
+    const temps = ["/tmp", "/home/u/tmp", "C:\\Users\\u\\tmp\\"];
+
+    for (const path of ["/tmp/a.html", "/home/u/tmp/x/style.css", "C:\\Users\\u\\tmp\\p.html", "/w/test/fixtures/page.html", "/w/src/__fixtures__/a/b.css", "/w/test-fixtures/x.svg", "rel/fixtures/p.html"]) {
+        assert.ok(isThrowaway(path, temps), path);
+    }
+
+    for (const path of ["/w/web/x.css", "/tmpfile/a.html", "/home/u/tmpx/a.css", "/home/u/work/tmp.html", "/w/fixtures.html", "/w/my-fixtures/a.css", "/home/u/tmp"]) {
+        assert.ok(!isThrowaway(path, temps), path);
+    }
+
+    assert.ok(!isThrowaway("/w/a.css", ["/"]), "the root is no temp folder");
+    assert.deepEqual(machineTempFolders("/home/ubuntu"), ["/tmp", "/home/ubuntu/tmp"]);
+    assert.deepEqual(machineTempFolders("C:\\Users\\u"), ["/tmp", "C:/Users/u/tmp"]);
+
+    const phone = phoneTempFolders("/data/home");
+
+    for (const folder of ["/tmp", "/data/home/tmp", tmpdir()]) {
+        assert.ok(phone.includes(folder), `${folder} in ${phone.join(", ")}`);
+    }
+
+    // Edits are skipped by the path Pi wrote; artifacts never are.
+    const start: ClientEntry = { id: 0, kind: "user", text: "go", images: 0 };
+    const skip = (path: string) => isThrowaway(path.replace(/^~/, homedir()), [join(homedir(), "tmp")]);
+
+    assert.deepEqual(uncheckedUi([start, ...call(1, "edit", { path: "~/tmp/x/a.css" }), ...call(2, "edit", { path: "web/b.css" }), ...call(3, "artifact", { id: "demo" })], true, skip), ["web/b.css", "artifact demo"]);
+    assert.deepEqual(uncheckedUi([start, ...call(1, "write", { path: "test/fixtures/page.html" })], false, skip), []);
 });

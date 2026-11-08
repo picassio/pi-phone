@@ -16,7 +16,7 @@ const TEXTS = {
     }),
     uiReminder: () => ({
         title: t("Remind to check UI before finishing"),
-        does: t("Sends Pi one follow-up naming the UI files it changed after its last screenshot, asking it to check them at 390, 1280 and 1920 px or say why not."),
+        does: t("Sends Pi one follow-up naming the UI files it changed after its last screenshot, asking it to check them at 390, 1280 and 1920 px or say why not. Files in temp and test fixture folders are skipped."),
         when: t("When Pi ends a turn with UI files edited after its last check; once a turn, subagents too."),
     }),
 };

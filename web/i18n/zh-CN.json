@@ -3685,7 +3685,7 @@
     "Each time Pi publishes an HTML, SVG or interactive artifact.": "每次 Pi 发布 HTML、SVG 或交互式产物时。",
     "Remind to check UI before finishing": "完成前提醒检查界面",
     "the hook {name}": "钩子「{name}」",
-    "Sends Pi one follow-up naming the UI files it changed after its last screenshot, asking it to check them at 390, 1280 and 1920 px or say why not.": "给 Pi 发一条后续消息，列出它在最后一次截图之后改过的界面文件，要求以 390、1280 和 1920 px 检查，或说明为何不检查。",
+    "Sends Pi one follow-up naming the UI files it changed after its last screenshot, asking it to check them at 390, 1280 and 1920 px or say why not. Files in temp and test fixture folders are skipped.": "给 Pi 发一条后续消息，列出它在最后一次截图之后改过的界面文件，要求以 390、1280 和 1920 px 检查，或说明为何不检查。临时文件夹和测试 fixture 文件夹中的文件不算。",
     "When Pi ends a turn with UI files edited after its last check; once a turn, subagents too.": "当 Pi 结束一轮时，若有界面文件在最后一次检查之后被修改；每轮一次，子代理也一样。",
     "Only when asked": "仅在要求时",
     "After {n} min idle": "空闲 {n} 分钟后",

@@ -207,6 +207,7 @@ import {
 } from "./skills.ts";
 import { Spend } from "./spend.ts";
 import { Transcripts } from "./transcripts.ts";
+import { machineTempFolders, phoneTempFolders } from "./ui-reminder.ts";
 import { Workspace } from "./workspace.ts";
 import { whyUnanswered } from "./subagent-runs.ts";
 
@@ -423,6 +424,11 @@ export interface OpenOptions {
     now?: () => number;
     /** The home folder, whose `.agents/skills/` every session has. Undefined is Pi's: `$HOME`. Tests use their own. */
     home?: string;
+    /**
+     * The phone's temp folders, whose files the UI reminder leaves out (PP-446): default `/tmp`, `~/tmp`, `$TMPDIR` and
+     * `os.tmpdir()` (`phoneTempFolders`). Tests, whose folders are all under the system's temp folder, give their own.
+     */
+    tempFolders?: readonly string[];
     /** OfficeCLI as tests stand it in (a binary of their own); default the bundled one, on Android. */
     officecli?: Omit<OfficeCliOptions, "dataDir">;
     /** Where Pi's browser comes from: the phone's WebView unless a test or a computer gives another (a Chrome). */
@@ -715,12 +721,14 @@ export class PocketApp {
     readonly #log: (line: string) => void;
     readonly #configureModels: ((models: ModelRuntime) => void) | undefined;
     readonly #home: string;
+    readonly #tempFolders: readonly string[];
     /** The clock durable work runs by. */
     readonly now: () => number;
 
     private constructor(options: OpenOptions) {
         this.#configureModels = options.configureModels;
         this.#home = options.home ?? (process.env.HOME || homedir());
+        this.#tempFolders = options.tempFolders ?? phoneTempFolders(this.#home);
         this.now = options.now ?? Date.now;
         this.dataDir = options.dataDir;
         this.defaultCwd = options.defaultCwd;
@@ -1319,6 +1327,12 @@ export class PocketApp {
                           platform: machine.remote === undefined ? "unknown" : `${machine.remote.platform} ${machine.remote.arch}`,
                           tools: machine.tools ?? {},
                       };
+            },
+            tempFolders: (cwd) => {
+                const machine = this.places.machineOf(cwd);
+
+                // A machine not reached yet has no home known here: its /tmp alone (its tools could not run either).
+                return machine === undefined ? this.#tempFolders : machine.remote === undefined ? ["/tmp"] : machineTempFolders(machine.remote.home);
             },
             serverBase: () => (this.serverPort === undefined ? undefined : `http://127.0.0.1:${this.serverPort}`),
             machinePort: (cwd, host, port) => this.#machinePort(cwd, host, port),
