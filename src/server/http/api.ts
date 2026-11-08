@@ -1360,6 +1360,17 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 return json(response, 200, { features: app.config.browserChromeFeatures, note });
             }
 
+            // The owner's test sites, where browser_run takes Pi's run model without a card (Settings › Pi's browser, PP-456).
+            if (second === "test-sites" && third === undefined && method === "GET") {
+                return json(response, 200, { sites: app.config.browserTestSites });
+            }
+
+            if (second === "test-sites" && third === undefined && method === "PUT") {
+                const note = app.setBrowserTestSites(user, (await readJson<{ sites?: unknown }>(request)).sites);
+
+                return json(response, 200, { sites: app.config.browserTestSites, note });
+            }
+
             // The run model `browser_run` decides with (Settings › Browser), and a test of a Jev model: one decision.
             if (second === "run-model" && third === undefined && method === "GET") {
                 return json(response, 200, { model: app.config.browserRunModel });

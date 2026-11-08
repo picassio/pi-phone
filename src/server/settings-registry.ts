@@ -24,6 +24,7 @@ import { DEFAULT_ASK_MODEL, DEFAULT_MAKE_MODEL } from "./video-gen.ts";
 import { DEFAULT_SPEAK_MODEL, DEFAULT_TRANSCRIBE_MODEL, DEFAULT_VOICE, SPEAK_MODELS, TRANSCRIBE_MODELS, VOICES as SPEAK_VOICES } from "./audio.ts";
 import { PERMISSION_MODES, POPUP_MODES } from "./browser/pi-browser.ts";
 import { CHROME_FEATURES_MAX, MACHINE_BROWSER_MODES } from "./browser/machine-engine.ts";
+import { TEST_SITES_MAX } from "./test-sites.ts";
 import { CODEMODE_MODES, CONTEXT_PARTS, type ContextPart, contextModes, resolveContextPolicy } from "./context-policy.ts";
 import { THINKING_LEVELS } from "./models.ts";
 import { copyFileSync, existsSync, readFileSync, rmSync, statSync } from "node:fs";
@@ -581,6 +582,15 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             owner: true,
             read: () => app.config.browserChromeFeatures.join(", ") || "none",
             apply: (user, value) => app.setBrowserChromeFeatures(user, value),
+        },
+        {
+            id: "browser.testSites",
+            area: "browser",
+            title: "Test sites, where Pi may pick the run model without a card",
+            help: `Hosts (staging.example.com) or *.suffix patterns (*.ts.net) separated by commas, at most ${TEST_SITES_MAX}, or none (the default). browser_run with a run model other than the setting's (model) asks the owner on a card on a real site, as its pages then go to that model's provider; on a test site it does not. Built in as test sites: localhost and private addresses (10/8, 172.16/12, 192.168/16, 100.64/10), hosts under .test, .localhost, .local, .example, .invalid or .internal, and file: pages. Settings › Pi's browser.`,
+            owner: true,
+            read: () => app.config.browserTestSites.join(", ") || "none",
+            apply: (user, value) => app.setBrowserTestSites(user, value),
         },
         // ─── Pages kept from artifacts (PP-370) ───
         {

@@ -312,7 +312,12 @@ No Termux, no laptop, no cloud VM.
   **`browser_run`** carries out a whole goal on its own, a step at a time: each step is decided by the run model you
   pick in Settings › Pi's browser (the session's own model, or Jev, TypeSafe's decision model through OpenRouter:
   about a second and $0.00003 a step), for every session or one; Pi may pick either for one run (`model`: `jev` or
-  `session`), and the run's answer says which decided and who chose it. Each step sends the run model the goal, the values Pi
+  `session`), and the run's answer says which decided and who chose it. On a real site that choice is yours: a card
+  names the site, the setting's model and Pi's, and **Approve once** runs with Pi's, **Deny** with the setting's (no
+  answer in 5 minutes is Deny). Test sites need no card: localhost, private addresses, hosts under `.test`, `.local`,
+  `.localhost`, `.example`, `.invalid` or `.internal`, `file:` pages, and the hosts you list in Settings › Pi's browser ›
+  Test sites (`*.ts.net`, `staging.example.com`; Pi changes it with `setting_change browser.testSites`, after your
+  card). `computer_run` with Pi's model always asks: an app's window has no address to judge. Each step sends the run model the goal, the values Pi
   gave (a secret by its name only), the page's address, title and visible text, and its controls with their values:
   with Jev, to OpenRouter with your OpenRouter key; with the session's model, to its provider. A run clicks and types
   without asking, on pages you may be signed in to. After each click it waits for the page to settle (up to 3 s, or

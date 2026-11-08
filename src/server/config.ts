@@ -258,6 +258,11 @@ interface PocketConfig {
      * `machine-engine.ts`), checked by `parseChromeFeatures`. Absent: none.
      */
     browserChromeFeatures?: string[];
+    /**
+     * The owner's test sites besides the built-in ones (PP-456, `test-sites.ts`): hosts, or `*.suffix` patterns, where
+     * browser_run may take Pi's run model without a card. Absent: none.
+     */
+    browserTestSites?: string[];
     /** The hooks the owner turned away from their defaults (PP-419, `hooks.ts`), by id. Absent: each hook's default. */
     hooks?: Partial<Record<HookId, boolean>>;
     /** Self-compaction (PP-473, `self-compact.ts`): only what differs from `SELF_COMPACT_DEFAULTS`. */
@@ -916,6 +921,20 @@ export class ConfigStore {
             delete this.#config.browserEval;
         } else {
             this.#config.browserEval = false;
+        }
+
+        this.save();
+    }
+
+    get browserTestSites(): readonly string[] {
+        return this.#config.browserTestSites ?? [];
+    }
+
+    set browserTestSites(sites: readonly string[]) {
+        if (sites.length === 0) {
+            delete this.#config.browserTestSites;
+        } else {
+            this.#config.browserTestSites = [...sites];
         }
 
         this.save();

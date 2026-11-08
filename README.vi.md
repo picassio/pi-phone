@@ -317,7 +317,13 @@ dự án thật.</sub>
   một: mỗi bước do mô hình chạy bạn chọn trong Cài đặt › Trình duyệt của Pi quyết định (mô hình riêng của phiên,
   hoặc Jev, mô hình quyết định của TypeSafe qua OpenRouter: khoảng một giây và $0.00003 mỗi bước), cho mọi phiên hoặc
   một phiên; Pi có thể chọn một trong hai cho một lượt chạy (`model`: `jev` hoặc `session`), và kết quả của lượt chạy
-  nói mô hình nào đã quyết định và ai chọn nó. Mỗi bước gửi cho mô hình chạy: mục tiêu, các giá trị Pi đưa (bí mật chỉ bằng tên), địa chỉ, tiêu đề và
+  nói mô hình nào đã quyết định và ai chọn nó. Trên một trang web thật, lựa chọn đó là của bạn: một thẻ ghi
+  trang, mô hình của cài đặt và mô hình Pi xin; **Duyệt một lần** chạy bằng mô hình của Pi, **Từ chối** chạy bằng mô hình của
+  cài đặt (không trả lời trong 5 phút là Từ chối). Trang thử nghiệm không cần thẻ: localhost, địa chỉ riêng, tên miền
+  dưới `.test`, `.local`, `.localhost`, `.example`, `.invalid` hoặc `.internal`, trang `file:`, và các tên miền bạn liệt kê
+  trong Cài đặt › Trình duyệt của Pi › Trang thử nghiệm (`*.ts.net`, `staging.example.com`; Pi đổi bằng `setting_change
+  browser.testSites`, sau thẻ của bạn). `computer_run` với mô hình của Pi luôn hỏi: cửa sổ ứng dụng không có địa chỉ để
+  xét. Mỗi bước gửi cho mô hình chạy: mục tiêu, các giá trị Pi đưa (bí mật chỉ bằng tên), địa chỉ, tiêu đề và
   văn bản hiển thị của trang, cùng các ô điều khiển và giá trị của chúng: với Jev, gửi tới OpenRouter bằng khóa OpenRouter
   của bạn; với mô hình của phiên, gửi tới nhà cung cấp của nó. Một lượt chạy tự nhấp và gõ mà không hỏi, trên các trang
   bạn có thể đang đăng nhập. Sau mỗi cú nhấp, nó chờ trang ổn định (tối đa 3 giây, hoặc đến khi danh sách vừa mở

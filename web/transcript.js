@@ -2576,12 +2576,59 @@ function RiskyCard({ approval }) {
     </div>`;
 }
 
+/**
+ * Pi asks to run browser_run or computer_run with a run model other than the setting's on a real site (PP-456,
+ * `src/server/run-model-card.ts`): the site (or the app and machine), the setting's model, Pi's, and who gets the
+ * pages then. Approve once is for this run and the owner's alone; Deny runs with the setting's model.
+ */
+function RunModelCard({ approval }) {
+    const { me } = store.state;
+    const form = approval.form;
+    const [busy, setBusy] = useState(false);
+    const owner = me?.role === "owner";
+    const answer = (allow) => {
+        setBusy(true);
+        attempt(() => actions.approve(approval.id, allow)).finally(() => setBusy(false));
+    };
+    const name = (model) => (model === "session" ? t("the session's own model") : model);
+
+    return html`<div class="approval" data-part="approval" data-run-model>
+        <div class="approval-head">
+            <span class="approval-shield" aria-hidden="true"><${Icon} name="shield" size=${16} /></span>
+            <div class="approval-title">
+                <span class="approval-ask">${form.place === "computer" ? t("Pi asks to use another run model in this app") : t("Pi asks to use another run model on this site")}</span>
+                <span class="approval-reason"
+                    >${form.provider === "openrouter"
+                        ? t("Each step's page then goes to OpenRouter (openrouter.ai). Approve once is for this run; Deny runs it with the setting's model.")
+                        : t("Each step's page then goes to the session's model's provider. Approve once is for this run; Deny runs it with the setting's model.")}</span
+                >
+            </div>
+        </div>
+        <pre class="cmd">${form.site}</pre>
+        <div class="muted small">${t("The setting: {model}", { model: name(form.setting) })}</div>
+        <div class="muted small">${t("Pi asks for: {model}", { model: name(form.asked) })}</div>
+        ${
+            !canSteer()
+                ? html`<div class="muted small">${t("Waiting for someone who can steer to answer.")}</div>`
+                : html`${!owner && html`<div class="muted small">${t("Only the owner approves this. You can deny it.")}</div>`}
+                      <div class="approval-actions">
+                          <button class="button deny" disabled=${busy} onClick=${() => answer(false)}>${t("Deny")}</button>
+                          ${owner && html`<button class="button primary" disabled=${busy} onClick=${() => answer(true)}>${t("Approve once")}</button>`}
+                      </div>`
+        }
+    </div>`;
+}
+
 function ApprovalCard({ approval }) {
     const { me, server } = store.state;
     const [busy, setBusy] = useState(false);
 
     if (approval.form?.type === "risky") {
         return html`<${RiskyCard} approval=${approval} />`;
+    }
+
+    if (approval.form?.type === "run-model") {
+        return html`<${RunModelCard} approval=${approval} />`;
     }
 
     if (approval.form?.type === "ask") {

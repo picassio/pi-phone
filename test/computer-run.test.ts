@@ -228,11 +228,23 @@ async function computerRun(setting: string, openRouter: boolean, model?: "jev" |
     const asked: string[] = [];
     const jev: string[] = [];
     const charged: string[] = [];
+    /** The owner's cards (PP-456: Pi's model on an app's window asks), each approved. */
+    const cards: string[] = [];
     const session = { machine: "m1", machineName: "box", conversationId: 7, session: 7, approvedBy: "Tuan", apps: [], reason: "test", startedAt: 0, until: Date.now() + 600_000 };
     const host = {
         computer: { unavailable: () => undefined, sessionOfConversation: () => session, screen: async () => ({ text: linux("Ada", "Hello Ada") }) },
         requesterOf: () => "u1",
         person: () => ({ role: "owner" }),
+        people: () => [{ id: "u1", name: "Tuan", role: "owner" }],
+        approvals: {
+            request: async (card: { subject: string }) => {
+                cards.push(card.subject);
+
+                return { allow: true, by: "Tuan" };
+            },
+            answer: () => true,
+        },
+        browserTestSites: () => [],
         browserRunModel: () => setting,
         apiKey: async (provider: string) => (openRouter && provider === "openrouter" ? "sk-or-test" : undefined),
         askSessionModel: async (_id: unknown, prompt: string) => {
@@ -257,7 +269,7 @@ async function computerRun(setting: string, openRouter: boolean, model?: "jev" |
     try {
         const done = await tool.execute({ goal: "Greet Ada", ...(model === undefined ? {} : { model }) }, { conversationId: 7, taskId: "t1", callId: "c1" }, {});
 
-        return { asked, jev, charged, text: done.output[0]!.text, isError: done.isError === true };
+        return { asked, jev, charged, cards, text: done.output[0]!.text, isError: done.isError === true };
     } finally {
         globalThis.fetch = fetching;
     }
@@ -268,6 +280,7 @@ test("computer_run takes Pi's model for one call over the setting; left out, the
 
     assert.deepEqual(jev.jev, ["https://openrouter.ai/api/alpha/decisions typesafe/jev-1.14"], "Jev decided, the default Jev while the setting is session");
     assert.deepEqual(jev.asked, []);
+    assert.deepEqual(jev.cards, ["demo_app.py on box"], "an app's window is never a test site: the owner's card first (PP-456), approved here");
     assert.match(jev.text, /decisions? by Jev \(typesafe\/jev-1\.14\) as Pi asked\./);
 
     const session = await computerRun("typesafe/jev-1.13", false, "session");
@@ -277,6 +290,8 @@ test("computer_run takes Pi's model for one call over the setting; left out, the
     assert.match(session.text, /^Done in 0 steps\. [\d.]+ s, 1 decision by this session's model as Pi asked\./);
 
     const setting = await computerRun("typesafe/jev-1.13", true);
+
+    assert.deepEqual(setting.cards, [], "the setting's own model: no card");
 
     assert.deepEqual(setting.jev, ["https://openrouter.ai/api/alpha/decisions typesafe/jev-1.13"]);
     assert.match(setting.text, /by Jev \(typesafe\/jev-1\.13\) as the setting says\./);

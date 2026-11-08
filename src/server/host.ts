@@ -117,6 +117,12 @@ export interface ApprovalRequest {
          */
         | { type: "risky"; control: string; word: string; found: "name" | "button" | "address"; where: string; place: "browser" | "computer" }
         /**
+         * browser_run or computer_run with a run model other than the setting's on a real site (PP-456,
+         * `run-model-card.ts`): the site (or the app and machine), the setting's model, the one Pi asked for, and who
+         * gets the page then (`provider`). Approve once is for this run; Deny runs with the setting's model. The owner's.
+         */
+        | { type: "run-model"; site: string; setting: string; asked: string; provider: "openrouter" | "session"; place: "browser" | "computer" }
+        /**
          * Pi installs, updates or removes tools pi-phone puts on a machine (`machine_tools`, PP-325): the machine and each
          * tool with its version from (installed, if any) and to (the catalog's, absent when removed), its size, whether it
          * comes as another's need (`needed`), and a note (what needs it). Approve runs what Settings › Machines runs;
@@ -479,6 +485,8 @@ export interface PocketHost {
     detachBrowser(session: number): Promise<string>;
     /** The run model for a session's `browser_run`: "session", or a Jev model's OpenRouter id (the session's own, else the owner's). */
     browserRunModel(conversationId: ConversationId): string;
+    /** The owner's test sites besides the built-in ones (`browser.testSites`, PP-456, `test-sites.ts`). */
+    browserTestSites(): readonly string[];
     /** Whether browser_eval runs scripts that read the page (setting `browser.eval`, Settings › Pi's browser; PP-244). */
     browserEval(): boolean;
     /** Whether a hook runs now (Settings › Hooks, setting `hooks.<id>`; PP-419, `hooks.ts`). */

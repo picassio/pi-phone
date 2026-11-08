@@ -6,6 +6,7 @@ import { describe, elementsOf, type Observed } from "../src/server/browser/page.
 import { fencedPage } from "../src/server/fence.ts";
 import { actionSpace, buildQuestions, type Decider, JevDecider, type Question, readAnswers, report, runGoal, type RunPage, SessionDecider } from "../src/server/browser/run.ts";
 import createBrowser from "../src/server/extensions/browser.ts";
+import { SiteGuardDecider } from "../src/server/run-model-card.ts";
 
 const rect = { x: 0, y: 0, w: 10, h: 10 };
 
@@ -287,9 +288,29 @@ test("a run that changes nothing three times stops as stuck; one past its steps 
     assert.match(refused.detail ?? "", /No allowed providers/);
 });
 
+/** One step's questions and page, on a test site (PP-456: no card there), for a run model to answer DONE. */
+const DONE_QUESTIONS: Record<string, Question> = {
+    operation: { type: "choice", criteria: { DONE: "Done", BLOCKED: "Blocked" }, instructions: "Next" },
+    goal_achieved: { type: "noul", criteria: { true: "Yes", false: "No" }, instructions: "Met?" },
+};
+const DONE_ANSWER = '{"operation": {"choice": "DONE"}, "goal_achieved": {"noul": 0.9}}';
+
+/** OpenRouter's decisions route, stood in for `work`: DONE, $0.0001 a decision. */
+async function withJev<T>(work: () => Promise<T>): Promise<T> {
+    const fetching = globalThis.fetch;
+
+    globalThis.fetch = (async () => new Response(JSON.stringify({ answers: JSON.parse(DONE_ANSWER), usage: { cost: 0.0001, input_tokens: 10, output_tokens: 1 } }))) as unknown as typeof fetch;
+
+    try {
+        return await work();
+    } finally {
+        globalThis.fetch = fetching;
+    }
+}
+
 /**
  * browser_run against a stand-in host (PP-451): the run model `setting`, OpenRouter signed in or not. The browser
- * records the decider it was given and runs nothing; one decision, $0.0001.
+ * records the decider it was given and asks it one step on a test site; one decision, $0.0001 with Jev.
  */
 async function browserRun(setting: string, openRouter: boolean, model?: "jev" | "session") {
     const used: Decider[] = [];
@@ -299,8 +320,9 @@ async function browserRun(setting: string, openRouter: boolean, model?: "jev" | 
         open: async () => {},
         run: async (_session: number, options: { decider: Decider }) => {
             used.push(options.decider);
+            const decided = await options.decider.decide({ page: { url: "http://127.0.0.1:5299/", title: "Shop", text: "" }, elements: [], recent_actions: [] }, DONE_QUESTIONS);
 
-            return { result: { status: "done", steps: [], decisions: 1, cost: 0.0001, tokens: { input: 10, output: 1 }, ms: 1000 }, page: "the page" };
+            return { result: { status: "done", steps: [], decisions: 1, cost: decided.cost, tokens: decided.tokens, ms: 1000 }, page: "the page" };
         },
         windowAsks: () => [],
         permissionAsks: () => [],
@@ -314,22 +336,27 @@ async function browserRun(setting: string, openRouter: boolean, model?: "jev" | 
             return browser;
         },
         browserRunModel: () => setting,
+        browserTestSites: () => [],
         apiKey: async (provider: string) => (openRouter && provider === "openrouter" ? "sk-or-test" : undefined),
-        askSessionModel: async () => "{}",
+        askSessionModel: async () => DONE_ANSWER,
         chargeSession: async (_id: unknown, key: string) => void charged.push(key),
         secrets: { value: () => undefined, used: () => {} },
     };
     const tool = (createBrowser(host as never) as unknown as { tools: { name: string; execute(args: unknown, api: unknown, context: unknown): Promise<{ output: { text: string }[]; isError?: boolean }> }[] }).tools.find(
         (each) => each.name === "browser_run",
     )!;
-    const done = await tool.execute(
-        { goal: "Search the shop for lamps", ...(model === undefined ? {} : { model }) },
-        // A model's call (PP-469: browser calls run in their batch's order, and know their message by their tool task).
-        { conversationId: 7, taskId: "t1", callId: "c1", agent: async () => ({ cwd: "/work" }), snapshot: async () => undefined, getTask: async () => ({ input: { kind: "model", assistant: 1, callId: "c1" } }) },
-        {},
+    const done = await withJev(() =>
+        tool.execute(
+            { goal: "Search the shop for lamps", ...(model === undefined ? {} : { model }) },
+            // A model's call (PP-469: browser calls run in their batch's order, and know their message by their tool task).
+            { conversationId: 7, taskId: "t1", callId: "c1", agent: async () => ({ cwd: "/work" }), snapshot: async () => undefined, getTask: async () => ({ input: { kind: "model", assistant: 1, callId: "c1" } }) },
+            {},
+        ),
     );
+    // Pi's model other than the setting's comes wrapped in the site guard (PP-456): the model that decided.
+    const decider = used[0] instanceof SiteGuardDecider ? used[0].inner : used[0];
 
-    return { decider: used[0], charged, started, text: done.output[0]!.text, isError: done.isError === true };
+    return { decider, charged, started, text: done.output[0]!.text, isError: done.isError === true };
 }
 
 test("browser_run: model jev uses Jev over a session setting, the setting's own Jev when it names one, and Spend is charged for it (PP-451)", async () => {
@@ -351,14 +378,14 @@ test("browser_run: model session uses the session's model over a Jev setting, wi
     assert.equal(session.isError, false, session.text);
     assert.ok(session.decider instanceof SessionDecider);
     assert.deepEqual(session.charged, [], "the session's model is counted as the session's own");
-    assert.match(session.text, /1 decision by this session's model as Pi asked, /);
+    assert.match(session.text, /1 decision by this session's model as Pi asked\./);
 });
 
 test("browser_run: without model the setting decides, as before (PP-451)", async () => {
     const session = await browserRun("session", true);
 
     assert.ok(session.decider instanceof SessionDecider);
-    assert.match(session.text, /by this session's model as the setting says, /);
+    assert.match(session.text, /by this session's model as the setting says\./);
 
     const jev = await browserRun("typesafe/jev-1.14", true);
 

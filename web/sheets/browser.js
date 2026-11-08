@@ -202,6 +202,77 @@ function EvalRow() {
     </div>`;
 }
 
+/** The hosts in a test sites field, as the server keeps them (lower case), to see whether it changed. */
+const siteNames = (text) =>
+    text
+        .toLowerCase()
+        .split(/[\s,]+/)
+        .filter((name) => name !== "")
+        .join(",");
+
+/**
+ * The owner's test sites (PP-456, the setting browser.testSites): where browser_run takes Pi's run model without a
+ * card, besides the built-in ones. Hosts or *.suffix patterns in a field, saved with Save.
+ */
+function TestSitesRow() {
+    const [saved, setSaved] = useState(null);
+    const [text, setText] = useState("");
+    const [done, setDone] = useState(false);
+
+    useEffect(() => {
+        void attempt(async () => {
+            const { sites } = await api("browser/test-sites");
+
+            setSaved(sites);
+            setText(sites.join(", "));
+        });
+    }, []);
+
+    if (saved === null) {
+        return html`<${Loader} label=${t("Reading the setting")} />`;
+    }
+
+    return html`<div class="sheet-list">
+        <div class="setting-row pb-features" data-part="browser-test-sites">
+            <div class="field">
+                <span>${t("Test sites")}</span>
+                <input
+                    class="mono"
+                    aria-label=${t("Test sites")}
+                    value=${text}
+                    placeholder="*.ts.net, staging.example.com"
+                    spellcheck="false"
+                    autocapitalize="off"
+                    onInput=${(event) => {
+                        setText(event.currentTarget.value);
+                        setDone(false);
+                    }}
+                />
+                <span class="muted small">
+                    ${t("When Pi picks a run model other than the setting's for one run, a real site's pages go to that model's provider, so you approve it on a card first. Not on a test site: localhost, private addresses, hosts under .test, .local, .localhost, .example, .invalid or .internal, file: pages, and the hosts here (or *.suffix for every host under one), separated by commas.")}
+                </span>
+                ${done && html`<span class="muted small">${t("Saved.")}</span>`}
+                <div class="sheet-actions">
+                    <button
+                        class="button small"
+                        disabled=${siteNames(text) === saved.join(",")}
+                        onClick=${() =>
+                            attempt(async () => {
+                                const { sites } = await api("browser/test-sites", { sites: text }, { method: "PUT" });
+
+                                setSaved(sites);
+                                setText(sites.join(", "));
+                                setDone(true);
+                            })}
+                    >
+                        ${t("Save")}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>`;
+}
+
 /** The names in a features field, as the server keeps them, to see whether it changed. */
 const featureNames = (text) => text.split(/[\s,]+/).filter((name) => name !== "").join(",");
 
@@ -319,6 +390,8 @@ export function BrowserSheet() {
                       }
                   </div>`
         }
+        <div class="label">${t("Test sites")}</div>
+        <${TestSitesRow} />
         <div class="label">${t("Windows on the phone")}</div>
         <${PopupsRow} />
         <div class="label">${t("Permissions")}</div>

@@ -23,6 +23,7 @@ import type { ComputerApp, ComputerSession } from "../computer-control.ts";
 import { MINUTES } from "../computer-control.ts";
 import { runOnComputer } from "../computer-run.ts";
 import { approveFor } from "../risky.ts";
+import { runModelFor } from "../run-model-card.ts";
 import { lockedNote } from "../computer-windows.ts";
 import { report, runDecider } from "../browser/run.ts";
 import { ChromeRemoteDesktop, CRD_HEADLESS, crdConnected, crdWord, installPlan, removePlan } from "../crd.ts";
@@ -647,15 +648,22 @@ export default function createComputer(host: PocketHost) {
             }
 
             // Pi's model for this call, else the setting (PP-451).
-            const chosen = await runDecider(host.browserRunModel(api.conversationId as never), args.model, () => host.apiKey("openrouter"), (prompt) =>
-                host.askSessionModel(api.conversationId as never, prompt, 600),
-            );
+            const setting = host.browserRunModel(api.conversationId as never);
+            const chosen = await runDecider(setting, args.model, () => host.apiKey("openrouter"), (prompt) => host.askSessionModel(api.conversationId as never, prompt, 600));
 
             if ("error" in chosen) {
                 return reply(chosen.error, true);
             }
 
-            const { decider, model, label } = chosen;
+            // Pi's model other than the setting's: an app's window is never a test site, so the owner's card first (PP-456).
+            const runModel = runModelFor(host, api, context, {
+                tool: "computer_run",
+                place: "computer",
+                setting,
+                asked: args.model,
+                chosen,
+                site: (url) => `${url.replace(/^app:/, "")} on ${session.machineName}`,
+            });
 
             // Secrets by name: their values go into fields only; the run model and Pi see their names.
             const values: Record<string, string> = {};
@@ -705,15 +713,13 @@ export default function createComputer(host: PocketHost) {
                             await pause(2000);
                         },
                     },
-                    decider,
+                    runModel.decider,
                     { goal: args.goal, values, secrets, maxSteps: args.max_steps ?? 25, timeMs: 10 * 60_000, progress: () => {} },
                 );
 
-                if (model !== "session" && result.decisions > 0) {
-                    await host.chargeSession(api.conversationId as never, `openrouter/${model}`, { ...result.tokens, cost: result.cost });
-                }
+                await runModel.charge(result);
 
-                return reply(`${report(result, label, result.window, fencedScreen, "The window now:")}\n${footer(session)}`, result.status !== "done");
+                return reply(`${report(result, runModel.label(), result.window, fencedScreen, "The window now:")}\n${footer(session)}`, result.status !== "done");
             } catch (error) {
                 // A failed read or step can quote the window: fenced as the report is.
                 return reply(fencedScreen(message(error)), true);

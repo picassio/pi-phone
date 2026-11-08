@@ -823,5 +823,9 @@
     "/better is already running here: stop it above the message box, or wait for it.": "/better đang chạy ở đây: dừng nó ở phía trên ô nhập, hoặc chờ nó xong.",
     "/better has no task to deepen yet: give it a prompt, such as /better make the error messages clearer.": "/better chưa có tác vụ nào để đào sâu: hãy đưa cho nó một prompt, ví dụ /better make the error messages clearer.",
     "No /better is running here.": "Không có /better nào đang chạy ở đây.",
-    "text is the prompt to deepen, or nothing for the task in progress.": "text là prompt cần đào sâu, hoặc để trống cho tác vụ đang làm."
+    "text is the prompt to deepen, or nothing for the task in progress.": "text là prompt cần đào sâu, hoặc để trống cho tác vụ đang làm.",
+    "Test sites are hosts or *.suffix patterns separated by commas, or none.": "Trang thử nghiệm là các tên miền hoặc mẫu *.hậu-tố cách nhau bằng dấu phẩy, hoặc none.",
+    "A test site is a host like staging.example.com, or *.suffix like *.ts.net: not {1}.": "Một trang thử nghiệm là tên miền như staging.example.com, hoặc *.hậu-tố như *.ts.net: không phải {1}.",
+    "At most {1} test sites: {2} given.": "Tối đa {1} trang thử nghiệm: đã đưa {2}.",
+    "Sending a real site's pages to another run model is the owner's to approve.": "Gửi các trang của một trang web thật tới mô hình chạy khác là việc chủ sở hữu duyệt."
 }

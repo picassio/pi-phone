@@ -824,5 +824,9 @@
     "/better is already running here: stop it above the message box, or wait for it.": "/better 已在此运行：在消息框上方停止它，或等它完成。",
     "/better has no task to deepen yet: give it a prompt, such as /better make the error messages clearer.": "/better 还没有可深化的任务：请给它一个提示，例如 /better make the error messages clearer。",
     "No /better is running here.": "此处没有正在运行的 /better。",
-    "text is the prompt to deepen, or nothing for the task in progress.": "text 是要深化的提示，留空则针对进行中的任务。"
+    "text is the prompt to deepen, or nothing for the task in progress.": "text 是要深化的提示，留空则针对进行中的任务。",
+    "Test sites are hosts or *.suffix patterns separated by commas, or none.": "测试网站是用逗号分隔的主机或 *.后缀 模式，或 none。",
+    "A test site is a host like staging.example.com, or *.suffix like *.ts.net: not {1}.": "测试网站是像 staging.example.com 这样的主机，或像 *.ts.net 这样的 *.后缀：不是 {1}。",
+    "At most {1} test sites: {2} given.": "最多 {1} 个测试网站：给了 {2} 个。",
+    "Sending a real site's pages to another run model is the owner's to approve.": "把真实网站的页面发送给另一个运行模型，需要所有者批准。"
 }

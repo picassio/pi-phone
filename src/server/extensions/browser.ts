@@ -14,6 +14,8 @@ import { fencedPage } from "../fence.ts";
 import { report, runDecider } from "../browser/run.ts";
 import { approveFor } from "../risky.ts";
 import { inBatchOrder } from "../batch-order.ts";
+import { runModelFor } from "../run-model-card.ts";
+import { siteOf as siteName } from "../test-sites.ts";
 import type { ApprovalRequest, PocketHost } from "../host.ts";
 import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
 import { describeLayout, type LayoutReport } from "../layout-check.ts";
@@ -946,15 +948,15 @@ export default function createBrowser(host: PocketHost) {
                 }
 
                 // Pi's model for this call, else the setting (PP-451): decided before the browser starts.
-                const chosen = await runDecider(host.browserRunModel(api.conversationId as never), args.model, () => host.apiKey("openrouter"), (prompt) =>
-                    host.askSessionModel(api.conversationId as never, prompt, 600),
-                );
+                const setting = host.browserRunModel(api.conversationId as never);
+                const chosen = await runDecider(setting, args.model, () => host.apiKey("openrouter"), (prompt) => host.askSessionModel(api.conversationId as never, prompt, 600));
 
                 if ("error" in chosen) {
                     return reply(chosen.error, true);
                 }
 
-                const { decider, model, label } = chosen;
+                // Pi's model other than the setting's: the owner's card at the first step on a real site (PP-456).
+                const runModel = runModelFor(host, api, context, { tool: "browser_run", place: "browser", setting, asked: args.model, chosen, site: siteName });
                 const browser = await browserOf(api, context);
 
                 try {
@@ -985,18 +987,16 @@ export default function createBrowser(host: PocketHost) {
                         host.secrets.used([given.secret]);
                     }
 
-                    const { result, page } = await browser.run(caller, { goal: args.goal, values, secrets, maxSteps: args.max_steps ?? 25, decider, approve: approveFor(host, api, context) });
+                    const { result, page } = await browser.run(caller, { goal: args.goal, values, secrets, maxSteps: args.max_steps ?? 25, decider: runModel.decider, approve: approveFor(host, api, context) });
 
-                    if (model !== "session" && result.decisions > 0) {
-                        await host.chargeSession(api.conversationId as never, `openrouter/${model}`, { ...result.tokens, cost: result.cost });
-                    }
+                    await runModel.charge(result);
 
                     // Windows the pages asked to open during the run, while popups is ask: the person's cards now (PP-249).
                     const windows = browser.windowAsks().length === 0 ? "" : `\n${fencedPage(await windowCards(api, context, "browser_run", browser, session, ""))}`;
                     // Permissions the pages asked for, while browser.permissions is ask: the owner's cards now (PP-376).
                     const permissions = browser.permissionAsks().length === 0 ? "" : `\n${fencedPage((await permissionCards(api, context, "browser_run", browser, session, "")).trim())}`;
 
-                    return reply(report(result, label, page) + windows + permissions, result.status !== "done");
+                    return reply(report(result, runModel.label(), page) + windows + permissions, result.status !== "done");
                 } catch (error) {
                     // A failed step or page can say the page's words: fenced as the report is.
                     return reply(fencedPage(error instanceof Error ? error.message : String(error)), true);

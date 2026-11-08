@@ -154,6 +154,7 @@ import { renderRequest, type RenderOptions, Screenshots, type Shot } from "./scr
 import { renderInTabs } from "./tab-render.ts";
 import { FilePages } from "./file-pages.ts";
 import { CHROME_FEATURES_MAX, MACHINE_BROWSER_MODES, type MachineAccess, type MachineBrowserMode, MachineEngine, parseChromeFeatures } from "./browser/machine-engine.ts";
+import { parseTestSites, TEST_SITES_MAX } from "./test-sites.ts";
 import { BrowserPlaces, BrowserSites, BrowserSizes, renderTabs, SessionEngine, TabOwners } from "./browser/session-engine.ts";
 import { activePortScript, AttachedEngine, type BrowserEndpoint, connectBrowser, inspectScript, isOwnProfile, processKnown, profileFromInspect } from "./browser/attached-engine.ts";
 import { checkPolicy, EXTENSIONS as POLICY_EXTENSIONS, PolicyStore } from "./policy.ts";
@@ -1400,6 +1401,7 @@ export class PocketApp {
             attachBrowser: (cwd, session, options, ask) => this.attachBrowser(cwd, session, options, ask),
             detachBrowser: (session) => this.detachBrowser(session),
             browserRunModel: (id) => this.sessionMeta(this.rootOf(id))?.browserRunModel ?? this.config.browserRunModel,
+            browserTestSites: () => this.config.browserTestSites,
             browserEval: () => this.config.browserEval,
             hookOn: (id) => this.config.hookOn(id),
             apiKey: async (provider) => (await this.models.getAuth(provider))?.auth.apiKey,
@@ -4332,6 +4334,38 @@ export class PocketApp {
     }
 
     /**
+     * The owner's test sites (`browser.testSites`, PP-456, `test-sites.ts`): hosts or `*.suffix` patterns, separated by
+     * commas, or none. Where browser_run may take Pi's run model without the owner's card. The owner's.
+     */
+    setBrowserTestSites(user: User, value: unknown): string {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        if (typeof value !== "string") {
+            throw new HttpError(400, "Test sites are hosts or *.suffix patterns separated by commas, or none.");
+        }
+
+        const parsed = parseTestSites(value);
+
+        if ("bad" in parsed) {
+            throw new HttpError(400, `A test site is a host like staging.example.com, or *.suffix like *.ts.net: not ${parsed.bad.join(", ")}.`);
+        }
+
+        if ("tooMany" in parsed) {
+            throw new HttpError(400, `At most ${TEST_SITES_MAX} test sites: ${parsed.tooMany} given.`);
+        }
+
+        if (parsed.sites.join(",") === this.config.browserTestSites.join(",")) {
+            return "Unchanged.";
+        }
+
+        this.config.browserTestSites = parsed.sites;
+
+        return parsed.sites.length === 0 ? "Only the built-in test sites now." : "";
+    }
+
+    /**
      * The Chrome features every Chrome Pi's browser starts on a machine gets (`browser.chromeFeatures`, PP-454): names
      * separated by commas, or none. A change stops the machines' Chrome now (open tabs there close, sign-ins stay); each
      * starts with them at its next use. One running from before pi-phone started starts again then too (the launch script
@@ -5544,12 +5578,18 @@ export class PocketApp {
             throw new HttpError(403, "The library of skills and commands is the owner's.");
         }
 
+        // Pi's run model on a real site (PP-456): sending its pages to another provider is the owner's to approve.
+        if (allow && request.form?.type === "run-model" && user.role !== "owner") {
+            throw new HttpError(403, "Sending a real site's pages to another run model is the owner's to approve.");
+        }
+
         if (
             allow &&
             request.form !== undefined &&
             request.form.type !== "machine" &&
             request.form.type !== "risky" &&
             request.form.type !== "library" &&
+            request.form.type !== "run-model" &&
             request.form.type !== "phone" &&
             request.form.type !== "computer" &&
             request.form.type !== "extension" &&

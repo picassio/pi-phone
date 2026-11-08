@@ -2177,7 +2177,19 @@ so Pi changes them through the settings tools; "the last session" is the one the
   OpenRouter.
 - **The run model for one call** (`runDecider` in `browser/run.ts`, PP-451): browser_run and computer_run take an
   optional `model`, `jev` or `session`, Pi's choice for that call over the owner's setting (`browser.runModel`,
-  `browser.sessionRunModel`), with no card: Jev is cheaper and faster than most session models. `jev` is the setting's
+  `browser.sessionRunModel`), with no card on a test site: Jev is cheaper and faster than most session models. On a
+  real site the owner decides (PP-456, `run-model-card.ts`, `test-sites.ts`): each step's page goes to the run
+  model's provider, so a `model` other than the setting's runs behind `SiteGuardDecider`, which judges every step's
+  page and, at the run's first real-site step, asks on a card (`form.type: "run-model"`: the site, the setting's
+  model, Pi's, the provider). Approve once: Pi's model for the rest of the run. Deny, or nobody within 5 minutes (a
+  schedule): the setting's model from that step on, said in the report (`…, after the owner's card for … on …
+  (…)`); this is the owner's answer, not a fallback, and the setting's model failing (Jev without OpenRouter) stops
+  the run with why. Decisions already made on a test site stay Pi's model's, charged to it (`usage`, by Jev model).
+  Test sites: `isLocalAddress` (localhost, 127/8, ::1, 10/8, 172.16/12, 192.168/16, 169.254/16, 100.64/10), hosts
+  under .test, .localhost, .local, .example, .invalid, .internal, file: and about: pages, and the owner's
+  `browser.testSites` (hosts or `*.suffix`, at most 30; Settings › Pi's browser › Test sites). An address is judged
+  as written, so a machine's own localhost is a test site. computer_run's window (`app:` in its state) is never one:
+  its override always asks. Only the owner approves; no `model`, or the setting's own, never asks. `jev` is the setting's
   Jev when it names one, else typesafe/jev-1.14 (the documented default); left out, the setting decides as before.
   `jev` without the OpenRouter sign-in is an error that names Settings › Providers and model `session`, before the
   browser starts; never a quiet switch. The report says who chose (`… by Jev (typesafe/jev-1.14) as Pi asked` / `as the

@@ -3899,5 +3899,14 @@
     "{n} tool": "{n} 个工具",
     "{n} tools": "{n} 个工具",
     "Deepen a prompt, or the task in progress: a read-only helper puts the rewrite in your message box": "深化一个提示或进行中的任务：只读助手把改写结果放进你的消息框",
-    "Claude keeps the context in a cache, which costs far less to read than to send again. After the cache expires, the next turn writes the whole context again. 1 hour suits a session that waits on subagents, CI runs or schedules for longer than 5 minutes; each write then costs more. Switching a session that already has a context writes it again once. A session's own choice comes first, and its subagents follow it.": "Claude 把上下文保存在缓存中，读取缓存比重新发送便宜得多。缓存过期后，下一轮会重新写入整个上下文。1 小时适合等待子代理、CI 运行或定时消息超过 5 分钟的会话；此时每次写入更贵。切换一个已有上下文的会话会重新写入一次。会话自己的选择优先，其子代理跟随它。"
+    "Claude keeps the context in a cache, which costs far less to read than to send again. After the cache expires, the next turn writes the whole context again. 1 hour suits a session that waits on subagents, CI runs or schedules for longer than 5 minutes; each write then costs more. Switching a session that already has a context writes it again once. A session's own choice comes first, and its subagents follow it.": "Claude 把上下文保存在缓存中，读取缓存比重新发送便宜得多。缓存过期后，下一轮会重新写入整个上下文。1 小时适合等待子代理、CI 运行或定时消息超过 5 分钟的会话；此时每次写入更贵。切换一个已有上下文的会话会重新写入一次。会话自己的选择优先，其子代理跟随它。",
+    "Test sites": "测试网站",
+    "When Pi picks a run model other than the setting's for one run, a real site's pages go to that model's provider, so you approve it on a card first. Not on a test site: localhost, private addresses, hosts under .test, .local, .localhost, .example, .invalid or .internal, file: pages, and the hosts here (or *.suffix for every host under one), separated by commas.": "当 Pi 为单次运行选择与设置不同的运行模型时，真实网站的页面会发送给该模型的提供方，因此需要你先在卡片上批准。测试网站不需要：localhost、私有地址、.test、.local、.localhost、.example、.invalid 或 .internal 下的主机、file: 页面，以及这里列出的主机（或用 *.后缀 表示其下所有主机），用逗号分隔。",
+    "the session's own model": "会话自己的模型",
+    "Pi asks to use another run model in this app": "Pi 请求在此应用中使用另一个运行模型",
+    "Pi asks to use another run model on this site": "Pi 请求在此网站上使用另一个运行模型",
+    "Each step's page then goes to OpenRouter (openrouter.ai). Approve once is for this run; Deny runs it with the setting's model.": "那时每一步的页面会发送到 OpenRouter（openrouter.ai）。“批准一次”只用于本次运行；“拒绝”则用设置中的模型运行。",
+    "Each step's page then goes to the session's model's provider. Approve once is for this run; Deny runs it with the setting's model.": "那时每一步的页面会发送到会话模型的提供方。“批准一次”只用于本次运行；“拒绝”则用设置中的模型运行。",
+    "The setting: {model}": "设置：{model}",
+    "Pi asks for: {model}": "Pi 请求：{model}"
 }

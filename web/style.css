@@ -21521,7 +21521,7 @@ pre.gallery-code {
 }
 
 /* Pi's browser sheet: a run model's row, its dropdown and for Jev its cost and Test (PP-312); the Chrome features
-   field and its Save (PP-454). */
+   field and its Save (PP-454), and the test sites field, drawn the same (PP-456). */
 .setting-row.pb-run .field,
 .setting-row.pb-features .field {
     flex: 1;
