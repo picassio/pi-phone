@@ -11,6 +11,7 @@ import { execFileSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { after, before, test } from "node:test";
 import { ChromeEngine, PiBrowser } from "../src/server/browser/pi-browser.ts";
+import { NO_CARD } from "./no-card.ts";
 import { blockedInPlanMode } from "../src/server/extensions/plan.ts";
 import createBrowser, { EVAL_MAX, evalAnswer } from "../src/server/extensions/browser.ts";
 import { BUILT_IN_TOOLS } from "../src/server/reload.ts";
@@ -248,7 +249,7 @@ test("with Chrome: cookies, storage, the network, timers, windows and writing th
 
         // The page's own world has all of it still: its own script reads them when its button is pressed.
         const page = await browser.snapshot(1);
-        const checked = await browser.click(1, Number(/\[(\d+)\] button "Check"/.exec(page)![1]));
+        const checked = await browser.click(1, Number(/\[(\d+)\] button "Check"/.exec(page)![1]), NO_CARD);
 
         assert.match(checked, /session=tok-123 store-456 sess-789 function function function/);
         assert.equal(await value(browser, "document.getElementById('out').textContent"), "session=tok-123 store-456 sess-789 function function function");
@@ -278,7 +279,7 @@ test("with Chrome: what the person typed on a card reads as empty in a script, a
             ["", null],
         ]);
 
-        const signedIn = await browser.click(1, Number(/\[(\d+)\] button "Sign in"/.exec(await browser.snapshot(1))![1]));
+        const signedIn = await browser.click(1, Number(/\[(\d+)\] button "Sign in"/.exec(await browser.snapshot(1))![1]), NO_CARD);
 
         assert.match(signedIn, /Hello \[username for pi\.test\], signed in with \[typed by the person\]/, "the page's own world read the values");
 

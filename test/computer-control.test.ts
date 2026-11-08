@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { after, test } from "node:test";
 import { ComputerControl, type ComputerControlOptions, type ComputerFrame, type ComputerMachine, typesCharacter } from "../src/server/computer-control.ts";
 import { parseApps, parseError, parseOutline, pngSize, withoutErrorLine } from "../src/server/computer-outline.ts";
+import { answering, NO_ASK } from "./no-card.ts";
 
 const FAKE = join(import.meta.dirname, "support", "fake-ocu.ts");
 const root = mkdtempSync(join(tmpdir(), "pi-phone-computer-"));
@@ -215,8 +216,8 @@ test("Pi reads and acts in its apps only; never a password field; [n] only while
     const { text } = await control.screen(session, "Pi OCU Demo");
 
     assert.match(text, /3 password text \[password\]/);
-    await control.act(session, undefined, { op: "set_value", index: 2, value: "Tuan" });
-    const greeted = await control.act(session, undefined, { op: "click", index: 5 });
+    await control.act(session, undefined, { op: "set_value", index: 2, value: "Tuan" }, NO_ASK);
+    const greeted = await control.act(session, undefined, { op: "click", index: 5 }, NO_ASK);
 
     assert.match(greeted.text, /label Hello, Tuan!/);
     assert.equal(greeted.did, "Clicked [5] push button Greet.");
@@ -230,17 +231,17 @@ test("Pi reads and acts in its apps only; never a password field; [n] only while
     // Password fields: refused here, before ocu gets them.
     const before = calls().length;
 
-    await assert.rejects(control.act(session, undefined, { op: "set_value", index: 3, value: "hunter2" }), /\[3\] is a password field: Pi never types a password as text\. Fill it with a saved secret by name/);
-    await control.act(session, undefined, { op: "press_key", key: "Tab" });
-    await assert.rejects(control.act(session, undefined, { op: "type_text", text: "hunter2" }), /The field in focus is a password field: Pi never types a password as text/);
-    await assert.rejects(control.act(session, undefined, { op: "press_key", key: "h" }), /a key at a time either/);
+    await assert.rejects(control.act(session, undefined, { op: "set_value", index: 3, value: "hunter2" }, NO_ASK), /\[3\] is a password field: Pi never types a password as text\. Fill it with a saved secret by name/);
+    await control.act(session, undefined, { op: "press_key", key: "Tab" }, NO_ASK);
+    await assert.rejects(control.act(session, undefined, { op: "type_text", text: "hunter2" }, NO_ASK), /The field in focus is a password field: Pi never types a password as text/);
+    await assert.rejects(control.act(session, undefined, { op: "press_key", key: "h" }, NO_ASK), /a key at a time either/);
     assert.deepEqual(calls().slice(before).map((each) => each.tool), ["press_key"], "only Tab reached ocu");
-    await control.act(session, undefined, { op: "press_key", key: "Return" });
+    await control.act(session, undefined, { op: "press_key", key: "Return" }, NO_ASK);
     // Pi's own calls never tell ocu it may type into a password field: only a saved secret by name does (its name in
     // what Pi is told, its value in the field).
     assert.equal(calls().filter((each) => "allow_password_input" in each.args).length, 0);
     await control.screen(session, "demo_app.py");
-    const filled = await control.act(session, undefined, { op: "set_value", index: 3, value: "s3cret-55", secret: "DEMO_PW" });
+    const filled = await control.act(session, undefined, { op: "set_value", index: 3, value: "s3cret-55", secret: "DEMO_PW" }, NO_ASK);
 
     assert.equal(filled.did, "Set [3] password text [password] to [secret DEMO_PW].");
     assert.deepEqual(calls().at(-1), { tool: "set_value", args: { app: "demo_app.py", element_index: "3", value: "s3cret-55", allow_password_input: true } });
@@ -250,7 +251,7 @@ test("Pi reads and acts in its apps only; never a password field; [n] only while
     // The ticker's numbers move with each read: after the panel read it again, Pi's [1] is no longer its [1].
     await control.screen(session, "ticker");
     await control.setTab(7, "ticker");
-    await assert.rejects(control.act(session, "ticker", { op: "click", index: 1 }), /\[1\] in Ticker is no longer what you read \(the window changed\): read it again/);
+    await assert.rejects(control.act(session, "ticker", { op: "click", index: 1 }, NO_ASK), /\[1\] in Ticker is no longer what you read \(the window changed\): read it again/);
     await control.end("m1", "test over");
 });
 
@@ -300,7 +301,7 @@ test("following along: an app the named one opens joins, one step", async () => 
     const session = await start(control, { follow: true, apps: [DEMO] });
 
     await control.screen(session, "demo_app.py");
-    const done = await control.act(session, undefined, { op: "click", index: 7 });
+    const done = await control.act(session, undefined, { op: "click", index: 7 }, NO_ASK);
 
     assert.deepEqual(done.joined, [{ label: "Help", name: "help-viewer" }]);
     assert.deepEqual(session.followed, [{ label: "Help", name: "help-viewer" }]);
@@ -428,10 +429,10 @@ test("an element whose states changed (focus moved, a tick) is still the element
     await control.input(7, { type: "tap", x: 100, y: 70 });
     control.takeOver(7, false);
     assert.doesNotMatch(control.outlineOf(session, DEMO)!.elements.find((each) => each.index === 2)!.what, /focused/);
-    await control.act(session, undefined, { op: "set_value", index: 2, value: "Tuan" });
+    await control.act(session, undefined, { op: "set_value", index: 2, value: "Tuan" }, NO_ASK);
     assert.deepEqual(calls().at(-1), { tool: "set_value", args: { app: "demo_app.py", element_index: "2", value: "Tuan" } });
     // A tick shows as a state of the same element.
-    const ticked = await control.act(session, undefined, { op: "click", index: 4 });
+    const ticked = await control.act(session, undefined, { op: "click", index: 4 }, NO_ASK);
 
     assert.match(ticked.text, /4 check box Shout Secondary Actions: click States: checked/);
     assert.deepEqual(control.outlineOf(session, DEMO)!.elements.find((each) => each.index === 4)!.states, ["checked"]);
@@ -451,11 +452,11 @@ test("an action names the newest read of its app (the panel's too), and the wind
     const newest = control.outlineOf(session, DEMO)!.snapshot;
 
     assert.ok(pis !== undefined && newest !== undefined && pis !== newest);
-    await control.act(session, undefined, { op: "set_value", index: 2, value: "Tuan" });
+    await control.act(session, undefined, { op: "set_value", index: 2, value: "Tuan" }, NO_ASK);
     assert.deepEqual(rawCalls().at(-1), { tool: "set_value", args: { app: "demo_app.py", element_index: "2", value: "Tuan", snapshot_id: newest } });
     // Viewer's name matches two windows: the action names the one read.
     await control.screen(session, "viewer");
-    await control.act(session, "viewer", { op: "click", index: 1 });
+    await control.act(session, "viewer", { op: "click", index: 1 }, NO_ASK);
     assert.equal(rawCalls().at(-1)!.args.window_id, control.outlineOf(session, VIEWER)!.windowId);
     assert.match(String(rawCalls().at(-1)!.args.window_id), /^4242:\d+$/);
     // Reads name no snapshot.
@@ -470,7 +471,7 @@ test("ocu's stale_ref (the window changed under the read): Pi is told plainly to
 
     await control.screen(session, "demo_app.py");
     writeFileSync(staleFile, "");
-    const refused = await control.act(session, undefined, { op: "click", index: 5 }).then(
+    const refused = await control.act(session, undefined, { op: "click", index: 5 }, NO_ASK).then(
         () => assert.fail("the click went through"),
         (error: Error) => error.message,
     );
@@ -486,9 +487,9 @@ test("Pi's click at a point is refused before ocu (the real-mouse mode, PP-267);
     const session = await start(control);
 
     await control.screen(session, "demo_app.py");
-    await assert.rejects(control.act(session, undefined, { op: "click", x: 200, y: 140 }), /Clicking a point \(200,140\) needs the real-mouse mode, which is not on yet \(PP-267\): click an element by its index/);
+    await assert.rejects(control.act(session, undefined, { op: "click", x: 200, y: 140 }, NO_ASK), /Clicking a point \(200,140\) needs the real-mouse mode, which is not on yet \(PP-267\): click an element by its index/);
     assert.equal(calls().filter((each) => each.tool === "click").length, 0, "no click reached ocu");
-    await control.act(session, undefined, { op: "click", index: 5 });
+    await control.act(session, undefined, { op: "click", index: 5 }, NO_ASK);
     assert.equal(calls().at(-1)!.args.headed, undefined);
     control.takeOver(7, true);
     await control.input(7, { type: "tap", x: 200, y: 140 });
@@ -510,5 +511,36 @@ test("a covered window: black parts listed in the picture, the panel's note; a m
     assert.equal(control.panelOf("m1")!.cover, "minimized");
     await control.setTab(7, "demo_app.py");
     assert.equal(control.panelOf("m1")!.cover, null);
+    await control.end("m1", "test over");
+});
+
+test("computer_act on Send asks the owner first (PP-455): denied, ocu never gets it; approved, it is done once, and the next asks again; Save draft does not ask", async () => {
+    const { control, calls } = make({ env: { FAKE_OCU_MAIL: "1" } });
+    const MAIL = { label: "Mail", name: "mail" };
+    const session = await start(control, { apps: [MAIL] });
+
+    await control.screen(session, "mail");
+    const denied = answering("Tuan denied it on the card:");
+
+    await assert.rejects(
+        control.act(session, undefined, { op: "click", index: 1 }, { tool: "computer_act", approve: denied }),
+        /^Error: Tuan denied it on the card: nothing was done \(the action: Clicked \[1\] push button Send; it may pay, send, book or delete: send\)\.$/,
+    );
+    assert.deepEqual(denied.asked, [{ tool: "computer_act", control: "push button Send", risk: { word: "send", found: "name" }, where: "Mail \u2014 Mail", place: "computer" }]);
+    // Enter on the focused Send, and its secondary action, ask as a click does.
+    await assert.rejects(control.act(session, undefined, { op: "press_key", key: "Return" }, { tool: "computer_act", approve: denied }), /nothing was done/);
+    await assert.rejects(control.act(session, undefined, { op: "secondary_action", index: 1, name: "click" }, { tool: "computer_act", approve: denied }), /nothing was done/);
+    assert.equal(calls().filter((each) => each.tool !== "get_app_state").length, 0, "ocu got none of them");
+    assert.match((await control.screen(session, "mail")).text, /label Draft/);
+
+    const approve = answering();
+    const sent = await control.act(session, undefined, { op: "click", index: 1 }, { tool: "computer_run", approve });
+
+    assert.match(sent.text, /label Sent/);
+    assert.deepEqual(approve.asked.map((step) => step.tool), ["computer_run"]);
+    await control.act(session, undefined, { op: "click", index: 1 }, { tool: "computer_act", approve });
+    assert.equal(approve.asked.length, 2, "each Send asks again");
+    assert.equal(calls().filter((each) => each.tool === "click").length, 2);
+    await control.act(session, undefined, { op: "click", index: 2 }, NO_ASK);
     await control.end("m1", "test over");
 });

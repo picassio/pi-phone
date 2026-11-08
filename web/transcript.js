@@ -2526,9 +2526,57 @@ function decided(decision) {
     return decision.allow ? t("Allowed by {who}", { who: decision.by }) : t("Denied by {who}", { who: decision.by });
 }
 
+/**
+ * Pi asks before a click, key or run step that may pay, send, book or delete (PP-455, `src/server/risky.ts`): the
+ * control in the page's or app's words, where it is, and why it counts. Approve once lets that one action go ahead and
+ * is the owner's alone; anyone who can steer may deny.
+ */
+function RiskyCard({ approval }) {
+    const { me } = store.state;
+    const form = approval.form;
+    const [busy, setBusy] = useState(false);
+    const owner = me?.role === "owner";
+    const answer = (allow) => {
+        setBusy(true);
+        attempt(() => actions.approve(approval.id, allow)).finally(() => setBusy(false));
+    };
+    const why =
+        form.found === "address"
+            ? t("Its form goes to an address with “{word}”.", { word: form.word })
+            : form.found === "button"
+              ? t("Its form's button says “{word}”.", { word: form.word })
+              : t("Its name says “{word}”.", { word: form.word });
+
+    return html`<div class="approval" data-part="approval" data-risky>
+        <div class="approval-head">
+            <span class="approval-shield" aria-hidden="true"><${Icon} name="shield" size=${16} /></span>
+            <div class="approval-title">
+                <span class="approval-ask">${form.place === "computer" ? t("Pi asks before this step on your computer") : t("Pi asks before this click in its browser")}</span>
+                <span class="approval-reason">${t("It may pay, send, book or delete. Approve once lets this one action go ahead; Deny stops it.")}</span>
+            </div>
+        </div>
+        <pre class="cmd">${form.control}</pre>
+        <div class="muted small">${form.where}</div>
+        <div class="muted small">${why}</div>
+        ${
+            !canSteer()
+                ? html`<div class="muted small">${t("Waiting for someone who can steer to answer.")}</div>`
+                : html`${!owner && html`<div class="muted small">${t("Only the owner approves this. You can deny it.")}</div>`}
+                      <div class="approval-actions">
+                          <button class="button deny" disabled=${busy} onClick=${() => answer(false)}>${t("Deny")}</button>
+                          ${owner && html`<button class="button primary" disabled=${busy} onClick=${() => answer(true)}>${t("Approve once")}</button>`}
+                      </div>`
+        }
+    </div>`;
+}
+
 function ApprovalCard({ approval }) {
     const { me, server } = store.state;
     const [busy, setBusy] = useState(false);
+
+    if (approval.form?.type === "risky") {
+        return html`<${RiskyCard} approval=${approval} />`;
+    }
 
     if (approval.form?.type === "ask") {
         return html`<${AskCard} approval=${approval} />`;

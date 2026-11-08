@@ -29,6 +29,7 @@ import { join } from "node:path";
 import { type ComputerOutline, type Cover, type DesktopApp, type Frame, parseApps, parseError, parseOutline, pngSize } from "./computer-outline.ts";
 import { hideTyped, SHORT_TYPED_NOTE, shortTypedShowing, type TypedFill, typedAreas } from "./computer-typed.ts";
 import { imageOf, OcuClient, type OcuProcess, type OcuResult, textOf } from "./ocu-client.ts";
+import { type Approve, riskOf, RiskyRefused, riskWords } from "./risky.ts";
 import {
     CONNECT_EXIT,
     connectBridge,
@@ -1106,6 +1107,8 @@ export class ComputerControl {
      * Pi acts in an app: checked here first (the app, the owner's hands, password fields, the element still the one read),
      * then ocu acts and answers with the window after it. With follow, an app that opens from it joins the session.
      * A password field takes only a saved secret by name (`secret`, `extensions/computer.ts`), never Pi's own text.
+     * A click, a secondary action, or Enter or Space on an element that may pay, send, book or delete waits for the
+     * owner's card first (`ask`, PP-455): a Deny or a timeout throws `RiskyRefused` and ocu is never called.
      */
     async act(
         session: ComputerSession,
@@ -1117,6 +1120,7 @@ export class ComputerControl {
             | { op: "press_key"; key: string }
             | { op: "scroll"; index: number; direction: "up" | "down" | "left" | "right"; pages?: number }
             | { op: "secondary_action"; index: number; name: string },
+        ask: { tool: string; approve: Approve },
     ): Promise<{ app: ComputerApp; did: string; text: string; joined: ComputerApp[] }> {
         const live = this.#liveOf(session);
 
@@ -1200,6 +1204,25 @@ export class ComputerControl {
                 args = { element_index: String(element!.index), action: action.name };
                 did = `${action.name} on ${named}`;
                 break;
+            }
+        }
+
+        // Ask before paying, sending, booking or deleting (PP-455): the element clicked or acted on, or the one in focus
+        // for Enter or Space (a key's last part: ctrl+Return is Return).
+        const pressed = action.op === "press_key" && /^(return|enter|kp_enter|space)$/i.test(action.key.trim().split("+").pop() ?? "");
+        const target =
+            action.op === "click" || action.op === "secondary_action"
+                ? element?.name
+                : pressed
+                  ? (outline?.elements.find((each) => each.states?.includes("focused"))?.name ?? outline?.focused)
+                  : undefined;
+        const risk = target === undefined ? undefined : riskOf(target);
+
+        if (target !== undefined && risk !== undefined) {
+            const answer = await ask.approve({ tool: ask.tool, control: target, risk, where: `${app.label} — ${outline?.window ?? ""}`, place: "computer" });
+
+            if (answer !== true) {
+                throw new RiskyRefused(`${answer} nothing was done (the action: ${did}; it may pay, send, book or delete: ${riskWords(risk)}).`);
             }
         }
 

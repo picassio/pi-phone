@@ -131,9 +131,10 @@ for (const [viewport, label] of [[VIEWPORTS.mobile, "390"], [VIEWPORTS.desktop, 
 
         const builtIn = await inPage<string[]>(`return JSON.stringify([...document.querySelectorAll('[data-part="hook-built-in"]')].map((each) => each.innerText.trim().replace(/\\s+/g, " ")))`);
 
-        assert.equal(builtIn.length, 2);
+        assert.equal(builtIn.length, 3);
         assert.match(builtIn[0]!, /^Capture idle sessions into the wiki After \d+ min idle/);
         assert.match(builtIn[1]!, /^Compact a full context When nearly full/);
+        assert.match(builtIn[2]!, /^Ask before paying, sending, booking or deleting Always on Before Pi's click, key or run step/);
 
         const before = await measure(`hooks-${label}`, viewport.width);
 

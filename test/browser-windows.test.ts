@@ -13,6 +13,7 @@ import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { Cdp } from "../src/server/browser/cdp.ts";
 import { type BrowserEngine, PiBrowser, type PopupMode, type WindowAsk } from "../src/server/browser/pi-browser.ts";
+import { NO_CARD } from "./no-card.ts";
 
 /** A page of the fake WebView: where it is, its title, the page that opened it, and what a click on its button does. */
 type Target = { url: string; title: string; openerId?: string; socket?: WebSocket; onClick?: () => void };
@@ -250,7 +251,7 @@ async function teams(mode: { now: PopupMode }) {
 
 test("a window a page opens becomes a tab in front, and Pi is told; when it closes itself, the page that opened it is in front again, and Pi is told (PP-249)", async () => {
     const { browser, phone } = await teams({ now: "allow" });
-    const clicked = await browser.click(1, 1);
+    const clicked = await browser.click(1, 1, NO_CARD);
 
     assert.deepEqual(phone.opened, ["w1"]);
     assert.match(clicked, /^The page opened a window: https:\/\/login\.test\/authorize; it is tab 2 now \(in front\)\.\nTab 2 of 2\. Sign in to your account — https:\/\/login\.test\/authorize\n/);
@@ -272,7 +273,7 @@ test("a window a page opens becomes a tab in front, and Pi is told; when it clos
 
 test("with popups off, the page gets no window, and Pi is told it tried (PP-249)", async () => {
     const { browser, phone } = await teams({ now: "off" });
-    const clicked = await browser.click(1, 1);
+    const clicked = await browser.click(1, 1, NO_CARD);
 
     assert.match(clicked, /^The page tried to open a window: https:\/\/login\.test\/authorize \(Pi's browser › popups is off\)\.\nTeams — /);
     assert.deepEqual(phone.opened, []);
@@ -282,7 +283,7 @@ test("with popups off, the page gets no window, and Pi is told it tried (PP-249)
 test("with popups ask, a window waits for the person: allowed, it opens as a tab; denied, the page gets none (PP-249)", async () => {
     const { browser, phone } = await teams({ now: "ask" });
 
-    assert.match(await browser.click(1, 1), /^Teams — /);
+    assert.match(await browser.click(1, 1, NO_CARD), /^Teams — /);
     assert.deepEqual(browser.windowAsks(), [{ id: "w1", url: "https://login.test/authorize" }]);
     assert.deepEqual(phone.opened, []);
     assert.match(await browser.answerWindow(1, "w1", true, "Tuan"), /^The page opened a window: https:\/\/login\.test\/authorize; it is tab 2 now \(in front\)\.\nTab 2 of 2\. /);
@@ -292,7 +293,7 @@ test("with popups ask, a window waits for the person: allowed, it opens as a tab
     // Another one, from Teams again, which the person refuses.
     await browser.switchTab(1, 1);
     phone.view.targets.get("t1")!.onClick = () => phone.windowOpen("t1", "w2", "https://login.test/again");
-    await browser.click(1, 1);
+    await browser.click(1, 1, NO_CARD);
     assert.match(await browser.answerWindow(1, "w2", false, "Tuan"), /^The page tried to open a window: https:\/\/login\.test\/again \(Tuan said no\)\.\nTab 1 of 2\. Teams/);
     assert.deepEqual(phone.refused, ["w2"]);
 });

@@ -35,6 +35,7 @@ import { layoutCheck, type LayoutReport, parseLayout } from "../layout-check.ts"
 /** A mark on a page's picture (PP-119): on a control by its number, on a text shown, or on an area of the view (CSS pixels). */
 export type PageMark = Omit<Mark, "area"> & { index?: number; text?: string; area?: MarkArea };
 import { type Decider, type RunResult, runGoal } from "./run.ts";
+import { type Approve, riskOf, RiskyRefused, riskWords, type Submit } from "../risky.ts";
 
 /** The page's size in CSS pixels: a phone's, as the WebView is a phone's browser. */
 export const VIEWPORT = { width: 412, height: 860, mobile: true };
@@ -1535,13 +1536,42 @@ export class PiBrowser {
         return `${verb} [${index}]${element === undefined ? "" : ` ${element.label}`}`;
     }
 
-    /** Click control `index`: once, or (PP-376) twice, with the right button, or a long press of `ms`. */
-    click(session: number, index: number, acceptDialog = false, { how = "single", ms }: { how?: ClickKind; ms?: number } = {}): Promise<string> {
+    /**
+     * Before Pi's click on (or Enter in) a control that may pay, send, book or delete (PP-455, `risky.ts`): the owner's
+     * card, through `approve`. Answers when it may go ahead; a Deny, a timeout or not the owner throws `RiskyRefused`
+     * naming what was not done, so nothing happens after it. `control` is the control in the page's words, for the card.
+     */
+    async #mayAct(approve: Approve, tool: string, control: string, submit: Submit | undefined, did: string): Promise<void> {
+        const risk = riskOf(control, submit);
+
+        if (risk === undefined) {
+            return;
+        }
+
+        const tab = this.#tab;
+        const doing = this.#state.doing;
+
+        this.#set({ doing: `Waiting for the owner: ${control}` });
+
+        try {
+            const answer = await approve({ tool, control, risk, where: `${tab?.title ?? ""} — ${tab?.url ?? ""}`, place: "browser" });
+
+            if (answer !== true) {
+                throw new RiskyRefused(`${answer} ${did} (it may pay, send, book or delete: ${riskWords(risk)}).`);
+            }
+        } finally {
+            this.#set({ doing });
+        }
+    }
+
+    /** Click control `index`: once, or (PP-376) twice, with the right button, or a long press of `ms`. One that may pay, send, book or delete waits for the owner's card (`approve`, PP-455). */
+    click(session: number, index: number, approve: Approve, acceptDialog = false, { how = "single", ms }: { how?: ClickKind; ms?: number } = {}): Promise<string> {
         const verb = { single: "Clicking", double: "Double-clicking", right: "Right-clicking", long: "Long-pressing" }[how];
 
         return this.#run(session, this.#doing(verb, index), async ({ page }) => {
             const { observed, element } = this.#element(index);
 
+            await this.#mayAct(approve, "browser_click", element.label, await page.submitOf(element), `[${index}] ${element.label} was not clicked`);
             await page.setAcceptDialogs(acceptDialog);
 
             try {
@@ -1609,9 +1639,14 @@ export class PiBrowser {
         });
     }
 
-    type(session: number, index: number, text: string, options: { clear?: boolean; submit?: boolean }): Promise<string> {
+    /** With `submit` (Enter after it), a form that may pay, send, book or delete waits for the owner's card first (PP-455). */
+    type(session: number, index: number, text: string, options: { clear?: boolean; submit?: boolean }, approve: Approve): Promise<string> {
         return this.#run(session, this.#doing("Typing into", index), async ({ page }) => {
             const { observed, element } = this.#element(index);
+
+            if (options.submit === true) {
+                await this.#mayAct(approve, "browser_type", element.label, await page.submitOf(element, true), `nothing was typed into [${index}] ${element.label}, nor Enter pressed`);
+            }
 
             await page.type(observed, element, text, options);
 
@@ -1624,9 +1659,13 @@ export class PiBrowser {
      * from Pi; what Pi is told is the page read again, and a password field's value is never read. `name` is for the
      * panel ("Typing [secret NAME] into [3]").
      */
-    typeSecret(session: number, index: number, name: string, value: string, options: { clear?: boolean; submit?: boolean }): Promise<string> {
+    typeSecret(session: number, index: number, name: string, value: string, options: { clear?: boolean; submit?: boolean }, approve: Approve): Promise<string> {
         return this.#run(session, `Typing [secret ${name}] into [${index}]`, async ({ page }) => {
             const { observed, element } = this.#element(index);
+
+            if (options.submit === true) {
+                await this.#mayAct(approve, "browser_type", element.label, await page.submitOf(element, true), `[secret ${name}] was not typed into [${index}] ${element.label}, nor Enter pressed`);
+            }
 
             await page.fill(observed, element, value, options);
 
@@ -1720,13 +1759,24 @@ export class PiBrowser {
         });
     }
 
-    press(session: number, key: string, acceptDialog = false): Promise<string> {
+    /** Enter or Space on a control in focus that may pay, send, book or delete waits for the owner's card first (`approve`, PP-455). */
+    press(session: number, key: string, approve: Approve, acceptDialog = false): Promise<string> {
         return this.#run(session, `Pressing ${key}`, async ({ page }) => {
             // A key that types a character never goes into a password field, as Pi's typing never does (PP-376).
-            const typing = chordOf(key)?.text;
+            const chord = chordOf(key);
+            const typing = chord?.text;
 
             if (typing !== undefined && typing !== "\r" && (await page.focusedPassword())) {
                 throw new Error(`The focus is in a password field, and ${key} would type into it: Pi never types there. Type a saved secret (browser_type with secret: NAME), or ask the person with browser_sign_in.`);
+            }
+
+            // Enter submits a form or follows a link; Space presses a button: as a click on the control in focus.
+            if (chord?.key === "Enter" || chord?.key === " ") {
+                const focused = await page.focusedControl();
+
+                if (focused !== undefined) {
+                    await this.#mayAct(approve, "browser_press", focused.name, chord.key === "Enter" ? focused.enter : focused.press, `${key} was not pressed on ${focused.name || "the control in focus"}`);
+                }
             }
 
             await page.setAcceptDialogs(acceptDialog);
@@ -2059,7 +2109,7 @@ export class PiBrowser {
      * Carry out a goal, a decision a step by the run model (`run.ts`), as one of Pi's actions: what it did, and the page
      * as it is after.
      */
-    run(session: number, options: { goal: string; values: Record<string, string>; secrets?: readonly string[]; maxSteps: number; decider: Decider }): Promise<{ result: RunResult; page: string }> {
+    run(session: number, options: { goal: string; values: Record<string, string>; secrets?: readonly string[]; maxSteps: number; decider: Decider; approve: Approve }): Promise<{ result: RunResult; page: string }> {
         return this.#run(session, `Running: ${options.goal.slice(0, 80)}`, async (tab) => {
             const page = tab.page;
 
@@ -2079,7 +2129,13 @@ export class PiBrowser {
             const result = await runGoal(
                 {
                     observe: () => page.observe(),
-                    click: (observed, node) => page.click(observed, element(observed, node)),
+                    // A click that may pay, send, book or delete waits for the owner's card (PP-455); a Deny stops the run, blocked.
+                    click: async (observed, node) => {
+                        const target = element(observed, node);
+
+                        await this.#mayAct(options.approve, "browser_run", target.label, await page.submitOf(target), `[${target.index}] ${target.label} was not clicked`);
+                        await page.click(observed, target);
+                    },
                     // A secret may go into a password field (`fill`); anything else goes through `type`, which refuses them.
                     type: (observed, node, text, secret) => (secret ? page.fill(observed, element(observed, node), text, { clear: true }) : page.type(observed, element(observed, node), text, { clear: true })),
                     select: async (observed, node, option) => {

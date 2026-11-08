@@ -109,6 +109,13 @@ export interface ApprovalRequest {
          */
         | { type: "crd-connect"; machine: string; machineName: string }
         /**
+         * Pi's click, key or run step that may pay, send, book or delete (PP-455, `risky.ts`): the control in the page's or
+         * app's words, why it counts (the word, found in its name, its form's submit button or its form's address), and
+         * where it is (the page's title and address, or the app and its window). Approve once lets that one action go
+         * ahead; only the owner approves.
+         */
+        | { type: "risky"; control: string; word: string; found: "name" | "button" | "address"; where: string; place: "browser" | "computer" }
+        /**
          * Pi installs, updates or removes tools pi-phone puts on a machine (`machine_tools`, PP-325): the machine and each
          * tool with its version from (installed, if any) and to (the catalog's, absent when removed), its size, whether it
          * comes as another's need (`needed`), and a note (what needs it). Approve runs what Settings › Machines runs;

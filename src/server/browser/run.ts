@@ -11,6 +11,7 @@
 import type { Observed } from "./page.ts";
 import { fencedPage } from "../fence.ts";
 import { JEV_RERANK_DEFAULT } from "../jev.ts";
+import { RISKY_RUN_NOTE } from "../risky.ts";
 
 // ─── The questions (verbatim from jev-ultrafast / jev-ra, where they were measured) ──────────────────────────────
 
@@ -59,7 +60,7 @@ const GOAL_ACHIEVED_CRITERIA = {
     false: "At least one requirement is still unsatisfied or not visible.",
 };
 const OPERATION_LABELS: Record<string, string> = {
-    CLICK: "Click an element, button, menu option, autocomplete suggestion, or calendar day.",
+    CLICK: `Click an element, button, menu option, autocomplete suggestion, or calendar day. ${RISKY_RUN_NOTE}`,
     TYPE_TEXT: "Enter or replace text in an editable field. The host agent supplies the value.",
     SELECT: "Select an observed dropdown value.",
     DRAG: "Drag a draggable element onto another element (a card to a column, an item in a sortable list, a slider's handle).",

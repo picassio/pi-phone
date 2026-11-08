@@ -22,6 +22,7 @@ import { defineExtension, defineTool, section } from "@earendil-works/pi-durable
 import type { ComputerApp, ComputerSession } from "../computer-control.ts";
 import { MINUTES } from "../computer-control.ts";
 import { runOnComputer } from "../computer-run.ts";
+import { approveFor } from "../risky.ts";
 import { lockedNote } from "../computer-windows.ts";
 import { report, runDecider } from "../browser/run.ts";
 import { ChromeRemoteDesktop, CRD_HEADLESS, crdConnected, crdWord, installPlan, removePlan } from "../crd.ts";
@@ -487,9 +488,11 @@ export default function createComputer(host: PocketHost) {
             name: opt(str({ description: "secondary_action: the action's name" })),
             seconds: opt(num({ minimum: 0, maximum: 10, description: "wait: how long" })),
         }, { open: true }),
-        execute: async (args, api) => {
+        execute: async (args, api, context) => {
             try {
                 const session = sessionOf(api.conversationId, args.machine);
+                // A click or key that may pay, send, book or delete: the owner's card first (PP-455).
+                const ask = { tool: "computer_act", approve: approveFor(host, api, context) };
 
                 if (args.action === "wait") {
                     await pause(Math.max(0, Math.min(10, args.seconds ?? 2)) * 1000);
@@ -538,7 +541,7 @@ export default function createComputer(host: PocketHost) {
                             ...(args.index === undefined ? { x: args.x, y: args.y } : { index: args.index }),
                             ...(args.action === "double_click" ? { count: 2 } : {}),
                             ...(args.action === "right_click" ? { button: "right" as const } : {}),
-                        });
+                        }, ask);
                         break;
 
                     case "set_value": {
@@ -549,7 +552,7 @@ export default function createComputer(host: PocketHost) {
                                 return reply(found.error, true);
                             }
 
-                            done = await control.act(session, args.app, { op: "set_value", index: needIndex("set_value"), value: found.value, secret: found.secret });
+                            done = await control.act(session, args.app, { op: "set_value", index: needIndex("set_value"), value: found.value, secret: found.secret }, ask);
                             break;
                         }
 
@@ -557,7 +560,7 @@ export default function createComputer(host: PocketHost) {
                             return reply("set_value needs value (or secret, a saved secret's name).", true);
                         }
 
-                        done = await control.act(session, args.app, { op: "set_value", index: needIndex("set_value"), value: args.value });
+                        done = await control.act(session, args.app, { op: "set_value", index: needIndex("set_value"), value: args.value }, ask);
                         break;
                     }
 
@@ -569,7 +572,7 @@ export default function createComputer(host: PocketHost) {
                                 return reply(found.error, true);
                             }
 
-                            done = await control.act(session, args.app, { op: "type_text", text: found.value, secret: found.secret });
+                            done = await control.act(session, args.app, { op: "type_text", text: found.value, secret: found.secret }, ask);
                             break;
                         }
 
@@ -577,7 +580,7 @@ export default function createComputer(host: PocketHost) {
                             return reply("type_text needs text (or secret, a saved secret's name).", true);
                         }
 
-                        done = await control.act(session, args.app, { op: "type_text", text: args.text });
+                        done = await control.act(session, args.app, { op: "type_text", text: args.text }, ask);
                         break;
                     }
 
@@ -586,7 +589,7 @@ export default function createComputer(host: PocketHost) {
                             return reply("press_key needs key, like Return, Tab or ctrl+a.", true);
                         }
 
-                        done = await control.act(session, args.app, { op: "press_key", key: args.key.trim() });
+                        done = await control.act(session, args.app, { op: "press_key", key: args.key.trim() }, ask);
                         break;
 
                     case "scroll":
@@ -594,7 +597,7 @@ export default function createComputer(host: PocketHost) {
                             return reply("scroll needs a direction: up, down, left, or right.", true);
                         }
 
-                        done = await control.act(session, args.app, { op: "scroll", index: needIndex("scroll"), direction: args.direction, ...(args.pages === undefined ? {} : { pages: args.pages }) });
+                        done = await control.act(session, args.app, { op: "scroll", index: needIndex("scroll"), direction: args.direction, ...(args.pages === undefined ? {} : { pages: args.pages }) }, ask);
                         break;
 
                     case "secondary_action":
@@ -602,7 +605,7 @@ export default function createComputer(host: PocketHost) {
                             return reply("secondary_action needs name, one of the element's Secondary Actions.", true);
                         }
 
-                        done = await control.act(session, args.app, { op: "secondary_action", index: needIndex("secondary_action"), name: args.name });
+                        done = await control.act(session, args.app, { op: "secondary_action", index: needIndex("secondary_action"), name: args.name }, ask);
                         break;
                 }
 
@@ -634,7 +637,7 @@ export default function createComputer(host: PocketHost) {
             max_steps: opt(int({ minimum: 1, maximum: 60, description: "Steps at most (default 25)" })),
             model: opt(union([literal("jev"), literal("session")], { description: '"jev": cheaper, faster; "session": this session\'s model; default: the setting' })),
         }, { open: true }),
-        execute: async (args, api) => {
+        execute: async (args, api, context) => {
             let session: ComputerSession;
 
             try {
@@ -683,6 +686,7 @@ export default function createComputer(host: PocketHost) {
             };
 
             try {
+                const ask = { tool: "computer_run", approve: approveFor(host, api, context) };
                 const result = await runOnComputer(
                     {
                         read: async () => (await control.screen(session, args.app)).text,
@@ -691,6 +695,8 @@ export default function createComputer(host: PocketHost) {
                                 session,
                                 args.app,
                                 action.op === "set_value" && action.secret !== undefined ? { ...action, secret: secretName(action.secret) } : action,
+                                // A step that may pay, send, book or delete: the owner's card first; a Deny stops the run, blocked (PP-455).
+                                ask,
                             );
 
                             return { did: done.did, text: done.text };

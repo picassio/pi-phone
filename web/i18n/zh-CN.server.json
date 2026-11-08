@@ -569,6 +569,7 @@
     "There is a machine named {1} already.": "已有一台名为 {1} 的机器。",
     "Adding a machine is the owner's.": "添加机器由所有者决定。",
     "Changing a machine's tools is the owner's.": "更改机器上的工具由所有者决定。",
+    "Approving a step that may pay, send, book or delete is the owner's.": "批准可能付款、发送、预订或删除的步骤由所有者决定。",
     "The card offers no tool {1}.": "这张卡片没有提供工具 {1}。",
     "Controlling a computer is the owner's.": "控制电脑由所有者决定。",
     "Controlling the phone is the owner's.": "控制手机由所有者决定。",

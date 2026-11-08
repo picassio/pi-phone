@@ -284,7 +284,13 @@ dự án thật.</sub>
   của bạn; với mô hình của phiên, gửi tới nhà cung cấp của nó. Một lượt chạy tự nhấp và gõ mà không hỏi, trên các trang
   bạn có thể đang đăng nhập. Nó chỉ gõ các giá trị Pi cung cấp, dừng kèm lý do Pi xử lý được (cần một giá trị, bị
   chặn, bị kẹt, chưa thấy xong), và chi phí của Jev được tính vào Chi tiêu. Một thẻ trực tiếp trong cuộc trò chuyện hiện
-  mục tiêu, từng bước khi nó diễn ra, thời gian và chi phí, kèm nút Xem. **Mật khẩu từ Bí mật:** một đăng nhập bạn đã
+  mục tiêu, từng bước khi nó diễn ra, thời gian và chi phí, kèm nút Xem. **Hỏi trước khi thanh toán, gửi, đặt
+  chỗ hoặc xóa:** trước cú nhấp (`browser_click`), phím Enter hay Space (`browser_press`, `browser_type` có submit)
+  hoặc bước chạy nào của Pi trên một ô có thể thanh toán, gửi, đặt chỗ hoặc xóa (tên của nó, hay nút của biểu mẫu,
+  ghi pay, buy, checkout, place order, send, book, delete, transfer và các từ tương tự, bằng tiếng Anh, tiếng Việt hoặc
+  tiếng Trung; hoặc biểu mẫu gửi tới địa chỉ pay, checkout, order hay transfer), bạn trả lời một thẻ: **Duyệt một
+  lần** cho đúng thao tác đó chạy, **Từ chối** dừng nó (lượt chạy dừng, bị chặn). Chỉ bạn duyệt; không trả lời
+  trong 5 phút là Từ chối. Tính năng luôn bật (Menu › Hooks có ghi), cả trong điều khiển máy tính. **Mật khẩu từ Bí mật:** một đăng nhập bạn đã
   lưu trong Bí mật (và cho phép trong thư mục đó), Pi gõ theo tên (`browser_type` với `secret`, hoặc giá trị
   `{ secret }` của `browser_run`): giá trị đi vào trang, không bao giờ tới Pi hay mô hình chạy, và bí mật “hỏi trước”
   vẫn hỏi bạn qua một thẻ. **Nếu không, việc đăng nhập vẫn là của bạn:** Pi không bao giờ gõ mật khẩu hay mã dưới
@@ -601,7 +607,9 @@ dự án thật.</sub>
   (`computer_control`, `computer_screen`, `computer_act`, `computer_screenshot`, `computer_sign_in`), qua Computer use (ocu, một công cụ
   trên máy) chạy ở đó bằng ssh riêng của ứng dụng. Với một mục tiêu cụ thể trong một ứng dụng ("bật Dark mode trong
   Settings"), Pi có thể giao các bước cho `computer_run`, công cụ quyết định từng bước bằng cùng mô hình chạy với
-  `browser_run` (Cài đặt › Pi's browser) và dừng lại kèm lý do khi không đi tiếp được. Một cửa sổ nhỏ trên máy cho biết Pi đang dùng nó, có nút **Dừng**;
+  `browser_run` (Cài đặt › Pi's browser) và dừng lại kèm lý do khi không đi tiếp được. Một cú nhấp, một thao tác
+  phụ, hay Enter hoặc Space trên một phần tử có thể thanh toán, gửi, đặt chỗ hoặc xóa (`computer_act`, các bước của
+  `computer_run`) đều chờ thẻ của bạn trước, như trong trình duyệt của Pi. Một cửa sổ nhỏ trên máy cho biết Pi đang dùng nó, có nút **Dừng**;
   phiên kết thúc khi hết giờ, ngay sau khi lượt của Pi xong, hoặc khi bấm Dừng. Chế độ đi theo (khi Pi xin) cho phép một
   ứng dụng do các ứng dụng đã nêu mở ra tham gia. Ô mật khẩu được đánh dấu trong những gì Pi đọc, và Pi không bao giờ gõ
   mật khẩu dưới dạng văn bản: nó điền bằng một bí mật đã lưu theo tên (`computer_act` với `secret`, cùng quy tắc thư mục và

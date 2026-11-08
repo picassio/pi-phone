@@ -7,8 +7,39 @@
  */
 import { readFileSync } from "node:fs";
 import type { Cdp } from "./cdp.ts";
+import type { Submit } from "../risky.ts";
 
 const SNAPSHOT = readFileSync(new URL("./snapshot.js", import.meta.url), "utf8");
+/**
+ * What a click on an element (`enter` false), or Enter in it (`enter` true), submits (PP-455): its form's address (the
+ * button's formaction, the form's action, or the page's own address, where a form without one goes) and the name of the
+ * button that submits it; null when it submits no form.
+ */
+const SUBMIT_OF = `((e, enter) => {
+  if (!e) return null;
+  const form = e.form || (e.closest ? e.closest('form') : null);
+  if (!form) return null;
+  const submits = b => !!b && ((b.tagName==='BUTTON' && (b.getAttribute('type')||'submit').toLowerCase()==='submit') || (b.tagName==='INPUT' && /^(submit|image)$/i.test(b.type)));
+  const own = submits(e);
+  if (!own && !(enter && e.tagName==='INPUT')) return null;
+  const button = own ? e : [...form.elements].find(submits);
+  const name = b => b ? (b.getAttribute('aria-label') || b.innerText || b.value || b.getAttribute('alt') || b.getAttribute('title') || '').trim().slice(0, 200) : '';
+  const action = own && e.getAttribute('formaction') ? e.formAction : form.getAttribute('action') ? form.action : location.href;
+  return { action, button: name(button) };
+})`;
+/** The control in focus in this frame (PP-455): its name and what Enter submits; {frame: true} when a frame has it; null for none. */
+const FOCUSED = `(() => {
+  let e=document.activeElement;
+  while (e && e.shadowRoot && e.shadowRoot.activeElement) e=e.shadowRoot.activeElement;
+  if (!e || e===document.body || e===document.documentElement) return null;
+  if (e.tagName==='IFRAME' || e.tagName==='FRAME') return {frame: true};
+  const label = e.labels && e.labels[0] ? e.labels[0].innerText : '';
+  // A field's name, never what was typed into it (a secret may be there); a button's value is its words.
+  const field = (e.tagName==='INPUT' && !/^(submit|button|reset|image)$/i.test(e.type)) || e.tagName==='TEXTAREA' || e.isContentEditable;
+  const words = field ? e.getAttribute('placeholder') : e.innerText || e.value;
+  const name = (e.getAttribute('aria-label') || label || words || e.getAttribute('title') || '').trim().slice(0, 200);
+  return { name, submit: ${SUBMIT_OF}(e, true), button: ${SUBMIT_OF}(e, false) };
+})()`;
 /** What makes the world browser_eval's scripts run in one that only reads the page (PP-244; `eval-world.js`). */
 const EVAL_WORLD = readFileSync(new URL("./eval-world.js", import.meta.url), "utf8");
 /** The isolated world browser_eval's scripts run in, by name: one per frame, shared by the frames of an origin. */
@@ -2377,6 +2408,49 @@ export class BrowserPage {
         }
 
         throw new Error(`Could not select on the page: ${here.error}.`);
+    }
+
+    /**
+     * What a click on `element` (or, with `enter`, Enter in it) submits (PP-455, `risky.ts`): its form's address and
+     * submit button's name, if it submits a form.
+     */
+    async submitOf(element: Element, enter = false): Promise<Submit | undefined> {
+        const found = await this.#evaluateAt<Submit | null>(element.node, (local) => `${SUBMIT_OF}(window.__piBrowser?.nodes.get(${local}), ${enter})`);
+
+        return found ?? undefined;
+    }
+
+    /**
+     * The control in focus, where Enter or Space would act (PP-455): its name, the form Enter in it submits (`enter`),
+     * and the form it submits as a button pressed with Space (`press`). In the main frame or, when a frame has the
+     * focus, the frame that has it; undefined when nothing has the focus.
+     */
+    async focusedControl(): Promise<{ name: string; enter?: Submit; press?: Submit } | undefined> {
+        type Read = { name: string; submit: Submit | null; button: Submit | null } | { frame: true } | null;
+        const shaped = (read: { name: string; submit: Submit | null; button: Submit | null }) => ({
+            name: read.name,
+            ...(read.submit === null ? {} : { enter: read.submit }),
+            ...(read.button === null ? {} : { press: read.button }),
+        });
+        const main = await this.evaluate<Read>(FOCUSED);
+
+        if (main === null) {
+            return undefined;
+        }
+
+        if (!("frame" in main)) {
+            return shaped(main);
+        }
+
+        for (const frame of await this.#childFrames()) {
+            const there = await this.#evaluateIn<Read>(frame, FOCUSED);
+
+            if (there !== null && !("frame" in there)) {
+                return shaped(there);
+            }
+        }
+
+        return undefined;
     }
 
     /**

@@ -21,8 +21,26 @@ const TEXTS = {
     }),
 };
 
+/** Each built-in behaviour's words, in the person's language. */
+const BUILT_IN = {
+    wikiCapture: () => ({ title: t("Capture idle sessions into the wiki"), does: t("Writes what a session learned into the wiki once it has been idle a while.") }),
+    autoCompact: () => ({
+        title: t("Compact a full context"),
+        does: t("Summarizes a session's older messages once its context passes the set share of the model's window. Set it in a session's menu › Compact context."),
+    }),
+    // PP-455: no switch, as one would be a way to pay without asking.
+    askBeforeRisky: () => ({
+        title: t("Ask before paying, sending, booking or deleting"),
+        does: t("Before Pi's click, key or run step that may pay, send, book or delete, in Pi's browser or on a computer, you answer a card: Approve once or Deny. No answer in 5 minutes is Deny. It cannot be turned off."),
+    }),
+};
+
 /** A built-in behaviour's value as a state: what its own setting says now. */
 function builtInState(item) {
+    if (item.id === "askBeforeRisky") {
+        return { tone: "ok", label: t("Always on") };
+    }
+
     if (item.id === "wikiCapture") {
         return item.minutes === null ? { tone: "off", label: t("Only when asked") } : { tone: "ok", label: t("After {n} min idle", { n: item.minutes }) };
     }
@@ -70,21 +88,16 @@ export function HooksSheet() {
                         </div>`;
                     })}
                 </div>
-                <div class="label">${t("Built in, with settings of their own")}</div>
+                <div class="label">${t("Built in")}</div>
                 <div class="sheet-list" data-part="hooks-built-in">
                     ${view.builtIn.map((item) => {
                         const state = builtInState(item);
+                        const words = BUILT_IN[item.id]();
 
                         return html`<div class="provider" data-part="hook-built-in" data-hook=${item.id}>
                             <div>
-                                <div>${item.id === "wikiCapture" ? t("Capture idle sessions into the wiki") : t("Compact a full context")} <${StateTag} tone=${state.tone} label=${state.label} /></div>
-                                <div class="muted small">
-                                    ${
-                                        item.id === "wikiCapture"
-                                            ? t("Writes what a session learned into the wiki once it has been idle a while.")
-                                            : t("Summarizes a session's older messages once its context passes the set share of the model's window. Set it in a session's menu › Compact context.")
-                                    }
-                                </div>
+                                <div>${words.title} <${StateTag} tone=${state.tone} label=${state.label} /></div>
+                                <div class="muted small">${words.does}</div>
                             </div>
                             ${
                                 item.id === "wikiCapture" &&

@@ -7,6 +7,7 @@ import { execFileSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { after, before, test } from "node:test";
 import { ChromeEngine, PiBrowser } from "../src/server/browser/pi-browser.ts";
+import { NO_CARD } from "./no-card.ts";
 
 const chrome = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"].find((name) => {
     try {
@@ -133,14 +134,14 @@ test("with Chrome: a click whose control moves just before it lands on that cont
 
         assert.match(page, /Loading/);
 
-        const clicked = await browser.click(1, number(page, /\[(\d+)\] button "Match again"/));
+        const clicked = await browser.click(1, number(page, /\[(\d+)\] button "Match again"/), NO_CARD);
 
         assert.match(clicked, /Clicked Match again/);
         assert.doesNotMatch(clicked, /Clicked Human handoff/);
 
         // A double click and a right click are guarded too.
         const twice = await browser.open(1, "http://pi.test/shift?double");
-        const doubled = await browser.click(1, number(twice, /\[(\d+)\] button "Match again"/), false, { how: "double" });
+        const doubled = await browser.click(1, number(twice, /\[(\d+)\] button "Match again"/), NO_CARD, false, { how: "double" });
 
         assert.doesNotMatch(doubled, /Clicked Human handoff/);
         assert.match(doubled, /Clicked Match again/);
@@ -148,12 +149,12 @@ test("with Chrome: a click whose control moves just before it lands on that cont
         // It moves on every pointer move: refused, and nothing on the page was clicked.
         const jumpy = await browser.open(1, "http://pi.test/jumpy");
 
-        await assert.rejects(browser.click(1, number(jumpy, /\[(\d+)\] button "Match again"/)), /\[\d+\] Match again kept moving \(the click would have landed on (button "Human handoff"|div "Loading")\): nothing was clicked\./);
+        await assert.rejects(browser.click(1, number(jumpy, /\[(\d+)\] button "Match again"/), NO_CARD), /\[\d+\] Match again kept moving \(the click would have landed on (button "Human handoff"|div "Loading")\): nothing was clicked\./);
         assert.match(await browser.snapshot(1), /Nothing clicked/);
 
         // In a frame: the guard is in the frame, and the page around it.
         const framed = await browser.open(1, "http://pi.test/framed");
-        const inFrame = await browser.click(1, number(framed, /\[(\d+)\] button "Match again" \(in a frame/));
+        const inFrame = await browser.click(1, number(framed, /\[(\d+)\] button "Match again" \(in a frame/), NO_CARD);
 
         assert.match(inFrame, /Clicked Match again/);
         assert.doesNotMatch(inFrame, /Clicked Human handoff/);

@@ -12,6 +12,7 @@ import { addressOf, FULL_PAGE_MAX, LONG_PRESS_MS, LONG_PRESS_RANGE, PERMISSIONS,
 import { MAX_TABS, PERMISSION_WORDS, type PiBrowser } from "../browser/pi-browser.ts";
 import { fencedPage } from "../fence.ts";
 import { report, runDecider } from "../browser/run.ts";
+import { approveFor } from "../risky.ts";
 import type { ApprovalRequest, PocketHost } from "../host.ts";
 import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
 import { describeLayout, type LayoutReport } from "../layout-check.ts";
@@ -348,7 +349,7 @@ export default function createBrowser(host: PocketHost) {
                 }
 
                 return act("browser_click", api, context, (browser, session) =>
-                    browser.click(session, args.index, args.accept_dialog ?? false, { how: args.how ?? "single", ...(args.duration_ms === undefined ? {} : { ms: args.duration_ms }) }),
+                    browser.click(session, args.index, approveFor(host, api, context), args.accept_dialog ?? false, { how: args.how ?? "single", ...(args.duration_ms === undefined ? {} : { ms: args.duration_ms }) }),
                 );
             },
         }),
@@ -372,7 +373,7 @@ export default function createBrowser(host: PocketHost) {
                 }
 
                 if (args.secret === undefined) {
-                    return act("browser_type", api, context, (browser, session) => browser.type(session, args.index, args.text!, options));
+                    return act("browser_type", api, context, (browser, session) => browser.type(session, args.index, args.text!, options, approveFor(host, api, context)));
                 }
 
                 // The secrets module checked the folder and asked a person when the secret says so (`extensions/secrets.ts`).
@@ -385,7 +386,7 @@ export default function createBrowser(host: PocketHost) {
 
                 host.secrets.used([name]);
 
-                return act("browser_type", api, context, (browser, session) => browser.typeSecret(session, args.index, name, value, options));
+                return act("browser_type", api, context, (browser, session) => browser.typeSecret(session, args.index, name, value, options, approveFor(host, api, context)));
             },
         }),
         defineTool({
@@ -625,7 +626,7 @@ export default function createBrowser(host: PocketHost) {
                 `or a chord, modifiers joined by + (Ctrl, Alt, Shift, Meta or Cmd): Ctrl+A, Ctrl+Enter, Shift+Tab, Ctrl+K, Meta+K for a macOS page, Ctrl+Shift+P. ` +
                 "A key that types a character is refused while the focus is in a password field. For text, use browser_type.",
             parameters: obj({ key: str(), accept_dialog: acceptDialog }, { open: true }),
-            execute: async (args, api, context) => act("browser_press", api, context, (browser, session) => browser.press(session, args.key, args.accept_dialog ?? false)),
+            execute: async (args, api, context) => act("browser_press", api, context, (browser, session) => browser.press(session, args.key, approveFor(host, api, context), args.accept_dialog ?? false)),
         }),
         defineTool({
             name: "browser_back",
@@ -950,7 +951,7 @@ export default function createBrowser(host: PocketHost) {
                         host.secrets.used([given.secret]);
                     }
 
-                    const { result, page } = await browser.run(session, { goal: args.goal, values, secrets, maxSteps: args.max_steps ?? 25, decider });
+                    const { result, page } = await browser.run(session, { goal: args.goal, values, secrets, maxSteps: args.max_steps ?? 25, decider, approve: approveFor(host, api, context) });
 
                     if (model !== "session" && result.decisions > 0) {
                         await host.chargeSession(api.conversationId as never, `openrouter/${model}`, { ...result.tokens, cost: result.cost });

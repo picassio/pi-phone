@@ -85,10 +85,11 @@ test("Pi lists the hooks with settings and turns one off with setting_change, af
 });
 
 test("Settings › Hooks: the API lists and switches the hooks, with the built-in behaviours; the owner's choice is kept", async () => {
-    const listed = (await (await call("hooks")).json()) as { hooks: { id: string; on: boolean; default: boolean; title: string }[]; builtIn: { id: string; setting: string }[] };
+    const listed = (await (await call("hooks")).json()) as { hooks: { id: string; on: boolean; default: boolean; title: string }[]; builtIn: { id: string; setting: string | null }[] };
 
     assert.deepEqual(listed.hooks.map((hook) => [hook.id, hook.on, hook.default]), [["artifactCheck", true, true], ["uiReminder", true, true]]);
-    assert.deepEqual(listed.builtIn.map((item) => [item.id, item.setting]), [["wikiCapture", "wiki.captureMinutes"], ["autoCompact", "sessions.compactAt"]]);
+    // Ask before paying (PP-455): listed, with no setting: it cannot be turned off.
+    assert.deepEqual(listed.builtIn.map((item) => [item.id, item.setting]), [["wikiCapture", "wiki.captureMinutes"], ["autoCompact", "sessions.compactAt"], ["askBeforeRisky", null]]);
 
     const off = (await (await call("hooks/artifactCheck", { method: "PUT", body: JSON.stringify({ on: false }) })).json()) as typeof listed;
 

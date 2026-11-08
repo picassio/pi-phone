@@ -276,6 +276,12 @@ No Termux, no laptop, no cloud VM.
   without asking, on pages you may be signed in to. It types only values Pi supplies, stops with
   a reason Pi can act on (a value it needs, blocked, stuck, not visibly done), and Jev's cost counts in Spend. A live card in the
   conversation shows its goal, each step as it happens, the time and cost, and Watch.
+  **Ask before paying, sending, booking or deleting:** before Pi's click (`browser_click`), Enter or Space
+  (`browser_press`, `browser_type` with submit) or run step on a control that may pay, send, book or delete (its
+  name, or its form's button, says pay, buy, checkout, place order, send, book, delete, transfer and the like, in
+  English, Vietnamese or Chinese, or its form goes to a pay, checkout, order or transfer address), you answer a card:
+  **Approve once** lets that one action go ahead, **Deny** stops it (a run stops, blocked). Only you approve; no
+  answer in 5 minutes is Deny. It is always on (Menu › Hooks lists it), in computer control too.
   **Passwords from Secrets:** a sign-in you saved in Secrets (and allowed in that folder), Pi types by name
   (`browser_type` with `secret`, or `browser_run` values `{ secret }`): the value goes into the page, never to Pi or the run
   model, and an "ask first" secret still asks you on a card. **Otherwise signing in stays yours:** Pi never types a password
@@ -586,7 +592,9 @@ No Termux, no laptop, no cloud VM.
   it (`computer_control`, `computer_screen`, `computer_act`, `computer_screenshot`, `computer_sign_in`), through
   Computer use (ocu, a machine tool) running there over the app's own ssh. For one concrete goal in an app ("turn on
   Dark mode in Settings") Pi can hand the steps to `computer_run`, which decides each with the same run model as
-  `browser_run` (Settings › Pi's browser) and stops with a reason when it cannot go on. A small window on the machine says Pi is using it, with **Stop**;
+  `browser_run` (Settings › Pi's browser) and stops with a reason when it cannot go on. A click, a secondary action, or
+  Enter or Space on an element that may pay, send, book or delete (`computer_act`, `computer_run`'s steps) waits for
+  your card first, as in Pi's browser. A small window on the machine says Pi is using it, with **Stop**;
   the session ends at its time, soon after Pi's turn ends, or on Stop. Following along (when Pi asks) lets an app the
   named ones open join. Password fields are marked in what Pi reads, and Pi never types a password as text: it fills one
   with a saved secret by name (`computer_act` with `secret`, the same folder and ask-first rules as everywhere; the value

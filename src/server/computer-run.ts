@@ -8,6 +8,7 @@
  */
 import { type Answers, concealSecrets, type Decider, type DecisionState, GOAL_ACHIEVED_THRESHOLD, type Question, type RunStep } from "./browser/run.ts";
 import { type ComputerElement, type ComputerOutline, parseOutline } from "./computer-outline.ts";
+import { RISKY_RUN_NOTE } from "./risky.ts";
 
 // ─── The questions: browser_run's, said of a desktop window ────────────────────────────────────────────────────
 
@@ -39,9 +40,9 @@ const GOAL_ACHIEVED = "Is every requirement of the goal visibly satisfied in thi
 const PREV_OK_CRITERIA = { true: "The window reflects what the previous action was meant to do.", false: "The previous action was ignored, undone, or landed somewhere else." };
 const GOAL_ACHIEVED_CRITERIA = { true: "Every requirement of the goal is visible in this window right now.", false: "At least one requirement is still unsatisfied or not visible." };
 const OPERATION_LABELS: Record<string, string> = {
-    CLICK: "Click an element: a button, menu item, tab, list item, check box or link.",
+    CLICK: `Click an element: a button, menu item, tab, list item, check box or link. ${RISKY_RUN_NOTE}`,
     SET_VALUE: "Put text into an editable field. The host agent supplies the value.",
-    PRESS_ENTER: "Press Enter (Return) in the element in focus.",
+    PRESS_ENTER: `Press Enter (Return) in the element in focus. ${RISKY_RUN_NOTE}`,
     PRESS_TAB: "Press Tab, to move to the next field.",
     PRESS_ESCAPE: "Press Escape, to close a menu or dialog.",
     SCROLL_DOWN: "Scroll the window's list or document down.",

@@ -24,6 +24,7 @@ import {
     windowsStateWord,
 } from "../src/server/computer-windows.ts";
 import { type FakeWindows, fakeWindows } from "./support/fake-windows.ts";
+import { NO_ASK } from "./no-card.ts";
 
 const FAKE = join(import.meta.dirname, "support", "fake-ocu.ts");
 const root = mkdtempSync(join(tmpdir(), "pi-phone-computer-windows-"));
@@ -209,10 +210,10 @@ test("a Windows session: ocu's MCP and the sign through the bridge, over the for
     const read = await control.screen(session, "Pi OCU Demo");
 
     assert.match(read.text, /3 password text \[password\]/);
-    await control.act(session, undefined, { op: "set_value", index: 2, value: "Tuan" });
+    await control.act(session, undefined, { op: "set_value", index: 2, value: "Tuan" }, NO_ASK);
     assert.deepEqual(calls().at(-1), { tool: "set_value", args: { app: "demo_app.py", element_index: "2", value: "Tuan" } });
     // Pi's guards hold: plain text into a password field, and an app outside the card.
-    await assert.rejects(control.act(session, undefined, { op: "set_value", index: 3, value: "hunter2" }), /password field: Pi never types a password as text/);
+    await assert.rejects(control.act(session, undefined, { op: "set_value", index: 3, value: "hunter2" }, NO_ASK), /password field: Pi never types a password as text/);
     assert.throws(() => control.app(session, "1Password"), /is not in this session/);
     assert.ok(!calls().some((each) => each.args.value === "hunter2"));
     // What the owner types on a computer_sign_in card goes through the bridge too, into the field Pi named, and stays

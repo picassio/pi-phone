@@ -14,7 +14,7 @@
 // latest read, or whose window_id is not its window, is refused with stale_ref, and so is the next element action after
 // the file FAKE_OCU_STALE names appears (the file goes); a click at a point needs headed: true (policy_denied).
 // FAKE_OCU_COVER=1 adds viewer ("Viewer": another window over part of it, and a second window of its app) and notes
-// ("Notes": minimised, no picture).
+// ("Notes": minimised, no picture). FAKE_OCU_MAIL=1 adds mail ("Mail": Send, in focus, and Save draft; PP-455).
 import { appendFileSync, existsSync, rmSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { deflateSync } from "node:zlib";
@@ -85,7 +85,7 @@ type Element = { role: string; name: string; value?: string; password?: boolean;
 const refusal = (message: string, code: string, suggestion: string) => `${message}\nError: ${code} retry=safe suggestion=${suggestion}`;
 
 function serve(): void {
-    const state = { name: "", secret: "", shout: false, label: "Nobody greeted yet", focus: 2, help: false, editor: "", ticks: 0 };
+    const state = { name: "", secret: "", shout: false, label: "Nobody greeted yet", focus: 2, help: false, editor: "", ticks: 0, mail: "Draft" };
     const read = new Map<string, Element[]>();
     /** Each app's latest read, as ocu keeps it. */
     const latest = new Map<string, string>();
@@ -137,8 +137,19 @@ function serve(): void {
             ],
         },
         notes: { title: "Notes", elements: () => [{ role: "frame", name: "Notes", frame: [0, 0, 420, 220] }] },
+        // FAKE_OCU_MAIL=1 (PP-455): a mail app whose Send must wait for the owner's card; Save draft need not.
+        mail: {
+            title: "Mail",
+            elements: () => [
+                { role: "frame", name: "Mail", frame: [0, 0, 420, 220] },
+                { role: "push button", name: "Send", frame: [10, 10, 100, 30], actions: "click", states: ["focused"] },
+                { role: "push button", name: "Save draft", frame: [120, 10, 100, 30], actions: "click" },
+                { role: "label", name: state.mail, frame: [10, 50, 200, 20] },
+            ],
+        },
     };
-    const running = () => Object.keys(windows).filter((name) => (name !== "help-viewer" || state.help) && ((name !== "viewer" && name !== "notes") || cover));
+    const running = () =>
+        Object.keys(windows).filter((name) => (name !== "help-viewer" || state.help) && ((name !== "viewer" && name !== "notes") || cover) && (name !== "mail" || process.env.FAKE_OCU_MAIL === "1"));
 
     const render = (app: string): string => {
         const elements = windows[app]!.elements();
@@ -257,6 +268,10 @@ function serve(): void {
                     }
                 }
 
+                if (app === "mail" && element !== undefined) {
+                    state.mail = element.name === "Send" ? "Sent" : "Draft saved";
+                }
+
                 break;
             }
 
@@ -301,6 +316,11 @@ function serve(): void {
 
                 if (app === "demo_app.py" && args.key === "Tab") {
                     state.focus = state.focus === 2 ? 3 : 2;
+                }
+
+                // Return on the focused Send sends.
+                if (app === "mail" && args.key === "Return") {
+                    state.mail = "Sent";
                 }
 
                 break;

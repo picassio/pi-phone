@@ -1786,6 +1786,24 @@ so Pi changes them through the settings tools; "the last session" is the one the
   `jev` without the OpenRouter sign-in is an error that names Settings › Providers and model `session`, before the
   browser starts; never a quiet switch. The report says who chose (`… by Jev (typesafe/jev-1.14) as Pi asked` / `as the
   setting says`); the run card shows the model only. Jev's cost still goes to Spend (`chargeSession`).
+- **Ask before paying, sending, booking or deleting** (`risky.ts`, PP-455, the owner's decision of 2026-11-08):
+  before the one action of Pi's that may do one of those, the owner answers a card (`form.type: "risky"`): Approve
+  once or Deny. Where: Pi's browser (browser_click, any kind; browser_press Enter or Space on the control in focus;
+  browser_type with submit; each CLICK step of browser_run) and computer control (computer_act click, secondary action,
+  Enter or Space on the focused element; each step of computer_run). Which control: its name, or for a form's submit
+  its submit button's name, holds a word of `RISKY_WORDS` (en and vi whole words, any case; zh anywhere in the name),
+  or the form goes to an address with pay, payment, checkout, order, purchase or transfer in its path or query
+  (`page.submitOf`, `page.focusedControl`: a button's formaction, the form's action, or the page's own address). Look-
+  alikes stay out ("Payment history", "Booking.com"); some safe ones ask ("Send feedback", "Delete filter"): a tap,
+  the safe side. The check runs inside the same browser queue slot as the click (`PiBrowser.#mayAct`), or before ocu
+  is called (`ComputerControl.act`), and the action's element is still checked to be the one read; `approve` is a
+  required parameter of every clicking method, so no path clicks without it. A Deny, nobody answering within 5 minutes
+  (`RISKY_WAIT_MS`), or a session that does not work for the owner throws `RiskyRefused`: nothing is done, and a run
+  stops `blocked` with that detail. Each action has a card of its own (`risky-<task>-<call>-<n>`); only the owner
+  approves (`answerApproval`), anyone who can steer may deny. The run models are told such a step goes to the owner
+  (`RISKY_RUN_NOTE` on CLICK). Always on, listed in Settings › Hooks' built-ins with no switch: a switch would be a
+  way to pay without asking. Not covered: a frame Pi cannot read that has the focus (Enter there is not checked), a
+  computer app whose focus ocu does not name, and phone control (banking and payment apps are refused there already).
 - **Key chords in Pi's browser** (`chordOf`, PP-376): `browser_press` takes a key (the named ones, now with Home,
   End, Delete and Space, or one character) after modifiers joined by `+` (Ctrl/Control, Alt/Option, Shift,
   Meta/Cmd/Command/Super/Win; `Ctrl++` is the plus key), sent as DevTools' `modifiers` bits on both events. A letter in

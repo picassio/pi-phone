@@ -5353,10 +5353,16 @@ export class PocketApp {
             throw new HttpError(403, "Changing a machine's tools is the owner's.");
         }
 
+        // A click or step that may pay, send, book or delete (PP-455): Approve once is the owner's alone.
+        if (allow && request.form?.type === "risky" && user.role !== "owner") {
+            throw new HttpError(403, "Approving a step that may pay, send, book or delete is the owner's.");
+        }
+
         if (
             allow &&
             request.form !== undefined &&
             request.form.type !== "machine" &&
+            request.form.type !== "risky" &&
             request.form.type !== "phone" &&
             request.form.type !== "computer" &&
             request.form.type !== "extension" &&
@@ -6653,6 +6659,7 @@ export class PocketApp {
             builtIn: [
                 { id: "wikiCapture", setting: "wiki.captureMinutes", minutes: this.config.wikiCaptureMinutes },
                 { id: "autoCompact", setting: "sessions.compactAt", at: this.config.compactAt },
+                { id: "askBeforeRisky", setting: null },
             ],
         };
     }

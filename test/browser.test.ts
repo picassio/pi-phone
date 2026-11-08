@@ -12,6 +12,7 @@ import { blockedInPlanMode } from "../src/server/extensions/plan.ts";
 import { cardFills, savedSignIn, shotCaption, signInFields } from "../src/server/extensions/browser.ts";
 import { type BrowserFrame, type BrowserState, ChromeEngine, PiBrowser, typedHideMarks } from "../src/server/browser/pi-browser.ts";
 import { SessionEngine, TabOwners } from "../src/server/browser/session-engine.ts";
+import { answering, NO_CARD } from "./no-card.ts";
 
 after(() => cleanUp());
 
@@ -290,7 +291,7 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
 
         assert.ok(search && sort && go, first);
 
-        const typed = await browser.type(1, Number(search), "lamp", {});
+        const typed = await browser.type(1, Number(search), "lamp", {}, NO_CARD);
 
         assert.match(typed, /textbox "Search" value "lamp"/);
 
@@ -298,20 +299,20 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
 
         assert.match(chosen, /^Chose "Newest"/);
 
-        const clicked = await browser.click(1, Number(/\[(\d+)\] button "Go"/.exec(chosen)![1]));
+        const clicked = await browser.click(1, Number(/\[(\d+)\] button "Go"/.exec(chosen)![1]), NO_CARD);
 
         assert.match(clicked, /Found lamp by new/);
         assert.equal(states.at(-1)?.doing, null);
         assert.ok(states.some((state) => state.doing?.startsWith("Clicking [")), "the panel heard what Pi was doing");
 
         // A control behind something else is refused, not clicked through; a number not on the page is refused too.
-        await assert.rejects(browser.click(1, Number(/\[(\d+)\] button "Under"/.exec(clicked)![1])), /covered/);
-        await assert.rejects(browser.type(1, 999, "x", {}), /There is no \[999\]/);
+        await assert.rejects(browser.click(1, Number(/\[(\d+)\] button "Under"/.exec(clicked)![1]), NO_CARD), /covered/);
+        await assert.rejects(browser.type(1, 999, "x", {}, NO_CARD), /There is no \[999\]/);
 
         // The local network: never loaded.
         await assert.rejects(browser.open(1, `http://127.0.0.1:${port}/`), /does not open|local network|ERR_BLOCKED/);
 
-        const next = await browser.click(1, Number(/\[(\d+)\] link "Next page"/.exec(await browser.snapshot(1))![1]));
+        const next = await browser.click(1, Number(/\[(\d+)\] link "Next page"/.exec(await browser.snapshot(1))![1]), NO_CARD);
 
         assert.match(next, /^Two — /);
 
@@ -352,7 +353,7 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
 
         assert.match(sheet, /clickable "App Open"/);
         assert.doesNotMatch(sheet, /clickable "Open in\.\.\."/, "plain text with no pointer is not a control");
-        assert.match(await browser.click(1, Number(/\[(\d+)\] clickable "Browser Continue"/.exec(sheet)![1])), /Continued in the browser/);
+        assert.match(await browser.click(1, Number(/\[(\d+)\] clickable "Browser Continue"/.exec(sheet)![1]), NO_CARD), /Continued in the browser/);
 
         // A sign-in: the password field is listed but never its value; Pi may not type into it; the person's values go in.
         const login = await browser.open(1, "http://pi.test/login");
@@ -360,14 +361,14 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
         const pw = Number(/\[(\d+)\] password "Password"/.exec(login)![1]);
 
         assert.doesNotMatch(login, /password "Password" value/);
-        await assert.rejects(browser.type(1, pw, "guess", {}), /password field: type a saved secret/);
+        await assert.rejects(browser.type(1, pw, "guess", {}, NO_CARD), /password field: type a saved secret/);
         await browser.fillFields(1, [{ index: user, value: "tuan@example.com", hide: "[username for pi.test]" }, { index: pw, value: "hunter2", hide: true }]);
 
         const filled = await browser.snapshot(1);
 
         assert.doesNotMatch(filled, /hunter2/, "the password never shows in what Pi reads");
         assert.doesNotMatch(filled, /tuan@example\.com/, "nor the username");
-        const welcomed = await browser.click(1, Number(/\[(\d+)\] button "Sign in"/.exec(filled)![1]));
+        const welcomed = await browser.click(1, Number(/\[(\d+)\] button "Sign in"/.exec(filled)![1]), NO_CARD);
 
         // Shown back by the page: as what it reads as, in later reads and the whole text too.
         assert.match(welcomed, /Hello \[username for pi\.test\], signed in/);
@@ -389,7 +390,7 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
 
         assert.doesNotMatch(withCode, /493817/, "not as the field's value");
         assert.match(withCode, /textbox "Code" value "\[typed by the person\]"/);
-        const checked = await browser.click(1, Number(/\[(\d+)\] button "Verify"/.exec(withCode)![1]));
+        const checked = await browser.click(1, Number(/\[(\d+)\] button "Verify"/.exec(withCode)![1]), NO_CARD);
 
         assert.match(checked, /Checked \[typed by the person\]/);
         assert.doesNotMatch(checked, /493817/);
@@ -406,17 +407,21 @@ test("with Chrome: Pi reads a page, types, chooses, clicks; a covered control an
         // Dialogs (PP-79): declined unless asked; accepted when asked, and the page gets the answer it was told.
         const dialogs = await browser.open(1, "http://pi.test/dialogs");
         const del = Number(/\[(\d+)\] button "Delete"/.exec(dialogs)![1]);
-        const declined = await browser.click(1, del);
+        // Delete asks the owner first (PP-455): approved here, each click on its own card.
+        const approve = answering();
+        const declined = await browser.click(1, del, approve);
 
         assert.match(declined, /The page showed a dialog \(confirm: Delete the group\?\); it was declined\./);
         assert.match(declined, /Kept/);
 
-        const accepted = await browser.click(1, Number(/\[(\d+)\] button "Delete"/.exec(declined)![1]), true);
+        const accepted = await browser.click(1, Number(/\[(\d+)\] button "Delete"/.exec(declined)![1]), approve, true);
+
+        assert.deepEqual(approve.asked.map((step) => step.risk.word), ["delete", "delete"], "each click asks again");
 
         assert.match(accepted, /The page showed a dialog \(confirm: Delete the group\?\); it was accepted\./);
         assert.match(accepted, /Deleted/, "the page got yes");
 
-        const named = await browser.click(1, Number(/\[(\d+)\] button "Name"/.exec(accepted)![1]), true);
+        const named = await browser.click(1, Number(/\[(\d+)\] button "Name"/.exec(accepted)![1]), NO_CARD, true);
 
         assert.match(named, /Name: Work/, "a prompt accepted gets its default");
     } finally {
@@ -469,7 +474,7 @@ test("with Chrome: icons get names, hover, uploads to a field and through its bu
         assert.equal(pdf.subarray(0, 5).toString(), "%PDF-");
 
         // A link to a new window opens a tab, brought to the front, as a person's browser does.
-        const opened = await browser.click(1, number(await browser.snapshot(1), /\[(\d+)\] link "Open in a new tab"/));
+        const opened = await browser.click(1, number(await browser.snapshot(1), /\[(\d+)\] link "Open in a new tab"/), NO_CARD);
 
         assert.match(opened, /^The page opened a window: http:\/\/pi\.test\/two; it is tab 2 now \(in front\)\.\n/);
         assert.match(opened, /Two — /);
@@ -503,7 +508,7 @@ test("with Chrome: a list with its own scroll area (Radix's select): every optio
 
     try {
         const page = await browser.open(1, "http://pi.test/list");
-        const open = await browser.click(1, pick(page));
+        const open = await browser.click(1, pick(page), NO_CARD);
 
         // All 40, though 6 show in the list and the rest run below it, past the window too.
         assert.equal(open.match(/\] option "/g)?.length, 40, open);
@@ -517,7 +522,7 @@ test("with Chrome: a list with its own scroll area (Radix's select): every optio
         assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], [(242 + 16) * 2, (218 + 16) * 2]);
 
         // The 30th, far below the fold of the list: scrolled into view in it, then clicked.
-        assert.match(await browser.click(1, number(open, /\[(\d+)\] option "Global Payments"/)), /Chose Global Payments/);
+        assert.match(await browser.click(1, number(open, /\[(\d+)\] option "Global Payments"/), NO_CARD), /Chose Global Payments/);
 
         // By name with browser_select on the button: it opens the list and picks.
         const chosen = await browser.select(1, pick(await browser.snapshot(1)), "Org 37");
@@ -526,22 +531,22 @@ test("with Chrome: a list with its own scroll area (Radix's select): every optio
         assert.match(chosen, /Chose Org 37/);
 
         // The wheel over the list scrolls the list (the page does not scroll while it is open).
-        const again = await browser.click(1, pick(chosen));
+        const again = await browser.click(1, pick(chosen), NO_CARD);
         const scrolled = await browser.scroll(1, "down", 1, number(again, /\[(\d+)\] option "Org 1"/));
 
         assert.match(scrolled, /List at [1-9]\d*/);
 
         // Keys reach the list: arrows and Enter, and a letter's type-ahead.
-        await browser.press(1, "ArrowDown");
-        await browser.press(1, "ArrowDown");
-        assert.match(await browser.press(1, "Enter"), /Chose Org 3\b/);
-        await browser.click(1, pick(await browser.snapshot(1)));
-        await browser.press(1, "G");
-        assert.match(await browser.press(1, "Enter"), /Chose Global Payments/);
-        await assert.rejects(browser.press(1, "Ctrl"), /one character/);
+        await browser.press(1, "ArrowDown", NO_CARD);
+        await browser.press(1, "ArrowDown", NO_CARD);
+        assert.match(await browser.press(1, "Enter", NO_CARD), /Chose Org 3\b/);
+        await browser.click(1, pick(await browser.snapshot(1)), NO_CARD);
+        await browser.press(1, "G", NO_CARD);
+        assert.match(await browser.press(1, "Enter", NO_CARD), /Chose Global Payments/);
+        await assert.rejects(browser.press(1, "Ctrl", NO_CARD), /one character/);
 
         // Taken over (PP-124): the person's scroll at a point in the open list scrolls the list, as a finger would.
-        await browser.click(1, pick(await browser.snapshot(1)));
+        await browser.click(1, pick(await browser.snapshot(1)), NO_CARD);
         assert.match(await browser.snapshot(1), /List at 0\b/);
         browser.takeOver(true);
         await browser.input({ type: "scroll", x: 100, y: 120, dx: 0, dy: 300 });
@@ -564,12 +569,12 @@ test("with Chrome: after switching between phone and desktop sizes, clicks and t
     const number = (page: string, pattern: RegExp) => Number(pattern.exec(page)?.[1] ?? assert.fail(`${pattern} not in:\n${page}`));
     /** Click Hit and type into the field, on the page as it is now: each must land on its own target. */
     const aim = async (page: string, where: string) => {
-        const hit = await browser.click(1, number(page, /\[(\d+)\] button "Hit"/));
+        const hit = await browser.click(1, number(page, /\[(\d+)\] button "Hit"/), NO_CARD);
 
         // What the page says first: "Hit …" from the button, "Trap" from the link at half its place.
         assert.match(hit, /Visible text:\nHit \d+/, `${where}: the click reached the button, not the trap at half its place`);
 
-        const typed = await browser.type(1, number(hit, /\[(\d+)\] textbox "Signer"/), `typed ${where}`, {});
+        const typed = await browser.type(1, number(hit, /\[(\d+)\] textbox "Signer"/), `typed ${where}`, {}, NO_CARD);
 
         assert.match(typed, new RegExp(`textbox "Signer" value "typed ${where}"`), `${where}: typing reached the field`);
     };
@@ -611,8 +616,8 @@ test("with Chrome: typing goes into the field itself, though a click there would
         const field = Number(/\[(\d+)\] textbox "Field name"/.exec(page)?.[1]);
         const stubborn = Number(/\[(\d+)\] textbox "Stubborn"/.exec(page)?.[1]);
 
-        assert.match(await browser.type(1, field, "customer_name", {}), /textbox "Field name" value "customer_name"/);
-        await assert.rejects(browser.type(1, stubborn, "never", {}), /Stubborn did not take the typing \(focus went to [a-z]+\): nothing was typed/);
+        assert.match(await browser.type(1, field, "customer_name", {}, NO_CARD), /textbox "Field name" value "customer_name"/);
+        await assert.rejects(browser.type(1, stubborn, "never", {}, NO_CARD), /Stubborn did not take the typing \(focus went to [a-z]+\): nothing was typed/);
         assert.match(await browser.snapshot(1), /textbox "Stubborn" value ""/, "nothing went into it");
         assert.match(await browser.snapshot(1), /Selected 0/, "the page's text was not selected");
     } finally {
@@ -650,7 +655,7 @@ test("with Chrome: a sign-in window (window.open) is a tab in front that talks t
 
     try {
         const page = await browser.open(1, "http://pi.test/sign");
-        const opened = await browser.click(1, Number(/\[(\d+)\] button "Sign in again"/.exec(page)![1]));
+        const opened = await browser.click(1, Number(/\[(\d+)\] button "Sign in again"/.exec(page)![1]), NO_CARD);
 
         assert.match(opened, /^The page opened a window: http:\/\/pi\.test\/popup; it is tab 2 now \(in front\)\.\nTab 2 of 2\. Popup — http:\/\/pi\.test\/popup\n/);
         assert.match(await browser.tabs(1), /^Tabs \(→ in front\):\n {2}1\. App — http:\/\/pi\.test\/sign\n→ 2\. Popup — http:\/\/pi\.test\/popup$/);
@@ -707,7 +712,7 @@ test("with Chrome: a tab still listed while it closes does not fail the next ope
         assert.match(await browser.open(1, "http://pi.test/aim"), /button "Hit"/);
         assert.ok(logged.some((line) => /tab is gone: .*500/.test(line)), logged.join("\n"));
         // Nor the actions after it, which take in tabs a page opened from the same list.
-        assert.match(await browser.click(1, Number(/\[(\d+)\] button "Hit"/.exec(await browser.snapshot(1))![1])), /Visible text:\nHit/);
+        assert.match(await browser.click(1, Number(/\[(\d+)\] button "Hit"/.exec(await browser.snapshot(1))![1]), NO_CARD), /Visible text:\nHit/);
     } finally {
         await browser?.close().catch(() => {});
         await engine.close();

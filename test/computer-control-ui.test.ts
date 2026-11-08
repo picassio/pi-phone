@@ -18,6 +18,7 @@ import { Browsers } from "./support/browser.ts";
 import { findBrowser } from "./support/browser/discovery.ts";
 import type { BrowserPage } from "./support/browser/page.ts";
 import { VIEWPORTS } from "./support/browser/viewport.ts";
+import { NO_ASK } from "./no-card.ts";
 
 const skip = findBrowser() === undefined ? "no Chromium-based browser on this machine" : false;
 const SHOTS = process.env.PHONE_SHOTS;
@@ -145,8 +146,8 @@ test("the card, the panel with its picture and box, take over, and Menu › Comp
     const session = app.computerControl.sessionOfConversation(id)!;
 
     await app.computerControl.screen(session, "Pi OCU Demo");
-    await app.computerControl.act(session, undefined, { op: "set_value", index: 2, value: "Tuan" });
-    await app.computerControl.act(session, undefined, { op: "click", index: 5 });
+    await app.computerControl.act(session, undefined, { op: "set_value", index: 2, value: "Tuan" }, NO_ASK);
+    await app.computerControl.act(session, undefined, { op: "click", index: 5 }, NO_ASK);
 
     // On a desktop: the top bar's monitor button opens the panel beside the conversation.
     await page.setViewport(VIEWPORTS.desktop);

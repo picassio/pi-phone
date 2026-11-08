@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chordOf } from "../src/server/browser/page.ts";
 import { ChromeEngine, PiBrowser, type PiBrowserOptions } from "../src/server/browser/pi-browser.ts";
+import { answering, NO_CARD } from "./no-card.ts";
 
 const chrome = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"].find((name) => {
     try {
@@ -187,10 +188,10 @@ test("with Chrome: controls in a frame of another site, a frame of the page's ow
         assert.match(page, /Coupons inside/);
 
         // Typing and clicking in the other site's frame; Pi's own typing never goes into its password field.
-        const typed = await browser.type(1, number(page, /\[(\d+)\] textbox "Card number"/), "4242", {});
+        const typed = await browser.type(1, number(page, /\[(\d+)\] textbox "Card number"/), "4242", {}, NO_CARD);
 
         assert.match(typed, /textbox "Card number" value "4242"/);
-        await assert.rejects(browser.type(1, number(typed, /\[(\d+)\] password "PIN"/), "1111", {}), /is a password field/);
+        await assert.rejects(browser.type(1, number(typed, /\[(\d+)\] password "PIN"/), "1111", {}, NO_CARD), /is a password field/);
 
         // The person's card fills it (a password, and a username-like value in the card field), hidden from Pi there too.
         await browser.fillFields(1, [
@@ -198,7 +199,11 @@ test("with Chrome: controls in a frame of another site, a frame of the page's ow
             { index: number(typed, /\[(\d+)\] textbox "Card number"/), value: "4000-1234-5678", hide: "[card for pay.test]" },
         ]);
 
-        const paid = await browser.click(1, number(await browser.snapshot(1), /\[(\d+)\] button "Pay"/));
+        // Pay, in the other site's frame: the owner's card first (PP-455), approved here.
+        const approve = answering();
+        const paid = await browser.click(1, number(await browser.snapshot(1), /\[(\d+)\] button "Pay"/), approve);
+
+        assert.deepEqual(approve.asked.map((step) => [step.tool, step.control, step.risk.word]), [["browser_click", "Pay", "pay"]]);
 
         assert.match(paid, /Paid with \[card for pay\.test\] and the PIN/);
         assert.doesNotMatch(paid, /4000-1234-5678/);
@@ -216,13 +221,13 @@ test("with Chrome: controls in a frame of another site, a frame of the page's ow
         assert.ok("data" in shot);
 
         // The page's own frame, and the shadow root.
-        const noted = await browser.type(1, number(paid, /\[(\d+)\] textbox "Gift note"/), "Happy birthday", {});
-        const saved = await browser.click(1, number(noted, /\[(\d+)\] button "Save note"/));
+        const noted = await browser.type(1, number(paid, /\[(\d+)\] textbox "Gift note"/), "Happy birthday", {}, NO_CARD);
+        const saved = await browser.click(1, number(noted, /\[(\d+)\] button "Save note"/), NO_CARD);
 
         assert.match(saved, /Note: Happy birthday/);
 
-        const coupon = await browser.type(1, number(saved, /\[(\d+)\] textbox "Coupon code"/), "SAVE10", {});
-        const applied = await browser.click(1, number(coupon, /\[(\d+)\] button "Apply coupon"/));
+        const coupon = await browser.type(1, number(saved, /\[(\d+)\] textbox "Coupon code"/), "SAVE10", {}, NO_CARD);
+        const applied = await browser.click(1, number(coupon, /\[(\d+)\] button "Apply coupon"/), NO_CARD);
 
         assert.match(applied, /Coupon SAVE10/);
     } finally {
@@ -285,22 +290,22 @@ test("with Chrome: browser_press presses chords the page hears (Ctrl+A selects a
     try {
         const page = await browser.open(1, "http://pi.test/keys");
 
-        await browser.type(1, number(page, /\[(\d+)\] textbox "Notes"/), "one two three", {});
-        assert.match(await browser.press(1, "Ctrl+A"), /Heard Ctrl\+a in notes\nFocus notes, selected 13/);
-        assert.match(await browser.press(1, "Ctrl+Enter"), /Heard Ctrl\+Enter in notes\nFocus notes, selected 13, notes "one two three"/);
-        assert.match(await browser.press(1, "Meta+K"), /Heard Meta\+k in notes/);
+        await browser.type(1, number(page, /\[(\d+)\] textbox "Notes"/), "one two three", {}, NO_CARD);
+        assert.match(await browser.press(1, "Ctrl+A", NO_CARD), /Heard Ctrl\+a in notes\nFocus notes, selected 13/);
+        assert.match(await browser.press(1, "Ctrl+Enter", NO_CARD), /Heard Ctrl\+Enter in notes\nFocus notes, selected 13, notes "one two three"/);
+        assert.match(await browser.press(1, "Meta+K", NO_CARD), /Heard Meta\+k in notes/);
 
-        const named = await browser.type(1, number(page, /\[(\d+)\] textbox "Name"/), "Tuan", {});
+        const named = await browser.type(1, number(page, /\[(\d+)\] textbox "Name"/), "Tuan", {}, NO_CARD);
 
-        assert.match(await browser.press(1, "Shift+Tab"), /Heard Shift\+Tab in name\nFocus notes/);
+        assert.match(await browser.press(1, "Shift+Tab", NO_CARD), /Heard Shift\+Tab in name\nFocus notes/);
 
         // In the password field: a character is refused, a shortcut and Enter are not.
-        await browser.click(1, number(named, /\[(\d+)\] password "Password"/));
-        await assert.rejects(browser.press(1, "x"), /focus is in a password field, and x would type into it/);
-        await assert.rejects(browser.press(1, "Shift+X"), /password field/);
-        assert.match(await browser.press(1, "Ctrl+A"), /Heard Ctrl\+a in pw/);
-        assert.match(await browser.press(1, "Enter"), /Heard Enter in pw/);
-        await assert.rejects(browser.press(1, "Hyper+A"), /each with modifiers if needed/);
+        await browser.click(1, number(named, /\[(\d+)\] password "Password"/), NO_CARD);
+        await assert.rejects(browser.press(1, "x", NO_CARD), /focus is in a password field, and x would type into it/);
+        await assert.rejects(browser.press(1, "Shift+X", NO_CARD), /password field/);
+        assert.match(await browser.press(1, "Ctrl+A", NO_CARD), /Heard Ctrl\+a in pw/);
+        assert.match(await browser.press(1, "Enter", NO_CARD), /Heard Enter in pw/);
+        await assert.rejects(browser.press(1, "Hyper+A", NO_CARD), /each with modifiers if needed/);
     } finally {
         await browser.close();
     }
@@ -317,14 +322,14 @@ test("with Chrome: browser_focus puts the focus on a control without a click, in
         const focused = await browser.focus(1, number(page, /\[(\d+)\] textbox "Name"/));
 
         assert.match(focused, /\[\d+\] textbox "Name" value "" focused\n/);
-        assert.match(await browser.press(1, "Shift+Tab"), /\[\d+\] textbox "Notes" value "" focused\n[\s\S]*Focus notes/);
+        assert.match(await browser.press(1, "Shift+Tab", NO_CARD), /\[\d+\] textbox "Notes" value "" focused\n[\s\S]*Focus notes/);
 
         // In the payment site's frame: the read follows the focus into it, and keys go there.
         const checkout = await browser.open(1, "http://pi.test/checkout");
         const card = await browser.focus(1, number(checkout, /\[(\d+)\] textbox "Card number"/));
 
         assert.match(card, new RegExp(`\\[\\d+\\] textbox "Card number" value "" focused \\(in a frame: pay\\.test:${port}\\)`));
-        assert.match(await browser.press(1, "4"), /textbox "Card number" value "4" focused/);
+        assert.match(await browser.press(1, "4", NO_CARD), /textbox "Card number" value "4" focused/);
 
         // Something that takes no focus says so.
         const board = await browser.open(1, "http://pi.test/board");
@@ -342,21 +347,21 @@ test("with Chrome: browser_click double-clicks, right-clicks (the page's context
         const page = await browser.open(1, "http://pi.test/clicks");
         const photo = number(page, /\[(\d+)\] button "Photo"/);
 
-        assert.match(await browser.click(1, photo, false, { how: "double" }), /Opened full size/);
-        assert.match(await browser.click(1, photo, false, { how: "right" }), /Menu: Save, Share/);
+        assert.match(await browser.click(1, photo, NO_CARD, false, { how: "double" }), /Opened full size/);
+        assert.match(await browser.click(1, photo, NO_CARD, false, { how: "right" }), /Menu: Save, Share/);
         // An empty box with only a right-click handler is listed by its id, and right-clicks (the owner's live check on
         // the-internet.herokuapp.com/context_menu).
         const box = number(page, /\[(\d+)\] clickable "#hot-spot"/);
 
-        assert.match(await browser.click(1, box, false, { how: "right" }), /Box menu/);
-        assert.match(await browser.click(1, photo, false, { how: "long", ms: 300 }), /Held short by touch/);
+        assert.match(await browser.click(1, box, NO_CARD, false, { how: "right" }), /Box menu/);
+        assert.match(await browser.click(1, photo, NO_CARD, false, { how: "long", ms: 300 }), /Held short by touch/);
         // Two touches close together are a double tap to Chrome: the next one waits.
         await new Promise((resolve) => setTimeout(resolve, 700));
-        assert.match(await browser.click(1, photo, false, { how: "long", ms: 1200 }), /Held long by touch/);
+        assert.match(await browser.click(1, photo, NO_CARD, false, { how: "long", ms: 1200 }), /Held long by touch/);
 
         const desktop = await browser.resize(1, "desktop");
 
-        assert.match(await browser.click(1, number(desktop, /\[(\d+)\] button "Photo"/), false, { how: "long", ms: 1200 }), /Held long by mouse/);
+        assert.match(await browser.click(1, number(desktop, /\[(\d+)\] button "Photo"/), NO_CARD, false, { how: "long", ms: 1200 }), /Held long by mouse/);
     } finally {
         await browser.close();
     }
@@ -457,27 +462,27 @@ test("with Chrome: a permission a page asks for is denied and Pi is told; the ow
 
     try {
         const page = await browser.open(1, `${origin}/where`);
-        const found = await browser.click(1, number(page, /\[(\d+)\] button "Find me"/));
+        const found = await browser.click(1, number(page, /\[(\d+)\] button "Find me"/), NO_CARD);
 
         assert.match(found, new RegExp(`^The page \\(${origin.replace(/[.:/]/g, "\\$&")}\\) asked for your location: Pi's browser denied it \\(setting browser\\.permissions: deny\\)\\. If the task needs it, ask the owner with browser_permission \\(geolocation\\)\\.\\n`));
         assert.match(found, /Location error 1/);
-        assert.match(await browser.click(1, number(page, /\[(\d+)\] button "Notify me"/)), /asked for to show notifications: Pi's browser denied it[\s\S]*Notifications denied/);
+        assert.match(await browser.click(1, number(page, /\[(\d+)\] button "Notify me"/), NO_CARD), /asked for to show notifications: Pi's browser denied it[\s\S]*Notifications denied/);
 
         // The owner allowed it (browser_permission's card): the page gets it when it asks again.
         assert.match(await browser.setPermission(1, origin, "notifications", true), /may have to show notifications in Pi's browser now/);
-        assert.match(await browser.click(1, number(page, /\[(\d+)\] button "Notify me"/)), /^The page \(.*\) asked for to show notifications: allowed, as the owner allowed it for that site\.\n[\s\S]*Notifications granted/);
+        assert.match(await browser.click(1, number(page, /\[(\d+)\] button "Notify me"/), NO_CARD), /^The page \(.*\) asked for to show notifications: allowed, as the owner allowed it for that site\.\n[\s\S]*Notifications granted/);
         await browser.setPermission(1, origin, "notifications", false);
 
         // Ask: a card waits as the page asks; allowed there, it is the site's.
         mode = "ask";
 
-        const asked = await browser.click(1, number(page, /\[(\d+)\] button "Notify me"/));
+        const asked = await browser.click(1, number(page, /\[(\d+)\] button "Notify me"/), NO_CARD);
 
         assert.match(asked, /asked for to show notifications: denied for now; the owner answers a card to allow it for that site\./);
         assert.deepEqual(browser.permissionAsks().map((each) => [each.origin, each.name]), [[origin, "notifications"]]);
         assert.match(await browser.answerPermission(1, browser.permissionAsks()[0]!.id, true, "Tuan"), /may have to show notifications/);
         assert.deepEqual(browser.permissionAsks(), []);
-        assert.match(await browser.click(1, number(page, /\[(\d+)\] button "Notify me"/)), /Notifications granted/);
+        assert.match(await browser.click(1, number(page, /\[(\d+)\] button "Notify me"/), NO_CARD), /Notifications granted/);
     } finally {
         await browser.close();
     }
@@ -494,7 +499,7 @@ test("with Chrome: a permission a page asks for is denied and Pi is told; the ow
     try {
         const page = await none.open(1, `${origin}/where`);
 
-        assert.match(await none.click(1, number(page, /\[(\d+)\] button "Notify me"/)), /asked for to show notifications: Chrome denies it \(it allows no site that\): browse on a machine/);
+        assert.match(await none.click(1, number(page, /\[(\d+)\] button "Notify me"/), NO_CARD), /asked for to show notifications: Chrome denies it \(it allows no site that\): browse on a machine/);
         await assert.rejects(none.setPermission(1, origin, "camera", true), /allows no site the camera/);
     } finally {
         await none.close();
@@ -578,18 +583,18 @@ test("with Chrome: a file the page downloads is saved where the session works an
 
     try {
         const page = await browser.open(1, "http://pi.test/files");
-        const got = await browser.click(1, number(page, /\[(\d+)\] link "Price list"/));
+        const got = await browser.click(1, number(page, /\[(\d+)\] link "Price list"/), NO_CARD);
 
         assert.match(got, new RegExp(`^The page downloaded prices\\.csv \\(1 KB\\): saved as ${join(folder, "prices.csv").replace(/[.\\/]/g, "\\$&")}\\.\\n`));
         assert.equal(readFileSync(join(folder, "prices.csv"), "utf8"), "lamp,12\nchair,40\n");
 
         // Made by the page's script (a blob), with the name it gives.
-        const made = await browser.click(1, number(got, /\[(\d+)\] button "Export notes"/));
+        const made = await browser.click(1, number(got, /\[(\d+)\] button "Export notes"/), NO_CARD);
 
         assert.match(made, /^The page downloaded notes\.txt \(1 KB\): saved as /);
         assert.equal(readFileSync(join(folder, "notes.txt"), "utf8"), "hello notes");
 
-        const big = await browser.click(1, number(made, /\[(\d+)\] link "Whole archive"/));
+        const big = await browser.click(1, number(made, /\[(\d+)\] link "Whole archive"/), NO_CARD);
 
         assert.match(big, /^The page began downloading archive\.bin, larger than 25 MB, the most Pi's browser keeps: it was cancelled\.\n/);
         assert.deepEqual(saved, ["prices.csv", "notes.txt"]);
@@ -604,7 +609,7 @@ test("with Chrome: a file the page downloads is saved where the session works an
     try {
         const page = await none.open(1, "http://pi.test/files");
 
-        assert.match(await none.click(1, number(page, /\[(\d+)\] link "Price list"/)), /^The page began downloading prices\.csv \(http:\/\/pi\.test\/prices\.csv\), but Chrome does not keep downloads: browse on a machine/);
+        assert.match(await none.click(1, number(page, /\[(\d+)\] link "Price list"/), NO_CARD), /^The page began downloading prices\.csv \(http:\/\/pi\.test\/prices\.csv\), but Chrome does not keep downloads: browse on a machine/);
     } finally {
         await none.close();
     }

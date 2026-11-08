@@ -11,6 +11,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { ChromeEngine, PiBrowser } from "../src/server/browser/pi-browser.ts";
+import { NO_CARD } from "./no-card.ts";
 import { BrowserSizes, SessionEngine, TabOwners } from "../src/server/browser/session-engine.ts";
 
 after(() => cleanUp());
@@ -190,9 +191,9 @@ test("a saved secret is typed into a password field by name; plain text into one
         const page = await browser.open(11, "http://pi.test/login");
         const password = Number(/\[(\d+)\] password "Password"/.exec(page)?.[1] ?? assert.fail(page));
 
-        await assert.rejects(browser.type(11, password, "plain text", {}), /password field: type a saved secret/);
+        await assert.rejects(browser.type(11, password, "plain text", {}, NO_CARD), /password field: type a saved secret/);
 
-        const after = await browser.typeSecret(11, password, "LOGIN_PASSWORD", "s3cret-value-123", {});
+        const after = await browser.typeSecret(11, password, "LOGIN_PASSWORD", "s3cret-value-123", {}, NO_CARD);
 
         assert.ok(!after.includes("s3cret-value-123"), "the page as read back does not hold the value");
 

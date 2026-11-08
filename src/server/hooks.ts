@@ -54,10 +54,15 @@ export const isHookId = (id: string): id is HookId => (HOOK_IDS as readonly stri
 
 export const hookInfo = (id: HookId): HookInfo => HOOKS.find((hook) => hook.id === id)!;
 
-/** Automatic behaviours with settings of their own: listed on the sheet with their value, never moved there. */
+/**
+ * Automatic behaviours listed beside the hooks: those with settings of their own, with their value (never moved there);
+ * and the owner's card before a click or step that may pay, send, book or delete (PP-455, `risky.ts`), always on: a
+ * switch for it would be a way to pay without asking, so there is none.
+ */
 export type BuiltInBehaviour =
     | { id: "wikiCapture"; setting: "wiki.captureMinutes"; minutes: number | null }
-    | { id: "autoCompact"; setting: "sessions.compactAt"; at: number | "full" };
+    | { id: "autoCompact"; setting: "sessions.compactAt"; at: number | "full" }
+    | { id: "askBeforeRisky"; setting: null };
 
 /** What Settings › Hooks shows (`GET /api/hooks`). */
 export type HooksView = {
