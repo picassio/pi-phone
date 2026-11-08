@@ -150,7 +150,7 @@ import { changedSince, composeFeedback, diffSince, makeCheckpoint, newComment, s
 import { type CrdRun, CrdError } from "./crd.ts";
 import { Screenshots } from "./screenshots.ts";
 import { FilePages } from "./file-pages.ts";
-import { MACHINE_BROWSER_MODES, type MachineAccess, type MachineBrowserMode, MachineEngine } from "./browser/machine-engine.ts";
+import { CHROME_FEATURES_MAX, MACHINE_BROWSER_MODES, type MachineAccess, type MachineBrowserMode, MachineEngine, parseChromeFeatures } from "./browser/machine-engine.ts";
 import { BrowserPlaces, BrowserSizes, SessionEngine, TabOwners } from "./browser/session-engine.ts";
 import { activePortScript, AttachedEngine, type BrowserEndpoint, connectBrowser, inspectScript, isOwnProfile, processKnown, profileFromInspect } from "./browser/attached-engine.ts";
 import { checkPolicy, EXTENSIONS as POLICY_EXTENSIONS, PolicyStore } from "./policy.ts";
@@ -4047,6 +4047,8 @@ export class PocketApp {
             ...(machine.platform === undefined ? {} : { platform: machine.platform }),
             // Computer control's desktop setup line (Menu › Computer control): DISPLAY and the rest, on Linux.
             prepare: () => this.computerControl.prepareOf(id),
+            // The owner's Chrome features (`browser.chromeFeatures`, PP-454), as `--enable-features`.
+            features: () => this.config.browserChromeFeatures,
         });
 
         this.#machineEngines.set(id, engine);
@@ -4154,6 +4156,56 @@ export class PocketApp {
         if (engine !== undefined) {
             await engine.close().catch((error: unknown) => this.#log(`browser: stopping Chrome on ${machine.name}: ${describe(error)}`));
         }
+    }
+
+    /**
+     * The Chrome features every Chrome Pi's browser starts on a machine gets (`browser.chromeFeatures`, PP-454): names
+     * separated by commas, or none. A change stops the machines' Chrome now (open tabs there close, sign-ins stay); each
+     * starts with them at its next use. One running from before pi-phone started starts again then too (the launch script
+     * compares). The owner's. Answers what changed, for the setting's answer and Settings › Pi's browser.
+     */
+    async setBrowserChromeFeatures(user: User, value: unknown): Promise<string> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        if (typeof value !== "string") {
+            throw new HttpError(400, "Chrome features are names separated by commas, or none.");
+        }
+
+        const parsed = parseChromeFeatures(value);
+
+        if ("bad" in parsed) {
+            throw new HttpError(400, `A Chrome feature's name has only letters, digits and underscores, like CanvasDrawElement: not ${parsed.bad.join(", ")}.`);
+        }
+
+        if ("tooMany" in parsed) {
+            throw new HttpError(400, `At most ${CHROME_FEATURES_MAX} Chrome features: ${parsed.tooMany} given.`);
+        }
+
+        const { features } = parsed;
+
+        if (features.join(",") === this.config.browserChromeFeatures.join(",")) {
+            return "Unchanged.";
+        }
+
+        this.config.browserChromeFeatures = features;
+        const stopped: string[] = [];
+
+        const machines = this.browserMachines();
+
+        for (const [id, engine] of this.#machineEngines) {
+            const name = machines.find((each) => each.id === id)?.name ?? id;
+
+            await engine.close().then(
+                () => stopped.push(name),
+                (error: unknown) => this.#log(`browser: stopping Chrome on ${name}: ${describe(error)}`),
+            );
+        }
+
+        const flag = features.length === 0 ? "without --enable-features" : `with --enable-features=${features.join(",")}`;
+
+        return `${stopped.length === 0 ? "" : `Pi's browser's Chrome on ${stopped.join(", ")} stopped (its tabs closed, sign-ins stay). `}Chrome on each machine starts ${flag} at Pi's browser's next use there.`;
     }
 
     /**

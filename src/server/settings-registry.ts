@@ -22,7 +22,7 @@ import { ImageGen } from "./image-gen.ts";
 import { DEFAULT_ASK_MODEL, DEFAULT_MAKE_MODEL } from "./video-gen.ts";
 import { DEFAULT_SPEAK_MODEL, DEFAULT_TRANSCRIBE_MODEL, DEFAULT_VOICE, SPEAK_MODELS, TRANSCRIBE_MODELS, VOICES as SPEAK_VOICES } from "./audio.ts";
 import { PERMISSION_MODES, POPUP_MODES } from "./browser/pi-browser.ts";
-import { MACHINE_BROWSER_MODES } from "./browser/machine-engine.ts";
+import { CHROME_FEATURES_MAX, MACHINE_BROWSER_MODES } from "./browser/machine-engine.ts";
 import { CODEMODE_MODES, CONTEXT_PARTS, type ContextPart, contextModes, resolveContextPolicy } from "./context-policy.ts";
 import { THINKING_LEVELS } from "./models.ts";
 import { copyFileSync, existsSync, readFileSync, rmSync, statSync } from "node:fs";
@@ -66,8 +66,8 @@ export type Setting = {
     read(target: string | undefined): Promise<string> | string;
     /** Values it may take, when they are a short list. */
     choices?(): Promise<string[]> | string[];
-    /** Change it: `value` as Pi wrote it. */
-    apply(user: User, value: string, target: string | undefined): Promise<void> | void;
+    /** Change it: `value` as Pi wrote it. A note it answers (what else changed) goes into the setting's answer. */
+    apply(user: User, value: string, target: string | undefined): Promise<string | void> | string | void;
 };
 
 /** A one-off action, not a value: what it does, and the arguments it takes (by name). */
@@ -515,6 +515,15 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             read: (target) => machine(target).browserMode ?? "headless",
             choices: () => [...MACHINE_BROWSER_MODES],
             apply: (user, value, target) => app.setMachineBrowserMode(user, machine(target).id, value.trim().toLowerCase()),
+        },
+        {
+            id: "browser.chromeFeatures",
+            area: "browser",
+            title: "Chrome features for Pi's browser on machines",
+            help: `Chrome feature names separated by commas (letters, digits and underscores; at most ${CHROME_FEATURES_MAX}), or none (the default). Every Chrome Pi's browser starts on a machine gets them as --enable-features: CanvasDrawElement turns on HTML-in-Canvas (drawElementImage, canvas layoutsubtree) in Chrome 155 and 156. Not the phone's browser or the screenshot tool (the phone's WebView takes no flags), nor a browser Pi attached to. A change stops each machine's Chrome now (open tabs there close, sign-ins stay); it starts with them at its next use. Settings › Pi's browser.`,
+            owner: true,
+            read: () => app.config.browserChromeFeatures.join(", ") || "none",
+            apply: (user, value) => app.setBrowserChromeFeatures(user, value),
         },
         // ─── Pages kept from artifacts (PP-370) ───
         {

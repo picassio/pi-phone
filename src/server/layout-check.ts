@@ -90,6 +90,11 @@ export type LayoutReport = {
     scroller?: { what: string; shown: number; full: number };
     /** The page's uncaught errors, as a file page keeps them (`file-pages.ts`'s `PAGE_SHIM`, PP-440). */
     errors?: string[];
+    /**
+     * HTML-in-Canvas the page uses and the renderer lacks (PP-454): what showed it (`canvas[layoutsubtree]`,
+     * `canvas[content=drawable]`, or `drawElementImage` in an inline script), and the renderer's Chrome version.
+     */
+    canvas?: { uses: string; chrome: string };
 };
 
 /** Groups the page keeps of each kind; the words show fewer (`SHOWN`). */
@@ -888,7 +893,15 @@ ${PAGE_HELPERS}
     if (!shellBox || e.scrollHeight - e.clientHeight > shellBox.full - shellBox.shown) shellBox = { what: name(e), shown: e.clientHeight, full: e.scrollHeight };
   }
   const errors = Array.isArray(window.__piPageErrors) ? window.__piPageErrors.slice(0, 5).map((x) => String(x).slice(0, 300)) : [];
-  return JSON.stringify(Object.assign({ width: W, height: innerHeight, checked: Math.min(checked, 4000), issues, more, found, totals, summary }, shellBox ? { scroller: shellBox } : {}, errors.length ? { errors } : {}));
+  // HTML-in-Canvas (PP-454) that this renderer lacks: the page's canvases then show what it draws without it.
+  let canvasUse;
+  if (typeof CanvasRenderingContext2D === 'undefined' || typeof CanvasRenderingContext2D.prototype.drawElementImage !== 'function') {
+    if (document.querySelector('canvas[layoutsubtree]')) canvasUse = 'canvas[layoutsubtree]';
+    else if (document.querySelector('canvas[content=drawable]')) canvasUse = 'canvas[content=drawable]';
+    else if ([...document.scripts].some((s) => !s.src && s.textContent.includes('drawElementImage'))) canvasUse = 'drawElementImage';
+  }
+  const canvas = canvasUse ? { uses: canvasUse, chrome: (/Chrome\/(\d+)/.exec(navigator.userAgent) || [, 'unknown'])[1] } : undefined;
+  return JSON.stringify(Object.assign({ width: W, height: innerHeight, checked: Math.min(checked, 4000), issues, more, found, totals, summary }, shellBox ? { scroller: shellBox } : {}, errors.length ? { errors } : {}, canvas ? { canvas } : {}));
 })()`;
 
 /** Each kind's heading, in the order the words give them. */
@@ -991,13 +1004,21 @@ function summaryWords(summary: LayoutSummary): string | undefined {
     return parts.length === 0 ? undefined : `Type and colour: ${parts.join("; ")}.`;
 }
 
-/** What the picture leaves out (PP-440): the rest of the box the page scrolls in, and the errors the page threw. */
+/**
+ * What the picture leaves out (PP-440): the rest of the box the page scrolls in, and the errors the page threw; and
+ * HTML-in-Canvas the renderer lacks (PP-454).
+ */
 function pageNotes(report: LayoutReport): string[] {
-    const { scroller, errors = [] } = report;
+    const { scroller, errors = [], canvas } = report;
 
     return [
         ...(scroller === undefined ? [] : [`The page scrolls inside ${scroller.what}: the picture shows ${scroller.shown} of its ${scroller.full} px, the rest is not in it.`]),
         ...(errors.length === 0 ? [] : [`The page threw: ${errors.join("; ")}`]),
+        ...(canvas === undefined
+            ? []
+            : [
+                  `The page uses HTML-in-Canvas (${canvas.uses}), which this renderer (Chrome ${canvas.chrome}) lacks: its canvas shows what the page draws without it. Pi's browser on a machine draws it when the setting browser.chromeFeatures has CanvasDrawElement.`,
+              ]),
     ];
 }
 
@@ -1091,6 +1112,10 @@ export function parseLayout(text: unknown, width: number): LayoutReport | undefi
 
         if (errors !== undefined && !(Array.isArray(errors) && errors.every((each) => typeof each === "string"))) {
             delete value.errors;
+        }
+
+        if (value.canvas !== undefined && (typeof value.canvas?.uses !== "string" || typeof value.canvas.chrome !== "string")) {
+            delete value.canvas;
         }
 
         if (value.width > width + 1 && !value.issues.some((issue) => issue.kind === "page-wider")) {

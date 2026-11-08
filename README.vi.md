@@ -548,6 +548,12 @@ dự án thật.</sub>
     bạn (không mật khẩu, không quyền quản trị, xóa ngay khi Chrome chạy), và báo khi chưa ai đăng nhập hoặc màn hình
     đang khóa. Công cụ Chrome headless trên máy không có cửa sổ; macOS làm sau. Khi có người bấm, gõ hay cuộn trong
     cửa sổ đó (không phải Pi, không phải khung), khung báo cửa sổ đang được dùng trên máy, và Pi được báo.
+  - **Tính năng Chrome**: **Cài đặt › Trình duyệt của Pi › Chrome trên các máy** (`browser.chromeFeatures`) truyền tên
+    tính năng dưới dạng `--enable-features` cho mọi Chrome mà trình duyệt của Pi khởi động trên một máy (tối đa 10,
+    cách nhau bằng dấu phẩy); `CanvasDrawElement` bật HTML-in-Canvas trong Chrome 155 và 156. Khi đổi, Chrome đó dừng;
+    nó khởi động với các tính năng mới ở lần dùng tới (các thẻ đang mở ở đó đóng, đăng nhập vẫn giữ). Trình duyệt trên
+    điện thoại và công cụ `screenshot` dùng WebView của điện thoại, vốn không nhận cờ nào: ảnh chụp một trang dùng
+    HTML-in-Canvas sẽ nói rõ điều đó.
   - **Từ một phiên trên điện thoại**: `browser_open` và `browser_new_tab` với `machine` (hoặc **Duyệt trên** trong
     khung) chuyển việc duyệt web của phiên sang một máy của bạn, hoặc về lại điện thoại; các thẻ vẫn là của phiên.
   - **Gắn vào trình duyệt đang chạy ở đó**: `browser_attach` (một cổng, hoặc đường dẫn tệp DevToolsActivePort) điều
@@ -886,6 +892,7 @@ hiện tại và giá trị mới. Hỏi “bạn đổi được những gì?�
 | **OpenRouter** (cần cho Jev, tìm kiếm theo ngữ nghĩa của wiki, và tìm kiếm web qua OpenRouter) | **Nhà cung cấp › OpenRouter**: đăng nhập, hoặc **Khóa API** | Không, đăng nhập là việc của bạn |
 | **Jev** làm mô hình cho `browser_run` | **Trình duyệt của Pi › Mô hình chạy**: *Jev*, id `typesafe/jev-1.13`, cho mọi phiên hoặc chỉ phiên này (*Mô hình của phiên* dùng mô hình riêng của từng phiên) | “Dùng Jev cho browser run” (hoặc “…chỉ trong phiên này”) |
 | Đoạn mã đọc trang trong trình duyệt của Pi (`browser_eval`) | **Trình duyệt của Pi › Đoạn mã**: *Bật* (mặc định) hoặc *Tắt* | “Tắt đoạn mã trong trình duyệt” |
+| Tính năng Chrome cho trình duyệt của Pi trên các máy (`--enable-features`) | **Trình duyệt của Pi › Chrome trên các máy**: các tên cách nhau bằng dấu phẩy, rồi *Lưu* | “Bật CanvasDrawElement cho trình duyệt của Pi trên các máy” |
 | Artifact giữ thành trang trên thanh bên | **Trang**: các trang của bạn (thứ tự, *Gỡ khỏi thanh bên*); chủ sở hữu *Bật* (mặc định) hoặc *Tắt* trang cho mọi người | “Giữ paper reader thành trang”, “Đưa trang budget lên đầu”, “Tắt trang” |
 | Quyền mà trang xin trong trình duyệt của Pi (vị trí, máy ảnh, micrô, thông báo, bảng tạm) | **Trình duyệt của Pi › Quyền**: *Từ chối* (mặc định; Pi được báo và có thể hỏi bạn) hoặc *Hỏi* (một thẻ khi trang xin) | “Hỏi tôi khi trang muốn biết vị trí của tôi” |
 | Cửa sổ trang mở ra trong trình duyệt của Pi trên điện thoại (cửa sổ đăng nhập) | **Trình duyệt của Pi › Cửa sổ trang mở ra**: *Cho phép* (một tab ở trước, mặc định), *Hỏi* (một thẻ trước), *Tắt* | “Hỏi tôi trước khi trang mở cửa sổ” |

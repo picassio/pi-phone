@@ -20857,14 +20857,33 @@ pre.gallery-code {
     margin-top: 6px;
 }
 
-/* Pi's browser sheet: a run model's row, its dropdown and for Jev its cost and Test (PP-312). */
-.setting-row.pb-run .field {
+/* Pi's browser sheet: a run model's row, its dropdown and for Jev its cost and Test (PP-312); the Chrome features
+   field and its Save (PP-454). */
+.setting-row.pb-run .field,
+.setting-row.pb-features .field {
     flex: 1;
     min-width: 0;
 }
 
 .setting-row.pb-run .field > .label {
     margin-top: 6px;
+}
+
+.setting-row.pb-features input {
+    box-sizing: border-box;
+    height: 40px;
+}
+
+@media (pointer: coarse) {
+    .setting-row.pb-features input {
+        height: 44px;
+    }
+}
+
+@media (max-width: 480px) {
+    .setting-row.pb-features .button {
+        min-height: 40px;
+    }
 }
 
 /* The update the Android app found (sheets/update.js): the version, then what updating does. */

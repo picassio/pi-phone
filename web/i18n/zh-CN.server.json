@@ -788,5 +788,8 @@
     "/make needs the Extension builder: turn it on in Settings › Extensions.": "/make 需要扩展生成器：请在设置 › 扩展中打开它。",
     "/page needs artifacts kept as pages: turn them on in Settings › Pages.": "/page 需要把产物保留为页面：请在设置 › 页面中打开。",
     "Say what to make, such as /make a pomodoro timer in the side rail.": "说说要做什么，例如 /make 侧栏里的番茄钟计时器。",
-    "Say what to make, such as /page a currency converter VND/USD.": "说说要做什么，例如 /page VND/USD 汇率换算器。"
+    "Say what to make, such as /page a currency converter VND/USD.": "说说要做什么，例如 /page VND/USD 汇率换算器。",
+    "Chrome features are names separated by commas, or none.": "Chrome 功能是用逗号分隔的名称，或 none。",
+    "A Chrome feature's name has only letters, digits and underscores, like CanvasDrawElement: not {1}.": "Chrome 功能名称只能包含字母、数字和下划线，例如 CanvasDrawElement：不能是 {1}。",
+    "At most {1} Chrome features: {2} given.": "最多 {1} 个 Chrome 功能：给了 {2} 个。"
 }

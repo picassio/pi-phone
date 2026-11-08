@@ -185,9 +185,9 @@ export default function createSettings(host: PocketHost) {
                         return reply(`${answer.by} said no: ${setting.id} stays ${before}.`, true);
                     }
 
-                    await setting.apply(person, args.value, args.target);
+                    const note = await setting.apply(person, args.value, args.target);
 
-                    return reply(`Changed ${setting.id}${args.target === undefined ? "" : ` (${args.target})`}: ${before} → ${await setting.read(args.target)}.`);
+                    return reply(`Changed ${setting.id}${args.target === undefined ? "" : ` (${args.target})`}: ${before} → ${await setting.read(args.target)}.${typeof note === "string" && note !== "" ? ` ${note}` : ""}`);
                 } catch (error) {
                     return reply(message(error), true);
                 }

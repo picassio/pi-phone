@@ -787,5 +787,8 @@
     "/make needs the Extension builder: turn it on in Settings › Extensions.": "/make cần Trình tạo tiện ích: hãy bật nó trong Cài đặt › Tiện ích.",
     "/page needs artifacts kept as pages: turn them on in Settings › Pages.": "/page cần tính năng giữ artifact thành trang: hãy bật nó trong Cài đặt › Trang.",
     "Say what to make, such as /make a pomodoro timer in the side rail.": "Hãy nói cần làm gì, ví dụ /make đồng hồ pomodoro trên thanh bên.",
-    "Say what to make, such as /page a currency converter VND/USD.": "Hãy nói cần làm gì, ví dụ /page công cụ đổi tiền VND/USD."
+    "Say what to make, such as /page a currency converter VND/USD.": "Hãy nói cần làm gì, ví dụ /page công cụ đổi tiền VND/USD.",
+    "Chrome features are names separated by commas, or none.": "Tính năng Chrome là các tên cách nhau bằng dấu phẩy, hoặc none.",
+    "A Chrome feature's name has only letters, digits and underscores, like CanvasDrawElement: not {1}.": "Tên một tính năng Chrome chỉ gồm chữ cái, chữ số và dấu gạch dưới, như CanvasDrawElement: không phải {1}.",
+    "At most {1} Chrome features: {2} given.": "Tối đa {1} tính năng Chrome: đã đưa {2}."
 }

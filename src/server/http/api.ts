@@ -1346,6 +1346,17 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 return json(response, 200, { eval: app.config.browserEval });
             }
 
+            // The Chrome features Pi's browser's Chrome on machines starts with (Settings › Pi's browser, PP-454).
+            if (second === "chrome-features" && third === undefined && method === "GET") {
+                return json(response, 200, { features: app.config.browserChromeFeatures });
+            }
+
+            if (second === "chrome-features" && third === undefined && method === "PUT") {
+                const note = await app.setBrowserChromeFeatures(user, (await readJson<{ features?: unknown }>(request)).features);
+
+                return json(response, 200, { features: app.config.browserChromeFeatures, note });
+            }
+
             // The run model `browser_run` decides with (Settings › Browser), and a test of a Jev model: one decision.
             if (second === "run-model" && third === undefined && method === "GET") {
                 return json(response, 200, { model: app.config.browserRunModel });

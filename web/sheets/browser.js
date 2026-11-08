@@ -202,6 +202,72 @@ function EvalRow() {
     </div>`;
 }
 
+/** The names in a features field, as the server keeps them, to see whether it changed. */
+const featureNames = (text) => text.split(/[\s,]+/).filter((name) => name !== "").join(",");
+
+/**
+ * The Chrome features every Chrome Pi's browser starts on a machine gets (PP-454, the setting browser.chromeFeatures):
+ * names in a field, saved with Save; the machines' Chrome starts again with them.
+ */
+function ChromeFeaturesRow() {
+    const [saved, setSaved] = useState(null);
+    const [text, setText] = useState("");
+    const [done, setDone] = useState(false);
+
+    useEffect(() => {
+        void attempt(async () => {
+            const { features } = await api("browser/chrome-features");
+
+            setSaved(features);
+            setText(features.join(", "));
+        });
+    }, []);
+
+    if (saved === null) {
+        return html`<${Loader} label=${t("Reading the setting")} />`;
+    }
+
+    return html`<div class="sheet-list">
+        <div class="setting-row pb-features" data-part="browser-chrome-features">
+            <div class="field">
+                <span>${t("Chrome features")}</span>
+                <input
+                    class="mono"
+                    aria-label=${t("Chrome features")}
+                    value=${text}
+                    placeholder="CanvasDrawElement"
+                    spellcheck="false"
+                    autocapitalize="off"
+                    onInput=${(event) => {
+                        setText(event.currentTarget.value);
+                        setDone(false);
+                    }}
+                />
+                <span class="muted small">
+                    ${t("Feature names separated by commas, at most 10, given to every Chrome Pi's browser starts on a machine as --enable-features. CanvasDrawElement turns on HTML-in-Canvas. The phone's browser and screenshots use the phone's WebView, which takes none.")}
+                </span>
+                ${done && html`<span class="muted small">${t("Saved. Each machine's Chrome starts with them at its next use; its open tabs closed, sign-ins stay.")}</span>`}
+                <div class="sheet-actions">
+                    <button
+                        class="button small"
+                        disabled=${featureNames(text) === saved.join(",")}
+                        onClick=${() =>
+                            attempt(async () => {
+                                const { features } = await api("browser/chrome-features", { features: text }, { method: "PUT" });
+
+                                setSaved(features);
+                                setText(features.join(", "));
+                                setDone(true);
+                            })}
+                    >
+                        ${t("Save")}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>`;
+}
+
 export function BrowserSheet() {
     const conversation = store.state.view.conversation;
     const id = store.state.conversationId;
@@ -259,5 +325,7 @@ export function BrowserSheet() {
         <${PermissionsRow} />
         <div class="label">${t("Scripts")}</div>
         <${EvalRow} />
+        <div class="label">${t("Chrome on machines")}</div>
+        <${ChromeFeaturesRow} />
     <//>`;
 }

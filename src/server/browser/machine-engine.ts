@@ -11,6 +11,11 @@
  * machine's desktop setup line names (computer control's, `DISPLAY` and the rest); on Windows in the owner's signed-in
  * desktop session (sshd's commands run in session 0, which has no screen) through a one-shot scheduled task, as
  * computer control's bridge (PP-179) gets there; macOS later.
+ *
+ * Chrome features (PP-454, the owner's setting `browser.chromeFeatures`): feature names every Chrome started here gets as
+ * `--enable-features`, such as CanvasDrawElement (HTML-in-Canvas, Chrome 155). pi-phone passes no other
+ * `--enable-features` here, and Chrome takes only the last one given, so this is the whole list. A Chrome running with
+ * other features (the setting changed while pi-phone was away) starts again, as one in the other mode does.
  */
 import http from "node:http";
 import { encodePowerShell } from "../computer-windows.ts";
@@ -33,8 +38,11 @@ export type MachineAccess = {
     forward(port: number): Promise<{ port: number; close(): void }>;
 };
 
-/** The machine's window mode setting, its system, and its desktop setup line, as they are now (PP-274). */
-export type WindowOptions = { mode?: () => MachineBrowserMode; platform?: string; prepare?: () => string };
+/**
+ * The machine's window mode setting, its system, and its desktop setup line, as they are now (PP-274); and the Chrome
+ * features its Chrome starts with (`browser.chromeFeatures`, PP-454).
+ */
+export type WindowOptions = { mode?: () => MachineBrowserMode; platform?: string; prepare?: () => string; features?: () => readonly string[] };
 
 /** Where the browser keeps its things on the machine, under its home. */
 export const BROWSER_DIR = ".pi/mobile/browser";
@@ -54,8 +62,36 @@ const STOP = [
 
 /** The script that stops the browser's Chrome on the machine (its profile stays). */
 export function stopScript(): string {
-    return [`P="$HOME/${BROWSER_DIR}"`, ...STOP, 'rm -f "$P/mode"', "true"].join("\n");
+    return [`P="$HOME/${BROWSER_DIR}"`, ...STOP, 'rm -f "$P/mode" "$P/features"', "true"].join("\n");
 }
+
+/** At most this many Chrome features (`browser.chromeFeatures`, PP-454). */
+export const CHROME_FEATURES_MAX = 10;
+
+/**
+ * The Chrome features the owner wrote (`browser.chromeFeatures`, PP-454): names separated by commas or spaces, each of
+ * letters, digits and underscores (so they go into the launch script as they are), at most `CHROME_FEATURES_MAX`, each
+ * once; empty or none for none. Or what is wrong: the names that are not names, or too many.
+ */
+export function parseChromeFeatures(value: string): { features: string[] } | { bad: string[] } | { tooMany: number } {
+    const text = value.trim();
+
+    if (/^(none|null|off|-|)$/i.test(text)) {
+        return { features: [] };
+    }
+
+    const names = [...new Set(text.split(/[\s,]+/).filter((each) => each !== ""))];
+    const bad = names.filter((each) => !/^[A-Za-z0-9_]+$/.test(each));
+
+    if (bad.length > 0) {
+        return { bad };
+    }
+
+    return names.length > CHROME_FEATURES_MAX ? { tooMany: names.length } : { features: names };
+}
+
+/** Chrome's flag for `features`, with the space before it, or "" for none. */
+const featuresFlag = (features: readonly string[]): string => (features.length === 0 ? "" : ` --enable-features=${features.join(",")}`);
 
 /** How a machine's Chrome runs (`browser.machineMode`): headless (the default), or as a window on its screen. */
 export type MachineBrowserMode = "headless" | "window";
@@ -103,20 +139,25 @@ export function windowsWindowCommands(): string {
     ].join("\n");
 }
 
-/** How the launch script is made: the mode, the machine's system, and its desktop setup line (Linux, window mode). */
-export type LaunchOptions = { mode?: MachineBrowserMode; windows?: boolean; prepare?: string };
+/**
+ * How the launch script is made: the mode, the machine's system, its desktop setup line (Linux, window mode), and the
+ * Chrome features (PP-454, checked by `parseChromeFeatures`).
+ */
+export type LaunchOptions = { mode?: MachineBrowserMode; windows?: boolean; prepare?: string; features?: readonly string[] };
 
 /**
  * The script that finds Chrome on the machine and starts it with a DevTools port, unless it runs already in this mode:
  * its last line is `port <n>`, or it exits 5 with `nochrome` when the machine has none, or 6 with the end of Chrome's
  * log; in window mode, with one of `LAUNCH_EXIT` when it cannot show a window.
  */
-export function launchScript({ mode = "headless", windows = false, prepare = "" }: LaunchOptions = {}): string {
+export function launchScript({ mode = "headless", windows = false, prepare = "", features = [] }: LaunchOptions = {}): string {
     const window = mode === "window";
+    const flag = featuresFlag(features);
 
     return [
         `P="$HOME/${BROWSER_DIR}"`,
         `MODE=${mode}`,
+        `FEATURES="${features.join(",")}"`,
         'mkdir -p "$P/profile" "$P/uploads" "$P/downloads"',
         // Running already when its DevTools answer on the port it wrote. Not by its pid: on Windows, Git Bash cannot see
         // a pid an earlier shell started, and a second Chrome on the profile then aborts ("Lock file can not be
@@ -127,12 +168,13 @@ export function launchScript({ mode = "headless", windows = false, prepare = "" 
         '  if command -v curl >/dev/null 2>&1; then curl -sf -m 3 "http://127.0.0.1:$D/json/version" >/dev/null 2>&1; return $?; fi',
         '  [ -f "$P/chrome.pid" ] && kill -0 "$(cat "$P/chrome.pid")" 2>/dev/null',
         "}",
-        // Running in the other mode (the setting changed while pi-phone was away): stopped, and started in this one.
-        'if alive && [ "$(cat "$P/mode" 2>/dev/null || echo headless)" = "$MODE" ]; then echo "port $D"; exit 0; fi',
+        // Running in the other mode, or with other features (a setting changed while pi-phone was away): stopped, and
+        // started as they are now.
+        'if alive && [ "$(cat "$P/mode" 2>/dev/null || echo headless)" = "$MODE" ] && [ "$(cat "$P/features" 2>/dev/null)" = "$FEATURES" ]; then echo "port $D"; exit 0; fi',
         // A Chrome still holding this profile whose DevTools do not answer (its port file lost, or stuck) is stopped: a new
         // one could not take the profile.
         ...STOP,
-        'rm -f "$P/mode"',
+        'rm -f "$P/mode" "$P/features"',
         // Uploads a day old go.
         'find "$P/uploads" -mindepth 1 -maxdepth 1 -mtime +0 -exec rm -rf {} + 2>/dev/null || true',
         // Linux, window mode: the desktop the machine's setup line names (computer control's), before Chrome is looked
@@ -163,7 +205,7 @@ export function launchScript({ mode = "headless", windows = false, prepare = "" 
             ? [
                   // Windows: in the owner's desktop session, through a one-shot task (sshd's session 0 has no screen).
                   'if ! command -v cygpath >/dev/null 2>&1 || ! command -v powershell.exe >/dev/null 2>&1; then echo "A window on Windows starts through Git Bash and Windows PowerShell, which this machine lacks."; exit 6; fi',
-                  `export PI_CHROME="$(cygpath -w "$C")" PI_PROFILE="$(cygpath -w "$P/profile")" PI_FLAGS="${WINDOW_FLAGS}"`,
+                  `export PI_CHROME="$(cygpath -w "$C")" PI_PROFILE="$(cygpath -w "$P/profile")" PI_FLAGS="${WINDOW_FLAGS}${flag}"`,
                   `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${encodePowerShell(windowsWindowCommands())} >"$P/chrome.log" 2>&1 </dev/null`,
                   "W=$?",
                   `if [ $W -eq ${LAUNCH_EXIT.notLoggedOn} ]; then echo notloggedon; exit ${LAUNCH_EXIT.notLoggedOn}; fi`,
@@ -177,7 +219,7 @@ export function launchScript({ mode = "headless", windows = false, prepare = "" 
                   ...(window ? [`if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ]; then echo nodisplay; exit ${LAUNCH_EXIT.noDisplay}; fi`] : []),
                   // Chrome refuses to run as root with its sandbox; the headless shell is headless already.
                   'F=""; [ "$(id -u 2>/dev/null)" = "0" ] && F="--no-sandbox"',
-                  window ? `H="${WINDOW_FLAGS}"` : 'case "$C" in *chrome-headless-shell*) H="--disable-gpu";; *) H="--headless=new --disable-gpu";; esac',
+                  window ? `H="${WINDOW_FLAGS}${flag}"` : `case "$C" in *chrome-headless-shell*) H="--disable-gpu${flag}";; *) H="--headless=new --disable-gpu${flag}";; esac`,
                   'S=""; command -v setsid >/dev/null 2>&1 && S=setsid',
                   "start() {",
                   '  ( $S "$C" $H $F --remote-debugging-port=0 --user-data-dir="$P/profile" --no-first-run --no-default-browser-check about:blank >"$P/chrome.log" 2>&1 </dev/null & echo $! >"$P/chrome.pid" )',
@@ -191,6 +233,7 @@ export function launchScript({ mode = "headless", windows = false, prepare = "" 
                   'if [ ! -s "$P/profile/DevToolsActivePort" ]; then echo "Chrome ($C) did not start:"; tail -n 6 "$P/chrome.log"; exit 6; fi',
               ]),
         'echo "$MODE" >"$P/mode"',
+        'echo "$FEATURES" >"$P/features"',
         'echo "port $(head -n 1 "$P/profile/DevToolsActivePort")"',
     ].join("\n");
 }
@@ -247,8 +290,8 @@ export class MachineEngine implements BrowserEngine {
     readonly reopensToResize = false;
     readonly #machine: MachineAccess;
     readonly #window: WindowOptions;
-    /** The forward of Chrome's DevTools port, while it lasts, and the mode Chrome was started in. */
-    #forward: { port: number; remote: number; mode: MachineBrowserMode; close(): void } | undefined;
+    /** The forward of Chrome's DevTools port, while it lasts, and the mode and features Chrome was started with. */
+    #forward: { port: number; remote: number; mode: MachineBrowserMode; features: string; close(): void } | undefined;
     #starting: Promise<number> | undefined;
 
     /**
@@ -301,9 +344,11 @@ export class MachineEngine implements BrowserEngine {
     #port(): Promise<number> {
         this.#starting ??= (async () => {
             const mode = this.#mode();
+            const features = this.#window.features?.() ?? [];
 
-            // A Chrome started in the other mode is started again in this one (the launch script stops it).
-            if (this.#forward !== undefined && this.#forward.mode !== mode) {
+            // A Chrome started in the other mode, or with other features, is started again as they are now (the launch
+            // script stops it).
+            if (this.#forward !== undefined && (this.#forward.mode !== mode || this.#forward.features !== features.join(","))) {
                 this.#forward.close();
                 this.#forward = undefined;
             }
@@ -323,7 +368,7 @@ export class MachineEngine implements BrowserEngine {
                 throw new Error(`Pi's browser as a window on macOS is not built yet: set Pi's browser on ${this.#machine.name} to headless in Settings › Machines.`);
             }
 
-            const script = launchScript({ mode, windows: this.#window.platform === "windows", prepare: mode === "window" ? (this.#window.prepare?.() ?? "") : "" });
+            const script = launchScript({ mode, windows: this.#window.platform === "windows", prepare: mode === "window" ? (this.#window.prepare?.() ?? "") : "", features });
             const { code, out } = await this.#machine.run(script, 90);
             const port = Number(/^port (\d+)\s*$/m.exec(out)?.[1]);
 
@@ -344,7 +389,7 @@ export class MachineEngine implements BrowserEngine {
                 );
             }
 
-            this.#forward = { port: forward.port, remote: port, mode, close: forward.close };
+            this.#forward = { port: forward.port, remote: port, mode, features: features.join(","), close: forward.close };
 
             return forward.port;
         })().finally(() => {

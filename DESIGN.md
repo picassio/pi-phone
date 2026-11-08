@@ -1897,6 +1897,29 @@ so Pi changes them through the settings tools; "the last session" is the one the
     action is Chrome itself, starts it, waits for DevToolsActivePort and unregisters it in a `finally`; Chrome then
     runs in the desktop session and its port comes through the same ssh forward. Nobody signed in exits 21, a locked
     screen 23 (LogonUI in that session). macOS is refused before anything runs. `launchProblem` words each exit.
+  - **Chrome features** (PP-454; `browser.chromeFeatures`, `config.browserChromeFeatures`, Settings › Pi's browser ›
+    Chrome on machines, `PUT /api/browser/chrome-features`, `setting_change`; the owner's). Feature names every Chrome
+    `MachineEngine` starts gets as one `--enable-features=a,b` (headless, the headless shell, a window on Linux and
+    on Windows through `PI_FLAGS`); pi-phone passes no other `--enable-features` there, and Chrome takes only the last
+    one. `parseChromeFeatures`: names of letters, digits and underscores (so they go into the shell script as they
+    are), at most 10, each once; none clears. First use: `CanvasDrawElement`, HTML-in-Canvas (`drawElementImage`,
+    `<canvas layoutsubtree>`) in Chrome 155 and 156 (wiki `resources/html-in-canvas-chrome-status`; Chrome 157 renames
+    the attribute `content="drawable"`, and the flag may change). A change stops every machine engine's Chrome
+    (`setBrowserChromeFeatures`, as a mode change does) and its answer says so; the launch script keeps the features in
+    `~/.pi/mobile/browser/features` and restarts a Chrome started with others (a change while pi-phone was away), and
+    the engine compares them with its forward's. Not the phone's WebView (it takes no flags), the server edition's own
+    Chrome, or a browser Pi attached to. `browser_eval`'s world keeps `CanvasRenderingContext2D` as a global (its
+    methods refuse like every other, and `getContext` is not a read), so `typeof
+    CanvasRenderingContext2D.prototype.drawElementImage` detects it: "function" with the setting on tuanlh-devbox-01's
+    Chrome 155, "undefined" without (measured 2026-11-08, 0.4 to 0.8 s to start Chrome and read it).
+  - **HTML-in-Canvas in screenshots** (PP-454). The screenshot renderer is Android System WebView, measured on the
+    owner's phone (WebView 156.0.8078.47, 2026-11-08, a page reporting it through `screenshot`): `drawElementImage`
+    undefined and no `layoutSubtree`, and an app cannot pass it Chrome flags. Decided: keep rendering on the phone
+    (PP-440's reasons hold: a second renderer and layout, a machine tool required, artifacts and the app's pages out of
+    a machine's reach), and say it. The layout check reports `canvas: { uses, chrome }` when the renderer lacks
+    `drawElementImage` and the page has `canvas[layoutsubtree]`, `canvas[content=drawable]` or `drawElementImage` in
+    an inline script; each width's words then name it, the renderer's Chrome, and that Pi's browser on a machine draws
+    it with `browser.chromeFeatures` set (`browser_screenshot` there).
   - **Someone at the window**: a window's pages get a DevTools binding (`BrowserPage.watchInput`: trusted
     pointerdown, keydown and wheel, at most one per 400 ms, on every document; the binding's calls come only with the
     Runtime domain on). Pi's own CDP input is trusted too, so an event counts only while Pi is not acting and 1.5 s

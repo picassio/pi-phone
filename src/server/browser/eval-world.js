@@ -80,8 +80,11 @@ function harden(hidden) {
         "screenY", "screenLeft", "screenTop", "getComputedStyle", "matchMedia", "getSelection", "CSS", "performance", "origin",
         "isSecureContext", "crossOriginIsolated", "console", "atob", "btoa", "structuredClone", "closed", "length", "event",
     ]);
-    // Interfaces kept as globals besides the DOM's nodes (for instanceof, NodeFilter's constants, parsing an address).
+    // Interfaces kept as globals besides the DOM's nodes (for instanceof, NodeFilter's constants, parsing an address; and
+    // CanvasRenderingContext2D to detect what a canvas can do, as HTML-in-Canvas's drawElementImage, PP-454: its methods
+    // refuse like every other, and no context can be had, as getContext is not a read).
     const INTERFACES = new Set([
+        "CanvasRenderingContext2D",
         "NodeList", "HTMLCollection", "NamedNodeMap", "DOMTokenList", "DOMStringMap", "DOMRect", "DOMRectReadOnly", "DOMRectList",
         "CSSStyleDeclaration", "CSSRule", "CSSStyleRule", "CSSMediaRule", "CSSFontFaceRule", "CSSImportRule", "CSSKeyframesRule",
         "CSSKeyframeRule", "CSSSupportsRule", "CSSLayerBlockRule", "CSSContainerRule", "CSSPageRule", "CSSNamespaceRule",

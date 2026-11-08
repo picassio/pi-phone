@@ -534,6 +534,11 @@ No Termux, no laptop, no cloud VM.
     scheduled task as you (no password, not elevated, removed once Chrome runs), and says so when nobody is signed in
     or the screen is locked. The headless machine tool has no window; macOS comes later. When someone clicks, types or
     scrolls in that window (not Pi, not the panel), the panel says the window is in use on the machine, and Pi is told.
+  - **Chrome features**: **Settings › Pi's browser › Chrome on machines** (`browser.chromeFeatures`) gives every
+    Chrome Pi's browser starts on a machine feature names as `--enable-features` (at most 10, separated by commas);
+    `CanvasDrawElement` turns on HTML-in-Canvas in Chrome 155 and 156. A change stops that Chrome; it starts with them
+    at its next use (open tabs there close, sign-ins stay). The phone's browser and the `screenshot` tool use the
+    phone's WebView, which takes no flags: a screenshot of a page that uses HTML-in-Canvas says so.
   - **From a session on the phone**: `browser_open` and `browser_new_tab` with `machine` (or **Browse on** in the
     panel) move a session's browsing to one of your machines, or back to the phone; its tabs stay its own.
   - **Attach to a browser running there**: `browser_attach` (a port, or the path of a DevToolsActivePort file) drives
@@ -859,6 +864,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | **OpenRouter** (needed for Jev, the wiki's search by meaning, and OpenRouter web search) | **Providers › OpenRouter**: sign in, or **API key** | No, signing in is yours |
 | **Jev** as the model for `browser_run` | **Pi's browser › Run model**: pick a Jev model OpenRouter offers (such as *TypeSafe: Jev 1.14*) from the list, for every session or only this one (*The session's own model* uses each session's own model); *Test* asks it one decision | "Use Jev for browser runs" (or "…in this session only") |
 | Scripts that read the page in Pi's browser (`browser_eval`) | **Pi's browser › Scripts**: *On* (the default) or *Off* | "Turn off browser scripts" |
+| Chrome features for Pi's browser on machines (`--enable-features`) | **Pi's browser › Chrome on machines**: names separated by commas, then *Save* | "Turn on CanvasDrawElement in Pi's browser on machines" |
 | Artifacts kept as pages on the rail | **Pages**: your pages (order, *Remove from the rail*); the owner turns pages *On* (the default) or *Off* for everyone | "Keep the paper reader as a page", "Put the budget page first", "Turn off pages" |
 | Permissions pages ask for in Pi's browser (location, camera, microphone, notifications, clipboard) | **Pi's browser › Permissions**: *Deny* (the default; Pi is told and may ask you) or *Ask* (a card as a page asks) | "Ask me when a page wants my location" |
 | Windows pages open in Pi's browser on the phone (sign-in popups) | **Pi's browser › Windows pages open**: *Allow* (a tab in front, the default), *Ask* (a card first), *Off* | "Ask me before a page opens a window" |

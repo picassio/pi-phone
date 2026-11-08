@@ -241,6 +241,11 @@ interface PocketConfig {
     browserPermissions?: PermissionMode;
     /** Whether browser_eval runs scripts that read the page in Pi's browser (PP-244). Absent: on. */
     browserEval?: boolean;
+    /**
+     * Chrome features every Chrome Pi's browser starts on a machine gets as `--enable-features` (PP-454,
+     * `machine-engine.ts`), checked by `parseChromeFeatures`. Absent: none.
+     */
+    browserChromeFeatures?: string[];
     /** The hooks the owner turned away from their defaults (PP-419, `hooks.ts`), by id. Absent: each hook's default. */
     hooks?: Partial<Record<HookId, boolean>>;
     /** How Pi calls its tools in every session (PP-379, `context-policy.ts`): "only" from codemode scripts. Absent: on. */
@@ -858,6 +863,20 @@ export class ConfigStore {
             delete this.#config.browserEval;
         } else {
             this.#config.browserEval = false;
+        }
+
+        this.save();
+    }
+
+    get browserChromeFeatures(): readonly string[] {
+        return this.#config.browserChromeFeatures ?? [];
+    }
+
+    set browserChromeFeatures(features: readonly string[]) {
+        if (features.length === 0) {
+            delete this.#config.browserChromeFeatures;
+        } else {
+            this.#config.browserChromeFeatures = [...features];
         }
 
         this.save();
