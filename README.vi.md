@@ -259,7 +259,9 @@ dự án thật.</sub>
   tính của một thương hiệu, truy vấn DOM; tối đa khoảng 50 KB, tối đa 10 giây). Nó chạy trong một môi trường cô lập dùng
   chung DOM của trang nhưng không dùng chung script của trang, và chỉ đọc: ở đó không có cookie, bộ nhớ trang, mạng, hẹn
   giờ, trình nghe sự kiện, worker hay cửa sổ, không gì nó gán hay gọi làm thay đổi trang, và script của trang tạm dừng
-  khi nó chạy. Ô mật khẩu và những gì bạn gõ trên thẻ đọc ra là rỗng, và giá trị bạn gõ trên thẻ bị lấy ra khỏi câu trả
+  khi nó chạy. Vẫn dò được trang có thể làm gì: `typeof CanvasRenderingContext2D.prototype.drawElementImage`,
+  `typeof MediaRecorder` và `MediaRecorder.isTypeSupported("video/webm")` đều trả lời, còn việc tạo bộ ghi,
+  `captureStream()` và vẽ bằng context thì bị từ chối. Ô mật khẩu và những gì bạn gõ trên thẻ đọc ra là rỗng, và giá trị bạn gõ trên thẻ bị lấy ra khỏi câu trả
   lời của nó. **Cài đặt › Trình duyệt của Pi › Đoạn mã** (`browser.eval`): *Bật* (mặc định) hoặc *Tắt*.
   **Mỗi phiên có các tab riêng**, và khung của nó chỉ hiện các tab đó; đăng nhập thì dùng chung cho mọi phiên trên
   điện thoại (hoặc trên một máy). Tab của một phiên đóng sau 30 phút không dùng (không đóng khi bạn đang xem hoặc đang

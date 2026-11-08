@@ -82,7 +82,8 @@ function harden(hidden) {
     ]);
     // Interfaces kept as globals besides the DOM's nodes (for instanceof, NodeFilter's constants, parsing an address; and
     // CanvasRenderingContext2D to detect what a canvas can do, as HTML-in-Canvas's drawElementImage, PP-454: its methods
-    // refuse like every other, and no context can be had, as getContext is not a read).
+    // refuse like every other, and no context can be had, as getContext is not a read). MediaRecorder is kept as a
+    // stand-in, made below (PP-460).
     const INTERFACES = new Set([
         "CanvasRenderingContext2D",
         "NodeList", "HTMLCollection", "NamedNodeMap", "DOMTokenList", "DOMStringMap", "DOMRect", "DOMRectReadOnly", "DOMRectList",
@@ -238,6 +239,34 @@ function harden(hidden) {
     lock(EventTarget.prototype);
     // CSS's namespace: supports and escape.
     lock(CSS);
+
+    // MediaRecorder, to detect what recording a page could do (PP-460): a stand-in that refuses to be made (with a new or
+    // without), whose static isTypeSupported answers as the real one does, with the real prototype (instanceof; its
+    // methods refuse, as every interface's do), and the prototype's constructor pointing at the stand-in. Nothing could
+    // be recorded anyway: no MediaStream global, and captureStream is not a read.
+    const Recorder = window.MediaRecorder;
+
+    if (typeof Recorder === "function") {
+        const supported = Recorder.isTypeSupported;
+        const standIn = refuse("Constructing MediaRecorder");
+
+        define(standIn, "name", { value: "MediaRecorder", writable: false, enumerable: false }, "MediaRecorder.name");
+        define(standIn, "prototype", { value: Recorder.prototype, writable: false, enumerable: false }, "MediaRecorder.prototype");
+        define(
+            standIn,
+            "isTypeSupported",
+            {
+                value: function isTypeSupported(type) {
+                    return supported.call(Recorder, String(type));
+                },
+                writable: false,
+                enumerable: true,
+            },
+            "MediaRecorder.isTypeSupported",
+        );
+        define(Recorder.prototype, "constructor", { value: standIn, writable: false, enumerable: false }, "MediaRecorder.prototype.constructor");
+        define(window, "MediaRecorder", { value: standIn, writable: false, enumerable: false }, "MediaRecorder");
+    }
 
     // The window: what reading needs, the language's own, and the DOM's interfaces; everything else refused.
     for (const name of new Set([...globals, ...NAMED])) {

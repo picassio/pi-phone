@@ -251,7 +251,9 @@ No Termux, no laptop, no cloud VM.
   fonts and spacing for a brand, DOM queries; about 50 KB at most, 10 seconds at most). It runs in an isolated world
   that shares the page's DOM but not its scripts, and only reads: no cookies, storage, network, timers, listeners,
   workers or windows there, nothing it sets or calls changes the page, and the page's own scripts pause while it runs.
-  Password fields and what you typed on a card read as empty, and your card values are taken out of its answer.
+  What a page could do can still be detected: `typeof CanvasRenderingContext2D.prototype.drawElementImage`,
+  `typeof MediaRecorder` and `MediaRecorder.isTypeSupported("video/webm")` answer, while making a recorder,
+  `captureStream()` and a context's drawing are refused. Password fields and what you typed on a card read as empty, and your card values are taken out of its answer.
   **Settings › Pi's browser › Scripts** (`browser.eval`): *On* (the default) or *Off*.
   **Each session has its own tabs**, and its panel shows only those; sign-ins are shared by every session on the phone
   (or on a machine). A session's tabs close after 30 minutes unused (not while you watch or have taken over), and at once

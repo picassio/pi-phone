@@ -1734,8 +1734,13 @@ so Pi changes them through the settings tools; "the last session" is the one the
   the page settles later (`ready`, `finished`, `loaded`, …) throw. So nothing holds a token (cookies, storage, caches,
   cookieStore), nothing sends (fetch, XHR, sockets, beacons, workers, windows, postMessage), no HTML or attribute goes
   in (an `onerror` would run in the page's world, where cookies are), and nothing is left to run later (timers,
-  listeners, observers). Overrides are non-configurable; one that cannot be made is answered by name and the script
-  does not run. `input.value`/`valueAsNumber`/`valueAsDate` and `textarea.value` read empty for password fields and for
+  listeners, observers). Kept for detection only: `CanvasRenderingContext2D` (PP-454, a plain interface: its methods
+  refuse, and `getContext` is not a read) and `MediaRecorder` (PP-460) as a stand-in that throws "Constructing
+  MediaRecorder …" when called or made, with the real prototype (instanceof; `start`, `stop`, `requestData` refuse),
+  the prototype's `constructor` pointing back at it, and a static `isTypeSupported` that asks the real one (a
+  boolean). No `MediaStream` global, and `captureStream` (canvas, media elements) is not a read, so nothing can be
+  recorded; `typeof` still tells whether they exist. Overrides are non-configurable; one that cannot be made is
+  answered by name and the script does not run. `input.value`/`valueAsNumber`/`valueAsDate` and `textarea.value` read empty for password fields and for
   fields holding a value the person typed on a card (`cardFills`, passed in each time, kept append-only in the world).
   `location` is unforgeable, so a `javascript:` address set there would run in the page's world: the page's scripts are
   off while the script runs (`Emulation.setScriptExecutionDisabled`), which drops such a navigation for good (it is not

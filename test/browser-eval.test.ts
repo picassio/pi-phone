@@ -111,6 +111,9 @@ const PAGES: Record<string, string> = {
         <button onclick="out.textContent = [document.cookie, localStorage.getItem('token'), sessionStorage.getItem('s'), typeof fetch, typeof XMLHttpRequest, typeof WebSocket].join(' ')">Check</button>
         <p id="out">Not yet</p>
         <script>document.cookie = 'session=tok-123; path=/'; localStorage.setItem('token', 'store-456'); sessionStorage.setItem('s', 'sess-789');</script>`,
+    // A page that records its canvas (PP-460): its own world has MediaRecorder; its button says what it got.
+    "/media": `<!doctype html><title>Recorder</title><canvas id="c" width="20" height="20"></canvas><video id="v"></video>
+        <button onclick="const r = new MediaRecorder(c.captureStream(10)); r.start(); out.textContent = r.state + ' ' + MediaRecorder.isTypeSupported('video/webm'); r.stop()">Record</button><p id="out">Not yet</p>`,
     "/login": `<!doctype html><title>Sign in</title><form onsubmit="event.preventDefault();out.textContent='Hello ' + user.value + (pw.value === 'hunter2' ? ', signed in' : ', wrong password') + ' with ' + code.value">
         <label>Email <input id="user" autocomplete="username"></label><label>Password <input id="pw" type="password"></label>
         <label>Code <input id="code"></label><button>Sign in</button></form><p id="out">Signed out</p>`,
@@ -257,6 +260,70 @@ test("with Chrome: cookies, storage, the network, timers, windows and writing th
         await browser.close();
     }
 });
+
+/** A script on the recording page (PP-460), in a browser of its own: what `check` finds there. */
+async function onMediaPage(check: (browser: PiBrowser) => Promise<void>): Promise<void> {
+    const browser = newBrowser();
+
+    try {
+        await browser.open(1, "http://pi.test/media");
+        await check(browser);
+    } finally {
+        await browser.close();
+    }
+}
+
+/** Each expression is refused, naming what. */
+async function refused(browser: PiBrowser, cases: [string, string][]): Promise<void> {
+    for (const [expression, what] of cases) {
+        await assert.rejects(browser.evaluate(1, expression, false), new RegExp(`${what.replace(/[.()]/g, "\\$&")}[^:]* is not available in browser_eval`), expression);
+    }
+}
+
+test("with Chrome: typeof MediaRecorder is a function in a script, with its name, prototype and methods there to see (PP-460)", real, () =>
+    onMediaPage(async (browser) => {
+        assert.equal(await value(browser, "typeof MediaRecorder"), "function");
+        assert.deepEqual(await value(browser, "[MediaRecorder.name, MediaRecorder.prototype.constructor === MediaRecorder, typeof MediaRecorder.prototype.start]"), ["MediaRecorder", true, "function"]);
+    }),
+);
+
+test("with Chrome: MediaRecorder.isTypeSupported answers a boolean in a script (PP-460)", real, () =>
+    onMediaPage(async (browser) => {
+        assert.equal(await value(browser, "typeof MediaRecorder.isTypeSupported('video/webm')"), "boolean");
+        assert.equal(await value(browser, "MediaRecorder.isTypeSupported('video/webm')"), true);
+        assert.equal(await value(browser, "MediaRecorder.isTypeSupported('video/x-not-a-type')"), false);
+    }),
+);
+
+test("with Chrome: a script cannot make a MediaRecorder (new, a call, or through its prototype's constructor) or run one's methods (PP-460)", real, () =>
+    onMediaPage((browser) =>
+        refused(browser, [
+            ["new MediaRecorder(null)", "Constructing MediaRecorder"],
+            ["MediaRecorder(null)", "Constructing MediaRecorder"],
+            ["new MediaRecorder.prototype.constructor(null)", "Constructing MediaRecorder"],
+            ["MediaRecorder.prototype.start.call(null)", "MediaRecorder.start"],
+            ["MediaRecorder.prototype.requestData.call(null)", "MediaRecorder.requestData"],
+        ]),
+    ),
+);
+
+test("with Chrome: captureStream is there to see but refused, so nothing can be recorded, while the page's own world records (PP-460)", real, () =>
+    onMediaPage(async (browser) => {
+        assert.equal(await value(browser, "typeof document.querySelector('canvas').captureStream"), "function");
+        await refused(browser, [
+            ["document.querySelector('canvas').captureStream()", "HTMLCanvasElement.captureStream"],
+            // The stream is asked for first, and refused, before anything could record it.
+            ["new MediaRecorder(document.querySelector('canvas').captureStream(30))", "HTMLCanvasElement.captureStream"],
+            ["document.querySelector('video').captureStream()", "HTMLMediaElement.captureStream"],
+            ["new MediaStream()", "MediaStream"],
+        ]);
+
+        // The page's own world keeps the real one: its button records.
+        const page = await browser.snapshot(1);
+
+        assert.match(await browser.click(1, Number(/\[(\d+)\] button "Record"/.exec(page)![1]), NO_CARD), /recording true/);
+    }),
+);
 
 test("with Chrome: what the person typed on a card reads as empty in a script, and is taken out of its answer, while the page still has it (PP-244)", real, async () => {
     const browser = newBrowser();
