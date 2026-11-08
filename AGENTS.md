@@ -38,6 +38,11 @@
 - Every UI change shows the layout check's counts before and after (`screenshot` at 390, 1280 and 1920 px of the live app or
   the test page, by kind: cut text, overlaps, contrast, small text, emoji, tap targets) in its report and its ticket;
   follow the `ui-verify` skill (`src/skills/ui-verify/`).
+- Every commit that changes prompt text (sections, tool descriptions, parameter descriptions, skills' descriptions)
+  runs `node scripts/prompt-eval.ts --compare origin/master` on the devbox (with `OPENROUTER_API_KEY`), and its report
+  goes in the ticket: no scenario may drop (PP-452); a drop of a run or two is confirmed or cleared with
+  `--only <those> --runs 10`. `test/prompt-budget.test.ts` holds the prompt's size; this holds
+  what Pi does with it. A change about a behaviour no scenario covers adds one to `scripts/prompt-eval-scenarios.ts`.
 - README.md lists every feature people can use: a new one, or one changed or removed, changes it in the same commit.
 - Design lives in DESIGN.md; update it when a decision changes. Upstream commits are in UPSTREAM.md. Current state
   and next steps: HANDOVER.md.

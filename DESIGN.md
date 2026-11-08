@@ -416,6 +416,18 @@ so Pi changes them through the settings tools; "the last session" is the one the
   a tool's read-only hint from `agent.callable` too. `test/prompt-budget.test.ts` holds pi-phone's own part of a new
   session's first request (its sections and tool schemas, tools `load`; not Pi's four tools, AGENTS.md or skills) to
   85,000 characters: 95,269 before the codemode section shrank, 83,695 after.
+  What Pi does with that prompt: `scripts/prompt-eval.ts` (PP-452, by hand on the devbox, never in CI: a real model,
+  real cost). `prompt-eval-capture.ts` opens the app in a temporary home with a scripted model and keeps the real first
+  request of a new session, on the phone and on a machine (a test sshd on 127.0.0.1); each scenario of
+  `prompt-eval-scenarios.ts` (a message, the variant, the first call it expects: tool, argument checks, tools it must not
+  call) puts its message in that request and sends it to OpenRouter (`anthropic/claude-haiku-5.5` by default, `--model`
+  for others), N runs each (3). No tool runs: read-only looks the prompt asks for first (a skill's file, the wiki,
+  secrets_list) and, where a scenario stands them in, a look at the files it names get a stand-in result and the model is
+  asked again (at most 3 rounds); the next call is judged (`prompt-eval-check.ts`, tested without the network).
+  `--compare <ref>` captures that ref's request too, in a temporary worktree beside this tree's node_modules, and
+  reports before and after: a scenario that passes less often exits 1, runs the provider kept failing exit 2 (left out
+  of the passes, listed). The provider's prompt cache keeps it cheap: 34 scenarios x 3 runs x 2 trees about $0.15 on the
+  default model. AGENTS.md: every prompt change runs it with `--compare origin/master`, its report in the ticket.
   The Wiki page is the module's browser part (`extensions/para-web/`, owner only): the PARA tree, qmd search, pages
   rendered with `[[links]]`, backlinks, freshness, an editor that saves through pi-para's `wiki_write`, and Ask Pi
   (`pocket.compose`). The app's markdown turns `[[page]]` into `#wiki:page` links anywhere; the Wiki page opens them.
