@@ -92,7 +92,8 @@ export type LayoutReport = {
     errors?: string[];
     /**
      * HTML-in-Canvas the page uses and the renderer lacks (PP-454): what showed it (`canvas[layoutsubtree]`,
-     * `canvas[content=drawable]`, or `drawElementImage` in an inline script), and the renderer's Chrome version.
+     * `canvas[content=drawable]`, or `a call to drawElementImage`: the error a call threw, kept by a file page; a page that
+     * only feature-detects it is not one, PP-459), and the renderer's Chrome version.
      */
     canvas?: { uses: string; chrome: string };
 };
@@ -898,7 +899,9 @@ ${PAGE_HELPERS}
   if (typeof CanvasRenderingContext2D === 'undefined' || typeof CanvasRenderingContext2D.prototype.drawElementImage !== 'function') {
     if (document.querySelector('canvas[layoutsubtree]')) canvasUse = 'canvas[layoutsubtree]';
     else if (document.querySelector('canvas[content=drawable]')) canvasUse = 'canvas[content=drawable]';
-    else if ([...document.scripts].some((s) => !s.src && s.textContent.includes('drawElementImage'))) canvasUse = 'drawElementImage';
+    // A real call: where the renderer lacks it, a call throws ("...drawElementImage is not a function"), which a file page
+    // keeps; a page that only feature-detects it (its typeof, its name in a script) does not count (PP-459).
+    else if (Array.isArray(window.__piPageErrors) && window.__piPageErrors.some((x) => /\bdrawElementImage\b/.test(String(x)))) canvasUse = 'a call to drawElementImage';
   }
   const canvas = canvasUse ? { uses: canvasUse, chrome: (/Chrome\/(\d+)/.exec(navigator.userAgent) || [, 'unknown'])[1] } : undefined;
   return JSON.stringify(Object.assign({ width: W, height: innerHeight, checked: Math.min(checked, 4000), issues, more, found, totals, summary }, shellBox ? { scroller: shellBox } : {}, errors.length ? { errors } : {}, canvas ? { canvas } : {}));

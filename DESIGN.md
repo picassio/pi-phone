@@ -1947,9 +1947,13 @@ so Pi changes them through the settings tools; "the last session" is the one the
     undefined and no `layoutSubtree`, and an app cannot pass it Chrome flags. Decided: keep rendering on the phone
     (PP-440's reasons hold: a second renderer and layout, a machine tool required, artifacts and the app's pages out of
     a machine's reach), and say it. The layout check reports `canvas: { uses, chrome }` when the renderer lacks
-    `drawElementImage` and the page has `canvas[layoutsubtree]`, `canvas[content=drawable]` or `drawElementImage` in
-    an inline script; each width's words then name it, the renderer's Chrome, and that Pi's browser on a machine draws
-    it with `browser.chromeFeatures` set (`browser_screenshot` there).
+    `drawElementImage` and the page has `canvas[layoutsubtree]` or `canvas[content=drawable]`, or really called it:
+    the call throws there ("… drawElementImage is not a function"), an uncaught error a file page keeps
+    (`PAGE_SHIM`'s `__piPageErrors`). A page that only feature-detects it (its typeof, its name in a script) is not
+    one (PP-459: Blueprint Bank's storyboard got the line; it was found by the name in an inline script). Not by
+    putting a stand-in on the prototype: the page's own feature test would then take the HTML-in-Canvas path. Each
+    width's words then name it, the renderer's Chrome, and that Pi's browser on a machine draws it with
+    `browser.chromeFeatures` set (`browser_screenshot` there).
   - **Someone at the window**: a window's pages get a DevTools binding (`BrowserPage.watchInput`: trusted
     pointerdown, keydown and wheel, at most one per 400 ms, on every document; the binding's calls come only with the
     Runtime domain on). Pi's own CDP input is trusted too, so an event counts only while Pi is not acting and 1.5 s

@@ -18,6 +18,7 @@ import { Cdp } from "../src/server/browser/cdp.ts";
 import { launchScript, parseChromeFeatures, stopScript, WINDOW_FLAGS } from "../src/server/browser/machine-engine.ts";
 import { BrowserPage } from "../src/server/browser/page.ts";
 import { type BrowserEngine, ChromeEngine, PiBrowser } from "../src/server/browser/pi-browser.ts";
+import { withPageShim } from "../src/server/file-pages.ts";
 import { describeLayout, layoutCheck, type LayoutReport, parseLayout } from "../src/server/layout-check.ts";
 import { appSettings } from "../src/server/settings-registry.ts";
 import { FakeCdp } from "./support/fake-cdp.ts";
@@ -275,14 +276,44 @@ const chrome = ["google-chrome", "google-chrome-stable", "chromium", "chromium-b
     }
 });
 
-test("the layout check finds HTML-in-Canvas in a Chrome without it (a canvas with layoutsubtree, or drawElementImage in a script), and not in one with CanvasDrawElement on", { skip: chrome === undefined ? "no Chrome on this machine (CI runs it)" : false }, async () => {
+test("a page that only feature-detects drawElementImage (its typeof, then a call only when it is there) gets no HTML-in-Canvas line (PP-459)", { skip: chrome === undefined ? "no Chrome on this machine (CI runs it)" : false }, async () => {
+    const html = `<!doctype html><canvas id="c"></canvas><script>const hic = typeof CanvasRenderingContext2D.prototype.drawElementImage === "function"; const x = c.getContext("2d"); if (x.drawElementImage) x.drawElementImage(document.body, 0, 0); document.title = hic ? "board" : "grid";</script>`;
+    const server = createServer((_request, response) => {
+        response.writeHead(200, { "content-type": "text/html" });
+        response.end(html);
+    });
+
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${(server.address() as AddressInfo).port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+
+        await page.init({ width: 390, height: 844, mobile: true });
+        await page.navigate("http://pi.test/");
+
+        const report = parseLayout(await page.evaluate<string>(layoutCheck()), 390)!;
+
+        assert.equal(report.canvas, undefined, JSON.stringify(report.canvas));
+        assert.doesNotMatch(describeLayout(report), /HTML-in-Canvas/);
+    } finally {
+        await engine.close();
+        server.close();
+    }
+});
+
+test("the layout check finds HTML-in-Canvas in a Chrome without it (a canvas with layoutsubtree, or a real call to drawElementImage), not a page that only feature-detects it (PP-459), and not in a Chrome with CanvasDrawElement on", { skip: chrome === undefined ? "no Chrome on this machine (CI runs it)" : false }, async () => {
     const pages: Record<string, string> = {
         "/subtree": `<!doctype html><canvas width="300" height="100" layoutsubtree><div>Drawn</div></canvas>`,
-        "/script": `<!doctype html><canvas id="c"></canvas><script>const x = c.getContext("2d"); if (x.drawElementImage) x.drawElementImage(document.body, 0, 0);</script>`,
+        // Blueprint Bank's storyboard (PP-459): it reads the typeof, and calls only when it is there; no layoutsubtree.
+        "/detect": `<!doctype html><canvas id="c"></canvas><script>const hic = typeof CanvasRenderingContext2D.prototype.drawElementImage === "function"; const x = c.getContext("2d"); if (x.drawElementImage) x.drawElementImage(document.body, 0, 0); document.title = hic ? "board" : "grid";</script>`,
+        // A file page (its errors kept by PAGE_SHIM) whose own script file calls it without asking.
+        "/call": withPageShim(`<!doctype html><html><head></head><body><canvas id="c"><div>Drawn</div></canvas><script src="/call.js"></script></body></html>`),
+        "/call.js": `document.getElementById("c").getContext("2d").drawElementImage(document.querySelector("#c div"), 0, 0);`,
         "/plain": `<!doctype html><canvas width="300" height="100"></canvas><p>No HTML in it</p>`,
     };
     const server = createServer((request, response) => {
-        response.writeHead(200, { "content-type": "text/html" });
+        response.writeHead(200, { "content-type": request.url?.endsWith(".js") ? "text/javascript" : "text/html" });
         response.end(pages[request.url ?? "/"] ?? "");
     });
 
@@ -297,7 +328,7 @@ test("the layout check finds HTML-in-Canvas in a Chrome without it (a canvas wit
 
             await page.init({ width: 390, height: 844, mobile: true });
 
-            for (const path of Object.keys(pages)) {
+            for (const path of Object.keys(pages).filter((each) => !each.endsWith(".js"))) {
                 await page.navigate(`http://pi.test${path}`);
                 reports[path] = parseLayout(await page.evaluate<string>(layoutCheck()), 390);
             }
@@ -314,9 +345,12 @@ test("the layout check finds HTML-in-Canvas in a Chrome without it (a canvas wit
         if (without.has !== "function") {
             assert.equal(without.reports["/subtree"]?.canvas?.uses, "canvas[layoutsubtree]");
             assert.match(without.reports["/subtree"]?.canvas?.chrome ?? "", /^\d+$/);
-            assert.equal(without.reports["/script"]?.canvas?.uses, "drawElementImage");
+            assert.equal(without.reports["/call"]?.canvas?.uses, "a call to drawElementImage");
+            assert.match(describeLayout(without.reports["/call"]!), /The page uses HTML-in-Canvas \(a call to drawElementImage\)/);
         }
 
+        assert.equal(without.reports["/detect"]?.canvas, undefined, "feature detection alone is no use of it");
+        assert.doesNotMatch(describeLayout(without.reports["/detect"]!), /HTML-in-Canvas/);
         assert.equal(without.reports["/plain"]?.canvas, undefined);
 
         const flagged = await measure(["--enable-features=CanvasDrawElement"]);
