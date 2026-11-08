@@ -1767,6 +1767,13 @@ so Pi changes them through the settings tools; "the last session" is the one the
   clickable too). `browser_run` offers DRAG when the page has something draggable: `drag_target` (what) and
   `drop_target` (any clickable control), `RunPage.drag`. HTML5 drags that start inside a frame of another site are not
   caught by the page's interception (pointer moves still go there).
+- **The run model for one call** (`runDecider` in `browser/run.ts`, PP-451): browser_run and computer_run take an
+  optional `model`, `jev` or `session`, Pi's choice for that call over the owner's setting (`browser.runModel`,
+  `browser.sessionRunModel`), with no card: Jev is cheaper and faster than most session models. `jev` is the setting's
+  Jev when it names one, else typesafe/jev-1.14 (the documented default); left out, the setting decides as before.
+  `jev` without the OpenRouter sign-in is an error that names Settings › Providers and model `session`, before the
+  browser starts; never a quiet switch. The report says who chose (`… by Jev (typesafe/jev-1.14) as Pi asked` / `as the
+  setting says`); the run card shows the model only. Jev's cost still goes to Spend (`chargeSession`).
 - **Key chords in Pi's browser** (`chordOf`, PP-376): `browser_press` takes a key (the named ones, now with Home,
   End, Delete and Space, or one character) after modifiers joined by `+` (Ctrl/Control, Alt/Option, Shift,
   Meta/Cmd/Command/Super/Win; `Ctrl++` is the plus key), sent as DevTools' `modifiers` bits on both events. A letter in

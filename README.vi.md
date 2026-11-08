@@ -278,7 +278,8 @@ dự án thật.</sub>
   ứng dụng), và chỉ làm những gì chủ sở hữu yêu cầu. **`browser_run`** tự thực hiện trọn một mục tiêu, từng bước
   một: mỗi bước do mô hình chạy bạn chọn trong Cài đặt › Trình duyệt của Pi quyết định (mô hình riêng của phiên,
   hoặc Jev, mô hình quyết định của TypeSafe qua OpenRouter: khoảng một giây và $0.00003 mỗi bước), cho mọi phiên hoặc
-  một phiên. Mỗi bước gửi cho mô hình chạy: mục tiêu, các giá trị Pi đưa (bí mật chỉ bằng tên), địa chỉ, tiêu đề và
+  một phiên; Pi có thể chọn một trong hai cho một lượt chạy (`model`: `jev` hoặc `session`), và kết quả của lượt chạy
+  nói mô hình nào đã quyết định và ai chọn nó. Mỗi bước gửi cho mô hình chạy: mục tiêu, các giá trị Pi đưa (bí mật chỉ bằng tên), địa chỉ, tiêu đề và
   văn bản hiển thị của trang, cùng các ô điều khiển và giá trị của chúng: với Jev, gửi tới OpenRouter bằng khóa OpenRouter
   của bạn; với mô hình của phiên, gửi tới nhà cung cấp của nó. Một lượt chạy tự nhấp và gõ mà không hỏi, trên các trang
   bạn có thể đang đăng nhập. Nó chỉ gõ các giá trị Pi cung cấp, dừng kèm lý do Pi xử lý được (cần một giá trị, bị

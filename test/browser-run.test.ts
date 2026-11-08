@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { describe, elementsOf, type Observed } from "../src/server/browser/page.ts";
 import { fencedPage } from "../src/server/fence.ts";
-import { actionSpace, buildQuestions, type Decider, type Question, readAnswers, report, runGoal, type RunPage, SessionDecider } from "../src/server/browser/run.ts";
+import { actionSpace, buildQuestions, type Decider, JevDecider, type Question, readAnswers, report, runGoal, type RunPage, SessionDecider } from "../src/server/browser/run.ts";
+import createBrowser from "../src/server/extensions/browser.ts";
 
 const rect = { x: 0, y: 0, w: 10, h: 10 };
 
@@ -273,6 +274,98 @@ test("a run that changes nothing three times stops as stuck; one past its steps 
 
     assert.equal(refused.reason, "decision_error");
     assert.match(refused.detail ?? "", /No allowed providers/);
+});
+
+/**
+ * browser_run against a stand-in host (PP-451): the run model `setting`, OpenRouter signed in or not. The browser
+ * records the decider it was given and runs nothing; one decision, $0.0001.
+ */
+async function browserRun(setting: string, openRouter: boolean, model?: "jev" | "session") {
+    const used: Decider[] = [];
+    const charged: string[] = [];
+    let started = false;
+    const browser = {
+        open: async () => {},
+        run: async (_session: number, options: { decider: Decider }) => {
+            used.push(options.decider);
+
+            return { result: { status: "done", steps: [], decisions: 1, cost: 0.0001, tokens: { input: 10, output: 1 }, ms: 1000 }, page: "the page" };
+        },
+        windowAsks: () => [],
+        permissionAsks: () => [],
+    };
+    const host = {
+        requesterOf: () => "u1",
+        people: () => [{ id: "u1", role: "owner" }],
+        browserFor: () => {
+            started = true;
+
+            return browser;
+        },
+        browserRunModel: () => setting,
+        apiKey: async (provider: string) => (openRouter && provider === "openrouter" ? "sk-or-test" : undefined),
+        askSessionModel: async () => "{}",
+        chargeSession: async (_id: unknown, key: string) => void charged.push(key),
+        secrets: { value: () => undefined, used: () => {} },
+    };
+    const tool = (createBrowser(host as never) as unknown as { tools: { name: string; execute(args: unknown, api: unknown, context: unknown): Promise<{ output: { text: string }[]; isError?: boolean }> }[] }).tools.find(
+        (each) => each.name === "browser_run",
+    )!;
+    const done = await tool.execute(
+        { goal: "Search the shop for lamps", ...(model === undefined ? {} : { model }) },
+        { conversationId: 7, taskId: "t1", callId: "c1", agent: async () => ({ cwd: "/work" }) },
+        {},
+    );
+
+    return { decider: used[0], charged, started, text: done.output[0]!.text, isError: done.isError === true };
+}
+
+test("browser_run: model jev uses Jev over a session setting, the setting's own Jev when it names one, and Spend is charged for it (PP-451)", async () => {
+    const jev = await browserRun("session", true, "jev");
+
+    assert.ok(jev.decider instanceof JevDecider);
+    assert.equal(jev.decider.label, "Jev (typesafe/jev-1.14)");
+    assert.deepEqual(jev.charged, ["openrouter/typesafe/jev-1.14"]);
+    assert.match(jev.text, /^Done in 0 steps\. 1\.0 s, 1 decision by Jev \(typesafe\/jev-1\.14\) as Pi asked, \$0\.00010\./);
+
+    const named = await browserRun("typesafe/jev-1.13", true, "jev");
+
+    assert.equal(named.decider?.label, "Jev (typesafe/jev-1.13)");
+});
+
+test("browser_run: model session uses the session's model over a Jev setting, without OpenRouter (PP-451)", async () => {
+    const session = await browserRun("typesafe/jev-1.14", false, "session");
+
+    assert.equal(session.isError, false, session.text);
+    assert.ok(session.decider instanceof SessionDecider);
+    assert.deepEqual(session.charged, [], "the session's model is counted as the session's own");
+    assert.match(session.text, /1 decision by this session's model as Pi asked, /);
+});
+
+test("browser_run: without model the setting decides, as before (PP-451)", async () => {
+    const session = await browserRun("session", true);
+
+    assert.ok(session.decider instanceof SessionDecider);
+    assert.match(session.text, /by this session's model as the setting says, /);
+
+    const jev = await browserRun("typesafe/jev-1.14", true);
+
+    assert.ok(jev.decider instanceof JevDecider);
+    assert.match(jev.text, /by Jev \(typesafe\/jev-1\.14\) as the setting says, /);
+
+    const unsigned = await browserRun("typesafe/jev-1.14", false);
+
+    assert.equal(unsigned.isError, true);
+    assert.match(unsigned.text, /^The run model is typesafe\/jev-1\.14, through OpenRouter, which is not signed in/);
+});
+
+test("browser_run: model jev without the OpenRouter sign-in is an error that says what to do, never the session's model instead (PP-451)", async () => {
+    const refused = await browserRun("session", false, "jev");
+
+    assert.equal(refused.isError, true);
+    assert.equal(refused.text, 'model "jev" runs typesafe/jev-1.14 through OpenRouter, which is not signed in: sign in to OpenRouter in Settings › Providers, or call again with model "session".');
+    assert.equal(refused.decider, undefined, "nothing ran");
+    assert.equal(refused.started, false, "the browser did not start");
 });
 
 test("a secret typed into a plain field never reaches the run model in the steps after: the field's value and the page show its name (PP-204)", async () => {

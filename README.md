@@ -269,7 +269,8 @@ No Termux, no laptop, no cloud VM.
   keeps its cookies and sign-ins in a WebView profile of its own (apart from the app's), and only works for what the owner asks.
   **`browser_run`** carries out a whole goal on its own, a step at a time: each step is decided by the run model you
   pick in Settings › Pi's browser (the session's own model, or Jev, TypeSafe's decision model through OpenRouter:
-  about a second and $0.00003 a step), for every session or one. Each step sends the run model the goal, the values Pi
+  about a second and $0.00003 a step), for every session or one; Pi may pick either for one run (`model`: `jev` or
+  `session`), and the run's answer says which decided and who chose it. Each step sends the run model the goal, the values Pi
   gave (a secret by its name only), the page's address, title and visible text, and its controls with their values:
   with Jev, to OpenRouter with your OpenRouter key; with the session's model, to its provider. A run clicks and types
   without asking, on pages you may be signed in to. It types only values Pi supplies, stops with

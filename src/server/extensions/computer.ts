@@ -23,7 +23,7 @@ import type { ComputerApp, ComputerSession } from "../computer-control.ts";
 import { MINUTES } from "../computer-control.ts";
 import { runOnComputer } from "../computer-run.ts";
 import { lockedNote } from "../computer-windows.ts";
-import { type Decider, JevDecider, report, SessionDecider } from "../browser/run.ts";
+import { report, runDecider } from "../browser/run.ts";
 import { ChromeRemoteDesktop, CRD_HEADLESS, crdConnected, crdWord, installPlan, removePlan } from "../crd.ts";
 import type { DesktopApp } from "../computer-outline.ts";
 import { COMPUTER_TOOLS } from "../deferred-tools.ts";
@@ -619,7 +619,7 @@ export default function createComputer(host: PocketHost) {
     const runTool = defineTool({
         name: "computer_run",
         description:
-            "Carry out one concrete goal in an app's window in a computer control session on its own, a step at a time, each step decided by the run model the owner picked (Settings › Browser: this session's model, or Jev), as browser_run does in Pi's browser. " +
+            "Carry out one concrete goal in an app's window in a computer control session on its own, a step at a time, each step decided by the run model (Settings › Browser, or model), as browser_run does in Pi's browser. " +
             "Give every text it may put into a field in values (a name for each: {\"name\": \"Ada\"}); it never types anything else. It clicks elements, fills fields, presses Enter, Tab or Escape, scrolls and waits, with every check of computer_act (the session's apps only, password fields take a saved secret only). " +
             "Answers how it ended (done, or why it stopped: needs_value, blocked, stuck_loop, unverified_done, budget, stale, decision_error), its steps, time and cost, and the window as it is. " +
             "What each step sends: with Jev, OpenRouter (openrouter.ai) gets, with the owner's OpenRouter key, the goal, the values (a secret by its name only), the window's title and text (its elements and values), and the recent steps; with this session's model, its provider gets the same. " +
@@ -632,6 +632,7 @@ export default function createComputer(host: PocketHost) {
                     description: "Texts it may put into fields, by name: a text, or { secret: NAME } for one of the owner's saved secrets",
                 })),
             max_steps: opt(int({ minimum: 1, maximum: 60, description: "Steps at most (default 25)" })),
+            model: opt(union([literal("jev"), literal("session")], { description: '"jev": cheaper, faster; "session": this session\'s model; default: the setting' })),
         }, { open: true }),
         execute: async (args, api) => {
             let session: ComputerSession;
@@ -642,20 +643,16 @@ export default function createComputer(host: PocketHost) {
                 return reply(message(error), true);
             }
 
-            const model = host.browserRunModel(api.conversationId as never);
-            let decider: Decider;
+            // Pi's model for this call, else the setting (PP-451).
+            const chosen = await runDecider(host.browserRunModel(api.conversationId as never), args.model, () => host.apiKey("openrouter"), (prompt) =>
+                host.askSessionModel(api.conversationId as never, prompt, 600),
+            );
 
-            if (model === "session") {
-                decider = new SessionDecider((prompt) => host.askSessionModel(api.conversationId as never, prompt, 600));
-            } else {
-                const key = await host.apiKey("openrouter");
-
-                if (key === undefined) {
-                    return reply(`The run model is ${model}, through OpenRouter, which is not signed in: sign in to OpenRouter in Settings › Providers, or pick this session's model in Settings › Browser.`, true);
-                }
-
-                decider = new JevDecider(key, model);
+            if ("error" in chosen) {
+                return reply(chosen.error, true);
             }
+
+            const { decider, model, label } = chosen;
 
             // Secrets by name: their values go into fields only; the run model and Pi see their names.
             const values: Record<string, string> = {};
@@ -710,7 +707,7 @@ export default function createComputer(host: PocketHost) {
                     await host.chargeSession(api.conversationId as never, `openrouter/${model}`, { ...result.tokens, cost: result.cost });
                 }
 
-                return reply(`${report(result, decider.label, result.window, fencedScreen, "The window now:")}\n${footer(session)}`, result.status !== "done");
+                return reply(`${report(result, label, result.window, fencedScreen, "The window now:")}\n${footer(session)}`, result.status !== "done");
             } catch (error) {
                 // A failed read or step can quote the window: fenced as the report is.
                 return reply(fencedScreen(message(error)), true);

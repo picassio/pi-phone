@@ -37,7 +37,8 @@ export function parseRunReport(text) {
         reason: stopped?.[1] ?? null,
         detail: stopped?.[2] ?? null,
         seconds: Number(/\. ([\d.]+) s, /.exec(head)?.[1] ?? 0),
-        decider: / decisions? by (.+?)(?:, \$[\d.]+)?\.$/.exec(head)?.[1] ?? "",
+        // The model only: who chose it ("as Pi asked", PP-451) is Pi's to read.
+        decider: / decisions? by (.+?)(?: as (?:Pi asked|the setting says))?(?:, \$[\d.]+)?\.$/.exec(head)?.[1] ?? "",
         cost: Number(/, \$([\d.]+)\.$/.exec(head)?.[1] ?? 0),
         steps,
     };

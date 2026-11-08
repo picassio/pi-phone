@@ -10,6 +10,7 @@
  */
 import type { Observed } from "./page.ts";
 import { fencedPage } from "../fence.ts";
+import { JEV_RERANK_DEFAULT } from "../jev.ts";
 
 // ─── The questions (verbatim from jev-ultrafast / jev-ra, where they were measured) ──────────────────────────────
 
@@ -211,6 +212,46 @@ export class SessionDecider implements Decider {
 
         return { answers: readAnswers(questions, parsed, true), cost: 0, tokens: { input: 0, output: 0 } };
     }
+}
+
+/** What Pi may ask for one browser_run or computer_run (PP-451), over the owner's setting. */
+export type RunModelChoice = "jev" | "session";
+
+/**
+ * The decider of one browser_run or computer_run (PP-451): Pi's `asked` model for this call, else the setting
+ * (browser.runModel, or the session's own). "jev" is the setting's Jev when it names one, else typesafe/jev-1.14.
+ * Jev without the OpenRouter sign-in is an error that says what to do, never a quiet switch to the session's model.
+ * `model` is what Spend is charged for (the Jev id), or "session"; `label` names the model and who chose it.
+ */
+export async function runDecider(
+    setting: string,
+    asked: RunModelChoice | undefined,
+    openRouterKey: () => Promise<string | undefined>,
+    ask: (prompt: string) => Promise<string>,
+): Promise<{ decider: Decider; model: string; label: string } | { error: string }> {
+    const model = asked === undefined ? setting : asked === "session" ? "session" : setting === "session" ? JEV_RERANK_DEFAULT : setting;
+    const by = asked === undefined ? "as the setting says" : "as Pi asked";
+
+    if (model === "session") {
+        const decider = new SessionDecider(ask);
+
+        return { decider, model, label: `${decider.label} ${by}` };
+    }
+
+    const key = await openRouterKey();
+
+    if (key === undefined) {
+        return {
+            error:
+                asked === undefined
+                    ? `The run model is ${model}, through OpenRouter, which is not signed in: sign in to OpenRouter in Settings › Providers, or pick this session's model in Settings › Browser.`
+                    : `model "jev" runs ${model} through OpenRouter, which is not signed in: sign in to OpenRouter in Settings › Providers, or call again with model "session".`,
+        };
+    }
+
+    const decider = new JevDecider(key, model);
+
+    return { decider, model, label: `${decider.label} ${by}` };
 }
 
 /** One decision on a small made-up page, to check a run model answers (Settings › Browser's Test). */

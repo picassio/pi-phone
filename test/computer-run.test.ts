@@ -11,6 +11,7 @@ import { type Answers, type Decider, type DecisionState, type Question, report }
 import { parseOutline } from "../src/server/computer-outline.ts";
 import { type ComputerRunAction, computerQuestions, computerSpace, runOnComputer } from "../src/server/computer-run.ts";
 import { COMPUTER_TOOLS } from "../src/server/deferred-tools.ts";
+import createComputer from "../src/server/extensions/computer.ts";
 import { blockedInPlanMode } from "../src/server/extensions/plan.ts";
 import { browserSecretNames } from "../src/server/extensions/secrets.ts";
 import { fencedScreen } from "../src/server/fence.ts";
@@ -214,4 +215,72 @@ test("computer_run is a control session's tool, blocked in plan mode, and its se
         names: ["APP_PW"],
         subject: 'Computer run "Sign in to the app" types [secret APP_PW]',
     });
+});
+
+/**
+ * computer_run against a stand-in host (PP-451): the run model `setting`, OpenRouter signed in or not, one control
+ * session on a Linux window. The session's model answers DONE; Jev's route (fetch) is recorded and refuses.
+ */
+async function computerRun(setting: string, openRouter: boolean, model?: "jev" | "session") {
+    const asked: string[] = [];
+    const jev: string[] = [];
+    const charged: string[] = [];
+    const session = { machine: "m1", machineName: "box", conversationId: 7, session: 7, approvedBy: "Tuan", apps: [], reason: "test", startedAt: 0, until: Date.now() + 600_000 };
+    const host = {
+        computer: { unavailable: () => undefined, sessionOfConversation: () => session, screen: async () => ({ text: linux("Ada", "Hello Ada") }) },
+        requesterOf: () => "u1",
+        person: () => ({ role: "owner" }),
+        browserRunModel: () => setting,
+        apiKey: async (provider: string) => (openRouter && provider === "openrouter" ? "sk-or-test" : undefined),
+        askSessionModel: async (_id: unknown, prompt: string) => {
+            asked.push(prompt);
+
+            return '{"operation": {"choice": "DONE"}, "goal_achieved": {"noul": 0.95}}';
+        },
+        chargeSession: async (_id: unknown, key: string) => void charged.push(key),
+        secrets: { value: () => undefined, used: () => {} },
+    };
+    const tool = (createComputer(host as never) as unknown as { tools: { name: string; execute(args: unknown, api: unknown, context: unknown): Promise<{ output: { text: string }[]; isError?: boolean }> }[] }).tools.find(
+        (each) => each.name === "computer_run",
+    )!;
+    const fetching = globalThis.fetch;
+
+    globalThis.fetch = (async (url: string, init: { body: string }) => {
+        jev.push(`${url} ${(JSON.parse(init.body) as { model: string }).model}`);
+
+        return new Response(JSON.stringify({ error: { message: "stand-in" } }), { status: 503 });
+    }) as typeof fetch;
+
+    try {
+        const done = await tool.execute({ goal: "Greet Ada", ...(model === undefined ? {} : { model }) }, { conversationId: 7, taskId: "t1", callId: "c1" }, {});
+
+        return { asked, jev, charged, text: done.output[0]!.text, isError: done.isError === true };
+    } finally {
+        globalThis.fetch = fetching;
+    }
+}
+
+test("computer_run takes Pi's model for one call over the setting; left out, the setting decides; jev without OpenRouter says what to do (PP-451)", async () => {
+    const jev = await computerRun("session", true, "jev");
+
+    assert.deepEqual(jev.jev, ["https://openrouter.ai/api/alpha/decisions typesafe/jev-1.14"], "Jev decided, the default Jev while the setting is session");
+    assert.deepEqual(jev.asked, []);
+    assert.match(jev.text, /decisions? by Jev \(typesafe\/jev-1\.14\) as Pi asked\./);
+
+    const session = await computerRun("typesafe/jev-1.13", false, "session");
+
+    assert.equal(session.asked.length, 1, "the session's model decided, OpenRouter not needed");
+    assert.deepEqual(session.jev, []);
+    assert.match(session.text, /^Done in 0 steps\. [\d.]+ s, 1 decision by this session's model as Pi asked\./);
+
+    const setting = await computerRun("typesafe/jev-1.13", true);
+
+    assert.deepEqual(setting.jev, ["https://openrouter.ai/api/alpha/decisions typesafe/jev-1.13"]);
+    assert.match(setting.text, /by Jev \(typesafe\/jev-1\.13\) as the setting says\./);
+
+    const refused = await computerRun("session", false, "jev");
+
+    assert.equal(refused.isError, true);
+    assert.equal(refused.text, 'model "jev" runs typesafe/jev-1.14 through OpenRouter, which is not signed in: sign in to OpenRouter in Settings › Providers, or call again with model "session".');
+    assert.deepEqual([refused.asked, refused.jev], [[], []], "no quiet switch to the session's model");
 });

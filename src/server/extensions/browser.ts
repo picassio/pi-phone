@@ -11,7 +11,7 @@ import { basename } from "node:path";
 import { addressOf, FULL_PAGE_MAX, LONG_PRESS_MS, LONG_PRESS_RANGE, PERMISSIONS, PRESSABLE, StalePage } from "../browser/page.ts";
 import { MAX_TABS, PERMISSION_WORDS, type PiBrowser } from "../browser/pi-browser.ts";
 import { fencedPage } from "../fence.ts";
-import { type Decider, JevDecider, report, SessionDecider } from "../browser/run.ts";
+import { report, runDecider } from "../browser/run.ts";
 import type { ApprovalRequest, PocketHost } from "../host.ts";
 import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
 import { describeLayout, type LayoutReport } from "../layout-check.ts";
@@ -890,9 +890,9 @@ export default function createBrowser(host: PocketHost) {
         defineTool({
             name: "browser_run",
             description:
-                "Carry out one concrete goal in Pi's browser on its own, a step at a time, each step decided by the run model the owner picked (Settings › Browser: this session's model, or Jev). " +
-                "Give every text it may type in values (a name for each: {\"from\": \"Zurich\"}); it never types anything else. Optionally a url to open first. " +
-                "Answers how it ended (done, or why it stopped: needs_value, blocked, stuck_loop, unverified_done, budget, decision_error), its steps, time and cost, and the page as it is. " +
+                "Carry out one concrete goal in Pi's browser on its own, each step decided by the run model (Settings › Browser, or model). " +
+                "Give every text it may type in values (a name for each: {\"from\": \"Zurich\"}); it never types anything else. " +
+                "Answers how it ended (done, or why it stopped), its steps, time and cost, and the page as it is. " +
                 "What each step sends: with Jev, OpenRouter (openrouter.ai) gets, with the owner's OpenRouter key, the goal, the values (a secret by its name only), the page's address, title and visible text, the controls in view with their values, and the recent steps; with this session's model, its provider gets the same. " +
                 "A run clicks and types without asking anyone, on a page that may be signed in, so a hostile page can steer it: never give it a goal that pays, sends, books or deletes.",
             parameters: obj({
@@ -902,6 +902,7 @@ export default function createBrowser(host: PocketHost) {
                     })),
                 url: opt(str({ description: "An address to open first; without it, the run starts on the page open now" })),
                 max_steps: opt(int({ minimum: 1, maximum: 60, description: "Steps at most (default 25)" })),
+                model: opt(union([literal("jev"), literal("session")], { description: '"jev": cheaper, faster; "session": this session\'s model; default: the setting' })),
             }, { open: true }),
             execute: async (args, api, context) => {
                 const session = Number(api.conversationId);
@@ -911,22 +912,17 @@ export default function createBrowser(host: PocketHost) {
                     return reply(owner, true);
                 }
 
-                const browser = await browserOf(api, context);
+                // Pi's model for this call, else the setting (PP-451): decided before the browser starts.
+                const chosen = await runDecider(host.browserRunModel(api.conversationId as never), args.model, () => host.apiKey("openrouter"), (prompt) =>
+                    host.askSessionModel(api.conversationId as never, prompt, 600),
+                );
 
-                const model = host.browserRunModel(api.conversationId as never);
-                let decider: Decider;
-
-                if (model === "session") {
-                    decider = new SessionDecider((prompt) => host.askSessionModel(api.conversationId as never, prompt, 600));
-                } else {
-                    const key = await host.apiKey("openrouter");
-
-                    if (key === undefined) {
-                        return reply(`The run model is ${model}, through OpenRouter, which is not signed in: sign in to OpenRouter in Settings › Providers, or pick this session's model in Settings › Browser.`, true);
-                    }
-
-                    decider = new JevDecider(key, model);
+                if ("error" in chosen) {
+                    return reply(chosen.error, true);
                 }
+
+                const { decider, model, label } = chosen;
+                const browser = await browserOf(api, context);
 
                 try {
                     if (args.url !== undefined && args.url.trim() !== "") {
@@ -965,7 +961,7 @@ export default function createBrowser(host: PocketHost) {
                     // Permissions the pages asked for, while browser.permissions is ask: the owner's cards now (PP-376).
                     const permissions = browser.permissionAsks().length === 0 ? "" : `\n${fencedPage((await permissionCards(api, context, "browser_run", browser, session, "")).trim())}`;
 
-                    return reply(report(result, decider.label, page) + windows + permissions, result.status !== "done");
+                    return reply(report(result, label, page) + windows + permissions, result.status !== "done");
                 } catch (error) {
                     // A failed step or page can say the page's words: fenced as the report is.
                     return reply(fencedPage(error instanceof Error ? error.message : String(error)), true);
