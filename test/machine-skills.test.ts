@@ -44,7 +44,7 @@ test("the app's skills for a machine: html-plan and the others that work there; 
     }
 
     assert.match(bundle.key, /^[0-9a-f]{16}$/);
-    assert.equal(skillBundle([join(APP_ROOT, "src", "skills")], agentDir).skills.length, 1, "src/skills: ui-verify alone");
+    assert.deepEqual(skillBundle([join(APP_ROOT, "src", "skills")], agentDir).skills.map((each) => each.name).sort(), ["skill-creator", "ui-verify"], "src/skills: all but getting-started");
 });
 
 test("the key follows the skills' files; two skill folders of one name are refused", () => {

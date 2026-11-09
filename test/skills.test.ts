@@ -256,6 +256,7 @@ test("a session lists them as /skill: commands and in its system prompt", async 
             "html-ppt-zhangzara-signal",
             "html-prototype",
             "html-wireframe",
+            "skill-creator",
             "statechart",
             "ui-verify",
             "unslop",
@@ -306,6 +307,34 @@ test("ui-verify (PP-405) is pi-phone's own skill, in every session's prompt and 
         assert.match(text, /follow the `ui-verify` skill/, file.join("/"));
         // Each names the large screen too (PP-420), not a phone and a desktop alone.
         assert.match(text, /1920/, file.join("/"));
+    }
+});
+
+test("skill-creator (PP-465) is pi-phone's own skill, loaded by /skill:skill-creator, and out of the prompt until its tools come (PP-468)", async () => {
+    const file = readFileSync(join(APP_ROOT, "src", "skills", "skill-creator", "SKILL.md"), "utf8");
+    const description = /^description: "([^"]+)"$/m.exec(file)?.[1] ?? "";
+
+    // Written by its own rules: a short description that says what for and "Use when", a body under 150 lines.
+    assert.match(file, /^---\nname: skill-creator\n/);
+    assert.match(description, /^Make or improve one of the owner's skills or slash commands[^]*Use when the owner asks to make/);
+    assert.ok(description.length <= 300, `description: ${description.length} characters`);
+    assert.ok(file.split("\n").length <= 150, `SKILL.md: ${file.split("\n").length} lines`);
+
+    const app = await started();
+    const id = await newSession(app);
+
+    assert.ok(app.skillCommands(id).some((each) => each.name === "skill-creator"));
+    await say(app, id, "make me a skill");
+    assert.doesNotMatch(prompt, /<name>skill-creator<\/name>/, "invoked by name only while skill_save is a placeholder");
+    await say(app, id, "/skill:skill-creator a skill for SSP reviews");
+
+    const loaded = (await modelTexts(app, id)).join("\n");
+
+    assert.match(loaded, /<skill name=\\"skill-creator\\" location=/);
+    // What the research asked of it: the interview, the description, a short body with references/ and scripts/,
+    // trigger tests with a near miss, the save on a card, and slash commands with their arguments.
+    for (const words of ["`interview` tool", "Use when …", "references/<topic>.md", "scripts/", "a near miss", "skill_save", "library_pin", "command_save", "$ARGUMENTS", "${1:-default}"]) {
+        assert.ok(loaded.includes(words), words);
     }
 });
 
