@@ -255,6 +255,27 @@ so Pi changes them through the settings tools; "the last session" is the one the
     the Projects extension's `GET|PUT /api/x/projects/projects/<key>/library` (host `libraryBoard`,
     `libraryPinBoard`), since an extension's browser part reaches only its own routes. Test:
     `test/library-ui.test.ts` (Chrome, 390/1280/1920 px, layout check's must-fix kinds 0).
+  - **Pi's tools** (`src/server/extensions/library.ts`, module "Skills & commands", PP-468): `skill_save` (name,
+    description, body, other files, files to remove; SKILL.md's front matter is written by the tool, keeping keys the
+    owner added), `command_save` (name, description, template, argument hint), `library_pin` (session, by default this
+    one's root; board; every session; on or off), `library_list` (read only: items, pins, versions; one item's files of
+    any kept version), `library_undo` (the version before, or a named one) and `library_delete`. All six are deferred
+    (the base prompt pays nothing; skill-creator's description in the skills list is what points Pi at the library,
+    and its body names the tools to load: adding "skill and command library" to the tool_search note changed no
+    scenario in prompt-eval, so the note stayed as it was). Each change asks on a card (`form: { type: "library" }`,
+    `web/library-card.js`): a save shows every file whole and, for an edit, the unified diff (the whole content then
+    a tap away); a pin, an undo (with its diff) and a delete say what and where it is pinned. Pi only drafts: nothing
+    is written before Approve, and an item whose version changed while the card waited is not overwritten (the tool
+    says so). The owner's alone: a guest's session is refused before any card, and only the owner's Approve counts
+    (`answerApproval`). Tests: `test/library-tools.test.ts`, `test/library-card-ui.test.ts`.
+  - **skill-creator** (`src/skills/skill-creator/`, PP-465/468): the app's skill on writing a skill or a command Pi
+    uses well (the research: wiki `resources/agent-skill-writing-best-practices`), in every session's skills list
+    with a short description (200 characters at most) that also covers pinning, listing and undoing, naming the tools
+    above. Measured with prompt-eval (Haiku 5.5, 10 runs): "make a /ssp-review command" and "what skills do I have"
+    10/10, "undo the last change to my ssp-review skill" and "pin it to session 42" about 5/10 (Haiku sometimes looks
+    for a file on disk instead), near misses 10/10 left alone. A forced-evaluation line for pinned skills ("decide for
+    each whether it applies") was measured and left out: pinned skills were read 30/30 without it, a symptom-only
+    request 8/10 → 10/10 with it, within noise.
 - **Review's comments and checkpoints** (`src/server/review-loop.ts`, `web/diff.js`; PP-358, the owner's mockup of
   2026-11-02, after pi-review-loop): a checkpoint is a git commit of the whole working folder (untracked files too,
   ignored ones not) made with a temporary index (`read-tree HEAD`, `add -A`, `write-tree`, `commit-tree` on HEAD) and

@@ -4143,6 +4143,58 @@ pre.diff .del {
     overflow: auto;
 }
 
+/* Pi's library cards (PP-468): each file whole, scrolled within the card; an edit's whole content a tap away. The
+   facts and the diff sit flat in the card, not as cards of their own. */
+.library-card .machine-add-facts {
+    padding: 0;
+    border: 0;
+}
+
+.library-card .dv {
+    border: 0;
+}
+
+.library-file {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.library-card pre.output {
+    max-height: 20rem;
+}
+
+.library-whole {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.library-whole-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 13px;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.library-whole-toggle svg {
+    flex: none;
+    color: var(--muted);
+    transition: transform 0.15s var(--ease-out);
+}
+
+.library-whole-toggle[aria-expanded="true"] svg {
+    transform: rotate(180deg);
+}
+
 /* The Creator flow (PP-369, web/made-card.js): Pi asks to make a drop-in, then one card follows it as it is made. */
 .creator-facts {
     display: flex;
@@ -13524,14 +13576,15 @@ textarea.notes {
     color: var(--err);
 }
 
+/* The words that changed: the text's own colour on a lighter tint, so they keep 4.5:1 (PP-468's card measured 3.4:1). */
 .dv-code.add mark {
-    background: color-mix(in srgb, var(--ok) 32%, transparent);
-    color: inherit;
+    background: color-mix(in srgb, var(--ok) 24%, transparent);
+    color: var(--text);
 }
 
 .dv-code.del mark {
-    background: color-mix(in srgb, var(--err) 32%, transparent);
-    color: inherit;
+    background: color-mix(in srgb, var(--err) 24%, transparent);
+    color: var(--text);
 }
 
 /* A comment's words that changed: the comment's faint color is too weak on the change's highlight. */

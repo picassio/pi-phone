@@ -32,6 +32,7 @@ import { setBrowserOpen } from "./browser-panel.js";
 import { CrdConnectForm } from "./crd-connect.js";
 import { BrowserRunCard } from "./browser-run-card.js";
 import { CreatorCard, MadeCard, onWaitingMade, waitingMade } from "./made-card.js";
+import { LibraryCard } from "./library-card.js";
 import { parseReviewResult, ReviewCard } from "./review-card.js";
 import { ScreenCard } from "./guide.js";
 import { KeepButton } from "./pages.js";
@@ -2588,6 +2589,10 @@ function ApprovalCard({ approval }) {
 
     if (approval.form?.type === "creator") {
         return html`<${CreatorCard} approval=${approval} />`;
+    }
+
+    if (approval.form?.type === "library") {
+        return html`<${LibraryCard} approval=${approval} />`;
     }
 
     if (approval.form?.type === "phone") {

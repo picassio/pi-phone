@@ -30,18 +30,25 @@ export type Expect = {
     forbid?: readonly string[];
     /** Calls never made, lead-ins included: per tool, an argument's pattern (bash running `gh auth token`). */
     forbidArgs?: Readonly<Record<string, Readonly<Record<string, RegExp>>>>;
+    /** A file the model reads before the call checked (a skill's SKILL.md: did it open the skill?), by its path. */
+    reads?: RegExp;
 };
 
-/** A scenario: a person's first message in a new session on the phone or on a machine, and what it expects. */
+/**
+ * A scenario: a person's first message in a new session on the phone or on a machine, or on the phone with a skill of
+ * the owner's library pinned to it (`pinned`, prompt-eval-capture.ts's `PINNED_SKILL`), and what it expects.
+ */
 export type Scenario = {
     id: string;
-    variant: "phone" | "machine";
+    variant: "phone" | "machine" | "pinned";
     message: string;
     expect: Expect;
     /** One of the few run on an expensive model. */
     core?: boolean;
     /** Stand-in results for this scenario's lead-ins, by tool name, over the defaults. */
     stubs?: Stubs;
+    /** Rounds of lead-ins answered (default 3): more for a request whose first move is to gather context ("what we did"). */
+    rounds?: number;
 };
 
 /** A lead-in's stand-in result: a text, or one made from the call's arguments (a `.css` read gets CSS). */
@@ -123,6 +130,10 @@ export function judge(expect: Expect, trace: Trace, offered: Offered): Outcome {
 
     if (forbidden !== undefined) {
         return fail(`called ${forbidden.name} ${show(forbidden.arguments)}, which it must not`);
+    }
+
+    if (expect.reads !== undefined && !trace.leadIns.some((call) => call.name === "read" && expect.reads!.test(String(call.arguments.path ?? "")))) {
+        return fail(`never read a file matching ${expect.reads} first`);
     }
 
     if (expect.notText !== undefined && expect.notText.test(trace.text)) {

@@ -310,14 +310,15 @@ test("ui-verify (PP-405) is pi-phone's own skill, in every session's prompt and 
     }
 });
 
-test("skill-creator (PP-465) is pi-phone's own skill, loaded by /skill:skill-creator, and out of the prompt until its tools come (PP-468)", async () => {
+test("skill-creator (PP-465) is pi-phone's own skill, in every session's prompt with a short description, naming the library's real tools (PP-468)", async () => {
     const file = readFileSync(join(APP_ROOT, "src", "skills", "skill-creator", "SKILL.md"), "utf8");
     const description = /^description: "([^"]+)"$/m.exec(file)?.[1] ?? "";
 
     // Written by its own rules: a short description that says what for and "Use when", a body under 150 lines.
     assert.match(file, /^---\nname: skill-creator\n/);
-    assert.match(description, /^Make or improve one of the owner's skills or slash commands[^]*Use when the owner asks to make/);
-    assert.ok(description.length <= 300, `description: ${description.length} characters`);
+    assert.match(description, /^The owner's skills and \/commands, kept in the app's library, not on disk: make, edit, pin, list, undo\. Use when the owner asks to make/);
+    assert.ok(description.length <= 200, `description: ${description.length} characters`);
+    assert.doesNotMatch(file, /disable-model-invocation|placeholder/);
     assert.ok(file.split("\n").length <= 150, `SKILL.md: ${file.split("\n").length} lines`);
 
     const app = await started();
@@ -325,7 +326,7 @@ test("skill-creator (PP-465) is pi-phone's own skill, loaded by /skill:skill-cre
 
     assert.ok(app.skillCommands(id).some((each) => each.name === "skill-creator"));
     await say(app, id, "make me a skill");
-    assert.doesNotMatch(prompt, /<name>skill-creator<\/name>/, "invoked by name only while skill_save is a placeholder");
+    assert.match(prompt, /<name>skill-creator<\/name>[^<]*<description>The owner(&apos;|')s skills and \/commands, kept in the app(&apos;|')s library/, "Pi finds it by itself");
     await say(app, id, "/skill:skill-creator a skill for SSP reviews");
 
     const loaded = (await modelTexts(app, id)).join("\n");
@@ -333,7 +334,7 @@ test("skill-creator (PP-465) is pi-phone's own skill, loaded by /skill:skill-cre
     assert.match(loaded, /<skill name=\\"skill-creator\\" location=/);
     // What the research asked of it: the interview, the description, a short body with references/ and scripts/,
     // trigger tests with a near miss, the save on a card, and slash commands with their arguments.
-    for (const words of ["`interview` tool", "Use when …", "references/<topic>.md", "scripts/", "a near miss", "skill_save", "library_pin", "command_save", "$ARGUMENTS", "${1:-default}"]) {
+    for (const words of ["`interview` tool", "Use when …", "references/<topic>.md", "scripts/", "a near miss", "`tool_search`", "`skill_save`", "`library_pin`", "`command_save`", "`library_list`", "`library_undo`", "$ARGUMENTS", "${1:-default}"]) {
         assert.ok(loaded.includes(words), words);
     }
 });

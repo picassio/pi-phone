@@ -73,6 +73,7 @@ const ORDER = [
     "docs.ts",
     "sharing.ts",
     "projects.ts",
+    "library.ts",
     "memory.ts",
     "pip.ts",
     "triggers.ts",
@@ -122,6 +123,7 @@ const TITLES: Record<string, string> = {
     "computer.ts": "Computer control",
     "para.ts": "Wiki (PARA)",
     "projects.ts": "Projects",
+    "library.ts": "Skills & commands",
     "memory.ts": "Memory",
     "pip.ts": "PiP",
     "triggers.ts": "Triggers",
@@ -324,6 +326,12 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "extension_inspect",
     "extension_create",
     "extension_made",
+    "skill_save",
+    "command_save",
+    "library_pin",
+    "library_list",
+    "library_undo",
+    "library_delete",
 ]);
 
 /** Pi Pocket's own modules, or the owner's from the drop-in folder. */

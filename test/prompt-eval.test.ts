@@ -116,6 +116,16 @@ test("steps and a parameter only a newer prompt offers", () => {
     assert.equal(jev.test("jev", offered), true);
 });
 
+test("reads: the skill's file read before the call checked, or it fails (PP-468)", () => {
+    const opened = { tool: ["bash", "answer"], reads: /ssp-review\/SKILL\.md$/ } as const;
+    const skill = call("read", { path: "/data/library/skills/ssp-review/SKILL.md" });
+
+    assert.equal(judge(opened, { leadIns: [skill], call: call("bash", { command: "git diff main...HEAD" }), text: "" }, none).pass, true);
+    assert.equal(judge(opened, { leadIns: [skill], call: undefined, text: "Done." }, none).pass, true);
+    assert.equal(judge(opened, { leadIns: [], call: call("bash"), text: "" }, none).why, "never read a file matching /ssp-review\\/SKILL\\.md$/ first");
+    assert.equal(judge(opened, { leadIns: [call("read", { path: "/app/skills/ui-verify/SKILL.md" })], call: call("bash"), text: "" }, none).pass, false);
+});
+
 test("a scenario that passes less often after a change is a drop", () => {
     const tally = (passed: number) => ({ passed, runs: 3, fails: [] });
 
@@ -126,10 +136,11 @@ test("at least 30 scenarios, unique, covering what recent prompt changes touched
     assert.ok(SCENARIOS.length >= 30, `${SCENARIOS.length} scenarios`);
     assert.equal(new Set(SCENARIOS.map((each) => each.id)).size, SCENARIOS.length);
     assert.ok(SCENARIOS.some((each) => each.variant === "machine"));
+    assert.ok(SCENARIOS.some((each) => each.variant === "pinned"));
 
     const tools = new Set(SCENARIOS.flatMap((each) => each.expect.tool));
 
-    for (const tool of ["screenshot", "secret_save", "bash", "secret_request", "browser_run", "codemode", "interview", "answer"]) {
+    for (const tool of ["screenshot", "secret_save", "bash", "secret_request", "browser_run", "codemode", "interview", "answer", "skill_save", "command_save", "library_pin", "library_list", "library_undo"]) {
         assert.ok(tools.has(tool), tool);
     }
 

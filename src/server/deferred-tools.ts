@@ -92,6 +92,13 @@ export const DEFERRED_TOOLS: readonly string[] = [
     "secret_save",
     "image_markup",
     "image_compare",
+    // The owner's library of skills and slash commands (PP-468).
+    "skill_save",
+    "command_save",
+    "library_pin",
+    "library_list",
+    "library_undo",
+    "library_delete",
     // A board's rarer work.
     "project_create",
     "project_update",

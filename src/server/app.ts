@@ -1331,6 +1331,16 @@ export class PocketApp {
             libraryBoard: (personId, key) => this.libraryBoard(this.#libraryPerson(personId), key),
             libraryPinBoard: (personId, key, kind, name, pinned) =>
                 this.librarySetPin(this.#libraryPerson(personId), libraryKind(kind), name, "board", key, pinned),
+            library: {
+                list: (user) => this.libraryList(user),
+                versions: (user, kind, name) => this.libraryVersions(user, kind, name),
+                files: (user, kind, name, version) => this.libraryVersionFiles(user, kind, name, version),
+                save: (user, kind, name, given, note) => this.librarySave(user, kind, name, given, note),
+                restore: (user, kind, name, version) => this.libraryRestore(user, kind, name, version),
+                remove: (user, kind, name) => this.libraryRemove(user, kind, name),
+                setPin: (user, kind, name, pin, pinned) => this.librarySetPin(user, kind, name, pin.scope, pin.target, pinned),
+                pinView: (pin) => this.#pinView(pin),
+            },
             builtInSkills: () => this.builtInSkills(),
             designSystem: () => this.designSystemPrompt(),
             contextPolicy: (id) => this.contextPolicy(id),
@@ -5422,11 +5432,17 @@ export class PocketApp {
             throw new HttpError(403, "Approving a step that may pay, send, book or delete is the owner's.");
         }
 
+        // Pi's library cards (PP-468): saving, pinning, undoing or deleting the owner's skills and commands is theirs.
+        if (allow && request.form?.type === "library" && user.role !== "owner") {
+            throw new HttpError(403, "The library of skills and commands is the owner's.");
+        }
+
         if (
             allow &&
             request.form !== undefined &&
             request.form.type !== "machine" &&
             request.form.type !== "risky" &&
+            request.form.type !== "library" &&
             request.form.type !== "phone" &&
             request.form.type !== "computer" &&
             request.form.type !== "extension" &&

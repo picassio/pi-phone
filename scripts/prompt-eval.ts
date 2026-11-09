@@ -63,7 +63,7 @@ if (scenarios.length === 0) {
     throw new Error(`--only ${values.only} names no scenario`);
 }
 
-type Captured = { message: string; phone: Context; machine: Context; files: Record<string, string> };
+type Captured = { message: string; phone: Context; machine: Context; pinned: Context; files: Record<string, string> };
 type Tree = { label: string; captured: Captured };
 
 const work = mkdtempSync(join(tmpdir(), "prompt-eval-"));
@@ -172,11 +172,12 @@ async function runOnce(captured: Captured, scenario: Scenario): Promise<Run> {
     const messages = [...requestFor(captured, scenario).messages];
     const stubs = { ...DEFAULT_STUBS, ...scenario.stubs };
     const leadIns: Call[] = [];
+    const rounds = scenario.rounds ?? MAX_LEAD_INS;
     let text = "";
     let cost = 0;
     let requests = 0;
 
-    for (let round = 0; round <= MAX_LEAD_INS; round++) {
+    for (let round = 0; round <= rounds; round++) {
         const reply = await ask(messages);
 
         requests++;
@@ -210,7 +211,7 @@ async function runOnce(captured: Captured, scenario: Scenario): Promise<Run> {
         );
     }
 
-    return { trace: { leadIns, call: undefined, text: `${text}\n(stopped after ${MAX_LEAD_INS} rounds of lead-ins)` }, cost, requests };
+    return { trace: { leadIns, call: undefined, text: `${text}\n(stopped after ${rounds} rounds of lead-ins)` }, cost, requests };
 }
 
 type Job = { tree: number; scenario: Scenario; run: number };
@@ -274,7 +275,7 @@ const requests = (tree: number) => results.filter((result) => result.job.tree ==
 const report = [
     `# prompt-eval, ${new Date().toISOString().slice(0, 10)}`,
     "",
-    `Model ${values.model} on OpenRouter, ${RUNS} run${RUNS === 1 ? "" : "s"} of each of ${scenarios.length} scenarios (${scenarios.filter((each) => each.variant === "phone").length} phone, ${scenarios.filter((each) => each.variant === "machine").length} machine).`,
+    `Model ${values.model} on OpenRouter, ${RUNS} run${RUNS === 1 ? "" : "s"} of each of ${scenarios.length} scenarios (${(["phone", "machine", "pinned"] as const).map((variant) => `${scenarios.filter((each) => each.variant === variant).length} ${variant}`).join(", ")}).`,
     "",
     `| Scenario | Variant | ${trees.map((tree) => tree.label).join(" | ")} |`,
     `|---|---|${trees.map(() => "---|").join("")}`,

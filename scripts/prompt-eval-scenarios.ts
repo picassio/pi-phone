@@ -39,6 +39,30 @@ const LOOKS: Stubs = {
         /\b(cat|head|sed|grep|rg)\b/.test(command(args)) ? PAGE : /\b(ls|find|tree)\b/.test(command(args)) ? "index.html  style.css  app.js" : "(no output)",
 };
 
+/** ~/work/ssp, the project of the library scenarios (PP-468): its git history, files and package.json, stood in. */
+const SSP: Stubs = {
+    bash: (args) => {
+        const said = command(args);
+
+        return /git (log|rev-list)/.test(said)
+            ? "a41c9e2 Round invoice totals to cents\n7d03b11 Add migration 0042_invoice_rounding"
+            : /git (diff|show)/.test(said)
+              ? "diff --git a/src/invoice.ts b/src/invoice.ts\n@@ -10,3 +10,3 @@\n-  return total * 1.1;\n+  return Math.round(total * 110) / 100;\n"
+              : /git (status|branch)/.test(said)
+                ? "On branch fix/rounding\nnothing to commit, working tree clean"
+                : /\b(ls|find|tree)\b/.test(said)
+                  ? "package.json  README.md  src/  migrations/"
+                  : "(no output)";
+    },
+    read: (args) => (/package\.json$/.test(String(args.path)) ? '{ "name": "ssp", "scripts": { "test": "node --test" } }\n' : "# SSP\n\nThe billing service.\n"),
+};
+/** A library tool waits for tool_search; its words in the query (PP-468). */
+const LIBRARY_QUERY = /skill|command|library|pin|undo|version|slash|template/i;
+/** A codemode script that finds a library tool (`searchTools`) or calls one: the same intent as tool_search. */
+const LIBRARY_CODE = matches(/searchTools\([^)]*(skill|command|library|pin|undo)|tools\.(skill_save|command_save|library_\w+)/i);
+/** A near miss of a library tool: none of them, nor a search for them. */
+const NOT_LIBRARY = { forbid: ["skill_save", "command_save", "library_pin", "library_list", "library_undo", "library_delete"], forbidArgs: { tool_search: { query: /skill|library|slash/i } } } as const;
+
 /** Looking around first is fine (a read, a listing: stood in); changing anything before the person answers is not. */
 const PLAN = { tool: ["answer"], text: /plan mode|Plan button/i, forbid: ["edit", "write", "codemode"] } as const;
 const PROJECT: Stubs = {
@@ -292,6 +316,131 @@ export const SCENARIOS: readonly Scenario[] = [
         variant: "phone",
         message: "Fix the typo 'recieve' in ~/work/app/README.md.",
         expect: { tool: ["read", "edit", "bash", "codemode"], notText: /plan mode/i },
+    },
+    // The owner's library (PP-468): its tools wait for tool_search; making one follows the skill-creator skill. Each has
+    // a near miss that shares its words but needs something else.
+    {
+        id: "library-make-skill",
+        variant: "phone",
+        core: true,
+        message: "Make a skill for SSP from what we did: when I ask for an SSP review, run npm test, check that each new migration has a down step, and post a short summary on the PR.",
+        // Looking for "what we did" in the owner's sessions, or in ~/work/ssp, is fine: they are stood in, with room for it.
+        rounds: 8,
+        stubs: {
+            ...SSP,
+            sessions: "17  SSP review of PR 12  idle  ~/work/ssp",
+            session_read:
+                "Owner: review PR 12 on ssp\nPi: ran npm test (2 failed), found migration 0042 has no down step, posted the summary on the PR.\nOwner: good, always check the down step first next time.",
+        },
+        expect: {
+            tool: ["tool_search", "skill_save", "interview", "codemode"],
+            args: { tool_search: { query: matches(LIBRARY_QUERY) }, skill_save: { name: matches(/ssp/) }, codemode: { code: LIBRARY_CODE } },
+            reads: /skill-creator\/SKILL\.md$/,
+            forbid: ["write", "edit"],
+            forbidArgs: { bash: { command: /skills\/|SKILL\.md/ } },
+        },
+    },
+    {
+        id: "library-near-checklist",
+        variant: "phone",
+        message: "Write a review checklist for SSP pull requests into ~/work/ssp/REVIEW.md.",
+        stubs: SSP,
+        // Asking what goes in it is fine too; a library tool is not.
+        expect: { tool: ["write", "edit", "bash", "codemode", "answer", "interview"], ...NOT_LIBRARY },
+    },
+    {
+        id: "library-pin",
+        variant: "phone",
+        message: "Pin my ssp-review skill to session 42.",
+        // Looking the session up first is fine.
+        stubs: { sessions: "42  SSP billing fix  idle  ~/work/ssp" },
+        expect: {
+            tool: ["tool_search", "library_pin", "codemode"],
+            args: { tool_search: { query: matches(LIBRARY_QUERY) }, library_pin: { name: matches(/ssp-review/), target: matches(/42/) }, codemode: { code: LIBRARY_CODE } },
+        },
+    },
+    {
+        id: "library-near-pin-group",
+        variant: "phone",
+        message: "Pin my Work group to the top of the session list.",
+        expect: { tool: ["tool_search", "session_group_pin", "session_groups", "sessions", "answer"], args: { tool_search: { query: matches(/group/i) } }, ...NOT_LIBRARY },
+    },
+    {
+        id: "library-make-command",
+        variant: "phone",
+        message: "Make a /ssp-review command that asks you to review the SSP pull request I give it.",
+        stubs: SSP,
+        expect: {
+            tool: ["tool_search", "command_save", "interview", "codemode"],
+            args: { tool_search: { query: matches(LIBRARY_QUERY) }, command_save: { name: matches(/^ssp-review$/) }, codemode: { code: LIBRARY_CODE } },
+            forbid: ["write", "edit"],
+        },
+    },
+    {
+        id: "library-near-npm-script",
+        variant: "phone",
+        message: "Add an npm script called ssp-review to ~/work/ssp/package.json that runs the linter.",
+        stubs: SSP,
+        expect: { tool: ["edit", "write", "bash", "codemode", "answer", "interview"], ...NOT_LIBRARY },
+    },
+    {
+        id: "library-list",
+        variant: "phone",
+        message: "What skills and commands do I have in my library?",
+        expect: { tool: ["tool_search", "library_list", "codemode"], args: { tool_search: { query: matches(LIBRARY_QUERY) }, codemode: { code: LIBRARY_CODE } } },
+    },
+    {
+        id: "library-near-own-skills",
+        variant: "phone",
+        message: "Which of your skills helps with Excel spreadsheets?",
+        expect: { tool: ["answer"], text: /xlsx|officecli/i, ...NOT_LIBRARY },
+    },
+    {
+        id: "library-undo",
+        variant: "phone",
+        message: "Undo the last change to my ssp-review skill.",
+        expect: {
+            tool: ["tool_search", "library_undo", "codemode"],
+            args: { tool_search: { query: matches(LIBRARY_QUERY) }, library_undo: { name: matches(/ssp-review/) }, codemode: { code: LIBRARY_CODE } },
+        },
+    },
+    {
+        id: "library-near-undo-file",
+        variant: "phone",
+        message: "Undo the last change to ~/work/ssp/src/invoice.ts.",
+        stubs: { read: SSP.read! },
+        expect: { tool: ["bash", "codemode", "edit", "answer"], ...NOT_LIBRARY },
+    },
+    // A skill of the owner's pinned to the session (PP-468, the forced-evaluation question of the wiki's
+    // resources/agent-skill-writing-best-practices): read when a request fits it, plainly or by its symptoms; left when
+    // a request only shares its words.
+    {
+        id: "pinned-review",
+        variant: "pinned",
+        message: "Review the latest change in ~/work/ssp before I merge it.",
+        stubs: SSP,
+        expect: { tool: ["bash", "read", "codemode", "answer"], reads: /ssp-review\/SKILL\.md$/ },
+    },
+    {
+        id: "pinned-indirect",
+        variant: "pinned",
+        message: "Is the invoice rounding fix on branch fix/rounding safe to ship?",
+        stubs: SSP,
+        expect: { tool: ["bash", "read", "codemode", "answer"], reads: /ssp-review\/SKILL\.md$/ },
+    },
+    {
+        id: "pinned-symptom",
+        variant: "pinned",
+        message: "Customers say invoice totals are off by a cent since the last billing change. Is that change OK to keep?",
+        stubs: SSP,
+        expect: { tool: ["bash", "read", "codemode", "answer"], reads: /ssp-review\/SKILL\.md$/ },
+    },
+    {
+        id: "pinned-near-readme",
+        variant: "pinned",
+        message: "Add a section on running it locally to ~/work/ssp/README.md.",
+        stubs: SSP,
+        expect: { tool: ["edit", "write", "bash", "codemode", "answer"], forbidArgs: { read: { path: /ssp-review\/SKILL\.md$/ } } },
     },
     // An artifact for a thing to see, made at once.
     {

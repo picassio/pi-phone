@@ -1,8 +1,9 @@
 /**
  * prompt-eval's capture (PP-452): the real first request of a new session, as this tree's app builds it, in a
- * temporary home with a scripted model that answers "ok". Two variants: a session on the phone, and one on a machine
- * (a test sshd on 127.0.0.1, as test/remote-session.test.ts runs it). Writes `{ phone, machine, files }`: each
- * variant's request with the message `message`, and the skill files the prompts list (a model may read one first).
+ * temporary home with a scripted model that answers "ok". Three variants: a session on the phone, one on a machine
+ * (a test sshd on 127.0.0.1, as test/remote-session.test.ts runs it), and one on the phone with a skill of the owner's
+ * library pinned to it (`PINNED_SKILL`, PP-468). Writes `{ phone, machine, pinned, files }`: each variant's request
+ * with the message `message`, and the skill files the prompts list (a model may read one first).
  *
  *   node scripts/prompt-eval-capture.ts <out.json>
  *
@@ -52,9 +53,33 @@ const app = await openApp(
     { tools: "load" },
 );
 
-async function capture(cwd?: string): Promise<Request> {
+/**
+ * The library skill the pinned variant has (PP-468): a review procedure for one project, as an owner would keep, so a
+ * scenario can ask whether Pi reads it when a request fits, and leaves it when one only shares its words.
+ */
+const PINNED_SKILL = `---
+name: ssp-review
+description: "Review a change to SSP, the billing service in ~/work/ssp, before it merges. Use when the owner asks to review an SSP pull request, branch or diff, or whether a billing or invoice change is safe to merge."
+---
+
+# SSP review
+
+1. In ~/work/ssp, read the diff against main: \`git diff main...HEAD\`.
+2. Run \`npm test\` and \`npm run migrate:check\`; a failing one stops the review.
+3. Every money amount stays in integer cents; flag any float.
+4. Report: what changed, the test results, and each risk with its file and line.
+`;
+
+async function capture(cwd?: string, pin = false): Promise<Request> {
     seen = undefined;
-    await say(app, await newSession(app, cwd), MESSAGE);
+    const id = await newSession(app, cwd);
+
+    if (pin) {
+        app.library.save("skill", "ssp-review", { "SKILL.md": PINNED_SKILL });
+        app.library.setPin("skill", "ssp-review", { scope: "session", target: String(id) }, true);
+    }
+
+    await say(app, id, MESSAGE);
 
     if (seen === undefined) {
         throw new Error(`No request carried the message (${cwd ?? "phone"})`);
@@ -118,12 +143,13 @@ async function machine(): Promise<{ cwd: string; sshd: ChildProcess }> {
 }
 
 const phone = await capture();
+const pinned = await capture(undefined, true);
 const remote = await machine();
 const onMachine = await capture(remote.cwd);
 /** Every skill file a prompt lists, read now, before the temporary home goes. */
 const files: Record<string, string> = {};
 
-for (const request of [phone, onMachine]) {
+for (const request of [phone, onMachine, pinned]) {
     for (const message of request.messages) {
         for (const match of String(message.sections?.skills ?? "").matchAll(/<location>([^<]+)<\/location>/g)) {
             const path = match[1]!;
@@ -135,7 +161,7 @@ for (const request of [phone, onMachine]) {
     }
 }
 
-writeFileSync(out, JSON.stringify({ message: MESSAGE, phone, machine: onMachine, files }));
+writeFileSync(out, JSON.stringify({ message: MESSAGE, phone, machine: onMachine, pinned, files }));
 remote.sshd.kill();
 await app.close();
 cleanUp();

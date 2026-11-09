@@ -888,7 +888,10 @@ mới** trên danh sách phiên (và màn hình chính khi màn hình rộng) m�
   mỗi mục có mô tả, nơi ghim và số phiên bản; sửa SKILL.md và các tệp của nó hay mẫu của lệnh; lịch sử phiên bản với
   Hoàn tác và Khôi phục; Xóa qua một thẻ; công tắc Mọi phiên, và ghim vào phiên và bảng. Menu của phiên cũng có
   **Skill & lệnh**: mỗi mục một công tắc cho phiên đó, còn thứ bảng hay Mọi phiên mang lại hiện thành trạng thái. Cài đặt
-  của bảng liệt kê các mục ghim vào bảng, mỗi mục một công tắc.
+  của bảng liệt kê các mục ghim vào bảng, mỗi mục một công tắc. Nhờ Pi làm một mục ("làm skill duyệt SSP từ việc vừa làm",
+  "làm lệnh /ssp-review"): Pi theo skill skill-creator của nó và soạn bản nháp, và không gì được lưu tới khi bạn duyệt thẻ
+  của nó, thẻ hiện toàn bộ nội dung, và phần khác biệt khi sửa. Pi cũng liệt kê, ghim ("ghim nó vào phiên 42"), lùi một
+  mục về phiên bản trước và xóa một mục, mỗi việc trên thẻ của bạn.
 - **Giữ artifact thành trang.** **`/page <cần làm gì>`** (`/page công cụ đổi tiền VND/USD`) nhờ Pi làm nó thành một
   artifact, kiểm tra, rồi đề nghị giữ nó thành trang qua một thẻ; chỉ gõ `/page` thì mở Cài đặt › Trang. Prompt template
   tên `make` hay `page` thắng lệnh của ứng dụng, như với `/review`.

@@ -79,6 +79,7 @@ export function moduleTitle(title) {
         "Machine tools": t("Machine tools"),
         "Wiki (PARA)": t("Wiki (PARA)"),
         Projects: t("Projects"),
+        "Skills & commands": t("Skills & commands"),
         Memory: t("Memory"),
         PiP: t("PiP"),
         Triggers: t("Triggers"),

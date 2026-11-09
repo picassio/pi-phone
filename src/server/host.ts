@@ -37,6 +37,7 @@ import type { Videos } from "./video-gen.ts";
 import type { Audio } from "./audio.ts";
 import type { CommandEnvProvider, HiddenValue } from "./hidden.ts";
 import type { DropInPackage } from "./drop-in-install.ts";
+import type { LibraryFiles, LibraryItem, LibraryKind, LibraryPin, LibraryVersion, PinView } from "./library.ts";
 import type { BrowserReport, PlacesReport } from "./extension-web.ts";
 import type { ExtensionInfo } from "./reload.ts";
 
@@ -171,10 +172,47 @@ export interface ApprovalRequest {
          * will be, and where it shows; `next` when it is a new version of one Pi made. Make it starts the subagent that
          * writes it; nothing is installed until the install card. The owner's to answer.
          */
-        | { type: "creator"; module: string; title: string; brief: string; places: string[]; next: boolean };
+        | { type: "creator"; module: string; title: string; brief: string; places: string[]; next: boolean }
+        /** Pi changes the owner's library of skills and commands (`extensions/library.ts`, PP-468): what Approve does. */
+        | LibraryForm;
     createdAt: number;
     /** Who Pi was working for when the call asked: set by `Approvals`, not by the asker. */
     requestedBy?: string;
+}
+
+/**
+ * A library card (PP-468), the owner's alone to approve. `save`: the files as they will be (`files`, whole), and for an
+ * edit the change (`diff`, unified) and the version it replaces (`from`); `pin`: the pin taken or given; `undo`: the
+ * version now (`from`), the one it goes back to (`to`) and the change; `delete`: how many versions go with it. `pins`:
+ * where the item is pinned now, so the owner sees which sessions a change reaches.
+ */
+export type LibraryForm = {
+    type: "library";
+    action: "save" | "pin" | "undo" | "delete";
+    kind: LibraryKind;
+    name: string;
+    files?: { path: string; text: string }[];
+    diff?: string;
+    from?: number;
+    to?: number;
+    pin?: PinView & { pinned: boolean };
+    pins: PinView[];
+    versions?: number;
+    note?: string;
+};
+
+/** The owner's library, for Pi's tools (`extensions/library.ts`, PP-468): the screens' own methods, each the owner's alone. */
+export interface LibraryHost {
+    list(user: User): (Omit<LibraryItem, "pins"> & { pins: PinView[] })[];
+    versions(user: User, kind: LibraryKind, name: string): { current: number; versions: LibraryVersion[] };
+    files(user: User, kind: LibraryKind, name: string, version: number): LibraryFiles;
+    /** A skill's `files`, a command's `content`, checked again as the page's save does. */
+    save(user: User, kind: LibraryKind, name: string, given: { files?: unknown; content?: unknown }, note: string): LibraryItem;
+    restore(user: User, kind: LibraryKind, name: string, version: number): LibraryItem;
+    remove(user: User, kind: LibraryKind, name: string): void;
+    setPin(user: User, kind: LibraryKind, name: string, pin: LibraryPin, pinned: boolean): PinView[];
+    /** A pin's session title or board name, or `gone`. */
+    pinView(pin: LibraryPin): PinView;
 }
 
 /** What an ask's card shows (`ApprovalRequest.form`). */
@@ -373,6 +411,8 @@ export interface PocketHost {
     libraryBoard(personId: string, key: string): { kind: string; name: string; description: string; pinned: boolean }[];
     /** Pin a library item to the board `key`, or take the pin away (the owner's alone). */
     libraryPinBoard(personId: string, key: string, kind: unknown, name: string, pinned: unknown): unknown;
+    /** The library itself, for Pi's tools to list and change it on the owner's cards (PP-468). */
+    readonly library: LibraryHost;
     /** The app's own skill folders now: those of extensions that are on (Design & video's) among them. */
     builtInSkills(): string[];
     /** What the prompt says of the person's default design system (`design-systems.ts`), or undefined for none. */

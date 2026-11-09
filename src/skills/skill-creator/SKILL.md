@@ -1,7 +1,6 @@
 ---
 name: skill-creator
-description: "Make or improve one of the owner's skills or slash commands, so that Pi uses it at the right time. Use when the owner asks to make, write, save, edit or fix a skill or a /command, or to turn what was just done (a workflow, a review, a checklist) into one."
-disable-model-invocation: true
+description: "The owner's skills and /commands, kept in the app's library, not on disk: make, edit, pin, list, undo. Use when the owner asks to make, fix, pin or undo one, which they have, or to turn work into one."
 ---
 
 # Skill creator
@@ -11,9 +10,12 @@ Pi reads only when the description matches the task. Most skills fail in one of 
 description misses the owner's words), or Pi opens them and gets nothing it did not know (the body explains instead of
 instructing). Write against both.
 
-The tool names here are placeholders until the library ships: `skill_save` (create or edit a skill; the owner approves
-the whole content on a card), `command_save` (a slash command), `library_pin` (pin an item to a session, a board, or
-every session).
+The owner's library in the app keeps them, with a version for every save; they are not files to look for on disk.
+Its tools: `skill_save` (a skill, new or edited), `command_save` (a slash command), `library_pin` (a session, a board,
+or every session), `library_list` (what it holds, an item's files and versions), `library_undo` and `library_delete`.
+Each waits for `tool_search`: call it with the tool's name (`tool_search` with query "library_undo"), then call the
+tool. Each change waits for the owner's card; until they approve, what you wrote is only a draft. To pin, list, undo
+or delete, that is all: the rest of this skill is for writing one.
 
 ## 1. Decide what to make
 
@@ -28,7 +30,9 @@ every session).
 When the owner says "make a skill from what we did", read the conversation first: the tools used, the order, the
 corrections the owner made, the result they accepted. Those corrections are the skill's most valuable lines.
 
-Ask only what you cannot find, with the `interview` tool, at most four questions, each with your recommendation:
+When the owner described the work in their message, that is enough to draft: write it and save it (the card is where
+they correct it). Ask only what you can neither find nor guess well, with the `interview` tool, never in a chat
+message, at most four questions, each with your recommendation:
 1. What should Pi do with it, and what comes out (a file, a report, a change)?
 2. What would the owner type when they need it? Two or three real phrasings.
 3. What should it never do, or when should it stop and ask?
@@ -80,8 +84,11 @@ Before saving, reread the draft as a Pi that has not seen this conversation:
 - Is every line something Pi would get wrong without it? Cut the rest.
 - Does each step say what done looks like?
 
-Then `skill_save` it. The owner sees the whole content on a card, and a diff when you edit; nothing is saved until
-they approve. An edit keeps the old version, so keep the name: change a skill in place, never save `name-v2`.
+Then `skill_save` it: `body` is SKILL.md after its front matter (the tool writes `name` and `description`), `files`
+the others by path. The owner sees the whole content on a card, and a diff when you edit; nothing is saved until
+they approve. A denied card says why: change the draft and save again. To edit, read it first (`library_list` with
+its name) and keep the name: an edit keeps the old version (`library_undo`), never save `name-v2`. A new skill is
+pinned nowhere: pin it where the owner said (`library_pin`; ask when they did not).
 
 Test the triggering with three prompts, written as the owner would type them, not naming the skill:
 1. a plain request it must catch;

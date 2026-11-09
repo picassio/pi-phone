@@ -860,7 +860,11 @@ card on the session list (and the home screen on a wide screen) offers a tour of
   with search; each item's description, pins and versions; editing SKILL.md and its files or a command's template;
   version history with Undo and Restore; Delete on a card; an Every session switch, and pins to sessions and boards. A
   session's menu has **Skills & commands** too: a switch per item for that session, with what its board or every
-  session gives it shown as a state. A board's settings list the items pinned to it, each with a switch.
+  session gives it shown as a state. A board's settings list the items pinned to it, each with a switch. Ask Pi to
+  make one ("make a skill for SSP reviews from what we did", "make a /ssp-review command"): it follows its
+  skill-creator skill and drafts it, and nothing is saved until you approve its card, which shows the whole content,
+  and the diff for an edit. Pi also lists them, pins them ("pin it to session 42"), takes one back a version and
+  deletes one, each on your card.
 - **Keep an artifact as a page.** **`/page <what>`** (`/page a currency converter VND/USD`) has Pi build it as an
   artifact, check it, and offer to keep it as a page on a card; `/page` alone opens Settings › Pages. A prompt template
   named `make` or `page` wins over the app's command, as with `/review`.
