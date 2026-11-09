@@ -781,7 +781,29 @@ so Pi changes them through the settings tools; "the last session" is the one the
   wrapped (`inBatchOrder`): before running, each waits for the tool tasks of the `edit`, `write` and `bash` calls before
   it in the round (`LiveDoc.tools`, in the model's order, read at the call's start; `waitForTask`, so a restart keeps
   the order). Other tools stay parallel, with these too. Not `executionMode: sequential`: that would serialize every
-  tool of the round. Code mode's nested calls are not round slots; a script awaits them in its own order.
+  tool of the round. Code mode's nested calls are not round slots; a script awaits them in its own order. Pi's
+  browser's tools (`browser_*`) are a second group (PP-469): each waits for the browser calls before it, not for the
+  file and shell calls, which do not wait for them either. Before, [browser_upload, browser_click Done] clicked first
+  (the upload reads its files before it reaches the browser's queue).
+- **A batch's browser calls keep the numbers they were written with** (PP-469, after session #141416: on Azure
+  DevOps's production approval Pi sent browser_type([62]) and browser_click([64]) in one message; typing showed the
+  environment's link above Approve, the controls were numbered again, and the click went to [64] of the new read, the
+  link). Each call is resolved against the read Pi saw when it wrote the call: the newest before its assistant
+  message. Which message: the call's tool task's input (Pi Durable's `ToolTaskInput`: `assistant`, the message's
+  entry, for a model's call; `parent` for a nested call, followed up to the model's call; `callerOf` in
+  `extensions/browser.ts`, through `api.getTask`); a task naming none is an error. `PiBrowser` keeps that read
+  (`#written`: the tab in front, its `observed` and elements) when the message's first browser call runs, in the
+  browser's queue, so nothing of the message ran before it. A call that takes numbers (click, type, select, hover,
+  focus, drag and its target, select_text, upload, scroll, screenshot and its marks, sign-in and code cards'
+  fields: `#run`'s `indices`) is checked there before anything is done: each number must name the same control now as
+  then (the same tab, the same document by its time origin, `documentOf`, the same node, the same role); else it is
+  refused as stale ("[64] was button "Approve" when this call was written; an earlier call in the same message changed
+  the page, and [64] is now link "…". Nothing was done"), with the page now. A number it did not have then is refused
+  too. Nothing is guessed or mapped to another number. A page that did not change, or changed only in values (three
+  checkboxes ticked in one message), keeps working; calls in messages of their own use the newest read as before. A
+  script's calls (code mode) keep the message's read but are not checked: a script reads as it runs. browser_ask_user
+  and browser_permission keep the read before the person's hand or a reload (`written`). With the batch order above,
+  nothing else of the message runs between a sign-in card and its filling.
 - **The reminder on edits by script** (PP-100, PP-206; `extensions/prompt.ts`): a bash result gets one line ("this
   command wrote files by script…") when the command writes files by script (`writesByScript`: sed or perl -i, `cat >`,
   tee, a program's writeFileSync or open(…, "w")) and one of the files it names is a project file. Not a project

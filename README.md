@@ -211,7 +211,10 @@ No Termux, no laptop, no cloud VM.
   reads them as numbered controls and visible text (icons named by their tooltip, sprite, picture, or where they go;
   things clickable only by their look, like a pop-up's buttons, too, and a list's rows that hold buttons of their own,
   like Confluence's view switcher, by their names); it clicks, types, chooses, hovers, scrolls, presses
-  keys, goes back, reads a whole page, or looks at it (`browser_open`, `browser_click`, …). Controls inside frames (a
+  keys, goes back, reads a whole page, or looks at it (`browser_open`, `browser_click`, …). Several browser calls in
+  one of Pi's messages run in its order, each with the numbers of the page Pi read before it: when an earlier one
+  changed what a number names (typing that shows a link above Approve), the call is refused and nothing is done.
+  Controls inside frames (a
   payment form's card fields, an embedded sign-in, a consent banner in a frame, another site's frames too) and inside
   web components' open shadow roots are read and used as the page's own, each named with its frame, and their text is
   in the page's; sign-in cards and saved secrets work there, and what you type on a card stays hidden there too.

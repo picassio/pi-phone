@@ -322,7 +322,8 @@ async function browserRun(setting: string, openRouter: boolean, model?: "jev" | 
     )!;
     const done = await tool.execute(
         { goal: "Search the shop for lamps", ...(model === undefined ? {} : { model }) },
-        { conversationId: 7, taskId: "t1", callId: "c1", agent: async () => ({ cwd: "/work" }) },
+        // A model's call (PP-469: browser calls run in their batch's order, and know their message by their tool task).
+        { conversationId: 7, taskId: "t1", callId: "c1", agent: async () => ({ cwd: "/work" }), snapshot: async () => undefined, getTask: async () => ({ input: { kind: "model", assistant: 1, callId: "c1" } }) },
         {},
     );
 

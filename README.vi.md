@@ -222,7 +222,9 @@ dự án thật.</sub>
   sprite, hình ảnh, hoặc nơi chúng dẫn tới; cả những thứ chỉ nhấp được nhờ giao diện, như nút của một hộp bật lên, và
   các dòng của một danh sách có nút riêng, như bộ chọn view của Confluence, theo tên của chúng);
   nó nhấp, gõ, chọn, di chuột, cuộn, nhấn phím, quay lại, đọc cả trang, hoặc nhìn trang (`browser_open`,
-  `browser_click`, …). Ô điều khiển bên trong khung (iframe: ô số thẻ của một biểu mẫu thanh toán, một khung đăng
+  `browser_click`, …). Nhiều lệnh trình duyệt trong một tin nhắn của Pi chạy theo đúng thứ tự, mỗi lệnh dùng số của
+  trang Pi đã đọc trước tin nhắn đó: khi một lệnh trước làm số đó chỉ sang ô khác (gõ chữ làm hiện một link phía trên
+  nút Approve), lệnh bị từ chối và không làm gì. Ô điều khiển bên trong khung (iframe: ô số thẻ của một biểu mẫu thanh toán, một khung đăng
   nhập nhúng, một thông báo cookie trong khung, cả khung của trang web khác) và bên trong shadow root mở của web
   component được đọc và dùng như của chính trang, mỗi ô ghi rõ khung của nó, và chữ của chúng có trong chữ của trang;
   thẻ đăng nhập và secret đã lưu dùng được ở đó, và những gì bạn gõ trên thẻ vẫn được giấu ở đó.

@@ -23,6 +23,7 @@ import {
     type PictureOptions,
     describe,
     elementsOf,
+    FRAME_SPAN,
     FULL_PAGE_MAX,
     type PermissionName,
     SHORT_VALUE_NOTE,
@@ -815,6 +816,25 @@ export type PiBrowserOptions = {
  */
 type Tab = { id: string; page: BrowserPage; observed: Observed | undefined; elements: Element[]; url: string; title: string; opener?: Tab };
 
+/**
+ * Who asks for an action (PP-469): a session by its number, or a call of one of Pi's assistant messages (`message`, its
+ * entry). The calls of one message are written against the read Pi saw before it: the first of them to run keeps that
+ * read, and a call that `checks` its numbers is refused when an earlier call of the message changed what they name. A
+ * call a script made (code mode's) keeps the read too, but its numbers are its script's, read as it ran: not checked.
+ */
+export type Caller = number | { session: number; message: number; checks: boolean };
+
+/** The read the calls of one assistant message were written against (PP-469): the tab in front then, and what it showed. */
+type Written = { message: number; tab: Tab | undefined; observed: Observed | undefined; elements: Element[] };
+
+/** The document a control is in: its frame's page key starts with the document's time origin (`snapshot.js`). */
+function documentOf(observed: Observed | undefined, node: number): unknown {
+    const slot = Math.floor(node / FRAME_SPAN);
+    const key = slot === 0 ? observed?.page_key : observed?.frame_keys?.[String(slot)];
+
+    return Array.isArray(key) ? key[0] : undefined;
+}
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export class PiBrowser {
@@ -825,6 +845,8 @@ export class PiBrowser {
     #opening: Promise<Tab> | undefined;
     /** Pi's actions, one after another. */
     #queue: Promise<unknown> = Promise.resolve();
+    /** The read the newest assistant message's calls were written against (PP-469). */
+    #written: Written | undefined;
     #state: BrowserState = { place: "phone", where: "the phone", open: false, url: "", title: "", tabs: [], tab: 0, doing: null, session: null, takenOver: false, viewport: { width: VIEWPORT.width, height: VIEWPORT.height }, size: "phone", pictureError: null, windowInUse: false, attached: null };
     /** Until when the page's input is Pi's or the panel's own (PP-274), and the timer that ends `windowInUse`. */
     #ownInputUntil = 0;
@@ -1288,7 +1310,7 @@ export class PiBrowser {
      * Allow (or deny again) a permission for a site in this browser (PP-376), the owner's answer on a card: set in every
      * tab on that site now, and in each it comes to, while this browser lives. Answers what Pi is told.
      */
-    setPermission(session: number, origin: string, name: PermissionName, allow: boolean): Promise<string> {
+    setPermission(session: Caller, origin: string, name: PermissionName, allow: boolean): Promise<string> {
         return this.#run(session, `${allow ? "Allowing" : "Denying"} ${PERMISSION_WORDS[name]} for ${origin}`, async () => {
             if (this.#options.engine.grantsPermissions !== true) {
                 throw new Error(`${this.#options.engine.label} allows no site ${PERMISSION_WORDS[name]} (its WebView denies it): browse on a machine (browser_open with machine) for a page that needs it.`);
@@ -1318,7 +1340,7 @@ export class PiBrowser {
     }
 
     /** A card's answer to a permission a page asked for (`permissionAsks`): allowed for that site, or left denied. */
-    async answerPermission(session: number, id: string, allow: boolean, by: string): Promise<string> {
+    async answerPermission(session: Caller, id: string, allow: boolean, by: string): Promise<string> {
         const ask = this.#permissionAsks.find((each) => each.id === id);
 
         if (ask === undefined) {
@@ -1340,7 +1362,7 @@ export class PiBrowser {
     }
 
     /** The person's answer to a window's card: opened as a tab in front, or refused. Answers the page as it is then. */
-    answerWindow(session: number, id: string, allow: boolean, by: string): Promise<string> {
+    answerWindow(session: Caller, id: string, allow: boolean, by: string): Promise<string> {
         return this.#run(session, allow ? "Opening the window the page asked for" : "Refusing the window the page asked for", async () => {
             const at = this.#asks.findIndex((each) => each.id === id);
 
@@ -1364,8 +1386,13 @@ export class PiBrowser {
         });
     }
 
-    /** Run one of Pi's actions after the ones before, on the tab in front, with what it is doing shown in the panel. */
-    #run<T>(session: number, doing: string, work: (tab: Tab) => Promise<T>): Promise<T> {
+    /**
+     * Run one of Pi's actions after the ones before, on the tab in front, with what it is doing shown in the panel.
+     * `indices`: the controls it acts on by Pi's numbers, checked against the read the caller's message was written
+     * against (PP-469) before anything is done.
+     */
+    #run<T>(caller: Caller, doing: string, work: (tab: Tab) => Promise<T>, indices: readonly (number | undefined)[] = []): Promise<T> {
+        const session = typeof caller === "number" ? caller : caller.session;
         const next = this.#queue.then(async () => {
             if (this.#state.takenOver) {
                 throw new Error("The person took over Pi's browser: wait until they hand it back (or ask them to).");
@@ -1375,7 +1402,13 @@ export class PiBrowser {
             this.#usedAt = Date.now();
 
             try {
-                return await work(await this.#ensure());
+                const tab = await this.#ensure();
+
+                if (typeof caller !== "number") {
+                    this.#asWritten(caller, indices.filter((index) => index !== undefined));
+                }
+
+                return await work(tab);
             } finally {
                 this.#usedAt = Date.now();
                 // The page's events of Pi's input may come a moment after the action.
@@ -1500,6 +1533,51 @@ export class PiBrowser {
         }
     }
 
+    /**
+     * The read a message's calls were written against (PP-469): kept by its first call to run, the tab in front and what
+     * Pi last read of it then. A call that checks its numbers is refused, before anything is done, when one of them names
+     * another control now than then: another tab or document, another node, or another kind of control (a call before it
+     * in the message changed the page). A number it did not have then is refused too. Nothing is guessed.
+     */
+    #asWritten(caller: { message: number; checks: boolean }, indices: readonly number[]): void {
+        if (this.#written?.message !== caller.message) {
+            const tab = this.#tab;
+
+            this.#written = { message: caller.message, tab, observed: tab?.observed, elements: tab?.elements ?? [] };
+        }
+
+        const seen = this.#written;
+        const tab = this.#tab;
+
+        if (!caller.checks || seen.observed === undefined || (tab === seen.tab && tab?.observed === seen.observed)) {
+            return;
+        }
+
+        for (const index of indices) {
+            const was = seen.elements.find((each) => each.index === index);
+            const now = tab?.elements.find((each) => each.index === index);
+            const same =
+                was !== undefined &&
+                now !== undefined &&
+                tab !== undefined &&
+                tab === seen.tab &&
+                now.node === was.node &&
+                now.role === was.role &&
+                documentOf(tab.observed, now.node) === documentOf(seen.observed, was.node);
+
+            if (same) {
+                continue;
+            }
+
+            const then = was === undefined ? "not on the page" : `${was.role} "${was.label}"`;
+            const after = now === undefined ? "not on it" : `${now.role} "${now.label}"`;
+
+            throw new StalePage(
+                `[${index}] was ${then} when this call was written; an earlier call in the same message changed the page, and [${index}] is now ${after}. Nothing was done: use the numbers of the page now.`,
+            );
+        }
+    }
+
     #element(index: number): { observed: Observed; element: Element } {
         const observed = this.#tab?.observed;
         const elements = this.#tab?.elements ?? [];
@@ -1516,7 +1594,7 @@ export class PiBrowser {
         return { observed, element };
     }
 
-    open(session: number, url: string): Promise<string> {
+    open(session: Caller, url: string): Promise<string> {
         return this.#run(session, `Opening ${url}`, async (tab) => {
             await this.#permissionsFor(tab.page, url);
             await tab.page.navigate(url);
@@ -1525,7 +1603,15 @@ export class PiBrowser {
         });
     }
 
-    snapshot(session: number): Promise<string> {
+    /**
+     * Keep the read the caller's message was written against (PP-469), if no call of it has yet: before what changes the
+     * page outside Pi's actions (the person's hand on it, a permission's reload).
+     */
+    written(session: Caller): Promise<void> {
+        return this.#run(session, "Keeping the page as read", async () => undefined);
+    }
+
+    snapshot(session: Caller): Promise<string> {
         return this.#run(session, "Reading the page", () => this.#read());
     }
 
@@ -1565,7 +1651,7 @@ export class PiBrowser {
     }
 
     /** Click control `index`: once, or (PP-376) twice, with the right button, or a long press of `ms`. One that may pay, send, book or delete waits for the owner's card (`approve`, PP-455). */
-    click(session: number, index: number, approve: Approve, acceptDialog = false, { how = "single", ms }: { how?: ClickKind; ms?: number } = {}): Promise<string> {
+    click(session: Caller, index: number, approve: Approve, acceptDialog = false, { how = "single", ms }: { how?: ClickKind; ms?: number } = {}): Promise<string> {
         const verb = { single: "Clicking", double: "Double-clicking", right: "Right-clicking", long: "Long-pressing" }[how];
 
         return this.#run(session, this.#doing(verb, index), async ({ page }) => {
@@ -1581,24 +1667,24 @@ export class PiBrowser {
             } finally {
                 await page.setAcceptDialogs(false);
             }
-        });
+        }, [index]);
     }
 
-    hover(session: number, index: number): Promise<string> {
+    hover(session: Caller, index: number): Promise<string> {
         return this.#run(session, this.#doing("Pointing at", index), async ({ page }) => {
             const { observed, element } = this.#element(index);
 
             await page.hover(observed, element);
 
             return this.#read();
-        });
+        }, [index]);
     }
 
     /**
      * Select text (PP-376): on the page by its text, or in control `index` (its text, every character, or characters
      * `start` to `end`). Says what was selected by Pi's own words and counts, never the selection's text.
      */
-    selectText(session: number, index: number | undefined, spec: TextSelection): Promise<string> {
+    selectText(session: Caller, index: number | undefined, spec: TextSelection): Promise<string> {
         const what = spec.all === true ? "everything" : spec.text !== undefined ? JSON.stringify(spec.text) : `characters ${spec.start ?? 0} to ${spec.end ?? "the end"}`;
 
         return this.#run(session, index === undefined ? `Selecting ${what}` : this.#doing(`Selecting ${what} in`, index), async ({ page }) => {
@@ -1613,22 +1699,22 @@ export class PiBrowser {
             const where = index === undefined ? `on the page${done.frame === undefined ? "" : ` (in a frame: ${done.frame})`}` : `in [${index}]`;
 
             return `Selected ${spec.text !== undefined ? `${JSON.stringify(spec.text)} (characters ${done.from} to ${done.to})` : `characters ${done.from} to ${done.to}`} of ${done.length} ${where}.\n${await this.#read()}`;
-        });
+        }, [index]);
     }
 
     /** Put the focus on control `index` without clicking it (PP-376). */
-    focus(session: number, index: number): Promise<string> {
+    focus(session: Caller, index: number): Promise<string> {
         return this.#run(session, this.#doing("Focusing", index), async ({ page }) => {
             const { observed, element } = this.#element(index);
 
             await page.focus(observed, element);
 
             return this.#read();
-        });
+        }, [index]);
     }
 
     /** Drag control `index` onto control `to`, or by an offset in CSS pixels (PP-376). */
-    drag(session: number, index: number, to: { index: number } | { dx: number; dy: number }): Promise<string> {
+    drag(session: Caller, index: number, to: { index: number } | { dx: number; dy: number }): Promise<string> {
         const where = "index" in to ? `onto [${to.index}]` : `by ${to.dx}, ${to.dy} px`;
 
         return this.#run(session, this.#doing(`Dragging`, index) + ` ${where}`, async ({ page }) => {
@@ -1636,11 +1722,11 @@ export class PiBrowser {
             const html5 = await page.drag(observed, element, "index" in to ? { element: this.#element(to.index).element } : to);
 
             return `Dragged [${index}] ${where}${html5 ? " (the page's own drag and drop)" : ""}.\n${await this.#read()}`;
-        });
+        }, [index, "index" in to ? to.index : undefined]);
     }
 
     /** With `submit` (Enter after it), a form that may pay, send, book or delete waits for the owner's card first (PP-455). */
-    type(session: number, index: number, text: string, options: { clear?: boolean; submit?: boolean }, approve: Approve): Promise<string> {
+    type(session: Caller, index: number, text: string, options: { clear?: boolean; submit?: boolean }, approve: Approve): Promise<string> {
         return this.#run(session, this.#doing("Typing into", index), async ({ page }) => {
             const { observed, element } = this.#element(index);
 
@@ -1651,7 +1737,7 @@ export class PiBrowser {
             await page.type(observed, element, text, options);
 
             return this.#read();
-        });
+        }, [index]);
     }
 
     /**
@@ -1659,7 +1745,7 @@ export class PiBrowser {
      * from Pi; what Pi is told is the page read again, and a password field's value is never read. `name` is for the
      * panel ("Typing [secret NAME] into [3]").
      */
-    typeSecret(session: number, index: number, name: string, value: string, options: { clear?: boolean; submit?: boolean }, approve: Approve): Promise<string> {
+    typeSecret(session: Caller, index: number, name: string, value: string, options: { clear?: boolean; submit?: boolean }, approve: Approve): Promise<string> {
         return this.#run(session, `Typing [secret ${name}] into [${index}]`, async ({ page }) => {
             const { observed, element } = this.#element(index);
 
@@ -1670,10 +1756,10 @@ export class PiBrowser {
             await page.fill(observed, element, value, options);
 
             return this.#read();
-        });
+        }, [index]);
     }
 
-    select(session: number, index: number, option: string): Promise<string> {
+    select(session: Caller, index: number, option: string): Promise<string> {
         return this.#run(session, this.#doing(`Choosing ${JSON.stringify(option)} in`, index), async (tab) => {
             const { observed, element } = this.#element(index);
 
@@ -1684,7 +1770,7 @@ export class PiBrowser {
             const chosen = await tab.page.select(observed, element, option);
 
             return `Chose ${JSON.stringify(chosen)}.\n${await this.#read()}`;
-        });
+        }, [index]);
     }
 
     /**
@@ -1735,7 +1821,7 @@ export class PiBrowser {
     }
 
     /** Files (name and bytes, from wherever the session works) into a file field or the button that opens one. */
-    upload(session: number, index: number, files: { name: string; bytes: Uint8Array }[]): Promise<string> {
+    upload(session: Caller, index: number, files: { name: string; bytes: Uint8Array }[]): Promise<string> {
         return this.#run(session, this.#doing(`Uploading ${files.map((file) => file.name).join(", ")} with`, index), async ({ page }) => {
             const { observed, element } = this.#element(index);
             const paths: string[] = [];
@@ -1747,20 +1833,20 @@ export class PiBrowser {
             await page.upload(observed, element, paths);
 
             return `Chose ${files.map((file) => file.name).join(", ")}.\n${await this.#read()}`;
-        });
+        }, [index]);
     }
 
     /** Scroll the page, or with `index`, what scrolls around that control (an open list). */
-    scroll(session: number, direction: "up" | "down", screens: number, index?: number): Promise<string> {
+    scroll(session: Caller, direction: "up" | "down", screens: number, index?: number): Promise<string> {
         return this.#run(session, index === undefined ? `Scrolling ${direction}` : this.#doing(`Scrolling ${direction} at`, index), async ({ page }) => {
             await page.scroll(direction, screens, index === undefined ? undefined : this.#element(index));
 
             return this.#read();
-        });
+        }, [index]);
     }
 
     /** Enter or Space on a control in focus that may pay, send, book or delete waits for the owner's card first (`approve`, PP-455). */
-    press(session: number, key: string, approve: Approve, acceptDialog = false): Promise<string> {
+    press(session: Caller, key: string, approve: Approve, acceptDialog = false): Promise<string> {
         return this.#run(session, `Pressing ${key}`, async ({ page }) => {
             // A key that types a character never goes into a password field, as Pi's typing never does (PP-376).
             const chord = chordOf(key);
@@ -1791,7 +1877,7 @@ export class PiBrowser {
         });
     }
 
-    history(session: number, step: -1 | 1): Promise<string> {
+    history(session: Caller, step: -1 | 1): Promise<string> {
         return this.#run(session, step < 0 ? "Going back" : "Going forward", async ({ page }) => {
             if (!(await page.history(step))) {
                 return `There is no page to go ${step < 0 ? "back" : "forward"} to.\n${await this.#read()}`;
@@ -1801,7 +1887,7 @@ export class PiBrowser {
         });
     }
 
-    text(session: number, max: number): Promise<{ title: string; url: string; text: string; cut: boolean } | { withheld: string }> {
+    text(session: Caller, max: number): Promise<{ title: string; url: string; text: string; cut: boolean } | { withheld: string }> {
         return this.#run(session, "Reading the whole page", async ({ page }) => {
             // A short value the person typed on a card shows: no page for Pi (PP-228).
             if (page.cardFills().length > 0 && shortCardValueShowing(page.cardFills(), await page.observe())) {
@@ -1818,7 +1904,7 @@ export class PiBrowser {
      * empty there, their values are taken out of the answer, and while a value too short to take out shows, there is no
      * answer (PP-228).
      */
-    evaluate(session: number, expression: string, awaitPromise: boolean): Promise<{ json: string } | { withheld: string }> {
+    evaluate(session: Caller, expression: string, awaitPromise: boolean): Promise<{ json: string } | { withheld: string }> {
         return this.#run(session, "Running a script that reads the page", async ({ page }) => {
             const fills = page.cardFills();
 
@@ -1837,7 +1923,7 @@ export class PiBrowser {
      * overlaps, small tap targets, off-grid sizes, low contrast and the rest, with what the person typed on a card taken
      * out of the element names as every read takes it out (PP-228).
      */
-    layoutCheck(session: number): Promise<LayoutReport | { withheld: string }> {
+    layoutCheck(session: Caller): Promise<LayoutReport | { withheld: string }> {
         return this.#run(session, "Checking the page's layout", async ({ page }) => {
             const fills = page.cardFills();
 
@@ -1871,7 +1957,7 @@ export class PiBrowser {
      * picture is, and the page); marks and areas are then in the page's coordinates, the card's hides found anywhere in it.
      */
     screenshot(
-        session: number,
+        session: Caller,
         { png = false, index, marks = [], full = false, script }: { png?: boolean; index?: number; marks?: PageMark[]; full?: boolean; script?: string } = {},
     ): Promise<
         | {
@@ -1961,7 +2047,7 @@ export class PiBrowser {
             const marked = markUp(Buffer.from(data, "base64"), placed, { png, cssWidth: clip?.width ?? this.#state.viewport.width });
 
             return { data: Buffer.from(marked.bytes).toString("base64"), ...about };
-        });
+        }, [index, ...marks.map((mark) => mark.index)]);
     }
 
     /**
@@ -2015,11 +2101,11 @@ export class PiBrowser {
     }
 
     /** The page in front as a PDF. */
-    pdf(session: number): Promise<{ pdf: Buffer; title: string; url: string }> {
+    pdf(session: Caller): Promise<{ pdf: Buffer; title: string; url: string }> {
         return this.#run(session, "Saving the page as a PDF", async (tab) => ({ pdf: await this.#options.engine.pdf(tab.id, tab.page), title: tab.title, url: tab.url }));
     }
 
-    wait(session: number, wait: { text?: string; seconds?: number }): Promise<string> {
+    wait(session: Caller, wait: { text?: string; seconds?: number }): Promise<string> {
         return this.#run(session, wait.text ? `Waiting for ${JSON.stringify(wait.text)}` : "Waiting", async ({ page }) => {
             const showed = await page.wait(wait);
 
@@ -2034,12 +2120,12 @@ export class PiBrowser {
         return this.#tabs.map((tab, index) => `${tab === this.#tab ? "→" : " "} ${index + 1}. ${tab.title || "(no title)"} — ${tab.url}`).join("\n");
     }
 
-    tabs(session: number): Promise<string> {
+    tabs(session: Caller): Promise<string> {
         return this.#run(session, "Listing the tabs", async () => `Tabs (→ in front):\n${this.#tabList()}`);
     }
 
     /** Open a new tab in front (at an address, or blank). */
-    newTab(session: number, url: string | undefined): Promise<string> {
+    newTab(session: Caller, url: string | undefined): Promise<string> {
         return this.#run(session, url === undefined ? "Opening a new tab" : `Opening ${url} in a new tab`, async () => {
             if (this.#tabs.length >= MAX_TABS) {
                 throw new Error(`Pi's browser has ${MAX_TABS} tabs open, the most it keeps: close one first (browser_tabs with close).`);
@@ -2059,7 +2145,7 @@ export class PiBrowser {
     }
 
     /** Bring tab `number` (from 1) to the front. */
-    switchTab(session: number, number: number): Promise<string> {
+    switchTab(session: Caller, number: number): Promise<string> {
         return this.#run(session, `Switching to tab ${number}`, async () => {
             const tab = this.#tabs[number - 1];
 
@@ -2075,7 +2161,7 @@ export class PiBrowser {
     }
 
     /** Close tab `number` (from 1); the one before it comes to the front. The last tab closes the browser. */
-    closeTab(session: number, number: number): Promise<string> {
+    closeTab(session: Caller, number: number): Promise<string> {
         return this.#run(session, `Closing tab ${number}`, async () => {
             const tab = this.#tabs[number - 1];
 
@@ -2109,7 +2195,7 @@ export class PiBrowser {
      * Carry out a goal, a decision a step by the run model (`run.ts`), as one of Pi's actions: what it did, and the page
      * as it is after.
      */
-    run(session: number, options: { goal: string; values: Record<string, string>; secrets?: readonly string[]; maxSteps: number; decider: Decider; approve: Approve }): Promise<{ result: RunResult; page: string }> {
+    run(session: Caller, options: { goal: string; values: Record<string, string>; secrets?: readonly string[]; maxSteps: number; decider: Decider; approve: Approve }): Promise<{ result: RunResult; page: string }> {
         return this.#run(session, `Running: ${options.goal.slice(0, 80)}`, async (tab) => {
             const page = tab.page;
 
@@ -2171,11 +2257,16 @@ export class PiBrowser {
         });
     }
 
-    /** A control on the page as last read, by its number: what it is, and whether it takes typing. */
-    field(index: number): { label: string; role: string; fill: boolean } {
-        const { element } = this.#element(index);
+    /**
+     * Controls on the page as last read, by their numbers (a sign-in's or a code's card, PP-469: checked as an action's
+     * numbers are): what each is, and whether it takes typing.
+     */
+    fields(session: Caller, indices: readonly number[]): Promise<{ label: string; role: string; fill: boolean }[]> {
+        return this.#run(session, "Reading the fields", async () => indices.map((index) => {
+            const { element } = this.#element(index);
 
-        return { label: element.label, role: element.role, fill: element.fill };
+            return { label: element.label, role: element.role, fill: element.fill };
+        }), indices);
     }
 
     /**
@@ -2590,7 +2681,7 @@ export class PiBrowser {
      * Lay this session's pages out as a phone's or a desktop's (PP-15): its open tabs now, and every tab it opens after.
      * Pi's tool and the panel's Phone/Desktop both come here. Answers the page as it is, for Pi.
      */
-    async resize(session: number, size: BrowserSize): Promise<string> {
+    async resize(session: Caller, size: BrowserSize): Promise<string> {
         const resized = this.#queue.then(async () => {
             this.#usedAt = Date.now();
             this.#set({ size, viewport: { width: SIZES[size].width, height: SIZES[size].height } });

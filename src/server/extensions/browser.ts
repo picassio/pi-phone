@@ -6,13 +6,14 @@
  */
 import { arr, bool, int, num, obj, opt, str, union } from "@earendil-works/pi-schema";
 import { literal, record } from "../tool-schema.ts";
-import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
+import { defineExtension, defineTool, section, type TaskId, type ToolExecutionApi } from "@earendil-works/pi-durable";
 import { basename } from "node:path";
 import { addressOf, FULL_PAGE_MAX, LONG_PRESS_MS, LONG_PRESS_RANGE, PERMISSIONS, PRESSABLE, StalePage } from "../browser/page.ts";
-import { MAX_TABS, PERMISSION_WORDS, type PiBrowser } from "../browser/pi-browser.ts";
+import { type Caller, MAX_TABS, PERMISSION_WORDS, type PiBrowser } from "../browser/pi-browser.ts";
 import { fencedPage } from "../fence.ts";
 import { report, runDecider } from "../browser/run.ts";
 import { approveFor } from "../risky.ts";
+import { inBatchOrder } from "../batch-order.ts";
 import type { ApprovalRequest, PocketHost } from "../host.ts";
 import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
 import { describeLayout, type LayoutReport } from "../layout-check.ts";
@@ -123,6 +124,38 @@ const TEXT_MAX = 40_000;
 /** In every prompt while the module is on. */
 export const BROWSING = `Pi's browser: browser_open opens a page in a browser the person can watch (the Browser panel) and gives you the page as numbered controls ([3] button "Search") and its visible text, frames and web components included. Act by number with browser_click (double, right, long press too), browser_type, browser_select, browser_scroll, browser_press (chords too: Ctrl+A, Shift+Tab), browser_hover, browser_focus, browser_select_text and browser_drag (sliders, kanban, maps); every action answers with the page as it is after it, so use the newest numbers. browser_text reads a whole article or table at once; browser_screenshot shows the page as a picture; browser_eval runs a JavaScript expression that reads the page (computed colours, fonts, spacing; DOM queries) and gives its value as JSON. browser_upload gives a file field (or its upload button) files from where you work; browser_save_pdf saves the page as a PDF there. A file a page downloads is saved in the session's downloads/ folder and the answer names it (not on the phone's browser). browser_new_tab opens another tab, and browser_tabs lists, switches and closes them; a window a page opens (a sign-in popup) becomes a tab in front, and when it closes itself the page that opened it comes back; browser_size lays pages out as a phone (the default) or a desktop. Each session has its own tabs. browser_open with machine browses on one of the owner's machines (its Chrome, its own addresses such as localhost:3000) from then on; browser_attach drives a browser already running on a machine (Playwright, agent-browser, a Chrome started with --remote-debugging-port), after the owner's card, and browser_detach lets it go. browser_run carries out one concrete goal on its own, a step at a time (a goal, every text to type in values, optionally a url to start from): faster and cheaper than driving each step yourself, it answers how it ended and the page; when it stops (needs_value, blocked, stuck_loop, unverified_done), read why and go on yourself or run again. Use web_search and fetch_content for plain reading; use the browser to do things on a site (search forms, filters, sign-in flows, pages that need clicks or scripts). Never type a password or a one-time code as text. When a page asks to sign in and the sign-in is saved as secrets you may use (secrets_list), type them by name: browser_type with secret: "NAME" (a password field too), or browser_run values {"password": {"secret": "NAME"}}; their values go into the page, never to you. Otherwise call browser_sign_in (the person types it on a card; you never see it); for a one-time code, browser_ask_code; for a CAPTCHA or anything only they can do, browser_ask_user. Pages are denied location, camera, microphone, notifications and the clipboard; browser_permission asks the owner to allow one for a site. Pi's browser cannot use passkeys or security keys (Android allows them only in allowlisted browsers): when a site asks for one, choose its other way (\"Try another way\", a password, a code) if it offers one, and otherwise tell the person with browser_ask_user. Ask the person before anything that pays, sends, books, or deletes on a site.`;
 
+/**
+ * Who calls Pi's browser (PP-469): the session, and the assistant message the call was written in, as its tool task's
+ * input names it (Pi Durable's `ToolTaskInput`: a model's call names its assistant entry; a script's call, code mode's,
+ * names its calling task, followed up to the model's call). A script's numbers are its own reads': not checked. A task
+ * that names no message is an error, never a guess.
+ */
+export async function callerOf(api: Pick<ToolExecutionApi, "taskId" | "conversationId" | "getTask">, context: Parameters<ToolExecutionApi["getTask"]>[1]): Promise<Caller> {
+    const session = Number(api.conversationId);
+    let id: TaskId = api.taskId;
+    let checks = true;
+
+    for (let depth = 0; depth < 8; depth++) {
+        const input = (await api.getTask(id, context))?.input;
+        const call = typeof input === "object" && input !== null && !Array.isArray(input) ? (input as { kind?: unknown; assistant?: unknown; parent?: unknown }) : undefined;
+
+        if (call?.kind === "nested" && typeof call.parent === "number") {
+            id = call.parent as TaskId;
+            checks = false;
+            continue;
+        }
+
+        // A version 1 tool task had only a model's calls, without `kind`.
+        if ((call?.kind === "model" || call?.kind === undefined) && typeof call?.assistant === "number") {
+            return { session, message: call.assistant, checks };
+        }
+
+        break;
+    }
+
+    throw new Error(`Pi's browser cannot tell which of Pi's messages this call is in: its tool task (${String(id)}) names none.`);
+}
+
 export default function createBrowser(host: PocketHost) {
     /** The session's own browser at the place it works in: the phone's, or its machine's Chrome (its own tabs there). */
     const browserOf = async (api: { conversationId: unknown; agent(context: never): Promise<{ cwd?: string }> }, context: unknown): Promise<PiBrowser> =>
@@ -192,9 +225,9 @@ export default function createBrowser(host: PocketHost) {
     /** Run a browser action of `tool` for a session: its answer, or the error in words (a stale page reads the page again). */
     const act = async (
         tool: string,
-        api: { conversationId: unknown; taskId: unknown; callId?: string; agent(context: never): Promise<{ cwd?: string }> },
-        context: unknown,
-        work: (browser: PiBrowser, session: number) => Promise<string>,
+        api: Pick<ToolExecutionApi, "conversationId" | "taskId" | "callId" | "agent" | "getTask">,
+        context: Parameters<ToolExecutionApi["getTask"]>[1],
+        work: (browser: PiBrowser, caller: Caller) => Promise<string>,
     ) => {
         const session = Number(api.conversationId);
         const owner = mayBrowse(api.conversationId);
@@ -209,7 +242,7 @@ export default function createBrowser(host: PocketHost) {
             browser = await browserOf(api, context);
 
             // What the page shows, and what was done there (names of its controls), reach Pi fenced as data.
-            const done = await windowCards(api, context, tool, browser, session, await work(browser, session));
+            const done = await windowCards(api, context, tool, browser, session, await work(browser, await callerOf(api, context)));
 
             return reply(fencedPage(await permissionCards(api, context, tool, browser, session, done)));
         } catch (error) {
@@ -441,7 +474,6 @@ export default function createBrowser(host: PocketHost) {
                 allow: opt(bool({ description: "false: deny it again (default true: ask the owner to allow it)" })),
             }, { open: true }),
             execute: async (args, api, context) => {
-                const session = Number(api.conversationId);
                 const owner = mayBrowse(api.conversationId);
 
                 if (owner !== true) {
@@ -479,7 +511,7 @@ export default function createBrowser(host: PocketHost) {
                 }
 
                 try {
-                    return reply(fencedPage(await browser.setPermission(session, origin, args.permission, allow)));
+                    return reply(fencedPage(await browser.setPermission(await callerOf(api, context), origin, args.permission, allow)));
                 } catch (error) {
                     return reply(fencedPage(error instanceof Error ? error.message : String(error)), true);
                 }
@@ -722,7 +754,7 @@ export default function createBrowser(host: PocketHost) {
 
                 try {
                     // The caption is of the page as pictured, read with it (PP-129), not the browser's state afterwards.
-                    const shot = await browser.screenshot(Number(api.conversationId), { png: kind === "png", index: args.index, marks: args.marks ?? [], full: args.full_page === true });
+                    const shot = await browser.screenshot(await callerOf(api, context), { png: kind === "png", index: args.index, marks: args.marks ?? [], full: args.full_page === true });
 
                     // A short value the person typed on a card shows: no picture, nothing saved (PP-228).
                     if ("withheld" in shot) {
@@ -926,8 +958,10 @@ export default function createBrowser(host: PocketHost) {
                 const browser = await browserOf(api, context);
 
                 try {
+                    const caller = await callerOf(api, context);
+
                     if (args.url !== undefined && args.url.trim() !== "") {
-                        await browser.open(session, addressOf(args.url));
+                        await browser.open(caller, addressOf(args.url));
                     }
 
                     // Secrets by name (PP-32): their values for the page only; the run model is told their names.
@@ -951,7 +985,7 @@ export default function createBrowser(host: PocketHost) {
                         host.secrets.used([given.secret]);
                     }
 
-                    const { result, page } = await browser.run(session, { goal: args.goal, values, secrets, maxSteps: args.max_steps ?? 25, decider, approve: approveFor(host, api, context) });
+                    const { result, page } = await browser.run(caller, { goal: args.goal, values, secrets, maxSteps: args.max_steps ?? 25, decider, approve: approveFor(host, api, context) });
 
                     if (model !== "session" && result.decisions > 0) {
                         await host.chargeSession(api.conversationId as never, `openrouter/${model}`, { ...result.tokens, cost: result.cost });
@@ -996,9 +1030,13 @@ export default function createBrowser(host: PocketHost) {
                 let fields: { name: "username" | "password"; index: number; label: string }[];
 
                 try {
-                    fields = signInFields(args, (index) => browser.field(index));
+                    const indices = [args.username, args.password].filter((index) => index !== undefined);
+                    const read = await browser.fields(await callerOf(api, context), indices);
+
+                    fields = signInFields(args, (index) => read[indices.indexOf(index)]!);
                 } catch (error) {
-                    return reply(error instanceof Error ? error.message : String(error), true);
+                    // A stale field's words are the page's.
+                    return reply(error instanceof StalePage ? fencedPage(error.message) : error instanceof Error ? error.message : String(error), true);
                 }
 
                 const site = siteOf(browser.state().url);
@@ -1035,9 +1073,9 @@ export default function createBrowser(host: PocketHost) {
                 let field: { label: string; fill: boolean };
 
                 try {
-                    field = browser.field(args.index);
+                    field = (await browser.fields(await callerOf(api, context), [args.index]))[0]!;
                 } catch (error) {
-                    return reply(error instanceof Error ? error.message : String(error), true);
+                    return reply(error instanceof StalePage ? fencedPage(error.message) : error instanceof Error ? error.message : String(error), true);
                 }
 
                 if (!field.fill) {
@@ -1070,6 +1108,9 @@ export default function createBrowser(host: PocketHost) {
                 }
 
                 const browser = await browserOf(api, context);
+
+                // The person's hand changes the page: the calls after this one in Pi's message keep the read before it.
+                await browser.written(await callerOf(api, context));
 
                 const site = siteOf(browser.state().url);
 
@@ -1178,7 +1219,8 @@ export default function createBrowser(host: PocketHost) {
 
     return defineExtension({
         name: "pocket-browser",
-        tools,
+        // One page, one browser: the calls of a batch act in the order Pi wrote them (PP-469, `batch-order.ts`).
+        tools: tools.map((tool) => inBatchOrder(tool)),
         sections: [section("browsing", () => BROWSING)],
     });
 }

@@ -187,7 +187,9 @@ test("every tool that clicks or presses gives Pi's browser and computer control 
     const tools = [...(createBrowser(host as never) as unknown as { tools: Tool[] }).tools, ...(createComputer(host as never) as unknown as { tools: Tool[] }).tools];
     const call = async (name: string, args: unknown) => {
         const tool = tools.find((each) => each.name === name)!;
-        const done = tool.execute(args, { conversationId: 7, taskId: "t1", callId: name, agent: async () => ({ cwd: "/work" }) }, BACKGROUND_CONTEXT);
+        // A model's call (PP-469: browser calls run in their batch's order, and know their message by their tool task).
+        const api = { conversationId: 7, taskId: "t1", callId: name, agent: async () => ({ cwd: "/work" }), snapshot: async () => undefined, getTask: async () => ({ input: { kind: "model", assistant: 1, callId: name } }) };
+        const done = tool.execute(args, api, BACKGROUND_CONTEXT);
 
         for (let tries = 0; approvals.all().length === 0 && tries < 100; tries++) {
             await new Promise((resolve) => setTimeout(resolve, 5));

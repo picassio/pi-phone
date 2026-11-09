@@ -40,7 +40,8 @@ function evalTool(on: boolean, evaluate: (expression: string, awaitPromise: bool
 
     assert.ok(tool, "browser_eval is a tool");
 
-    const api = { conversationId: 7, taskId: 1, callId: "c1", agent: async () => ({ cwd: "/work" }) };
+    // A model's call (PP-469: browser calls run in their batch's order, and know their message by their tool task).
+    const api = { conversationId: 7, taskId: 1, callId: "c1", agent: async () => ({ cwd: "/work" }), snapshot: async () => undefined, getTask: async () => ({ input: { kind: "model", assistant: 1, callId: "c1" } }) };
 
     return { asked, call: (args: { expression: string; await?: boolean }) => tool.execute(args, api, {}) };
 }
