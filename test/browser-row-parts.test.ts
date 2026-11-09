@@ -2,9 +2,11 @@
 // cursor, no role, no tabindex), each with buttons of its own ("Reorder", "more"), and its clicks heard by a handler
 // further up (as React's are): Confluence's database view switcher, in a frame of the page's. Each row's name was never
 // a control: the row holds controls, so it was left out, and its words were left out as their parent has the pointer.
-// Now each row's first part with words is a control, in the page, in a frame of another origin of the page's site, and
-// in a frame of another site (in a process of its own); a click on it selects the row, never its buttons; and a row
-// whose name may delete asks the owner first (PP-455).
+// Now the element holding each row's words is a control by them, in the page, in a frame of another origin of the
+// page's site, and in a frame of another site (in a process of its own); a click on it selects the row, never its
+// buttons; and a row whose name may delete asks the owner first (PP-455). Build #471 named each row by its layout icon
+// ("Table layout", "Default view"), and a click there, by the drag handle, was refused: the press started a drag that
+// drew the icon again, so the release landed on another node. The rows here have such icons and such a drag.
 import { cleanUp, cleanUpAll } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -28,9 +30,11 @@ const skip = chrome === undefined ? "no Chrome on this machine (CI runs it)" : f
 const VIEWS = ["Pre-live readiness", "Go / No Go", "Rollback plan", "Delete requests"];
 
 /**
- * The view switcher, built as Atlassian's is (ViewPicker's ListItem and ViewCard): an li, a flex box with the drag
- * handle's button, the card (a pointer cursor) with an icon, the name and the "more" button; a click on the card selects
- * the view, heard on the list's root. Below, a list box whose options hold a button each; a card whose title is a link
+ * The view switcher, built as Atlassian's is (ViewPicker's ListItem and ViewCard): an li, a flex box (a drag source)
+ * with the drag handle's button, the card (a pointer cursor) with a labelled layout icon (a span with role img around an
+ * svg with a title, an svg with an aria-label for the default view, or a label only a screen reader gets), the name and the "more" button; a click on the
+ * card selects the view, heard on the list's root; a press in the row starts a drag, which draws its icon again (React
+ * does so on the drag's state). Below, a list box whose options hold a button each; a card whose title is a link
  * (the link goes where the card does, so the card's other words stay words); and words that only look like a list (no
  * cursor, no role): those stay words.
  */
@@ -42,13 +46,22 @@ const VIEWS_PAGE = `<!doctype html><title>Views</title><meta name="viewport" con
     </style>
     <div id="root">
         <h2>All views</h2>
-        <ul>${VIEWS.map((view) => `<li><div><div><button aria-label="Reorder" draggable="true">::</button></div><div style="flex:1"><div class="card" data-view="${view}"><svg width="16" height="16"><rect width="16" height="16"/></svg><div class="inline"><div><span>${view}</span></div><div><button aria-label="more">...</button></div></div></div></div></div></li>`).join("")}</ul>
+        <ul>${VIEWS.map((view, index) => `<li><div class="item" draggable="true"><div><button aria-label="Reorder" draggable="true">::</button></div><div style="flex:1"><div class="card" data-view="${view}">${index === 2 ? `<svg class="icon" role="img" aria-label="Default view" width="16" height="16"><rect width="16" height="16"/></svg>` : index === 3 ? `<span class="icon"><svg aria-hidden="true" width="16" height="16"><rect width="16" height="16"/></svg><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Table layout</span></span>` : `<span class="icon" role="img" aria-label="Table layout"><svg width="16" height="16"><title>Table layout</title><rect width="16" height="16"/></svg></span>`}<div class="inline"><div><span>${view}</span></div><div><button aria-label="more">...</button></div></div></div></div></div></li>`).join("")}</ul>
         <div role="listbox" aria-label="Layouts"><div role="option" aria-selected="false" data-layout="Board">Board <button aria-label="Board settings">*</button></div></div>
         <div style="cursor:pointer"><a href="#card">Launch checklist</a><div>2 attachments</div><button>Edit</button></div>
         <div><div>Plain words</div><div>More plain words</div></div>
         <p id="out">Current view: none</p>
     </div>
     <script>
+        for (const item of document.querySelectorAll('.item')) {
+            item.addEventListener('pointerdown', (e) => {
+                if (e.target.closest('button')) return;
+                item.dataset.dragging = 'true';
+                const icon = item.querySelector('.icon');
+                icon.replaceWith(icon.cloneNode(true));
+            });
+            item.addEventListener('pointerup', () => { delete item.dataset.dragging; });
+        }
         root.addEventListener('click', (e) => {
             const button = e.target.closest('button');
             if (button) { out.textContent = button.getAttribute('aria-label') + ' of ' + (button.closest('[data-view]')?.dataset.view ?? button.closest('li')?.textContent.trim() ?? button.closest('[data-layout]')?.dataset.layout); return; }
@@ -129,6 +142,8 @@ for (const [where, address, frameOf] of [
                 assert.equal(controls.match(new RegExp(`\\] clickable "${quoted(view)}"${frame}\\n`, "g"))?.length, 1, `${view} once in:\n${controls}`);
             }
 
+            // Never by an icon's label.
+            assert.doesNotMatch(controls, /"(Table layout|Default view)"/);
             assert.equal(controls.match(/\] button "Reorder" draggable/g)?.length, VIEWS.length);
             assert.equal(controls.match(/\] button "more"/g)?.length, VIEWS.length);
             // A role=option row with a button is the option itself, as before; a card's link is its control; words with no

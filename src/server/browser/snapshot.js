@@ -157,9 +157,11 @@
   const listedNodes=new Set(actions.map(a=>cache.nodes.get(a.node)));
   // A row clickable by its look that holds controls of its own (a view list's row with its "Reorder" and "more"
   // buttons, its click heard by a handler further up, as React's are: PP-462) is not listed itself, as a click at its
-  // centre may land on one of them; its first part with words and no control in it is, once a row. One with a link (a
-  // card whose title is a link) is not: the link goes where the row does. A row is the outermost element with a pointer
-  // cursor around an element, by its parent's.
+  // centre may land on one of them; the element holding its words is, by them, once a row: its first visible text
+  // outside its controls and pictures, as an icon's label ("Table layout" before each view's name) names no row, and a
+  // press on an icon by the drag handle may start a drag. One with a link (a card whose title is a link) is not: the
+  // link goes where the row does. A row is the outermost element with a pointer cursor around an element, by its
+  // parent's.
   const rows=new Map(), parted=new Set();
   const rowOf = parent => {
     if (rows.has(parent)) return rows.get(parent);
@@ -167,6 +169,18 @@
     const row=up && up!==document.body && up!==document.documentElement && getComputedStyle(up).cursor==='pointer' ? rowOf(up) : parent;
     rows.set(parent,row);
     return row;
+  };
+  const partOf = row => {
+    const walker=document.createTreeWalker(row,NodeFilter.SHOW_TEXT);
+    for (let n=walker.nextNode(); n; n=walker.nextNode()) {
+      const p=n.parentElement;
+      if (!n.textContent.trim() || !p || p.closest(selector) || p.closest('svg,img,[role="img"],script,style') || !visible(p)) continue;
+      // Words only a screen reader gets (a box of a pixel, an icon's hidden label) are not what the row shows.
+      const q=p.getBoundingClientRect();
+      if (q.width<=1 || q.height<=1) continue;
+      return p.querySelector(selector) ? null : p;
+    }
+    return null;
   };
   let looked=0;
   for (const e of all('div,span,li,p,img,svg,label,section,article,[onclick],[oncontextmenu],[ondblclick],[tabindex]')) {
@@ -183,17 +197,24 @@
       e.getAttribute('draggable')==='true';
     if (!clickable || !visible(e)) continue;
     const parent=e.parentElement;
-    let row=null;
     if (parent && parent!==document.body && getComputedStyle(parent).cursor==='pointer' && !handled) {
-      row=rowOf(parent);
+      const row=rowOf(parent);
       if (parted.has(row) || !row.querySelector(selector) || row.querySelector('a[href]')) continue;
+      parted.add(row);
+      const part=partOf(row);
+      if (!part || listedNodes.has(part)) continue;
+      const q=part.getBoundingClientRect(), x=q.x+q.width/2, y=q.y+q.height/2;
+      const label=part.innerText.replace(/\s+/g,' ').trim().slice(0,200);
+      if (!label || q.width<=0 || q.height<=0 || x<0 || y<0 || x>=innerWidth || y>=innerHeight) continue;
+      listedNodes.add(part);
+      actions.push({node:identity(part),role:'clickable',label,rect:{x:q.x,y:q.y,w:q.width,h:q.height},kind:'click',value:''});
+      continue;
     }
-    // One with a handler of its own and no words (an empty box to right-click) goes by its id; a row's part by its words.
-    const label=(name(e)||(row ? '' : hint(e)||(handled && e.id ? `#${e.id}` : ''))).replace(/\s+/g,' ').trim().slice(0,200);
+    // One with a handler of its own and no words (an empty box to right-click) goes by its id.
+    const label=(name(e)||hint(e)||(handled && e.id ? `#${e.id}` : '')).replace(/\s+/g,' ').trim().slice(0,200);
     if (!label) continue;
     const x=r.x+r.width/2, y=r.y+r.height/2;
     if (x<0 || y<0 || x>=innerWidth || y>=innerHeight) continue;
-    if (row) parted.add(row);
     listedNodes.add(e);
     actions.push({node:identity(e),role:'clickable',label,rect:{x:r.x,y:r.y,w:r.width,h:r.height},kind:'click',value:'',
       ...(draggable(e) ? {draggable:'true'} : {})});

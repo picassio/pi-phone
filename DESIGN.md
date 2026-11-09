@@ -1865,9 +1865,14 @@ so Pi changes them through the settings tools; "the last session" is the one the
   parent. Frames played no part: the snapshot runs with the same rules in each frame's isolated world (another site's
   too, over its own session), checked with the same list in the page, in a frame of the page's site and in one of
   another site. Now a row (the outermost element with the pointer around an element, by its parent's) that holds a
-  control and no link has its first part with words and no control in it listed, once, named by its words (never an
-  icon's hint); the row itself is still not listed, as a click at its centre may land on its buttons, and the hit
-  guard only lets a click on the part through. A row with a link is left as it was: the link goes where the row does
+  control and no link has the element holding its words listed, once, named by them: the parent of its first visible
+  text node outside its controls, svg, img and role img (an icon's label is an attribute or hidden text, never what
+  the row shows; text in a box of a pixel is a screen reader's), if that element holds no control. The row itself is
+  still not listed, as a click at its centre may land on its buttons, and the hit guard only lets a click on the part
+  through. Build #471 listed the row's first part with a name instead: on the live page that was the layout icon, so
+  every row was "Table layout" ("Default view" for the default), and a click on it, next to the drag handle, was
+  refused as moved (the press started the row's drag, and the release landed on another node); the fixture now has
+  such icons and a drag that draws the icon again on a press. A row with a link is left as it was: the link goes where the row does
   (Trello's cards). The page's listeners are not read: React's are all on its root, so they tell nothing about a row;
   rows with neither pointer nor role stay words. Measured on 14 sites at both sizes (Hacker News, Wikipedia, GitHub,
   MDN, npm, Stack Overflow, YouTube, Amazon, Atlassian, Trello, Booking, Google Maps, X, LinkedIn): the same
