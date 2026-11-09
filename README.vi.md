@@ -219,7 +219,8 @@ dự án thật.</sub>
 ### Web, tài liệu và câu trả lời
 - **Trình duyệt của Pi.** Pi mở trang trong trình duyệt riêng (một WebView của ứng dụng, điều khiển qua socket
   DevTools) và đọc chúng dưới dạng các ô điều khiển đánh số và văn bản hiển thị (biểu tượng được gọi theo tooltip,
-  sprite, hình ảnh, hoặc nơi chúng dẫn tới; cả những thứ chỉ nhấp được nhờ giao diện, như nút của một hộp bật lên);
+  sprite, hình ảnh, hoặc nơi chúng dẫn tới; cả những thứ chỉ nhấp được nhờ giao diện, như nút của một hộp bật lên, và
+  các dòng của một danh sách có nút riêng, như bộ chọn view của Confluence, theo tên của chúng);
   nó nhấp, gõ, chọn, di chuột, cuộn, nhấn phím, quay lại, đọc cả trang, hoặc nhìn trang (`browser_open`,
   `browser_click`, …). Ô điều khiển bên trong khung (iframe: ô số thẻ của một biểu mẫu thanh toán, một khung đăng
   nhập nhúng, một thông báo cookie trong khung, cả khung của trang web khác) và bên trong shadow root mở của web

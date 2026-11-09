@@ -209,7 +209,8 @@ No Termux, no laptop, no cloud VM.
 ### Web, documents, and answers
 - **Pi's browser.** Pi opens pages in a browser of its own (a WebView of the app, driven over its DevTools socket) and
   reads them as numbered controls and visible text (icons named by their tooltip, sprite, picture, or where they go;
-  things clickable only by their look, like a pop-up's buttons, too); it clicks, types, chooses, hovers, scrolls, presses
+  things clickable only by their look, like a pop-up's buttons, too, and a list's rows that hold buttons of their own,
+  like Confluence's view switcher, by their names); it clicks, types, chooses, hovers, scrolls, presses
   keys, goes back, reads a whole page, or looks at it (`browser_open`, `browser_click`, …). Controls inside frames (a
   payment form's card fields, an embedded sign-in, a consent banner in a frame, another site's frames too) and inside
   web components' open shadow roots are read and used as the page's own, each named with its frame, and their text is

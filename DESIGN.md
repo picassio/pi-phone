@@ -1856,6 +1856,22 @@ so Pi changes them through the settings tools; "the last session" is the one the
   start). The query changing is a new document already (checked with Chrome 155). bfcache plays no part:
   `Page.navigate` never takes a page from it. The tool's description says so ("Always a fresh load, even for a #part
   change"). The panel's address bar goes through the same `navigate`.
+- **Rows clickable by their look that hold buttons** (PP-462, after session #37196: Confluence's database view
+  switcher, in a frame of the page, listed only each row's "Reorder" and "more" buttons). Its rows (Atlassian's
+  ViewPicker: a ListItem box with the drag handle, then a ViewCard with `cursor: pointer` and a React `onClick`, heard
+  on React's root, holding an icon, the name and the "more" button) have no role, no tabindex and no handler of their
+  own. `snapshot.js` lists things clickable by their look as the outermost element with the pointer, never one around a
+  control, and never one whose parent has the pointer: so the card was left out for its button, and its name for its
+  parent. Frames played no part: the snapshot runs with the same rules in each frame's isolated world (another site's
+  too, over its own session), checked with the same list in the page, in a frame of the page's site and in one of
+  another site. Now a row (the outermost element with the pointer around an element, by its parent's) that holds a
+  control and no link has its first part with words and no control in it listed, once, named by its words (never an
+  icon's hint); the row itself is still not listed, as a click at its centre may land on its buttons, and the hit
+  guard only lets a click on the part through. A row with a link is left as it was: the link goes where the row does
+  (Trello's cards). The page's listeners are not read: React's are all on its root, so they tell nothing about a row;
+  rows with neither pointer nor role stay words. Measured on 14 sites at both sizes (Hacker News, Wikipedia, GitHub,
+  MDN, npm, Stack Overflow, YouTube, Amazon, Atlassian, Trello, Booking, Google Maps, X, LinkedIn): the same
+  clickable entries before and after.
 - **Selecting text in Pi's browser** (`browser_select_text`, `BrowserPage.selectText`, `SELECT_TEXT`, PP-376): in a
   field (input with a selection, textarea) its own selection (`setSelectionRange`, focused): all, a text in its value,
   or characters start to end (clamped). Elsewhere a DOM range set with `setBaseAndExtent` over the visible text nodes

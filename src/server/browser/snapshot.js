@@ -151,9 +151,23 @@
     }
   }
   // Things clickable by their look or script only (a div with a pointer cursor or a click handler, as pop-ups and app
-  // banners often are): the outermost such element in view, with a name, not inside or around a control listed above.
+  // banners often are): the outermost such element in view, with a name, not inside or around a control listed above
+  // (a row around controls lends that to a part of it, below).
   // As browser-use reads pages, which looks at the cursor too.
   const listedNodes=new Set(actions.map(a=>cache.nodes.get(a.node)));
+  // A row clickable by its look that holds controls of its own (a view list's row with its "Reorder" and "more"
+  // buttons, its click heard by a handler further up, as React's are: PP-462) is not listed itself, as a click at its
+  // centre may land on one of them; its first part with words and no control in it is, once a row. One with a link (a
+  // card whose title is a link) is not: the link goes where the row does. A row is the outermost element with a pointer
+  // cursor around an element, by its parent's.
+  const rows=new Map(), parted=new Set();
+  const rowOf = parent => {
+    if (rows.has(parent)) return rows.get(parent);
+    const up=parent.parentElement;
+    const row=up && up!==document.body && up!==document.documentElement && getComputedStyle(up).cursor==='pointer' ? rowOf(up) : parent;
+    rows.set(parent,row);
+    return row;
+  };
   let looked=0;
   for (const e of all('div,span,li,p,img,svg,label,section,article,[onclick],[oncontextmenu],[ondblclick],[tabindex]')) {
     if (e===document.body || e===document.documentElement) continue;
@@ -169,12 +183,17 @@
       e.getAttribute('draggable')==='true';
     if (!clickable || !visible(e)) continue;
     const parent=e.parentElement;
-    if (parent && parent!==document.body && getComputedStyle(parent).cursor==='pointer' && !handled) continue;
-    // One with a handler of its own and no words (an empty box to right-click) goes by its id.
-    const label=(name(e)||hint(e)||(handled && e.id ? `#${e.id}` : '')).replace(/\s+/g,' ').trim().slice(0,200);
+    let row=null;
+    if (parent && parent!==document.body && getComputedStyle(parent).cursor==='pointer' && !handled) {
+      row=rowOf(parent);
+      if (parted.has(row) || !row.querySelector(selector) || row.querySelector('a[href]')) continue;
+    }
+    // One with a handler of its own and no words (an empty box to right-click) goes by its id; a row's part by its words.
+    const label=(name(e)||(row ? '' : hint(e)||(handled && e.id ? `#${e.id}` : ''))).replace(/\s+/g,' ').trim().slice(0,200);
     if (!label) continue;
     const x=r.x+r.width/2, y=r.y+r.height/2;
     if (x<0 || y<0 || x>=innerWidth || y>=innerHeight) continue;
+    if (row) parted.add(row);
     listedNodes.add(e);
     actions.push({node:identity(e),role:'clickable',label,rect:{x:r.x,y:r.y,w:r.width,h:r.height},kind:'click',value:'',
       ...(draggable(e) ? {draggable:'true'} : {})});
