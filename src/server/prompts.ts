@@ -21,12 +21,15 @@ export type PromptTemplate = {
     argumentHint?: string;
     content: string;
     path: string;
+    /** One of the owner's library commands pinned to the session (`library.ts`, PP-466). */
+    library?: true;
 };
 
 /** How much of a template's first line serves as its description, when it has none. */
 const DESCRIPTION_LENGTH = 60;
 
-function readTemplate(path: string): PromptTemplate | undefined {
+/** A template file: its name, description, argument hint, and text; undefined when it cannot be read. */
+export function readTemplate(path: string): PromptTemplate | undefined {
     let frontmatter: Record<string, unknown>;
     let body: string;
 

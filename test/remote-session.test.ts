@@ -243,6 +243,43 @@ test("pi-phone's own skills in a session on a machine: copied there once, listed
     }
 });
 
+test("a library skill pinned to a session on a machine: copied there with its files, listed at its place first, gone when unpinned (PP-466)", { skip }, async () => {
+    const copies = join(remoteHome, ".pi", "mobile", "skills");
+    const { id } = await app.commands.createSession(owner(app), { cwd: `machine:${machineId}:${join(remoteHome, "project")}` });
+    const me = owner(app);
+    const ask = async (text: string) => {
+        const { submissionId } = await app.commands.submit(id, me, { text, requestId: crypto.randomUUID() });
+
+        await (await app.harness.submission(submissionId, context))!.wait(context);
+    };
+
+    await app.commands.configure(id, me, { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+    app.librarySave(me, "skill", "lib-remote", { files: { "SKILL.md": "---\nname: lib-remote\ndescription: A library skill.\n---\nRun scripts/go.sh.\n", "scripts/go.sh": "echo go\n" } }, "");
+    // One of the app's names too: the library's comes first there as on the phone.
+    app.librarySave(me, "skill", "ui-verify", { files: { "SKILL.md": "---\nname: ui-verify\ndescription: The library's ui-verify.\n---\nSteps.\n" } }, "");
+    await ask("before the pin");
+    assert.doesNotMatch(skillsTold, /lib-remote/);
+
+    app.librarySetPin(me, "skill", "lib-remote", "session", String(id), true);
+    app.librarySetPin(me, "skill", "ui-verify", "session", String(id), true);
+    await ask("after the pin");
+    const at = /<location>([^<]*\/lib-remote\/SKILL\.md)<\/location>/.exec(skillsTold)?.[1];
+
+    assert.ok(at !== undefined && at.startsWith(copies), skillsTold.slice(0, 600));
+    assert.match(readFileSync(at, "utf8"), /name: lib-remote/);
+    assert.equal(readFileSync(join(at, "..", "scripts", "go.sh"), "utf8"), "echo go\n", "its scripts, for bash there");
+    assert.match(skillsTold, /<name>ui-verify<\/name>\s*<description>The library&apos;s ui-verify\.<\/description>/);
+    assert.equal(skillsTold.match(/<name>ui-verify<\/name>/g)?.length, 1, "listed once");
+    assert.doesNotMatch(skillsTold, new RegExp(app.library.root.replace(/[/.]/g, "\\$&")), "never the phone's paths");
+
+    app.librarySetPin(me, "skill", "lib-remote", "session", String(id), false);
+    app.librarySetPin(me, "skill", "ui-verify", "session", String(id), false);
+    await ask("after the unpin");
+    assert.doesNotMatch(skillsTold, /lib-remote/);
+    app.libraryRemove(me, "skill", "lib-remote");
+    app.libraryRemove(me, "skill", "ui-verify");
+});
+
 test("tools on a machine: offered, installed checked against their sha256, first on bash's PATH there; their skills in the prompt", { skip }, async () => {
     const { createServer: createHttp } = await import("node:http");
     const { createHash } = await import("node:crypto");

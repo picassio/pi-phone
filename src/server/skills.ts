@@ -7,6 +7,9 @@
  * 3. The skill paths in Pi's settings.
  * 4. `skills/` in Pi's folder (`~/.pi/agent/skills/`).
  * 5. `~/.agents/skills/`, for every session.
+ * 6. pi-phone's: the owner's library skills pinned to the session (`library.ts`, PP-466), then the app's own
+ *    (`builtIn`). The owner's hand-placed skills and the project's come first, as Pi's CLI sees them too; a library one
+ *    of the same name comes before the app's.
  *
  * Pi trusts a project when its trust store (`trust.json` in Pi's folder) says so for the folder or one above it, or
  * says nothing and Pi's `defaultProjectTrust` setting is "always". Where it says nothing, the CLI asks when it starts.
@@ -42,6 +45,8 @@ export type SkillSources = {
     settingsPaths: readonly string[];
     /** Pi's `defaultProjectTrust` setting: whether a project nobody decided about is trusted. */
     defaultProjectTrust: "always" | "never" | "ask";
+    /** The library skills pinned to the session (their SKILL.md files): after Pi's places, before the app's own. */
+    library?: readonly string[];
     /** Skills the app brings (OfficeCLI's): last, so any of the owner's or a project's by the same name comes first. */
     builtIn?: readonly string[];
 };
@@ -185,6 +190,7 @@ export function skillPlaces(cwd: string, sources: SkillSources): string[] {
         ...(decision === "trusted" ? agents : []),
         ...sources.settingsPaths,
         ...user.filter((each) => existsSync(each)),
+        ...(sources.library ?? []),
         ...(sources.builtIn ?? []),
     ];
 }

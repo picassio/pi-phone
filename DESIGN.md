@@ -205,6 +205,39 @@ so Pi changes them through the settings tools; "the last session" is the one the
   Pi expanded (`expandReviewCommand`): the command as typed, then a `<review-request>` the transcript hides. `/review`
   alone opens the sheet (`GET /api/c/:id/review-targets`: `gh pr list`, the last commits, whether there are guidelines;
   branches from `.../branches`). Tests: `test/review.test.ts`, `test/review-ui.test.ts`.
+- **The library of skills and commands** (`src/server/library.ts`, PP-466 under epic PP-464; the owner's decisions of
+  2026-11-09): the owner's own skills and slash commands, kept in the app and seen only where pinned.
+  - **Storage:** the current files at `<data>/library/skills/<name>/` (an Agent Skills folder) and
+    `<data>/library/commands/<name>.md` (a prompt template, as Pi's: `description`, `argument-hint`, `$ARGUMENTS`,
+    `$1`…); sessions read these paths, so an edit shows at the same place. Each version's files in
+    `<data>/library/.versions/<kind>/<name>/<n>/`; items, versions and pins in `app.sqlite` (`pocket_library_items`,
+    `_versions`, `_pins`). A save writes version n+1 and makes it current (files swapped in beside the old folder,
+    then renamed); undo and restore only move which version is current, so a save after them is one past the newest
+    again. 50 versions kept, never the current one. Names by the Agent Skills rule, unique per kind (a skill and a
+    command may share one: `/skill:x` and `/x`); SKILL.md's `name` must be its name; text files at plain relative
+    paths only, 100 files and 1 MB at most; `scripts/` files are made executable.
+  - **Pins:** `session` (a conversation id: it and its subagents, matched up the subagent chain), `board` (a project
+    key: sessions whose board mode, their own or the nearest parent's as the board tools find it, is on with that
+    project), `all`. Only the owner's sessions (the root's `createdBy` is the owner, or unset) have any: team sharing
+    is not in this version.
+  - **Loading:** `skillPlaces` takes the pinned SKILL.md files as one more place, after Pi's (project `.pi/skills`,
+    `.agents/skills`, settings paths, `~/.pi/agent/skills`, `~/.agents/skills`) and before the app's built-in skills;
+    the first of a name wins, as before. So a hand-placed skill of the owner's or the project's beats a library one of
+    the same name (it is what Pi's CLI sees too, and the owner put it there on purpose), and a library one beats the
+    app's bundled ones (the owner chose to pin it). `GET /api/c/<id>/library` says which pinned skill is shadowed and
+    by what. The prompt's skills cache keys on the folder, the pinned files and `Library.revision` (bumped by every
+    change), so a pin, unpin or edit loads again from the next request. Frozen skills (`frozenSkills`): a pin or unpin
+    changes the names, so the section is sent again; an edit that only rewords a description is not (the session reads
+    the newest SKILL.md at the same path anyway); live sends it. On a machine, the pinned skills are a second
+    `skillBundle` placed by `MachineSkills` (own key by their files' hash), listed first and deduplicated by name with
+    the app's and the tools'; a failed copy adds one line saying so.
+  - **Commands:** pinned ones are appended to `promptTemplates(id)` after Pi's (first wins), marked `library` in
+    `GET /api/c/<id>/prompts`; `submit` expands them as templates. `POST /api/c/<id>/library-command` fills one as
+    typed for the message box (the composer's use of it comes with the page, PP-467).
+  - **API** (owner only): `GET /api/library`; `GET|PUT|DELETE /api/library/<kind>/<name>` (PUT `{files}` for a skill,
+    `{content}` for a command, `note`); `GET …/versions`, `GET …/versions/<n>`, `POST …/restore {n}`, `POST …/undo`;
+    `PUT …/pins {scope, target, pinned}`. The same as `App.library*` methods for Pi's tools (PP-468), which add the
+    cards. Tests: `test/library.test.ts`, the machine case in `test/remote-session.test.ts`.
 - **Review's comments and checkpoints** (`src/server/review-loop.ts`, `web/diff.js`; PP-358, the owner's mockup of
   2026-11-02, after pi-review-loop): a checkpoint is a git commit of the whole working folder (untracked files too,
   ignored ones not) made with a temporary index (`read-tree HEAD`, `add -A`, `write-tree`, `commit-tree` on HEAD) and

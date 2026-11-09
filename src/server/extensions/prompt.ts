@@ -222,6 +222,8 @@ type Resources = {
     trust: number;
     /** The app's skill folders it was loaded with: an extension that adds some, turned on or off, loads again. */
     places: string;
+    /** The library's revision it was loaded at: an edit of a pinned skill loads again (PP-466). */
+    library: number;
     context: string | undefined;
     skills: string | undefined;
 };
@@ -231,6 +233,7 @@ export default function createPrompt(host: PocketHost) {
     // store changed since: a project trusted now has skills it did not have, from the next request on. Only answers to
     // "trust this project?" show at once; other changes (a new skill, Pi's defaultProjectTrust) wait for STALE_MS, or
     // a request more (the app reads Pi's settings again in the background as often).
+    // Keyed by the folder and the library skills pinned to the session (PP-466): a pin or unpin loads again at once.
     const resources = new Map<string, Resources>();
 
     const trustChanged = () => {
@@ -241,12 +244,20 @@ export default function createPrompt(host: PocketHost) {
         }
     };
 
-    const load = (cwd: string): Resources => {
-        const cached = resources.get(cwd);
+    const load = (cwd: string, library: readonly string[] = []): Resources => {
+        const key = [cwd, ...library].join("\n");
+        const cached = resources.get(key);
         const trust = trustChanged();
         const places = host.builtInSkills().join("\n");
+        const revision = host.libraryRevision();
 
-        if (cached !== undefined && Date.now() - cached.at < STALE_MS && cached.trust === trust && cached.places === places) {
+        if (
+            cached !== undefined &&
+            Date.now() - cached.at < STALE_MS &&
+            cached.trust === trust &&
+            cached.places === places &&
+            (library.length === 0 || cached.library === revision)
+        ) {
             return cached;
         }
 
@@ -266,16 +277,16 @@ export default function createPrompt(host: PocketHost) {
         }
 
         try {
-            const text = formatSkillsForPrompt(host.skills(cwd), "read").trim();
+            const text = formatSkillsForPrompt(host.skills(cwd, library), "read").trim();
 
             skills = text === "" ? undefined : text;
         } catch (error) {
             host.notice("warning", `Could not load skills for ${cwd}: ${String(error)}`);
         }
 
-        const fresh = { at: Date.now(), trust, places, context, skills };
+        const fresh = { at: Date.now(), trust, places, library: revision, context, skills };
 
-        resources.set(cwd, fresh);
+        resources.set(key, fresh);
 
         return fresh;
     };
@@ -343,10 +354,11 @@ export default function createPrompt(host: PocketHost) {
                 const cwd = localCwd(input);
                 // On a machine: the skills of tools pi-phone installed there (OfficeCLI's) and the app's own, copied there
                 // (PP-441), at their paths there.
-                const fresh = cwd === undefined ? await host.machineSkills(cwdOf(input)) : load(cwd).skills;
+                const fresh =
+                    cwd === undefined ? await host.machineSkills(cwdOf(input), input.conversationId) : load(cwd, host.librarySkills(input.conversationId)).skills;
 
                 // Frozen (PP-276): the list the session has, while it names the same skills; an update that only rewords
-                // one is not sent again.
+                // one is not sent again. A library pin or unpin changes the names: sent again (PP-466).
                 return host.contextPolicy(input.conversationId).skills === "frozen" ? frozenSkills(shownText(input.shown, "skills", false), fresh) : fresh;
             }, { tag: false }),
             section("environment", (input) => {

@@ -39,6 +39,7 @@ import { serveLocalVideo } from "./assets.ts";
 import { makeBackup, MAX_RESTORE, stageRestore } from "../backup.ts";
 import { addressOf, deviceName } from "../devices.ts";
 import { HttpError } from "../errors.ts";
+import { libraryKind } from "../library.ts";
 import { MAX_AVATAR } from "../avatars.ts";
 import { resolveLanguage, translator } from "../i18n.ts";
 import { inLanguage } from "../phone-events.ts";
@@ -1487,6 +1488,61 @@ export function createApi(options: HttpOptions, auth: Auth) {
 
         // Web access (`web/access.ts`): the search provider and what each needs; a test search with the one picked.
         // Reaching the phone over Tailscale (`tailnet.ts`): on or off, where it listens, or why it does not.
+        // The owner's library of skills and commands (PP-466, `library.ts`): the page's (PP-467) and Pi's tools' (PP-468).
+        if (first === "library") {
+            const [, , name, part, n] = parts;
+
+            if (second === undefined && method === "GET") {
+                return json(response, 200, { items: app.libraryList(user) });
+            }
+
+            const kind = libraryKind(second);
+
+            if (name === undefined) {
+                throw new HttpError(404, "Name the skill or command: /api/library/<kind>/<name>.");
+            }
+
+            if (part === undefined && method === "GET") {
+                return json(response, 200, app.libraryGet(user, kind, name));
+            }
+
+            if (part === undefined && method === "PUT") {
+                const body = await readJson<{ files?: unknown; content?: unknown; note?: unknown }>(request);
+
+                return json(response, 200, { item: app.librarySave(user, kind, name, body, body.note) });
+            }
+
+            if (part === undefined && method === "DELETE") {
+                app.libraryRemove(user, kind, name);
+
+                return json(response, 200, { ok: true });
+            }
+
+            if (part === "versions" && n === undefined && method === "GET") {
+                return json(response, 200, app.libraryVersions(user, kind, name));
+            }
+
+            if (part === "versions" && n !== undefined && /^\d+$/.test(n) && method === "GET") {
+                return json(response, 200, { files: app.libraryVersionFiles(user, kind, name, Number(n)) });
+            }
+
+            if (part === "restore" && method === "POST") {
+                return json(response, 200, { item: app.libraryRestore(user, kind, name, (await readJson<{ n?: unknown }>(request)).n) });
+            }
+
+            if (part === "undo" && method === "POST") {
+                return json(response, 200, { item: app.libraryUndo(user, kind, name) });
+            }
+
+            if (part === "pins" && method === "PUT") {
+                const body = await readJson<{ scope?: unknown; target?: unknown; pinned?: unknown }>(request);
+
+                return json(response, 200, { pins: app.librarySetPin(user, kind, name, body.scope, body.target, body.pinned) });
+            }
+
+            throw new HttpError(404, "Not found");
+        }
+
         // Settings › Hooks (PP-419, `hooks.ts`): each hook on or off, and the built-in behaviours beside them.
         if (first === "hooks" && second === undefined && method === "GET") {
             return json(response, 200, app.hooksView(user));

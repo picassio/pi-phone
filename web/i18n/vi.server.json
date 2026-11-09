@@ -791,5 +791,17 @@
     "Say what to make, such as /page a currency converter VND/USD.": "Hãy nói cần làm gì, ví dụ /page công cụ đổi tiền VND/USD.",
     "Chrome features are names separated by commas, or none.": "Tính năng Chrome là các tên cách nhau bằng dấu phẩy, hoặc none.",
     "A Chrome feature's name has only letters, digits and underscores, like CanvasDrawElement: not {1}.": "Tên một tính năng Chrome chỉ gồm chữ cái, chữ số và dấu gạch dưới, như CanvasDrawElement: không phải {1}.",
-    "At most {1} Chrome features: {2} given.": "Tối đa {1} tính năng Chrome: đã đưa {2}."
+    "At most {1} Chrome features: {2} given.": "Tối đa {1} tính năng Chrome: đã đưa {2}.",
+    "The library of skills and commands is the owner's.": "Thư viện skill và lệnh là của chủ sở hữu.",
+    "A note is text.": "Ghi chú phải là văn bản.",
+    "n is the version's number.": "n là số của phiên bản.",
+    "pinned is true or false.": "pinned là true hoặc false.",
+    "There is no session {1}.": "Không có phiên {1}.",
+    "There is no board {1}.": "Không có bảng {1}.",
+    "Name the skill or command: /api/library/<kind>/<name>.": "Hãy nêu tên skill hoặc lệnh: /api/library/<kind>/<name>.",
+    "text is the command as typed: /name arguments.": "text là lệnh như đã gõ: /tên đối-số.",
+    "That is not a library command pinned to this session.": "Đó không phải lệnh thư viện được ghim vào phiên này.",
+    "The library has no {1} named {2}.": "Thư viện không có {1} nào tên {2}.",
+    "{1} has no version {2}: it has {3}.": "{1} không có phiên bản {2}: nó có {3}.",
+    "{1} is at its first kept version: there is nothing to undo.": "{1} đang ở phiên bản đầu tiên còn giữ: không còn gì để hoàn tác."
 }

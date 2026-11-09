@@ -357,8 +357,15 @@ export interface PocketHost {
     readonly dataDir: string;
     /** Pi's configured extra skill paths, from its settings. */
     skillPaths(): string[];
-    /** Pi's skills for a session working in `cwd`, from the places Pi looks (`skills.ts`). */
-    skills(cwd: string): Skill[];
+    /**
+     * Pi's skills for a session working in `cwd`, from the places Pi looks (`skills.ts`), with the library skills pinned
+     * to it (`library`: their SKILL.md files, from `librarySkills`).
+     */
+    skills(cwd: string, library?: readonly string[]): Skill[];
+    /** The SKILL.md files of the owner's library skills pinned to a conversation (`library.ts`, PP-466). */
+    librarySkills(conversationId: ConversationId): string[];
+    /** A number that changes with every change to the library: an edit of a pinned skill loads again at once. */
+    libraryRevision(): number;
     /** The app's own skill folders now: those of extensions that are on (Design & video's) among them. */
     builtInSkills(): string[];
     /** What the prompt says of the person's default design system (`design-systems.ts`), or undefined for none. */
@@ -429,9 +436,10 @@ export interface PocketHost {
     chargeSession(conversationId: ConversationId, key: string, usage: { input: number; output: number; cost: number }): Promise<void>;
     /**
      * The skills of a session on a machine, formatted for the prompt: those of tools pi-phone installed there, and the
-     * app's own, copied there first (`machine-skills.ts`, PP-441); undefined for none.
+     * app's own, copied there first (`machine-skills.ts`, PP-441), and the library's pinned to the conversation
+     * (PP-466), copied the same way; undefined for none.
      */
-    machineSkills(cwd: string): Promise<string | undefined>;
+    machineSkills(cwd: string, conversationId: ConversationId): Promise<string | undefined>;
     /**
      * `provider/modelId` (or a bare model id) to a signed-in model whose sign-in has not expired, or an error that says
      * it is not available. The error names no other models: models are a person's to choose.

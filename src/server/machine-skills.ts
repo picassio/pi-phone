@@ -9,7 +9,8 @@
  * Which skills: pi-phone's own (`src/skills/`) but getting-started (a Getting started session is on the phone),
  * Effective HTML's, and Design & video's while it is on, but design-system and brand-extract, which read and write the
  * person's design systems on the phone (`DESIGN_MACHINE_SKILLS`). OfficeCLI's and the statechart skill come with their
- * machine tools (`machine-tools.ts`); Extension builder's makes drop-ins on the phone.
+ * machine tools (`machine-tools.ts`); Extension builder's makes drop-ins on the phone. The owner's library skills pinned
+ * to a session (`library.ts`, PP-466) go the same way, as a bundle of their own.
  */
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { execFileSync } from "node:child_process";
@@ -184,15 +185,20 @@ export class MachineSkills {
 }
 
 /**
- * The skills section of a session on a machine: its tools' skills and the app's own at their place there; when the
- * app's could not be copied, a line that says so, so a skill another section names is known not to be there.
+ * The skills section of a session on a machine: its tools' skills, the app's own and the library's pinned to it at
+ * their place there; when the app's or the library's could not be copied, a line that says so, so a skill another
+ * section names is known not to be there.
  */
-export function machineSkillsText(listed: string, failed: string | undefined): string | undefined {
+export function machineSkillsText(listed: string, failed: string | undefined, libraryFailed?: string): string | undefined {
     const note =
         failed === undefined
             ? undefined
             : `pi-phone's own skills (html-plan, ui-verify and the rest) are not on this machine: copying them failed (${failed}). Do not look for them there.`;
-    const text = [listed, note].filter((part) => part !== undefined && part !== "").join("\n\n");
+    const libraryNote =
+        libraryFailed === undefined
+            ? undefined
+            : `The library skills pinned to this session are not on this machine: copying them failed (${libraryFailed}). Do not look for them there.`;
+    const text = [listed, note, libraryNote].filter((part) => part !== undefined && part !== "").join("\n\n");
 
     return text === "" ? undefined : text;
 }

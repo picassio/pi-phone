@@ -175,3 +175,10 @@ test("the skills section says when the app's skills could not be copied", () => 
     assert.equal(machineSkillsText("<available_skills/>", undefined), "<available_skills/>");
     assert.match(machineSkillsText("", "box: connection lost")!, /^pi-phone's own skills \(html-plan, ui-verify and the rest\) are not on this machine: copying them failed \(box: connection lost\)/);
 });
+
+test("the skills section says when the library's pinned skills could not be copied (PP-466)", () => {
+    assert.equal(
+        machineSkillsText("<available_skills/>", undefined, "box: disk full"),
+        "<available_skills/>\n\nThe library skills pinned to this session are not on this machine: copying them failed (box: disk full). Do not look for them there.",
+    );
+});

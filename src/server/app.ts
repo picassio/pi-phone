@@ -182,7 +182,21 @@ import { configureHttp } from "./net.ts";
 import { type ClientEntry, type LimitOffer, projectEntry, snippet } from "./projection.ts";
 import { VOICE_PREFIX, WIKI_BLOCK } from "./entry-format.ts";
 import { VOICE_TOOLS, VoiceBridge } from "./voice-bridge.ts";
-import { loadPromptTemplates, type PromptTemplate, type SkillCommand } from "./prompts.ts";
+import { expandPromptTemplate, loadPromptTemplates, type PromptTemplate, readTemplate, type SkillCommand } from "./prompts.ts";
+import {
+    Library,
+    libraryFiles,
+    type LibraryFiles,
+    type LibraryItem,
+    type LibraryKind,
+    libraryPin,
+    type LibraryPin,
+    type LibraryVersion,
+    type PinnedItem,
+    type PinPlace,
+    type PinView,
+} from "./library.ts";
+import { Projects } from "./projects.ts";
 import { BASE_THEME, Themes } from "./themes.ts";
 import { THEME_ID } from "./themes/format.ts";
 import { measureModelStreams } from "./timing.ts";
@@ -652,6 +666,10 @@ export class PocketApp {
     /** The app's own skills, copied to machines for sessions there (`machine-skills.ts`, PP-441). */
     readonly machineSkills: MachineSkills;
     #skillBundle: { folders: string; bundle: SkillBundle } | undefined;
+    /** The owner's skills and slash commands, pinned to sessions, boards, or every session (`library.ts`, PP-466). */
+    readonly library: Library;
+    /** The boards' store, read for a session's board mode (which board its library pins come from). */
+    #boards: Projects | undefined;
     /** Where sessions work, here or on a machine, and each place's execution environment (`places.ts`). */
     readonly places: Places;
     /** Ports of machines opened here (`forwards.ts`). */
@@ -906,6 +924,7 @@ export class PocketApp {
         this.officecli = new OfficeCli({ dataDir: options.dataDir, ...options.officecli });
         this.machineTools = new MachineTools(this.places, (id) => this.machines.get(id), (id, tools) => this.machines.setTools(id, tools), TOOLS, options.crdRun);
         this.machineSkills = new MachineSkills(this.places);
+        this.library = new Library(options.dataDir);
         this.officecli.install();
         // The owner's tabs get the open ports again on every change, and hear why one closed by itself (PP-108).
         this.forwards = new Forwards(this.machines, (ended) => {
@@ -1305,7 +1324,9 @@ export class PocketApp {
                     return [];
                 }
             },
-            skills: (cwd) => this.skills(cwd),
+            skills: (cwd, library) => this.skills(cwd, library),
+            librarySkills: (id) => this.librarySkills(id),
+            libraryRevision: () => this.library.revision,
             builtInSkills: () => this.builtInSkills(),
             designSystem: () => this.designSystemPrompt(),
             contextPolicy: (id) => this.contextPolicy(id),
@@ -1348,7 +1369,7 @@ export class PocketApp {
             apiKey: async (provider) => (await this.models.getAuth(provider))?.auth.apiKey,
             askSessionModel: async (id, prompt, maxTokens) => (await askSessionModel(this, id, prompt, { maxTokens })).text,
             chargeSession: (id, key, usage) => chargeSession(this, id, key, usage),
-            machineSkills: async (cwd) => {
+            machineSkills: async (cwd, id) => {
                 const machine = this.places.machineOf(cwd);
 
                 if (machine?.remote === undefined) {
@@ -1374,7 +1395,24 @@ export class PocketApp {
                     this.log(`Could not copy pi-phone's skills to ${machine.name}: ${failed}`);
                 }
 
-                return machineSkillsText(formatSkillsForPrompt([...own, ...tools], "read").trim(), failed);
+                // The owner's library skills pinned to the session (PP-466): a bundle of their own, copied the same way.
+                const pinned = this.librarySkills(id).map((path) => dirname(path));
+                let library: Skill[] = [];
+                let libraryFailed: string | undefined;
+
+                if (pinned.length > 0) {
+                    try {
+                        library = await this.machineSkills.place(reached, skillBundle(pinned, getAgentDir()));
+                    } catch (error) {
+                        libraryFailed = error instanceof Error ? error.message : String(error);
+                        this.log(`Could not copy the library's skills to ${machine.name}: ${libraryFailed}`);
+                    }
+                }
+
+                // The first of a name, as on the phone: the library's before the app's.
+                const listed = [...library, ...own, ...tools].filter((skill, index, all) => all.findIndex((other) => other.name === skill.name) === index);
+
+                return machineSkillsText(formatSkillsForPrompt(listed, "read").trim(), failed, libraryFailed);
             },
             machines: () =>
                 this.machines
@@ -5971,9 +6009,211 @@ export class PocketApp {
         return { text, checkpoint };
     }
 
-    /** Pi's skills for a session working in `cwd`, from the places Pi looks (`skills.ts`). */
-    skills(cwd: string): Skill[] {
-        return loadSessionSkills(cwd, this.#skillSources());
+    /**
+     * Pi's skills for a session working in `cwd`, from the places Pi looks (`skills.ts`), with the library skills pinned
+     * to it (`library`, their SKILL.md files: `librarySkills`).
+     */
+    skills(cwd: string, library: readonly string[] = []): Skill[] {
+        return loadSessionSkills(cwd, { ...this.#skillSources(), library });
+    }
+
+    // ─── The library (PP-466) ───────────────────────────────────────────────
+
+    /**
+     * What a conversation's library pins come from: the conversations up its subagent chain, and its board (board mode on
+     * with a project, its own or the nearest parent's, as the board tools find it). Undefined for a session that is not
+     * the owner's: the library is the owner's alone.
+     */
+    libraryPlace(id: ConversationId): PinPlace | undefined {
+        const root = this.rootOf(id);
+        const creator = this.sessionMeta(root)?.createdBy;
+        const owner = this.config.users.find((user) => user.role === "owner")!.id;
+
+        if (creator !== undefined && creator !== owner) {
+            return undefined;
+        }
+
+        const sessions: string[] = [];
+
+        for (let current: ConversationId | undefined = id; current !== undefined && sessions.length < 32; current = this.parentOf(current)) {
+            sessions.push(String(current));
+        }
+
+        const boards = this.#boardsStore();
+        const mode = sessions.map((each) => boards.boardMode(each)).find((each) => each !== undefined);
+
+        return mode?.on === true && mode.project !== null ? { sessions, board: mode.project.key } : { sessions };
+    }
+
+    /** The library items a conversation has, each with the pin that gives it. */
+    libraryPinned(id: ConversationId): PinnedItem[] {
+        const place = this.libraryPlace(id);
+
+        return place === undefined ? [] : this.library.pinned(place);
+    }
+
+    /** The SKILL.md files of the library skills pinned to a conversation, by name. */
+    librarySkills(id: ConversationId): string[] {
+        return this.libraryPinned(id)
+            .filter((item) => item.kind === "skill")
+            .map((item) => item.path);
+    }
+
+    /** The library commands pinned to a conversation, as prompt templates. */
+    libraryCommands(id: ConversationId): PromptTemplate[] {
+        return this.libraryPinned(id).flatMap((item) => {
+            const template = item.kind === "command" ? readTemplate(item.path) : undefined;
+
+            return template === undefined ? [] : [{ ...template, library: true as const }];
+        });
+    }
+
+    /** The boards' store, opened when first needed. */
+    #boardsStore(): Projects {
+        this.#boards ??= new Projects(this.dataDir, () => this.config.users.map((user) => ({ id: user.id, name: user.name, role: user.role })));
+
+        return this.#boards;
+    }
+
+    #requireLibrary(user: User): void {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "The library of skills and commands is the owner's.");
+        }
+    }
+
+    /** A pin's session or board, for the list: its title or name; `gone` when it is no longer there. */
+    #pinView(pin: LibraryPin): PinView {
+        if (pin.scope === "session") {
+            const meta = this.sessionMeta(Number(pin.target) as ConversationId);
+
+            return meta === undefined ? { ...pin, gone: true } : { ...pin, label: meta.title ?? "New session" };
+        }
+
+        if (pin.scope === "board") {
+            const board = this.#boardsStore().allProjects().find((project) => project.key === pin.target);
+
+            return board === undefined ? { ...pin, gone: true } : { ...pin, label: board.name };
+        }
+
+        return pin;
+    }
+
+    /** Every item of the library, with where each is pinned. */
+    libraryList(user: User): (Omit<LibraryItem, "pins"> & { pins: PinView[] })[] {
+        this.#requireLibrary(user);
+
+        return this.library.list().map((item) => ({ ...item, pins: item.pins.map((pin) => this.#pinView(pin)) }));
+    }
+
+    /** One item and its current files (a command's as `content`). */
+    libraryGet(user: User, kind: LibraryKind, name: string): { item: LibraryItem; files?: LibraryFiles; content?: string } {
+        this.#requireLibrary(user);
+
+        const item = this.library.item(kind, name);
+        const files = this.library.files(kind, name);
+
+        return kind === "skill" ? { item, files } : { item, content: files[`${name}.md`]! };
+    }
+
+    /** Save an item, new or as its next version: a skill's `files`, a command's `content`. */
+    librarySave(user: User, kind: LibraryKind, name: string, given: { files?: unknown; content?: unknown }, note: unknown): LibraryItem {
+        this.#requireLibrary(user);
+
+        if (note !== undefined && typeof note !== "string") {
+            throw new HttpError(400, "A note is text.");
+        }
+
+        return this.library.save(kind, name, libraryFiles(kind, name, given), note ?? "");
+    }
+
+    libraryVersions(user: User, kind: LibraryKind, name: string): { current: number; versions: LibraryVersion[] } {
+        this.#requireLibrary(user);
+
+        return { current: this.library.item(kind, name).version, versions: this.library.versions(kind, name) };
+    }
+
+    libraryVersionFiles(user: User, kind: LibraryKind, name: string, n: number): LibraryFiles {
+        this.#requireLibrary(user);
+
+        return this.library.versionFiles(kind, name, n);
+    }
+
+    libraryRestore(user: User, kind: LibraryKind, name: string, n: unknown): LibraryItem {
+        this.#requireLibrary(user);
+
+        if (typeof n !== "number" || !Number.isInteger(n)) {
+            throw new HttpError(400, "n is the version's number.");
+        }
+
+        return this.library.restore(kind, name, n);
+    }
+
+    libraryUndo(user: User, kind: LibraryKind, name: string): LibraryItem {
+        this.#requireLibrary(user);
+
+        return this.library.undo(kind, name);
+    }
+
+    libraryRemove(user: User, kind: LibraryKind, name: string): void {
+        this.#requireLibrary(user);
+        this.library.remove(kind, name);
+    }
+
+    /** Pin an item to a session, a board, or every session (`pinned`), or take the pin away; its pins after. */
+    librarySetPin(user: User, kind: LibraryKind, name: string, scope: unknown, target: unknown, pinned: unknown): PinView[] {
+        this.#requireLibrary(user);
+
+        if (typeof pinned !== "boolean") {
+            throw new HttpError(400, "pinned is true or false.");
+        }
+
+        const pin = libraryPin(scope, target);
+
+        // A new pin names a session or board that is there; an old one goes even when it is not.
+        if (pinned && this.#pinView(pin).gone === true) {
+            throw new HttpError(404, pin.scope === "session" ? `There is no session ${pin.target}.` : `There is no board ${pin.target}.`);
+        }
+
+        return this.library.setPin(kind, name, pin, pinned).map((each) => this.#pinView(each));
+    }
+
+    /**
+     * What a session has of the library: its board, and each pinned item with the pin that gives it; a skill another of
+     * its skills shadows (one of the owner's or the project's by the same name, first-wins) names the one that wins.
+     */
+    sessionLibrary(user: User, id: ConversationId) {
+        this.#requireLibrary(user);
+        this.requireSee(user, id);
+
+        const place = this.libraryPlace(id);
+        const pinned = place === undefined ? [] : this.library.pinned(place);
+        const cwd = this.cwdOf(id);
+        // On a machine, only the library's and the app's are listed, the library's first: none shadows one there.
+        const winners =
+            this.places.machineOf(cwd) === undefined
+                ? new Map(this.skills(cwd, this.librarySkills(id)).map((skill) => [skill.name, skill.filePath]))
+                : new Map<string, string>();
+        const templates = new Map(this.promptTemplates(id).map((template) => [template.name, template.path]));
+
+        return {
+            owner: place !== undefined,
+            board: place?.board ?? null,
+            items: pinned.map((item) => {
+                const winner = item.kind === "skill" ? winners.get(item.name) : templates.get(item.name);
+
+                return { ...item, ...(winner === undefined || winner === item.path ? {} : { shadowedBy: winner }) };
+            }),
+        };
+    }
+
+    /** A library command as typed (`/name arguments`), filled in for the message box; undefined when it is not one. */
+    libraryCommandText(user: User, id: ConversationId, text: string): string | undefined {
+        this.requireSee(user, id);
+
+        const name = /^\/(\S+)/.exec(text)?.[1];
+        const template = this.promptTemplates(id).find((each) => each.name === name);
+
+        return template?.library === true ? expandPromptTemplate(text, [template]) : undefined;
     }
 
     /**
@@ -6009,10 +6249,10 @@ export class PocketApp {
         return this.projectTrust(id, user);
     }
 
-    /** Pi's skills in a conversation's folder, to run as `/skill:name`. */
+    /** Pi's skills in a conversation's folder and the library's pinned to it, to run as `/skill:name`. */
     skillCommands(id: ConversationId): SkillCommand[] {
         try {
-            return this.skills(this.cwdOf(id)).map((skill) => ({
+            return this.skills(this.cwdOf(id), this.librarySkills(id)).map((skill) => ({
                 name: skill.name,
                 description: skill.description,
                 path: skill.filePath,
@@ -6023,7 +6263,10 @@ export class PocketApp {
         }
     }
 
-    /** Pi's prompt templates, as a conversation in its folder offers them. */
+    /**
+     * Pi's prompt templates, as a conversation in its folder offers them, then the library's commands pinned to it
+     * (`library` set): the first of a name wins, as among Pi's own.
+     */
     promptTemplates(id: ConversationId): PromptTemplate[] {
         let paths: string[] = [];
 
@@ -6036,9 +6279,11 @@ export class PocketApp {
         const cwd = this.cwdOf(id);
 
         // A project told "Don't trust" offers none of its own, as its .pi/skills.
-        return loadPromptTemplates(cwd, getAgentDir(), paths, {
+        const own = loadPromptTemplates(cwd, getAgentDir(), paths, {
             project: !projectDistrusted(cwd, this.#skillSources()),
         });
+
+        return [...own, ...this.libraryCommands(id).filter((command) => !own.some((each) => each.name === command.name))];
     }
 
     // ─── Extensions ─────────────────────────────────────────────────────────
@@ -7436,6 +7681,8 @@ export class PocketApp {
             this.themes.close();
             this.spend.close();
             this.limits.close();
+            this.library.close();
+            this.#boards?.close();
             this.#unsubscribeCommits?.();
             this.#unsubscribeApprovals?.();
 

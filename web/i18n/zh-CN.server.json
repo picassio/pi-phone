@@ -792,5 +792,17 @@
     "Say what to make, such as /page a currency converter VND/USD.": "说说要做什么，例如 /page VND/USD 汇率换算器。",
     "Chrome features are names separated by commas, or none.": "Chrome 功能是用逗号分隔的名称，或 none。",
     "A Chrome feature's name has only letters, digits and underscores, like CanvasDrawElement: not {1}.": "Chrome 功能名称只能包含字母、数字和下划线，例如 CanvasDrawElement：不能是 {1}。",
-    "At most {1} Chrome features: {2} given.": "最多 {1} 个 Chrome 功能：给了 {2} 个。"
+    "At most {1} Chrome features: {2} given.": "最多 {1} 个 Chrome 功能：给了 {2} 个。",
+    "The library of skills and commands is the owner's.": "技能和命令库属于所有者。",
+    "A note is text.": "备注必须是文本。",
+    "n is the version's number.": "n 是版本号。",
+    "pinned is true or false.": "pinned 为 true 或 false。",
+    "There is no session {1}.": "没有会话 {1}。",
+    "There is no board {1}.": "没有看板 {1}。",
+    "Name the skill or command: /api/library/<kind>/<name>.": "请指明技能或命令：/api/library/<kind>/<name>。",
+    "text is the command as typed: /name arguments.": "text 是输入的命令：/名称 参数。",
+    "That is not a library command pinned to this session.": "这不是固定到此会话的库命令。",
+    "The library has no {1} named {2}.": "库中没有名为 {2} 的 {1}。",
+    "{1} has no version {2}: it has {3}.": "{1} 没有版本 {2}：它有 {3}。",
+    "{1} is at its first kept version: there is nothing to undo.": "{1} 已是保留的第一个版本：没有可撤销的。"
 }

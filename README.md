@@ -849,6 +849,14 @@ card on the session list (and the home screen on a wide screen) offers a tour of
   instructions, schedules, board. Below them, under **App**, are the app's settings, listed in the next part.
 - **The rail** (left edge on a wide screen) opens Sessions, Projects, and the Wiki. A session's **Places** open its Files,
   Changes, Artifacts, Find, and Branch.
+- **Your own skills and slash commands.** The app keeps a library of your skills (Agent Skills folders: SKILL.md and
+  its files) and commands (prompt templates with `description`, `argument-hint`, `$ARGUMENTS`, `$1`…). Each is seen only
+  where you pin it: one session (its subagents too), a board (every session in board mode on it), or every session of
+  yours. A pinned skill joins the session's skills from its next message (a skill of yours in `~/.agents/skills`, Pi's
+  folder or the project with the same name wins; a library one wins over the app's own), and is copied to a machine
+  for a session there. A pinned command shows in the "/" list with its description; `/ssp-review PP-12` sends it
+  filled in. Every save keeps a version, and undo goes back one. The library's page and Pi's tools for it come next;
+  until then it is the app's API (`/api/library`).
 - **Keep an artifact as a page.** **`/page <what>`** (`/page a currency converter VND/USD`) has Pi build it as an
   artifact, check it, and offer to keep it as a page on a card; `/page` alone opens Settings › Pages. A prompt template
   named `make` or `page` wins over the app's command, as with `/review`.

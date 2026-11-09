@@ -877,6 +877,14 @@ mới** trên danh sách phiên (và màn hình chính khi màn hình rộng) m�
 - **Thanh bên** (cạnh trái trên màn hình rộng) mở Phiên, Dự án và Wiki. **Nơi làm việc** của một phiên mở Tệp, Thay
   đổi, Artifact, Tìm và Nhánh. **Khung Trình duyệt** mở khi Pi duyệt web: cạnh cuộc trò chuyện trên màn hình rộng, hoặc từ
   bản xem trước nhỏ phía trên ô nhập trên điện thoại.
+- **Skill và lệnh slash của riêng bạn.** Ứng dụng giữ một thư viện skill của bạn (thư mục Agent Skills: SKILL.md và các
+  tệp của nó) và lệnh (prompt template có `description`, `argument-hint`, `$ARGUMENTS`, `$1`…). Mỗi mục chỉ hiện ở nơi
+  bạn ghim nó: một phiên (cả các subagent của phiên), một bảng (mọi phiên bật chế độ bảng trên bảng đó), hoặc mọi phiên
+  của bạn. Skill đã ghim vào danh sách skill của phiên từ tin nhắn kế tiếp (skill cùng tên của bạn trong
+  `~/.agents/skills`, thư mục của Pi hay của dự án thắng; skill thư viện thắng skill có sẵn của ứng dụng), và được chép
+  sang máy cho phiên chạy ở đó. Lệnh đã ghim hiện trong danh sách "/" kèm mô tả; `/ssp-review PP-12` gửi nó đã điền sẵn.
+  Mỗi lần lưu giữ một phiên bản, và hoàn tác lùi một bản. Trang thư viện và công cụ của Pi cho nó sẽ đến sau; tới lúc đó
+  nó là API của ứng dụng (`/api/library`).
 - **Giữ artifact thành trang.** **`/page <cần làm gì>`** (`/page công cụ đổi tiền VND/USD`) nhờ Pi làm nó thành một
   artifact, kiểm tra, rồi đề nghị giữ nó thành trang qua một thẻ; chỉ gõ `/page` thì mở Cài đặt › Trang. Prompt template
   tên `make` hay `page` thắng lệnh của ứng dụng, như với `/review`.

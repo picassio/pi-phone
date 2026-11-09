@@ -566,12 +566,35 @@ export async function conversationRoutes(
         });
     }
 
+    // What the session has of the owner's library (PP-466): its board, and each pinned item with the pin that gives it.
+    if (third === "library" && fourth === undefined && method === "GET") {
+        return json(response, 200, app.sessionLibrary(user, id));
+    }
+
+    // A library command as typed, `/name arguments`, filled in for the message box (PP-466).
+    if (third === "library-command" && fourth === undefined && method === "POST") {
+        const { text } = await readJson<{ text?: unknown }>(request);
+
+        if (typeof text !== "string") {
+            throw new HttpError(400, "text is the command as typed: /name arguments.");
+        }
+
+        const filled = app.libraryCommandText(user, id, text);
+
+        if (filled === undefined) {
+            throw new HttpError(404, "That is not a library command pinned to this session.");
+        }
+
+        return json(response, 200, { text: filled });
+    }
+
     // Prompt templates and skills, for the message box's slash commands.
     if (third === "prompts" && method === "GET") {
-        const templates = app.promptTemplates(id).map(({ name, description, argumentHint }) => ({
+        const templates = app.promptTemplates(id).map(({ name, description, argumentHint, library }) => ({
             name,
             description,
             ...(argumentHint === undefined ? {} : { argumentHint }),
+            ...(library === true ? { library } : {}),
         }));
         const skills = app.skillCommands(id).map(({ name, description }) => ({
             name: `skill:${name}`,
