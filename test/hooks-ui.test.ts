@@ -125,16 +125,18 @@ for (const [viewport, label] of [[VIEWPORTS.mobile, "390"], [VIEWPORTS.desktop, 
             checked: each.querySelector('[role="switch"]').getAttribute("aria-checked"),
         })))`);
 
-        assert.deepEqual(hooks.map((hook) => [hook.id, hook.state, hook.checked]), [["artifactCheck", "On", "true"], ["uiReminder", "On", "true"]]);
+        assert.deepEqual(hooks.map((hook) => [hook.id, hook.state, hook.checked]), [["artifactCheck", "On", "true"], ["uiReminder", "On", "true"], ["compactReminder", "On", "true"]]);
         assert.match(hooks[0]!.text, /^Check artifacts on publish On Renders the artifact at 390, 1280 and 1920 px/);
         assert.match(hooks[1]!.text, /^Remind to check UI before finishing On Sends Pi one follow-up/);
+        assert.match(hooks[2]!.text, /^Remind to compact while waiting On Tells Pi what its session waits on/);
 
         const builtIn = await inPage<string[]>(`return JSON.stringify([...document.querySelectorAll('[data-part="hook-built-in"]')].map((each) => each.innerText.trim().replace(/\\s+/g, " ")))`);
 
-        assert.equal(builtIn.length, 3);
+        assert.equal(builtIn.length, 4);
         assert.match(builtIn[0]!, /^Capture idle sessions into the wiki After \d+ min idle/);
         assert.match(builtIn[1]!, /^Compact a full context When nearly full/);
-        assert.match(builtIn[2]!, /^Ask before paying, sending, booking or deleting Always on Before Pi's click, key or run step/);
+        assert.match(builtIn[2]!, /^Compact before the prompt cache expires Off A session idle while it waits/);
+        assert.match(builtIn[3]!, /^Ask before paying, sending, booking or deleting Always on Before Pi's click, key or run step/);
 
         const before = await measure(`hooks-${label}`, viewport.width);
 

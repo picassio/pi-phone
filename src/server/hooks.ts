@@ -8,12 +8,14 @@
  *   widths and puts the layout check's counts in its own result (`extensions/artifacts.ts`).
  * - `uiReminder` (PP-422): a turn that ends with UI files changed after its last look at them gets one follow-up that
  *   asks Pi to check them (`ui-reminder.ts`, the generation's `onYield` in `extensions/screenshot.ts`).
+ * - `compactReminder` (PP-473): a turn that ends while the session waits on work, with its context past the reminder's
+ *   share of the window, gets one follow-up a wait that says what compacting now would save (`self-compact.ts`).
  *
  * Behaviours that act as hooks but keep settings of their own (the wiki's capture after idle, auto-compact) are listed
  * beside them on the sheet (`BuiltInBehaviour`), with their own setting's value; their settings stay where they are.
  */
 
-export const HOOK_IDS = ["artifactCheck", "uiReminder"] as const;
+export const HOOK_IDS = ["artifactCheck", "uiReminder", "compactReminder"] as const;
 
 export type HookId = (typeof HOOK_IDS)[number];
 
@@ -48,6 +50,14 @@ export const HOOKS: readonly HookInfo[] = [
         default: true,
         owner: true,
     },
+    {
+        id: "compactReminder",
+        title: "Remind to compact while waiting",
+        does: "Tells Pi what its session waits on, how full its context is, and what a wake-up after the prompt cache expires would cost against compacting now, so it can call compact_self.",
+        when: "When a turn ends while the session waits on subagents, other sessions, CI runs or schedules, with its context past the share set in Compact context; once a wait, never right after a compaction.",
+        default: true,
+        owner: true,
+    },
 ];
 
 export const isHookId = (id: string): id is HookId => (HOOK_IDS as readonly string[]).includes(id);
@@ -62,6 +72,7 @@ export const hookInfo = (id: HookId): HookInfo => HOOKS.find((hook) => hook.id =
 export type BuiltInBehaviour =
     | { id: "wikiCapture"; setting: "wiki.captureMinutes"; minutes: number | null }
     | { id: "autoCompact"; setting: "sessions.compactAt"; at: number | "full" }
+    | { id: "compactBeforeExpiry"; setting: "sessions.compactBeforeExpiry"; on: boolean }
     | { id: "askBeforeRisky"; setting: null };
 
 /** What Settings › Hooks shows (`GET /api/hooks`). */

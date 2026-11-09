@@ -100,6 +100,8 @@ const emptyView = () => ({
     // The Getting started checklist (PP-235): `{ items, finished }`, or null.
     guide: null,
     ciWatches: [],
+    // The self-compactions done here (PP-473): the transcript's line on each, by its compaction entry.
+    selfCompactions: [],
     branch: null,
     subagentsHeld: null,
     limitOffers: [],
@@ -679,6 +681,7 @@ function mergeView(current, data) {
         goal: data.goal === undefined ? base.goal : data.goal,
         guide: data.guide === undefined ? base.guide : data.guide,
         ciWatches: data.ciWatches ?? base.ciWatches,
+        selfCompactions: data.selfCompactions ?? base.selfCompactions,
         // Why subagents' reports wait (a spend limit), or null when none do: the subagents bar says it.
         subagentsHeld: data.subagentsHeld === undefined ? base.subagentsHeld : data.subagentsHeld,
         // What the folder has checked out: `{ branch }` or `{ detached }`, and null outside a repository.

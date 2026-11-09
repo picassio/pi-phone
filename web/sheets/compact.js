@@ -3,7 +3,7 @@
 import { t, tn } from "../i18n.js";
 import { useState } from "preact/hooks";
 import { actions, api, attempt, closeSheet, store } from "../store.js";
-import { Choice, html, Icon, Sheet } from "../ui.js";
+import { Choice, html, Icon, Sheet, Switch } from "../ui.js";
 
 const MIN = 10;
 const MAX = 95;
@@ -131,6 +131,45 @@ function CodemodeMode({ mode }) {
     </div>`;
 }
 
+/** The reminder's shares offered: a whole percentage from 10 to 95 is taken; these cover what people pick. */
+const REMIND_AT = [20, 30, 40, 50, 60, 70, 80];
+
+/**
+ * While a session waits (PP-473, src/server/self-compact.ts), for every session: whether Pi may compact its own
+ * session (compact_self), from what share of the context the compact reminder speaks up, and whether a waiting session
+ * compacts by itself just before its prompt cache expires. The owner's.
+ */
+function WhileWaiting({ settings }) {
+    const set = (part, value) => attempt(() => api("settings", { selfCompact: { part, value } }));
+    const toggle = (part, title, does, on) => html`<div class="provider toggle" data-part=${`self-compact-${part}`}>
+        <div>
+            <div>${title}</div>
+            <div class="muted small">${does}</div>
+        </div>
+        <${Switch} on=${on} label=${title} onChange=${() => set(part, !on)} />
+    </div>`;
+    const share = t("Remind Pi from");
+
+    return html`<div class="field" data-part="self-compact">
+        <div class="label">${t("While a session waits")}</div>
+        <div class="sheet-list">
+            ${toggle("tool", t("Pi may compact its own session"), t("With compact_self, while it waits on subagents, other sessions, CI runs or schedules: the prompt cache is still warm, so the wake-up costs less."), settings.tool)}
+            <div class="provider toggle" data-part="self-compact-remind-at">
+                <div>${share}</div>
+                <div class="pp-choice">
+                    <${Choice}
+                        label=${share}
+                        value=${settings.remindAt}
+                        options=${[...new Set([...REMIND_AT, settings.remindAt])].sort((a, b) => a - b).map((n) => ({ value: n, label: t("{n}% of the context", { n }) }))}
+                        onChange=${(n) => set("remindAt", n)}
+                    />
+                </div>
+            </div>
+            ${toggle("beforeExpiry", t("Compact before the prompt cache expires"), t("A session idle while it waits, its context past that share, compacts itself just before its prompt cache expires. A report that comes first cancels it. Off by default."), settings.beforeExpiry)}
+        </div>
+    </div>`;
+}
+
 export function CompactSheet() {
     const { view, server, me } = store.state;
     const id = store.state.conversationId;
@@ -153,6 +192,7 @@ export function CompactSheet() {
         <p class="muted small">${t("Compacting summarizes older messages, so the session stays quick and costs less. It happens by itself just before the model's limit; it can happen sooner, at a share of the context.")}</p>
         <${AtChoices} key=${`own-${String(own)}`} label=${t("This session compacts by itself")} value=${own} inherit=${all} onPick=${setOwn} />
         ${me?.role === "owner" && html`<${AtChoices} key=${`all-${String(all)}`} label=${t("Every session, unless it has its own")} value=${all} onPick=${setAll} />`}
+        ${me?.role === "owner" && server?.selfCompact && html`<${WhileWaiting} settings=${server.selfCompact} />`}
         ${
             me?.role === "owner" &&
             html`<p class="muted small">${t("What goes into Pi's prompt fills the context too. Text that changes is sent again, and each copy stays until the session compacts; a change here shows from the next message.")}</p>

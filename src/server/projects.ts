@@ -1224,6 +1224,18 @@ export class Projects {
         }));
     }
 
+    /** The tasks a session is linked to that are in one of `states` (no person's rights: a session's own summary, PP-473). */
+    tasksOfSession(conversationId: string, states: readonly TaskState[]): Task[] {
+        const rows = this.#db
+            .prepare(
+                `SELECT t.* FROM pocket_tasks t JOIN pocket_task_sessions s ON s.task_id = t.id
+                 WHERE s.conversation_id = ? AND t.state IN (${states.map(() => "?").join(", ")}) ORDER BY t.project_id, t.number`,
+            )
+            .all(conversationId, ...states) as Row[];
+
+        return rows.map((row) => taskOf(row, this.#projectById(String(row.project_id))!.key));
+    }
+
     /** Link a session to a task it works on (or leads, or only mentions); a stronger role replaces a weaker one. */
     linkSession(actor: Actor, ref: string, conversationId: string, role: TaskSession["role"]): void {
         const { project, task } = this.#editTask(actor, ref);

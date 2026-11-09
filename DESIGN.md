@@ -1256,6 +1256,64 @@ so Pi changes them through the settings tools; "the last session" is the one the
     only when the turn has unchecked UI edits; one that does not resolve (a machine gone) still counts, as a hook that
     threw would lose the turn's answer. Tests give the app `tempFolders` (their folders are all under the system's temp
     folder).
+  - **Self-compaction** (PP-473, story PP-472; the owner's ask of 2026-11-09: an orchestrator session that waits long
+    should not pay for a cold cache when its agents report back; `self-compact.ts`, `extensions/self-compact.ts`, module
+    "Compact while waiting"). Anthropic's prompt cache lasts 5 minutes: a wake-up after it writes the whole context
+    again at the cache-write price (Opus: 150k tokens about $0.95, against about $0.08 read warm). Three parts, each
+    switchable for every session in Menu › Compact context (`config.selfCompact`: `tool` on, `remindAt` 40,
+    `beforeExpiry` off; Pi's `sessions.compactSelf`, `sessions.compactRemindAt`, `sessions.compactBeforeExpiry`):
+    - **`compact_self`** (`focus?`; deferred: the base prompt is at 84,926 of the 84,940 budget, and the tool would add
+      462; native tool additions keep the cached prefix, so loading it costs no cache) sets `SelfCompactDoc.queued`.
+      Refused in a subagent: its final answer is its report to its parent, which the summary turn would replace. The
+      generation's `onYield` (first decision wins; kept in the generation's memo so a restart applies it again) answers
+      a queued one with a continuation, `[via compact-self] …` (`summaryRequest`): Pi Durable's format (Goal,
+      Constraints & Preferences with the owner's rules, Progress, Key Decisions, Waiting on, Next Steps, Critical
+      Context), the focus, and the pending work read from the app. **Why a continuation and not Pi Durable's
+      summarizer:** `CompactionTask` serializes the summarized messages into a new user message and sends it with
+      `cacheRetention: "none"`, so it pays the full input price for the whole context (PP-474 measured it: $0.83 at
+      150k on Opus 5.5, more than the $0.80 cold wake-up); the continuation goes through the generation's own request
+      path (the same system messages, tools, messages in order, `beforeRequest` hooks, session id and pi-ai's cache
+      breakpoints), with the request as the last user turn, so it reads the warm prefix at $0.20/M and writes only the
+      answer before it and the request. `test/self-compact.test.ts` holds it with the faux provider's prefix cache: the
+      summary request reads at least 97% of its prompt from the cache. The next
+      `onYield` (its turn's newest user message is the request) keeps the answer as `ready` (context tokens before,
+      the answer's cost, the model); the run ends, and `SelfCompact.afterRun` (from the submission's commit, before
+      auto-compact, which waits) calls `conversation.compact(SELF_COMPACT_MARK)`. Its `beforeCompact` hook supplies the
+      summary, so no model is asked: Pi Durable's cut (`keepRecentTokens` 20k) always keeps the summary turn (the
+      newest entries), so the compaction entry holds the app's sections (`appSections`): what the session waits on,
+      its board tasks in In Progress or Review (`Projects.tasksOfSession`), the files read and changed in the
+      summarized part (Pi's cumulative file lists, from `read`, `edit`, `write` calls), and the last message a person
+      wrote (`AuthorsDoc`), word for word, with a line saying Pi's summary is among the recent messages. A message
+      that came before the request (a report) ends the wait: Pi Durable gives the turn to it, the next `onYield` finds
+      `asked` without its request, and drops it. Reused from Pi's compaction: the summary format, `keepRecentTokens`
+      and the cut rules (Pi Durable's), the focus as custom instructions, and the read and modified file lists; not
+      branch summaries (Pi Durable has no tree).
+    - **Pending work** (`SelfCompact.pending`, from the app's state, never the model's memory): subagents busy or asked
+      after their last answer (`SubagentsDoc`), sessions linked from this one and working, `CiWatchesDoc`, `ScheduleDoc`,
+      and the board tasks above (its own work, not a wait). `waitKey` names a wait.
+    - **The hook "Remind to compact while waiting"** (`compactReminder`, on): an `onYield` with nothing queued, the
+      session waiting, the answer's context (`input + cacheRead + cacheWrite + output`) at or past `remindAt` of the
+      model's window, no compaction in the turn, and a wait not reminded yet (`SelfCompactDoc.reminded`) continues with
+      `[via hook compact-reminder] …` (`reminderText`): the wait, the context, a cold wake-up's cost, compacting's (the
+      context read warm and 2k tokens of summary) and the wake-up after it (the prompt's system messages, 20k kept and
+      the summary), at the model's catalogue prices. Pi decides; the prompt-eval scenarios `compact-long-wait`,
+      `compact-brief-wait` and `compact-nothing-pending` hold that it does so well.
+    - **Compact before the cache expires** (`beforeExpiry`, off): after each run, a timer at the cache's lifetime less
+      30 s (`cacheTtlMs`: 5 minutes, or 1 hour with `PI_CACHE_RETENTION=long`, pi-ai's switch for the long retention,
+      PP-474); when it fires, a session still idle, waiting, its measured context past `remindAt`, and not held back by a
+      spend limit, is sent the summary request itself (`whenBusy: "reject"`, as the person Pi works for there); the same
+      `ready` path compacts it. A report that comes first starts a run: the session is busy when the timer fires, and
+      that run's end plans anew. Timers live in memory: a restart drops them until the next run ends.
+    - **What it saved** (`savingOf`): (before − after) × the cache-write price (`writePrice`: the catalogue's 5-minute
+      write, or twice the input price for the 1-hour cache) − what compacting cost: the summary answer's `usage.cost`
+      and the answers after compact_self's result (the request its result took; `turnInfo`), all real usage. The after
+      is measured on the compacted view; the summary request's cached read and its write are kept with it (`read`,
+      `written`), and the server log has the line. The reminder's estimate uses the same prices: a cold wake-up is the
+      context at the write price; compacting is two requests reading the context warm, about 1.5k tokens written and 2k
+      of summary. Each is kept in the session (`SelfCompactDoc.done`, 50; the room sends
+      `selfCompactions`, and the transcript's compaction divider reads "Compacted: why, before → after tokens, cost,
+      saved about …" in the person's language) and in `SpendDoc.selfCompactions` (count, cost, saved, the newest 100;
+      Spend's "Compacting while waiting" group, the owner's).
 - **Server edition** (`--platform server`, PP-20; the owner's decision of 2026-10-20, board epic PP-19): the same server in
   Docker (`Dockerfile`, `deploy/`), behind Caddy. `main.ts` runs as `phone` unless told `--platform server` (the image sets `PI_PHONE_PLATFORM=server`). On a
   server, Pi's browser is a `ChromeEngine` with its profile kept in `~/.pi/mobile/browser`, screenshots come from

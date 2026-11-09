@@ -20,6 +20,7 @@ import type { Role, User } from "./config.ts";
 import type { ContextPolicy } from "./context-policy.ts";
 import type { ResolvedSubagentDefaults } from "./subagent-defaults.ts";
 import type { Goals } from "./goals.ts";
+import type { SelfCompact } from "./self-compact.ts";
 import type { Schedules } from "./schedules.ts";
 import type { SessionControl } from "./session-control.ts";
 import type { Para } from "./para.ts";
@@ -741,6 +742,8 @@ export interface PocketHost {
     readonly schedules: Pick<Schedules, "add" | "cancel" | "list" | "task">;
     /** Sessions' goals: the goals extension runs their checks and counts them. */
     readonly goals: Pick<Goals, "get" | "run" | "record" | "mayContinue">;
+    /** Self-compaction (PP-473): compact_self queues one; the generation's and the compaction's hooks run it. */
+    readonly selfCompact: Pick<SelfCompact, "queue" | "refused" | "onYield" | "apply" | "summaryFor">;
     /**
      * Text from elsewhere made safe for Pi to read (`fence.ts`): `quoted` gives one line, cut to `max`, without
      * invisible characters or any tag, in quotes it cannot close; `defang` keeps the lines, but no closing tag survives,

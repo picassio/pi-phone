@@ -113,6 +113,7 @@ import { FolderFavorites } from "./folder-favorites.ts";
 import { KeptPages } from "./kept-pages.ts";
 import { SessionGroups } from "./session-groups.ts";
 import { AutoCompact, checkCompactAt } from "./auto-compact.ts";
+import { SelfCompact } from "./self-compact.ts";
 import { withAssistant } from "./assistant.ts";
 import { type CallPlan, type CallStart, chatgptAccount, type VoiceEndpoints, type VoiceMode, VOICES, VoiceService, isVoiceMode, voiceInstructions, withVoice, wordsHint } from "./voice.ts";
 import { GitHubLogin } from "./github-login.ts";
@@ -197,7 +198,7 @@ import {
     type PinPlace,
     type PinView,
 } from "./library.ts";
-import { Projects } from "./projects.ts";
+import { Projects, type Task, type TaskState } from "./projects.ts";
 import { BASE_THEME, Themes } from "./themes.ts";
 import { THEME_ID } from "./themes/format.ts";
 import { measureModelStreams } from "./timing.ts";
@@ -623,6 +624,8 @@ export class PocketApp {
     readonly keptPages = new KeptPages(this);
     readonly sessionGroups = new SessionGroups(this);
     readonly autoCompact = new AutoCompact(this);
+    /** compact_self, the compact reminder, and compacting before the cache expires (PP-473, `self-compact.ts`). */
+    readonly selfCompact = new SelfCompact(this);
     /** The app's `gh` and `git` signed in to GitHub (`github-login.ts`). */
     readonly github = new GitHubLogin();
     /** The app's SSH keys, for machines (`ssh-keys.ts`). */
@@ -1608,6 +1611,7 @@ export class PocketApp {
             wikiCapture: this.paraCapture,
             setWikiRerankModel: (model) => this.#setWikiRerankModel(model),
             goals: this.goals,
+            selfCompact: this.selfCompact,
             text: Object.freeze({ quoted, defang }),
             thinkingLevels: THINKING_LEVELS,
         };
@@ -1902,12 +1906,17 @@ export class PocketApp {
                     this.providers.runAnswered(ranOn);
                 }
 
-                // Its context past the session's auto-compact percentage (PP-78): it compacts.
+                // A summary Pi wrote for compact_self compacts it now (PP-473); otherwise its context past the session's
+                // auto-compact percentage (PP-78) does.
                 if (change.value.status === "done") {
-                    const ref = this.#agents.get(change.value.conversationId)?.model;
+                    const ended = change.value.conversationId;
+                    const ref = this.#agents.get(ended)?.model;
                     const window = ref === undefined ? undefined : this.models.getModel(ref.provider, ref.modelId)?.contextWindow;
 
-                    void this.autoCompact.afterRun(change.value.conversationId, window).catch((error: unknown) => this.log(`auto-compact: ${describe(error)}`));
+                    void this.selfCompact
+                        .afterRun(ended)
+                        .then((compacting) => (compacting ? undefined : this.autoCompact.afterRun(ended, window)))
+                        .catch((error: unknown) => this.log(`auto-compact: ${describe(error)}`));
                 }
 
                 // A run spent some of its account's plan: its figures are asked again (`usage-limits.ts`).
@@ -4600,6 +4609,8 @@ export class PocketApp {
                 sessionSendLimit: this.config.sessionSendLimit,
                 // When sessions compact by themselves: a percentage, or "full" (`auto-compact.ts`).
                 compactAt: this.config.compactAt,
+                // compact_self, the compact reminder's share, and compacting before the cache expires (PP-473).
+                selfCompact: this.config.selfCompact,
                 // What of the wiki, secrets, and skills goes into every session's prompt (`context-policy.ts`).
                 contextPolicy: resolveContextPolicy(this.config.contextPolicy, undefined),
                 // How Pi calls its tools in every session: on, or only from codemode scripts (PP-379).
@@ -6969,6 +6980,7 @@ export class PocketApp {
             builtIn: [
                 { id: "wikiCapture", setting: "wiki.captureMinutes", minutes: this.config.wikiCaptureMinutes },
                 { id: "autoCompact", setting: "sessions.compactAt", at: this.config.compactAt },
+                { id: "compactBeforeExpiry", setting: "sessions.compactBeforeExpiry", on: this.config.selfCompact.beforeExpiry },
                 { id: "askBeforeRisky", setting: null },
             ],
         };
@@ -7053,6 +7065,17 @@ export class PocketApp {
                 meta.browserRunModel = model as string;
             }
         }, context);
+    }
+
+    /** Self-compaction for every session (PP-473): `tool`, `remindAt` or `beforeExpiry`. The owner's. */
+    async setSelfCompact(user: User, part: unknown, value: unknown): Promise<void> {
+        this.selfCompact.set(user, String(part), value);
+        await this.#refreshClients();
+    }
+
+    /** A session's board tasks in `states` (PP-473: what its self-compaction keeps). */
+    boardTasksOf(conversationId: string, states: readonly TaskState[]): Task[] {
+        return this.#boardsStore().tasksOfSession(conversationId, states);
     }
 
     /** When every session compacts by itself (PP-78): a percentage, or "full". The owner's. */

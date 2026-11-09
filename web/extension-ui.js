@@ -60,6 +60,7 @@ export function moduleTitle(title) {
         "Agent Teams": t("Agent Teams"),
         "Scheduled messages": t("Scheduled messages"),
         "Done when": t("Done when"),
+        "Compact while waiting": t("Compact while waiting"),
         "Plan mode": t("Plan mode"),
         "Lancet Guard": t("Lancet Guard"),
         Codemode: t("Codemode"),

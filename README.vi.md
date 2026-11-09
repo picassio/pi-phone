@@ -90,6 +90,18 @@ dự án thật.</sub>
 - **Tự nén khi bạn muốn.** Một phiên tự nén ngữ cảnh ngay trước giới hạn của mô hình; có thể sớm hơn, ở một tỉ lệ ngữ
   cảnh bạn chọn (10–95%), cho mọi phiên hoặc một phiên (Menu › Nén ngữ cảnh). Thước đo ngữ cảnh đánh dấu vị trí đó. Pi
   đổi được cả hai qua một thẻ (`sessions.compactAt`, `sessions.sessionCompactAt`).
+- **Phiên đang chờ không phải trả tiền cho bộ nhớ đệm nguội.** Một phiên giao việc rồi chờ (subagent, phiên khác, lượt
+  chạy CI, lịch hẹn) mất bộ nhớ đệm prompt sau 5 phút, và lúc thức dậy phải ghi lại toàn bộ ngữ cảnh. Pi có thể tự nén
+  phiên trước đó bằng `compact_self`: khi lượt của Pi kết thúc, app hỏi Pi bản tóm tắt ngay trong lượt chạy đó (đọc từ
+  bộ nhớ đệm còn nóng, bằng một phần hai mươi giá đầu vào), rồi nén. Bản tóm tắt giữ những gì app đọc từ trạng thái của chính nó:
+  phiên đang chờ gì, các task trên bảng đang làm, các tệp đã đọc và đã sửa, và tin nhắn cuối một người viết, nguyên văn.
+  Bản ghi hiện mỗi lần là "Đã nén: lý do, token trước → sau, chi phí, tiết kiệm khoảng …", và **Chi tiêu** liệt kê
+  chúng cùng số tiết kiệm (chi phí ghi bộ nhớ đệm mà lần thức dậy nguội sẽ tốn, trừ lần nén và lần ghi ngữ cảnh nhỏ
+  hơn). Hook **Nhắc nén khi chờ** báo Pi, mỗi lần chờ một lần, Pi đang chờ gì và mỗi cách tốn bao nhiêu khi ngữ cảnh
+  vượt một tỉ lệ của cửa sổ (mặc định 40%), và Pi quyết định. **Nén trước khi bộ nhớ đệm prompt hết hạn** (mặc định
+  tắt) làm việc đó không cần hỏi: phiên đang chờ mà rảnh 4,5 phút sẽ tự nén, trừ khi có báo cáo đến trước. Cả ba ở
+  Menu › Nén ngữ cảnh (Pi: `sessions.compactSelf`, `sessions.compactRemindAt`, `sessions.compactBeforeExpiry`). Không
+  áp dụng cho subagent: câu trả lời cuối của subagent là báo cáo của nó.
 - **Prompt không làm đầy ngữ cảnh.** Phần chữ trong prompt của Pi mà thay đổi sẽ được gửi lại, và mỗi bản ở lại cho
   tới khi phiên nén. Vì vậy mặc định chỉ mục của wiki không nằm trong prompt: một phần wiki ngắn, cố định, và Pi tự tìm
   trong wiki bằng `wiki_query` khi cần (hoặc, nếu bạn chọn relevant, các trang khớp với từng tin nhắn đi kèm tin nhắn
@@ -410,8 +422,11 @@ dự án thật.</sub>
   app gửi Pi một tin nhắn tiếp theo nêu các tệp đó và yêu cầu kiểm tra ở 390, 1280 và 1920 px, hoặc nói vì sao không;
   mỗi lượt một lần, cả trong subagent, và phiên hiện tin đó là do hook gửi. Tệp dùng rồi bỏ không tính: tệp trong thư
   mục tạm (`/tmp`, `~/tmp`, và trên điện thoại `$TMPDIR`; trên máy, thư mục tạm của máy đó) hoặc trong thư mục
-  `fixtures`, `__fixtures__` hay `test-fixtures`. Bên cạnh là các hành vi tự động có cài
-  đặt riêng (ghi phiên không hoạt động vào wiki, nén ngữ cảnh đầy) cùng giá trị hiện tại của chúng.
+  `fixtures`, `__fixtures__` hay `test-fixtures`. **Nhắc nén khi chờ**: khi một lượt kết thúc trong lúc phiên chờ việc
+  và ngữ cảnh vượt tỉ lệ đặt trong Nén ngữ cảnh, Pi nhận một tin nhắn tiếp theo mỗi lần chờ, nêu Pi đang chờ gì, cỡ ngữ
+  cảnh, và chi phí thức dậy nguội so với nén ngay (`compact_self`); không bao giờ ngay sau khi nén. Bên cạnh là các hành
+  vi tự động có cài đặt riêng (ghi phiên không hoạt động vào wiki, nén ngữ cảnh đầy, nén trước khi bộ nhớ đệm prompt
+  hết hạn) cùng giá trị hiện tại của chúng.
 - **Hình ảnh.** `image_generate` tạo và sửa hình ảnh (sửa tối đa năm hình một lần; tạo 1 đến 4 hình; 1:1, 16:9,
   9:16, 4:3 hoặc 3:4) bằng mô hình bạn chọn ở **Menu › Hình ảnh** (`image.model`): GPT Image 2.5 qua đăng nhập
   ChatGPT (tính vào gói, Chi phí đếm số hình), một mô hình hình ảnh của OpenRouter như Nano Banana
@@ -934,6 +949,7 @@ hiện tại và giá trị mới. Hỏi “bạn đổi được những gì?�
 | Tiện ích (Dự án, Wiki, Trình duyệt của Pi, Thiết kế & video, Kiểm chứng hình thức, Trình tạo tiện ích, …) | **Tiện ích** | “Bật Dự án”, “Tắt Thiết kế & video” |
 | Chi tiêu và giới hạn | **Chi tiêu** | “Giới hạn phiên này ở $5” |
 | Khi nào phiên tự nén | **Menu › Nén ngữ cảnh**, cho phiên này hoặc mọi phiên | “Nén phiên này ở 60%” |
+| Nén khi phiên đang chờ (`compact_self`, tỉ lệ của lời nhắc, trước khi bộ nhớ đệm hết hạn) | **Menu › Nén ngữ cảnh** | “Nén các phiên đang chờ trước khi bộ nhớ đệm hết hạn” |
 | Wiki, bí mật và kỹ năng nào vào prompt | **Menu › Nén ngữ cảnh** | “Đưa lại chỉ mục wiki vào prompt của phiên này” |
 | Thiết bị và người khác | **Truy cập** (Tailscale), **Mọi người** (thiết bị, lời mời, mã khôi phục) | Có với liệt kê thiết bị, đăng xuất một hoặc tất cả, hoặc đổi vai trò của một người. Mã khôi phục là việc của bạn |
 | Thông báo đẩy trong trình duyệt | **Thông báo**: Bật, Gửi thử, Gỡ trình duyệt khác | Không: trình duyệt tự hỏi bạn, trên thiết bị đó |

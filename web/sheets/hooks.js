@@ -19,6 +19,11 @@ const TEXTS = {
         does: t("Sends Pi one follow-up naming the UI files it changed after its last screenshot, asking it to check them at 390, 1280 and 1920 px or say why not. Files in temp and test fixture folders are skipped."),
         when: t("When Pi ends a turn with UI files edited after its last check; once a turn, subagents too."),
     }),
+    compactReminder: () => ({
+        title: t("Remind to compact while waiting"),
+        does: t("Tells Pi what its session waits on, how full its context is, and what a wake-up after the prompt cache expires would cost against compacting now, so it can call compact_self."),
+        when: t("When a turn ends while the session waits on subagents, other sessions, CI runs or schedules, with its context past the share set in Compact context; once a wait, never right after a compaction."),
+    }),
 };
 
 /** Each built-in behaviour's words, in the person's language. */
@@ -27,6 +32,10 @@ const BUILT_IN = {
     autoCompact: () => ({
         title: t("Compact a full context"),
         does: t("Summarizes a session's older messages once its context passes the set share of the model's window. Set it in a session's menu › Compact context."),
+    }),
+    compactBeforeExpiry: () => ({
+        title: t("Compact before the prompt cache expires"),
+        does: t("A session idle while it waits on work, its context past the reminder's share, compacts itself just before its prompt cache expires. Set it in a session's menu › Compact context."),
     }),
     // PP-455: no switch, as one would be a way to pay without asking.
     askBeforeRisky: () => ({
@@ -39,6 +48,10 @@ const BUILT_IN = {
 function builtInState(item) {
     if (item.id === "askBeforeRisky") {
         return { tone: "ok", label: t("Always on") };
+    }
+
+    if (item.id === "compactBeforeExpiry") {
+        return item.on ? { tone: "ok", label: t("On") } : { tone: "off", label: t("Off") };
     }
 
     if (item.id === "wikiCapture") {

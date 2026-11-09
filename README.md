@@ -85,6 +85,19 @@ No Termux, no laptop, no cloud VM.
 - **Auto-compact when you want.** A session compacts its context by itself just before the model's limit; it can
   happen sooner, at a percentage of the context you pick (10–95%), for every session or one (Menu › Compact context).
   The context meter marks where. Pi changes both on a card (`sessions.compactAt`, `sessions.sessionCompactAt`).
+- **A waiting session stops paying for a cold cache.** A session that hands work out and waits (subagents, other
+  sessions, CI runs, schedules) loses its prompt cache after 5 minutes, and the wake-up writes its whole context again.
+  Pi can compact its own session first, with `compact_self`: when its turn ends, the app asks it for the summary in the
+  same run (read from the warm cache, a twentieth of the input price), then compacts. The summary keeps what the app reads
+  from its own state: what the session waits on, its board tasks in progress, the files read and changed, and the last
+  message a person wrote, word for word. The transcript shows each one as "Compacted: why, tokens before → after, cost,
+  saved about …", and **Spend** lists them with what they saved (the cache write a cold wake-up would have cost, less
+  the compaction and the smaller context's own write). The hook **Remind to compact while waiting** tells Pi, once a
+  wait, what it waits on and what each way costs once its context passes a share of the window (40% by default), and
+  Pi decides. **Compact before the prompt cache expires** (off by default) does it without asking: a waiting session
+  idle 4.5 minutes compacts itself, unless a report comes first. All three are in Menu › Compact context (Pi:
+  `sessions.compactSelf`, `sessions.compactRemindAt`, `sessions.compactBeforeExpiry`). Not in subagents: a subagent's
+  final answer is its report.
 - **A prompt that does not fill the context.** Text in Pi's prompt that changes is sent again, and each copy stays until
   the session compacts. So by default the wiki's index stays out: a short, fixed wiki section, and Pi searches the wiki
   with `wiki_query` when it needs to (or, if you pick relevant, the pages that match each of your messages come with
@@ -402,8 +415,11 @@ No Termux, no laptop, no cloud VM.
   one follow-up naming them and asking it to check them at 390, 1280 and 1920 px, or say why not; once a turn, in
   subagents too, and the session shows it as sent by the hook. Throwaway files do not count: those under a temp folder
   (`/tmp`, `~/tmp`, and on the phone `$TMPDIR`; on a machine, its own) or a `fixtures`, `__fixtures__` or
-  `test-fixtures` folder. Beside them, the automatic behaviours that keep
-  settings of their own (capturing idle sessions into the wiki, compacting a full context) show their value now.
+  `test-fixtures` folder. **Remind to compact while waiting**: when a turn ends while the session waits on work and its
+  context is past the share set in Compact context, Pi gets one follow-up a wait with what it waits on, the context's
+  size, and a cold wake-up's cost against compacting now (`compact_self`); never right after a compaction. Beside them,
+  the automatic behaviours that keep settings of their own (capturing idle sessions into the wiki, compacting a full
+  context, compacting before the prompt cache expires) show their value now.
 - **Images.** `image_generate` makes and edits images (up to five to edit at once; 1 to 4 at a time; 1:1, 16:9, 9:16,
   4:3 or 3:4) with the model you pick in **Menu › Images** (`image.model`): GPT Image 2.5 on your ChatGPT sign-in (on
   the plan, counted in Spend as images), an OpenRouter image model such as Nano Banana (`google/gemini-*-image`; its
@@ -909,6 +925,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | Extensions (Projects, Wiki, Pi's browser, Design & video, Formal checks, Extension builder, …) | **Extensions** | "Turn on Projects", "Turn off Design & video" |
 | Spend and limits | **Spend** | "Limit this session to $5" |
 | When sessions compact by themselves | **Menu › Compact context**, for this session or every session | "Compact this session at 60%" |
+| Compacting while a session waits (`compact_self`, the reminder's share, before the cache expires) | **Menu › Compact context** | "Compact waiting sessions before their cache expires" |
 | What of the wiki, secrets and skills goes into the prompt | **Menu › Compact context** | "Put the wiki's index back in this session's prompt" |
 | Other devices and people | **Access** (Tailscale), **People** (devices, invites, recovery code) | Yes for listing devices, signing one or all out, or changing a person's role. The recovery code is yours |
 | Push notifications in a browser | **Notifications**: Turn on, Send a test, Remove another browser's | No: a browser asks you itself, on that device |

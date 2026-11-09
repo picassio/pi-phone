@@ -87,9 +87,9 @@ test("Pi lists the hooks with settings and turns one off with setting_change, af
 test("Settings › Hooks: the API lists and switches the hooks, with the built-in behaviours; the owner's choice is kept", async () => {
     const listed = (await (await call("hooks")).json()) as { hooks: { id: string; on: boolean; default: boolean; title: string }[]; builtIn: { id: string; setting: string | null }[] };
 
-    assert.deepEqual(listed.hooks.map((hook) => [hook.id, hook.on, hook.default]), [["artifactCheck", true, true], ["uiReminder", true, true]]);
+    assert.deepEqual(listed.hooks.map((hook) => [hook.id, hook.on, hook.default]), [["artifactCheck", true, true], ["uiReminder", true, true], ["compactReminder", true, true]]);
     // Ask before paying (PP-455): listed, with no setting: it cannot be turned off.
-    assert.deepEqual(listed.builtIn.map((item) => [item.id, item.setting]), [["wikiCapture", "wiki.captureMinutes"], ["autoCompact", "sessions.compactAt"], ["askBeforeRisky", null]]);
+    assert.deepEqual(listed.builtIn.map((item) => [item.id, item.setting]), [["wikiCapture", "wiki.captureMinutes"], ["autoCompact", "sessions.compactAt"], ["compactBeforeExpiry", "sessions.compactBeforeExpiry"], ["askBeforeRisky", null]]);
 
     const off = (await (await call("hooks/artifactCheck", { method: "PUT", body: JSON.stringify({ on: false }) })).json()) as typeof listed;
 
@@ -105,7 +105,7 @@ test("Settings › Hooks: the API lists and switches the hooks, with the built-i
     const unknown = await call("hooks/everything", { method: "PUT", body: JSON.stringify({ on: false }) });
 
     assert.equal(unknown.status, 404);
-    assert.match(((await unknown.json()) as { error: string }).error, /No hook everything: the hooks are artifactCheck, uiReminder/);
+    assert.match(((await unknown.json()) as { error: string }).error, /No hook everything: the hooks are artifactCheck, uiReminder, compactReminder/);
     assert.equal((await call("hooks/uiReminder", { method: "PUT", body: JSON.stringify({ on: "yes" }) })).status, 400);
     assert.throws(() => app.setHook({ ...owner(app), role: "viewer" }, "uiReminder", false), /Only the owner/);
     assert.throws(() => app.hooksView({ ...owner(app), role: "guest" }), /Only the owner/);

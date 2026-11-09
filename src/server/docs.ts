@@ -406,6 +406,8 @@ export const SpendDoc = defineDoc<{
     voice?: Record<string, VoiceDay>;
     /** Images made with the ChatGPT sign-in (PP-275) by day (`YYYY-MM-DD`): the plan pays for them, so a count. */
     images?: Record<string, number>;
+    /** Self-compactions (PP-473, `self-compact.ts`): how many, what they cost and saved in all, and the newest ones. */
+    selfCompactions?: { count: number; cost: number; saved: number; recent: SelfCompaction[] };
 }>({
     kind: "pocket.spend",
     version: 1,
@@ -565,6 +567,51 @@ export const ReviewLoopDoc = defineDoc<ReviewLoopState>({
     history: "latest",
     fork: "current",
     initial: () => ({ comments: [] }),
+});
+
+/** Why a session compacted itself (PP-473): Pi chose to (`compact_self`), or its cache was about to expire. */
+export type SelfCompactReason = "pi" | "expiry";
+
+/**
+ * One self-compaction (PP-473): the context before and after, in tokens; what it cost (the summary turn); what it saved
+ * (`savingOf`); the compaction entry it placed, for the transcript's line.
+ */
+export type SelfCompaction = {
+    session: number;
+    entry: number;
+    at: number;
+    reason: SelfCompactReason;
+    before: number;
+    after: number;
+    cost: number;
+    saving: number;
+    /** The summary request's prompt: read from the warm cache, and written (new tokens and uncached input). */
+    read: number;
+    written: number;
+    model: string;
+};
+
+/**
+ * A session's self-compaction (PP-473, `self-compact.ts`): one asked for and waiting for its turn to end (`queued`), the
+ * summary turn under way (`asked`), the summary written and waiting for the run to end (`ready`), the wait the compact
+ * reminder went out for (`reminded`), and the compactions done here (`done`, newest last). A fork starts without them.
+ */
+export type SelfCompactState = {
+    queued?: { reason: SelfCompactReason; focus?: string; at: number };
+    asked?: { reason: SelfCompactReason; focus?: string; at: number };
+    ready?: { reason: SelfCompactReason; summary: string; before: number; cost: number; read: number; written: number; model: string; at: number };
+    reminded?: string;
+    done: SelfCompaction[];
+};
+
+export const SelfCompactDoc = defineDoc<SelfCompactState>({
+    kind: "phone.self-compact",
+    version: 1,
+    ...rebased,
+    scope: "conversation",
+    history: "latest",
+    fork: "initial",
+    initial: () => ({ done: [] }),
 });
 
 export const CiWatchesDoc = defineDoc<{ items: Record<string, CiWatch> }>({

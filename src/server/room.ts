@@ -40,6 +40,8 @@ import {
     CiWatchesDoc,
     type CiWatch,
     ReactionsDoc,
+    SelfCompactDoc,
+    type SelfCompaction,
     type SubagentRecord,
     STOPPED,
     SubagentsDoc,
@@ -85,6 +87,7 @@ export const ROOM_DOCS = new Set(
         GoalDoc,
         GuideDoc,
         CiWatchesDoc,
+        SelfCompactDoc,
     ].map((doc) => doc.definition.kind),
 );
 /** A typing indicator lasts this long unless the browser renews it. */
@@ -372,6 +375,8 @@ export class Room {
     guide: { items: GuideItem[]; finished: boolean } | undefined;
     /** The GitHub Actions runs this conversation watches (`extensions/ci-watch.ts`). */
     ciWatches: Record<string, CiWatch> = {};
+    /** The self-compactions done here (PP-473): the transcript's line on each compaction they placed. */
+    selfCompactions: SelfCompaction[] = [];
     /** Who is typing where, by user id. Memory only: it means nothing after a restart. */
     readonly #typing = new Map<string, { where: TypingPlace; timer: NodeJS.Timeout }>();
     parent: { id: ConversationId; title: string } | undefined;
@@ -451,6 +456,7 @@ export class Room {
         this.goal = (await harness.snapshot(GoalDoc, this.id, context))?.goal;
         this.guide = guideOf(await harness.snapshot(GuideDoc, this.id, context));
         this.ciWatches = { ...((await harness.snapshot(CiWatchesDoc, this.id, context))?.items ?? {}) };
+        this.selfCompactions = [...((await harness.snapshot(SelfCompactDoc, this.id, context))?.done ?? [])];
 
         if (owner !== undefined) {
             const siblings =
@@ -524,6 +530,8 @@ export class Room {
             this.guide = guideOf(value as { items?: GuideItem[]; finished?: boolean } | null);
         } else if (kind === CiWatchesDoc.definition.kind) {
             this.ciWatches = { ...((value?.items as Record<string, CiWatch>) ?? {}) };
+        } else if (kind === SelfCompactDoc.definition.kind) {
+            this.selfCompactions = [...((value?.done as SelfCompaction[] | undefined) ?? [])];
         }
 
         if (kind === AuthorsDoc.definition.kind) {
@@ -728,6 +736,8 @@ export class Room {
                     startedAt,
                 }),
             ),
+            // The transcript's line on each self-compaction (PP-473): by the compaction entry it placed.
+            selfCompactions: this.selfCompactions.map(({ entry, reason, before, after, cost, saving }) => ({ entry, reason, before, after, cost, saving })),
             // The branch is read from the repository each time, so one Pi or a person switched to shows on the next update.
             branch: this.#readHead(),
         };

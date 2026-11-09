@@ -415,6 +415,36 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             },
             apply: (user, value, target) => app.setSessionCompactAt(session(target), user, value),
         },
+        // ─── Self-compaction (PP-473) ───
+        {
+            id: "sessions.compactSelf",
+            area: "sessions",
+            title: "Pi may compact its own session (compact_self)",
+            help: "For every session: on (the default) or off. While a session waits long on work, Pi compacts it while the prompt cache is warm, so the wake-up costs less. Menu › Compact context.",
+            owner: true,
+            read: () => (app.config.selfCompact.tool ? "on" : "off"),
+            choices: () => ["on", "off"],
+            apply: (user, value) => app.setSelfCompact(user, "tool", onOff(value)),
+        },
+        {
+            id: "sessions.compactRemindAt",
+            area: "sessions",
+            title: "From what share of the context the compact reminder speaks up",
+            help: "For every session: a whole percentage of the model's window, 10 to 95 (40, the default). The hook hooks.compactReminder, and compacting before the cache expires, use it. Menu › Compact context.",
+            owner: true,
+            read: () => String(app.config.selfCompact.remindAt),
+            apply: (user, value) => app.setSelfCompact(user, "remindAt", value),
+        },
+        {
+            id: "sessions.compactBeforeExpiry",
+            area: "sessions",
+            title: "Compact a waiting session before its prompt cache expires",
+            help: "For every session: on or off (the default). On: a session idle while it waits on work, its context past sessions.compactRemindAt, compacts itself just before its prompt cache expires; a report that comes first cancels it. Menu › Compact context.",
+            owner: true,
+            read: () => (app.config.selfCompact.beforeExpiry ? "on" : "off"),
+            choices: () => ["on", "off"],
+            apply: (user, value) => app.setSelfCompact(user, "beforeExpiry", onOff(value)),
+        },
         // What of the wiki, secrets, and skills goes into the prompt (PP-276): every session's, and one session's own.
         ...CONTEXT_PARTS.flatMap((part): Setting[] => [
             {

@@ -409,7 +409,11 @@ function UserEntry({ entry, view, users }) {
           ? null
           : via?.[1] === "hook ui-reminder"
             ? t("the hook {name}", { name: t("Remind to check UI before finishing") })
-            : via?.[1];
+            : via?.[1] === "hook compact-reminder"
+              ? t("the hook {name}", { name: t("Remind to compact while waiting") })
+              : via?.[1] === "compact-self"
+                ? t("compacting this session")
+                : via?.[1];
     // Your own messages take the accent; someone else's, their color; one from someone the app does not know (a name
     // the message carries, the main agent, Pi's own schedule), a quiet one.
     const mark =
@@ -2802,6 +2806,24 @@ function Reply({ item, conversationId }) {
     </div>`;
 }
 
+/** Tokens as people read them: 152k. */
+const kTokens = (tokens) => t("{n}k", { n: Math.round(tokens / 1000) });
+/** Dollars with a tenth of a cent under ten cents: $0.034; nothing is $0.00. */
+const usd = (amount) => `${amount < 0 ? "−" : ""}$${Math.abs(amount).toFixed(amount !== 0 && Math.abs(amount) < 0.1 ? 3 : 2)}`;
+
+/** "Compacted: Pi chose to while waiting, 152k → 31k tokens, $0.09, saved about $0.66" (PP-473). */
+function selfCompactedLine(record) {
+    const reason = record.reason === "pi" ? t("Pi chose to while waiting") : t("the prompt cache was about to expire");
+
+    return t("Compacted: {reason}, {before} → {after} tokens, {cost}, saved about {saving}", {
+        reason,
+        before: kTokens(record.before),
+        after: kTokens(record.after),
+        cost: usd(record.cost),
+        saving: usd(record.saving),
+    });
+}
+
 function Divider({ entry }) {
     const [open, setOpen] = useState(false);
 
@@ -2825,9 +2847,12 @@ function Divider({ entry }) {
         </div>`;
     }
 
-    return html`<div class="divider">
+    // A self-compaction (PP-473, src/server/self-compact.ts): why, the context before and after, its cost and saving.
+    const self = (store.state.view.selfCompactions ?? []).find((each) => each.entry === entry.id);
+
+    return html`<div class="divider" data-part=${self ? "self-compaction" : undefined}>
         <button class="link" onClick=${() => setOpen(!open)}>
-            ${t("Context compacted")} <${Icon} name="chevron" size=${16} class=${`chev ${open ? "open" : ""}`} />
+            ${self ? selfCompactedLine(self) : t("Context compacted")} <${Icon} name="chevron" size=${16} class=${`chev ${open ? "open" : ""}`} />
         </button>
         ${open && html`<div class="divider-body"><${Markdown} text=${entry.summary} /></div>`}
     </div>`;

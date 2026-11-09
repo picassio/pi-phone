@@ -56,6 +56,8 @@ export const DEFERRED_TOOLS: readonly string[] = [
     "session_group_order",
     "session_group_move",
     "session_group_delete",
+    // A session compacting itself while it waits (PP-473): the compact reminder names it.
+    "compact_self",
     // Pi in a machine's terminal.
     "pi_sessions",
     "pi_session_import",

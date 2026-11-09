@@ -8,7 +8,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { type ConversationId, UsageDoc, type UsageState } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
-import { SessionsDoc, SpendDoc, type VoiceDay, type WikiSpend } from "./docs.ts";
+import { type SelfCompaction, SessionsDoc, SpendDoc, type VoiceDay, type WikiSpend } from "./docs.ts";
 import { describe, HttpError } from "./errors.ts";
 import { teamUsageCost, usageCost } from "./projection.ts";
 
@@ -18,6 +18,11 @@ const context = BACKGROUND_CONTEXT;
 const COUNT_AFTER_MS = 250;
 
 export const dollars = (amount: number) => `$${amount.toFixed(2)}`;
+
+/** Self-compactions as `SpendDoc` keeps them (PP-473). */
+export type SelfCompactions = { count: number; cost: number; saved: number; recent: SelfCompaction[] };
+/** The newest self-compactions Spend lists. */
+const SPEND_SELF_COMPACTIONS = 20;
 
 /** Two counts of the wiki's embeddings as one: summed, and since the earlier. */
 function addWiki(a: WikiSpend | undefined, b: WikiSpend | undefined): WikiSpend | undefined {
@@ -37,6 +42,8 @@ export type SpendSummary = {
     voice?: { today: VoiceDay; month: VoiceDay; limit: number | null };
     /** Images made with the ChatGPT sign-in (PP-275): counted on the ChatGPT plan, not in dollars; only the owner sees it. */
     images?: { today: number; month: number };
+    /** Self-compactions (PP-473): their count, cost and saving in all, and the newest; only the owner sees them. */
+    selfCompactions?: { count: number; cost: number; saved: number; recent: (SelfCompaction & { title: string })[] };
     sessions: { id: number; title: string; spent: number; budget?: number }[];
     /** Everyone for the owner; others see themselves. */
     people: { id: string; name: string; spent: number; budget?: number }[];
@@ -66,6 +73,8 @@ export class Spend {
     #voice: Record<string, VoiceDay> = {};
     /** Images made on the ChatGPT plan by day, as stored and counted since (`codexImagesMade`). */
     #images: Record<string, number> = {};
+    /** Self-compactions (PP-473): how many, their cost and saving, and the newest (`SpendDoc.selfCompactions`). */
+    #selfCompactions: SelfCompactions | undefined;
     /** The voice and image counts' writes, in order. */
     #voiceWrites: Promise<void> = Promise.resolve();
 
@@ -524,6 +533,20 @@ export class Spend {
             ...(owner ? { total } : {}),
             ...(owner && wiki !== undefined ? { wiki } : {}),
             ...(owner ? { voice: this.voiceSummary(), images: this.imagesSummary() } : {}),
+            // Each self-compaction's cost and saving (PP-473), the newest first, with its session's title.
+            ...(owner && this.#selfCompactions !== undefined
+                ? {
+                      selfCompactions: {
+                          count: this.#selfCompactions.count,
+                          cost: this.#selfCompactions.cost,
+                          saved: this.#selfCompactions.saved,
+                          recent: this.#selfCompactions.recent
+                              .slice(-SPEND_SELF_COMPACTIONS)
+                              .reverse()
+                              .map((each) => ({ ...each, title: app.sessionMeta(each.session as unknown as ConversationId)?.title ?? "New session" })),
+                      },
+                  }
+                : {}),
             sessions: sessions.sort((a, b) => b.spent - a.spent),
             people: people.sort((a, b) => b.spent - a.spent),
         };
@@ -611,6 +634,12 @@ export class Spend {
 
         this.#voice = { ...stored?.voice };
         this.#images = { ...stored?.images };
+        this.#selfCompactions = stored?.selfCompactions;
+    }
+
+    /** Self-compactions as stored now (PP-473): `SelfCompact` stores each, then tells Spend. */
+    selfCompacted(all: SelfCompactions): void {
+        this.#selfCompactions = all;
     }
 
     /** Until every voice and image count is stored. */

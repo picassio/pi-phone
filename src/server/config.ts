@@ -21,6 +21,15 @@ import { readVoice, readVoiceCheck, storedVoice, type VoiceCheck, type VoiceSett
 /** The repository root: `web/`, `src/`, and `node_modules/` live here. */
 export const APP_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
+/**
+ * Self-compaction (PP-473, `self-compact.ts`), for every session: whether Pi may call compact_self (`tool`), the share of
+ * the model's window from which the compact reminder speaks up (`remindAt`, a percentage), and whether a waiting session
+ * compacts by itself just before its prompt cache expires (`beforeExpiry`).
+ */
+export type SelfCompactSettings = { tool: boolean; remindAt: number; beforeExpiry: boolean };
+
+export const SELF_COMPACT_DEFAULTS: SelfCompactSettings = { tool: true, remindAt: 40, beforeExpiry: false };
+
 /** Where Pi Pocket keeps its database, users, uploads, and logs. */
 export function dataDir(): string {
     return process.env.PI_POCKET_DIR ?? join(homedir(), ".pi-pocket");
@@ -250,6 +259,8 @@ interface PocketConfig {
     browserChromeFeatures?: string[];
     /** The hooks the owner turned away from their defaults (PP-419, `hooks.ts`), by id. Absent: each hook's default. */
     hooks?: Partial<Record<HookId, boolean>>;
+    /** Self-compaction (PP-473, `self-compact.ts`): only what differs from `SELF_COMPACT_DEFAULTS`. */
+    selfCompact?: Partial<SelfCompactSettings>;
     /** How Pi calls its tools in every session (PP-379, `context-policy.ts`): "only" from codemode scripts. Absent: on. */
     codemodeMode?: CodemodeMode;
     /** Whether people may keep artifacts as pages on their rail (PP-370, `kept-pages.ts`). Absent: on. */
@@ -834,6 +845,28 @@ export class ConfigStore {
 
     get browserEval(): boolean {
         return this.#config.browserEval ?? true;
+    }
+
+    /** Self-compaction's settings for every session (PP-473): the owner's choices over the defaults. */
+    get selfCompact(): SelfCompactSettings {
+        return { ...SELF_COMPACT_DEFAULTS, ...this.#config.selfCompact };
+    }
+
+    /** One of them; a default is kept as no entry. */
+    setSelfCompact<K extends keyof SelfCompactSettings>(part: K, value: SelfCompactSettings[K]): void {
+        const own: Partial<SelfCompactSettings> = { ...this.#config.selfCompact, [part]: value };
+
+        if (value === SELF_COMPACT_DEFAULTS[part]) {
+            delete own[part];
+        }
+
+        if (Object.keys(own).length === 0) {
+            delete this.#config.selfCompact;
+        } else {
+            this.#config.selfCompact = own;
+        }
+
+        this.save();
     }
 
     /** Whether a hook runs (Settings › Hooks, PP-419): the owner's choice, else its default. */

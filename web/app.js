@@ -930,6 +930,8 @@ const LINKED_SHEETS = new Set([
     "dictation",
     // `/s/<id>?sheet=library-session`: that session's Skills & commands (PP-467).
     "library-session",
+    // `/s/<id>?sheet=compact`: that session's Compact context (PP-473).
+    "compact",
     "extensions",
     "github",
     "machines",

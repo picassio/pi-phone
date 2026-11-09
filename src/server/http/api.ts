@@ -1876,6 +1876,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 sessionSendLimit?: unknown;
                 wikiCaptureMinutes?: unknown;
                 compactAt?: unknown;
+                selfCompact?: unknown;
                 contextPolicy?: unknown;
                 codemodeMode?: unknown;
                 subagentDefault?: unknown;
@@ -1896,6 +1897,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                     body.sessionSendLimit,
                     body.wikiCaptureMinutes,
                     body.compactAt,
+                    body.selfCompact,
                     body.contextPolicy,
                     body.codemodeMode,
                     body.subagentDefault,
@@ -1930,6 +1932,13 @@ export function createApi(options: HttpOptions, auth: Auth) {
             // When sessions compact by themselves (PP-78).
             if (body.compactAt !== undefined) {
                 await app.setCompactAt(user, body.compactAt);
+            }
+
+            // compact_self, the compact reminder's share, and compacting before the cache expires (PP-473): { part, value }.
+            if (body.selfCompact !== undefined) {
+                const { part, value } = (body.selfCompact ?? {}) as { part?: unknown; value?: unknown };
+
+                await app.setSelfCompact(user, part, value);
             }
 
             // What of the wiki, secrets, and skills goes into every session's prompt (PP-276): { part, mode }.

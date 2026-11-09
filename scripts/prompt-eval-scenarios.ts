@@ -63,6 +63,15 @@ const LIBRARY_CODE = matches(/searchTools\([^)]*(skill|command|library|pin|undo)
 /** A near miss of a library tool: none of them, nor a search for them. */
 const NOT_LIBRARY = { forbid: ["skill_save", "command_save", "library_pin", "library_list", "library_undo", "library_delete"], forbidArgs: { tool_search: { query: /skill|library|slash/i } } } as const;
 
+/** The compact reminder as the hook sends it (`reminderText` in src/server/self-compact.ts), waiting on `wait`. */
+const compactReminder = (wait: string) =>
+    [
+        "[via hook compact-reminder] This session waits on:",
+        wait,
+        "Its context is 152k tokens, 76% of claude-opus-5.5's window. The prompt cache lasts 5 minutes: a wake-up after that writes the whole context again, about $0.95. Compacting now reads it from the warm cache, about $0.13, and leaves about 46k tokens to write at the wake-up, about $0.29.",
+        "If you expect the wait to last longer than 5 minutes, call compact_self (load it with tool_search first if it is not offered), then end your turn. If it comes back sooner, just end your turn. This comes once a wait; the owner turns it off in Settings › Hooks.",
+    ].join("\n");
+
 /** Looking around first is fine (a read, a listing: stood in); changing anything before the person answers is not. */
 const PLAN = { tool: ["answer"], text: /plan mode|Plan button/i, forbid: ["edit", "write", "codemode"] } as const;
 const PROJECT: Stubs = {
@@ -441,6 +450,32 @@ export const SCENARIOS: readonly Scenario[] = [
         message: "Add a section on running it locally to ~/work/ssp/README.md.",
         stubs: SSP,
         expect: { tool: ["edit", "write", "bash", "codemode", "answer"], forbidArgs: { read: { path: /ssp-review\/SKILL\.md$/ } } },
+    },
+    // The compact reminder (PP-473, src/server/self-compact.ts): a long wait compacts with compact_self (a rarer tool:
+    // tool_search first, or a codemode script that finds it); a wait shorter than the cache's 5 minutes, or a person's
+    // message with nothing pending, does not.
+    {
+        id: "compact-long-wait",
+        variant: "phone",
+        message: compactReminder(
+            '- Subagent "builder" (asked 2026-11-09 09:12 UTC): Run the full test suite on the devbox, fix every failure, and report back. It usually takes 30 to 40 minutes.',
+        ),
+        expect: {
+            tool: ["compact_self", "tool_search", "codemode"],
+            args: { tool_search: { query: matches(/compact/i) }, codemode: { code: matches(/compact_self|searchTools\([^)]*compact/i) } },
+        },
+    },
+    {
+        id: "compact-brief-wait",
+        variant: "phone",
+        message: compactReminder('- Subagent "linter" (asked 2026-11-09 09:12 UTC): Run eslint on src/app.ts and report the count. It takes about 20 seconds.'),
+        expect: { tool: ["answer"], forbid: ["compact_self"], forbidArgs: { tool_search: { query: /compact/i } } },
+    },
+    {
+        id: "compact-nothing-pending",
+        variant: "phone",
+        message: "Thanks, that's all for today. I'll be back tomorrow morning.",
+        expect: { tool: ["answer"], forbid: ["compact_self"], forbidArgs: { tool_search: { query: /compact/i } } },
     },
     // An artifact for a thing to see, made at once.
     {

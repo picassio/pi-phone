@@ -805,5 +805,13 @@
     "{1} has no version {2}: it has {3}.": "{1} không có phiên bản {2}: nó có {3}.",
     "{1} is at its first kept version: there is nothing to undo.": "{1} đang ở phiên bản đầu tiên còn giữ: không còn gì để hoàn tác.",
     "On the rail is true or false.": "Trên thanh bên là true hoặc false.",
-    "Name the skill or command.": "Hãy nêu tên skill hoặc lệnh."
+    "Name the skill or command.": "Hãy nêu tên skill hoặc lệnh.",
+    "compact_self is on (true) or off (false).": "compact_self là bật (true) hoặc tắt (false).",
+    "Compacting before the cache expires is on (true) or off (false).": "Nén trước khi bộ nhớ đệm hết hạn là bật (true) hoặc tắt (false).",
+    "The compact reminder's share is a whole percentage from 10 to 95.": "Mức của lời nhắc nén là số phần trăm nguyên từ 10 đến 95.",
+    "Self-compaction's settings are tool, remindAt and beforeExpiry.": "Các thiết lập tự nén là tool, remindAt và beforeExpiry.",
+    "Self-compaction {1}{2}": "Tự nén {1}{2}",
+    "Self-compaction failed: {1}": "Tự nén thất bại: {1}",
+    "Not compacted: the summary turn gave no summary.": "Chưa nén: lượt tóm tắt không đưa ra bản tóm tắt.",
+    "Not compacted: a message came first.": "Chưa nén: có tin nhắn đến trước."
 }

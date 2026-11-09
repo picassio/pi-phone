@@ -13,6 +13,8 @@ const money = (amount) => {
 };
 const count = (n) => n.toLocaleString(undefined, n >= 100_000 ? { notation: "compact", maximumFractionDigits: 1 } : {});
 const day = (ms) => new Date(ms).toLocaleDateString(undefined, new Date(ms).getFullYear() === new Date().getFullYear() ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
+/** A saving, which may be negative when compacting did not pay. */
+const signed = (amount) => (amount < 0 ? `−${money(-amount)}` : money(amount));
 const largest = (rows) => rows.reduce((max, row) => Math.max(max, row.spent), 1);
 
 /** A spend limit, and (for the owner) a way to change it. */
@@ -178,6 +180,32 @@ export function SpendSheet() {
                     </div>
                 </div>
                 <p class="muted small">${t("Counted on your ChatGPT plan, not in the money above. Images from OpenRouter are in their session's spend.")}</p>
+            </div>`
+        }
+        ${
+            // Self-compactions (PP-473, src/server/self-compact.ts): what each cost, and what it saved against a cold wake-up.
+            data?.selfCompactions &&
+            html`<div class="group" data-part="spend-self-compactions">
+                <div class="group-title">${t("Compacting while waiting")}</div>
+                <div class="sheet-list">
+                    <div class="spend-row">
+                        <span class="grow">
+                            ${t("Saved in all")}
+                            <small class="muted spend-sub">${tn(data.selfCompactions.count, "{n} compaction · cost {cost}", "{n} compactions · cost {cost}", { n: count(data.selfCompactions.count), cost: money(data.selfCompactions.cost) })}</small>
+                        </span>
+                        <span class="mono">${signed(data.selfCompactions.saved)}</span>
+                    </div>
+                    ${data.selfCompactions.recent.map(
+                        (each) => html`<div class="spend-row" key=${`${each.session}-${each.entry}`}>
+                            <span class="grow">
+                                ${each.title}
+                                <small class="muted spend-sub">${t("{date} · {before} → {after} tokens · cost {cost}", { date: day(each.at), before: count(each.before), after: count(each.after), cost: money(each.cost) })}</small>
+                            </span>
+                            <span class="mono">${signed(each.saving)}</span>
+                        </div>`,
+                    )}
+                </div>
+                <p class="muted small">${t("Saved: the cache write a wake-up after the prompt cache expired would have cost, less the compaction and the smaller context's own write. Counted in the sessions' spend above.")}</p>
             </div>`
         }
         <p class="muted small">
