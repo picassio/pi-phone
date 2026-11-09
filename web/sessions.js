@@ -6,6 +6,7 @@ import { Avatar, folderColor, initials } from "./avatar.js";
 import { goHome, useBack } from "./back.js";
 import { ExtensionRailButtons } from "./extension-ui.js";
 import { KeptPageRailButtons } from "./pages.js";
+import { LibraryRailButton } from "./library.js";
 import { GATEWAY_PAGE, openGatewayPage } from "./gateway-panel.js";
 import { useDragToClose } from "./gestures.js";
 import { PeekApproval, PeeksRailButton, wholeOnTile } from "./peeks.js";
@@ -2454,6 +2455,7 @@ function Rail({ foldable = false, folded = false }) {
         >
             <${Icon} name="grid" size=${20} />
         </button>
+        <${LibraryRailButton} />
         <${ExtensionRailButtons} />
         <${KeptPageRailButtons} />
         ${

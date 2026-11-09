@@ -81,7 +81,7 @@ const initials = (name) =>
         .join("") || "?";
 
 export default function projects(pocket) {
-    const { html, useState, useEffect, useRef, useMemo, Icon, Loader, Markdown, Switch, t, tn, tx } = pocket;
+    const { html, useState, useEffect, useRef, useMemo, Icon, Loader, Markdown, Switch, StateTag, t, tn, tx } = pocket;
     // The shown names of the module's ids (STATES, TYPES, priorities 0-4, RUN, VIEWS), in the person's language.
     const stateLabel = {
         inbox: t("Inbox"),
@@ -2256,6 +2256,7 @@ export default function projects(pocket) {
             />
             <button class="button small" onClick=${() => save({ folder: project.folder || null })}>${t("Save the folder")}</button>
             <${TeamSettings} project=${project} places=${team.places} lead=${team.lead} save=${save} close=${close} />
+            ${pocket.me()?.role === "owner" && html`<${BoardLibrary} project=${project} />`}
             ${crew.team && html`<${TeamSharing} project=${project} people=${people} team=${crew} manage=${manage} standing=${standing} act=${act} close=${close} />`}
             <div class="field" hidden=${crew.team}>
                 <span class="label">${t("Shared with")}</span>
@@ -2291,6 +2292,45 @@ export default function projects(pocket) {
                     ${t("Delete {key}", { key: project.key })}
                 </button>`
             }
+        </div>`;
+    }
+
+    /**
+     * The owner's skills and commands pinned to the board (the library, PP-467): every session in board mode on it has
+     * them. A switch per item; Menu › Skills & commands makes and edits them.
+     */
+    function BoardLibrary({ project }) {
+        const [items, setItems] = useState(null);
+
+        useEffect(() => {
+            pocket.api(`projects/${project.key}/library`).then((answer) => setItems(answer.items), failed);
+        }, [project.key]);
+
+        const pin = (item, pinned) =>
+            pocket.api(`projects/${project.key}/library`, { kind: item.kind, name: item.name, pinned }, { method: "PUT" }).then((answer) => setItems(answer.items), failed);
+
+        return html`<div class="field" data-part="board-library">
+            <span class="label">${t("Skills & commands pinned to this board")}</span>
+            ${items === null && html`<${Loader} label=${t("Loading the library")} />`}
+            ${items !== null && items.length === 0 && html`<span class="muted small">${t("Your library is empty: make a skill or command in Skills & commands, or ask Pi to.")}</span>`}
+            ${
+                items !== null &&
+                items.length > 0 &&
+                html`<div class="pj-library">
+                    ${items.map((item) => {
+                        const name = item.kind === "command" ? `/${item.name}` : item.name;
+
+                        return html`<div class="pj-library-item" data-part="board-library-item" data-name=${item.name}>
+                            <div class="pj-grow">
+                                <div>${name} ${item.pinned && html`<${StateTag} tone="ok" label=${t("On this board")} />`}</div>
+                                <div class="muted small">${item.description}</div>
+                            </div>
+                            <${Switch} on=${item.pinned} label=${t("Pin {name} to {key}", { name, key: project.key })} onChange=${() => pin(item, !item.pinned)} />
+                        </div>`;
+                    })}
+                </div>`
+            }
+            <span class="muted small">${t("Every session in board mode on {key} has them, from its next message.", { key: project.key })}</span>
         </div>`;
     }
 

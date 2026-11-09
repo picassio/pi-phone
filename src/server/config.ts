@@ -72,6 +72,8 @@ export interface User {
      * Favorites filter. A shortcut only: it allows nothing. Absent: none.
      */
     favoriteModels?: string[];
+    /** Skills & commands (the library, PP-467) kept as a button on their rail. Absent: not on it. */
+    libraryOnRail?: true;
     /** The release (`whatsnew/<version>.md`) whose What's new card they dismissed or saw (PP-235). */
     whatsNewSeen?: string;
     /**
@@ -987,7 +989,7 @@ export class ConfigStore {
 
     updateUser(
         id: string,
-        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team" | "language" | "welcome" | "guide" | "dictation" | "whatsNewSeen" | "appearance" | "avatar" | "listOpens" | "favoriteModels">>,
+        patch: Partial<Pick<User, "name" | "lastSeen" | "role" | "sessions" | "tunnel" | "budget" | "team" | "language" | "welcome" | "guide" | "dictation" | "whatsNewSeen" | "appearance" | "avatar" | "listOpens" | "favoriteModels" | "libraryOnRail">>,
     ): void {
         const user = this.userById(id);
 
@@ -1040,6 +1042,10 @@ export class ConfigStore {
 
         if (user.listOpens === undefined) {
             delete user.listOpens;
+        }
+
+        if (user.libraryOnRail === undefined) {
+            delete user.libraryOnRail;
         }
 
         if (user.favoriteModels === undefined || user.favoriteModels.length === 0) {

@@ -189,6 +189,7 @@ import {
     type LibraryFiles,
     type LibraryItem,
     type LibraryKind,
+    libraryKind,
     libraryPin,
     type LibraryPin,
     type LibraryVersion,
@@ -1327,6 +1328,9 @@ export class PocketApp {
             skills: (cwd, library) => this.skills(cwd, library),
             librarySkills: (id) => this.librarySkills(id),
             libraryRevision: () => this.library.revision,
+            libraryBoard: (personId, key) => this.libraryBoard(this.#libraryPerson(personId), key),
+            libraryPinBoard: (personId, key, kind, name, pinned) =>
+                this.librarySetPin(this.#libraryPerson(personId), libraryKind(kind), name, "board", key, pinned),
             builtInSkills: () => this.builtInSkills(),
             designSystem: () => this.designSystemPrompt(),
             contextPolicy: (id) => this.contextPolicy(id),
@@ -3230,6 +3234,26 @@ export class PocketApp {
     }
 
     /**
+     * Skills & commands kept as a button on the owner's rail (PP-467, `library.onRail`), or not. Their tabs hear it
+     * (`library-rail`). The library is the owner's, and so is its button.
+     */
+    setLibraryOnRail(user: User, on: unknown): void {
+        this.#requireLibrary(user);
+
+        if (typeof on !== "boolean") {
+            throw new HttpError(400, "On the rail is true or false.");
+        }
+
+        this.config.updateUser(user.id, { libraryOnRail: on ? true : undefined });
+
+        for (const client of this.#clients) {
+            if (client.user.id === user.id) {
+                client.send("library-rail", { libraryOnRail: on });
+            }
+        }
+    }
+
+    /**
      * What the session list of `user` shows when the app opens (`sessions.listOpens`, Appearance, PP-346): "last" (the
      * view each device last used), "all", or "priority". Their tabs hear it (`list-opens`).
      */
@@ -4504,6 +4528,8 @@ export class PocketApp {
                 appearance: this.appearanceOf(user),
                 // What the session list shows when the app opens (PP-346): last (each device's last view), all, or priority.
                 listOpens: user.listOpens ?? "last",
+                // Skills & commands kept on their rail (PP-467): the owner's.
+                libraryOnRail: user.libraryOnRail === true,
                 // The models they starred (PP-350): first in their model picker, and its Favorites filter.
                 favoriteModels: user.favoriteModels ?? [],
                 // A big release's card they have not seen yet (PP-235), or null.
@@ -6160,6 +6186,29 @@ export class PocketApp {
     }
 
     /** Pin an item to a session, a board, or every session (`pinned`), or take the pin away; its pins after. */
+    /** A person by id, for the board's routes: unknown is refused as the library is. */
+    #libraryPerson(personId: string): User {
+        const user = this.config.userById(personId);
+
+        if (user === undefined) {
+            throw new HttpError(403, "The library of skills and commands is the owner's.");
+        }
+
+        return user;
+    }
+
+    /** Every library item, and whether it is pinned to the board `key` (the board's settings, PP-467). */
+    libraryBoard(user: User, key: string): { kind: LibraryKind; name: string; description: string; pinned: boolean }[] {
+        this.#requireLibrary(user);
+
+        return this.library.list().map(({ kind, name, description, pins }) => ({
+            kind,
+            name,
+            description,
+            pinned: pins.some((pin) => pin.scope === "board" && pin.target === key),
+        }));
+    }
+
     librarySetPin(user: User, kind: LibraryKind, name: string, scope: unknown, target: unknown, pinned: unknown): PinView[] {
         this.#requireLibrary(user);
 

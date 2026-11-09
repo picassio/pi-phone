@@ -795,6 +795,30 @@
     flex: 1;
 }
 
+/* The owner's skills and commands pinned to the board (PP-467): a row each, its switch at the end. */
+.pj-library {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--hair);
+    border-radius: var(--r-card);
+    overflow: hidden;
+}
+
+.pj-library-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+}
+
+.pj-library-item + .pj-library-item {
+    box-shadow: inset 0 1px var(--hair);
+}
+
+.pj-library-item .muted.small {
+    overflow-wrap: anywhere;
+}
+
 .pj-mode-row {
     display: flex;
     align-items: center;

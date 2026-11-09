@@ -12,6 +12,7 @@ import { peeksOn, togglePeeks } from "../peeks.js";
 import { modelRefreshAvailable, refreshModels } from "../model-refresh.js";
 import { groupOf } from "../session-groups.js";
 import { openGettingStarted } from "../guide.js";
+import { openLibrary } from "../library.js";
 
 /** The Compact context row's hint: when the session compacts by itself (PP-78). */
 const compactHint = (at) => (typeof at === "number" ? t("now, or by itself at {n}%", { n: at }) : t("summarize older messages"));
@@ -496,6 +497,10 @@ export function MenuSheet({ places = true }) {
             ${conversation && trustAvailable() && item("Project trust", () => openSheet({ type: "trust" }), trustHint())}
             ${session && steer && driving && item("Instructions for Pi", () => openSheet({ type: "instructions" }), instructions ? "on" : "none")}
             ${conversation && steer && driving && item("Compact context", () => openSheet({ type: "compact" }), compactHint(conversation.compactAt ?? store.state.server?.compactAt))}
+            ${
+                // The owner's own skills and commands pinned to this session (PP-467).
+                conversation && me?.role === "owner" && session && item("Skills & commands", () => openSheet({ type: "library-session", id: conversation.id }), "pin your own to this session")
+            }
             ${conversation && me?.role === "owner" && session && item("Subagents' model", () => openSheet({ type: "subagent-settings", own: true }), subagentSummary(conversation.subagentDefaults))}
             ${conversation && steer && driving && item("New context", () => openSheet({ type: "reset" }), "Pi starts fresh; history stays")}
             ${schedulesAvailable() && item("Scheduled messages", () => openSheet({ type: "schedules" }), view.schedules.length === 0 ? "none" : t("{n} coming", { n: view.schedules.length }))}
@@ -554,6 +559,18 @@ export function MenuSheet({ places = true }) {
                         : store.state.keptPages.pages.length === 0
                           ? "artifacts kept on the rail"
                           : tn(store.state.keptPages.pages.length, "{n} page on the rail", "{n} pages on the rail"),
+                )
+            }
+            ${
+                // The owner's library of skills and commands (PP-467): a page, kept on the rail if they like.
+                me?.role === "owner" &&
+                item(
+                    "Skills & commands",
+                    () => {
+                        closeSheet();
+                        openLibrary();
+                    },
+                    "your own, pinned where you want them",
                 )
             }
             ${me?.role === "owner" && item("Subagents", () => openSheet({ type: "subagent-settings" }), subagentSummary(undefined))}

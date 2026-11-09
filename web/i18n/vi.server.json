@@ -803,5 +803,7 @@
     "That is not a library command pinned to this session.": "Đó không phải lệnh thư viện được ghim vào phiên này.",
     "The library has no {1} named {2}.": "Thư viện không có {1} nào tên {2}.",
     "{1} has no version {2}: it has {3}.": "{1} không có phiên bản {2}: nó có {3}.",
-    "{1} is at its first kept version: there is nothing to undo.": "{1} đang ở phiên bản đầu tiên còn giữ: không còn gì để hoàn tác."
+    "{1} is at its first kept version: there is nothing to undo.": "{1} đang ở phiên bản đầu tiên còn giữ: không còn gì để hoàn tác.",
+    "On the rail is true or false.": "Trên thanh bên là true hoặc false.",
+    "Name the skill or command.": "Hãy nêu tên skill hoặc lệnh."
 }

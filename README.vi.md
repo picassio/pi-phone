@@ -882,9 +882,13 @@ mới** trên danh sách phiên (và màn hình chính khi màn hình rộng) m�
   bạn ghim nó: một phiên (cả các subagent của phiên), một bảng (mọi phiên bật chế độ bảng trên bảng đó), hoặc mọi phiên
   của bạn. Skill đã ghim vào danh sách skill của phiên từ tin nhắn kế tiếp (skill cùng tên của bạn trong
   `~/.agents/skills`, thư mục của Pi hay của dự án thắng; skill thư viện thắng skill có sẵn của ứng dụng), và được chép
-  sang máy cho phiên chạy ở đó. Lệnh đã ghim hiện trong danh sách "/" kèm mô tả; `/ssp-review PP-12` gửi nó đã điền sẵn.
-  Mỗi lần lưu giữ một phiên bản, và hoàn tác lùi một bản. Trang thư viện và công cụ của Pi cho nó sẽ đến sau; tới lúc đó
-  nó là API của ứng dụng (`/api/library`).
+  sang máy cho phiên chạy ở đó. Lệnh đã ghim hiện trong danh sách "/" kèm mô tả; `/ssp-review PP-12` rồi Enter đưa
+  nội dung đã điền vào ô nhập để bạn đọc trước khi gửi. Mỗi lần lưu giữ một phiên bản, và hoàn tác lùi một bản.
+  **Menu › Skill & lệnh** là trang thư viện (Giữ trên thanh bên đưa nó lên thanh bên): tab Skill và Lệnh có tìm kiếm;
+  mỗi mục có mô tả, nơi ghim và số phiên bản; sửa SKILL.md và các tệp của nó hay mẫu của lệnh; lịch sử phiên bản với
+  Hoàn tác và Khôi phục; Xóa qua một thẻ; công tắc Mọi phiên, và ghim vào phiên và bảng. Menu của phiên cũng có
+  **Skill & lệnh**: mỗi mục một công tắc cho phiên đó, còn thứ bảng hay Mọi phiên mang lại hiện thành trạng thái. Cài đặt
+  của bảng liệt kê các mục ghim vào bảng, mỗi mục một công tắc.
 - **Giữ artifact thành trang.** **`/page <cần làm gì>`** (`/page công cụ đổi tiền VND/USD`) nhờ Pi làm nó thành một
   artifact, kiểm tra, rồi đề nghị giữ nó thành trang qua một thẻ; chỉ gõ `/page` thì mở Cài đặt › Trang. Prompt template
   tên `make` hay `page` thắng lệnh của ứng dụng, như với `/review`.

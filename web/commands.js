@@ -82,6 +82,8 @@ function templates() {
         description: template.description,
         template: true,
         skill: template.skill === true,
+        // One of the owner's library commands (PP-467): sending it fills the message box first.
+        library: template.library === true,
     }));
 }
 

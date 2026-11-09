@@ -233,11 +233,28 @@ so Pi changes them through the settings tools; "the last session" is the one the
     the app's and the tools'; a failed copy adds one line saying so.
   - **Commands:** pinned ones are appended to `promptTemplates(id)` after Pi's (first wins), marked `library` in
     `GET /api/c/<id>/prompts`; `submit` expands them as templates. `POST /api/c/<id>/library-command` fills one as
-    typed for the message box (the composer's use of it comes with the page, PP-467).
+    typed for the message box: the composer's send, for a library template (`parseTemplate` with `library`), calls it
+    and puts the text into the box instead of sending (PP-467); the hint under the box says so. A Pi template of the
+    same name is not a library one, and sends as before.
   - **API** (owner only): `GET /api/library`; `GET|PUT|DELETE /api/library/<kind>/<name>` (PUT `{files}` for a skill,
     `{content}` for a command, `note`); `GET …/versions`, `GET …/versions/<n>`, `POST …/restore {n}`, `POST …/undo`;
     `PUT …/pins {scope, target, pinned}`. The same as `App.library*` methods for Pi's tools (PP-468), which add the
     cards. Tests: `test/library.test.ts`, the machine case in `test/remote-session.test.ts`.
+  - **The page** (`web/library.js`, PP-467): Menu › Skills & commands opens it in the page slot (`page.module`
+    `library`, as kept pages and the gateway's are: `APP_PAGES` in `extension-ui.js` keeps the module sync from closing
+    them), `/?page=library:skills|commands` by link. Tabs and search over `GET /api/library` (each item's `versions`
+    count is in it); the item beside the list on ≥960 px, alone with Back below. Pins: the Every session `Switch`,
+    sessions by `MultiChoice` (its search is the session picker), boards by `Choice` from the Projects extension's
+    list. The editor holds a skill's files (a `Choice` of paths, add and remove one) or a command's text, and saves
+    them whole with a note; Versions lists them with Undo and Restore; Delete asks on an inline card (not
+    `confirm()`), as the owner asked for a card. Keep on the rail is the owner's `libraryOnRail` (`POST /api/me`,
+    `library.onRail` for `setting_change`, `library-rail` to their tabs), a rail button before the extensions'.
+  - **Session menu:** Skills & commands (`library-session` sheet, `/s/<id>?sheet=library-session` by link): a
+    `Switch` per item pins it to that session; a board pin on its board and an every-session pin show as `StateTag`s.
+  - **Board settings** (`projects-web`): the owner sees every item with a switch that pins it to the board, through
+    the Projects extension's `GET|PUT /api/x/projects/projects/<key>/library` (host `libraryBoard`,
+    `libraryPinBoard`), since an extension's browser part reaches only its own routes. Test:
+    `test/library-ui.test.ts` (Chrome, 390/1280/1920 px, layout check's must-fix kinds 0).
 - **Review's comments and checkpoints** (`src/server/review-loop.ts`, `web/diff.js`; PP-358, the owner's mockup of
   2026-11-02, after pi-review-loop): a checkpoint is a git commit of the whole working folder (untracked files too,
   ignored ones not) made with a temporary index (`read-tree HEAD`, `add -A`, `write-tree`, `commit-tree` on HEAD) and

@@ -854,9 +854,13 @@ card on the session list (and the home screen on a wide screen) offers a tour of
   where you pin it: one session (its subagents too), a board (every session in board mode on it), or every session of
   yours. A pinned skill joins the session's skills from its next message (a skill of yours in `~/.agents/skills`, Pi's
   folder or the project with the same name wins; a library one wins over the app's own), and is copied to a machine
-  for a session there. A pinned command shows in the "/" list with its description; `/ssp-review PP-12` sends it
-  filled in. Every save keeps a version, and undo goes back one. The library's page and Pi's tools for it come next;
-  until then it is the app's API (`/api/library`).
+  for a session there. A pinned command shows in the "/" list with its description; `/ssp-review PP-12` and Enter put
+  its text, filled in, into the message box to read before you send it. Every save keeps a version, and undo goes back
+  one. **Menu › Skills & commands** is the library's page (Keep on the rail puts it there): Skills and Commands tabs
+  with search; each item's description, pins and versions; editing SKILL.md and its files or a command's template;
+  version history with Undo and Restore; Delete on a card; an Every session switch, and pins to sessions and boards. A
+  session's menu has **Skills & commands** too: a switch per item for that session, with what its board or every
+  session gives it shown as a state. A board's settings list the items pinned to it, each with a switch.
 - **Keep an artifact as a page.** **`/page <what>`** (`/page a currency converter VND/USD`) has Pi build it as an
   artifact, check it, and offer to keep it as a page on a card; `/page` alone opens Settings › Pages. A prompt template
   named `make` or `page` wins over the app's command, as with `/review`.

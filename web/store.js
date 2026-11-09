@@ -887,6 +887,8 @@ const handlers = {
     "model-favorites": (data) => store.state.me && store.set({ me: { ...store.state.me, favoriteModels: data.favoriteModels } }),
     // What the session list shows when the app opens (PP-346), chosen on any of their devices or by Pi.
     "list-opens": (data) => store.state.me && store.set({ me: { ...store.state.me, listOpens: data.listOpens } }),
+    // Skills & commands kept on the owner's rail, from another device or Pi (PP-467).
+    "library-rail": (data) => store.state.me && store.set({ me: { ...store.state.me, libraryOnRail: data.libraryOnRail } }),
     // The person chose another language, on this device or another (PP-81).
     language: (data) => chooseLanguage(data.language),
     // The first-run welcome finished, skipped, or to show again (PP-234), on this device or another.

@@ -31,6 +31,7 @@ import {
 } from "./extension-ui.js";
 import { GATEWAY_PAGE, GatewayPage } from "./gateway-panel.js";
 import { KEPT_PAGE, KeptPage } from "./pages.js";
+import { LIBRARY_PAGE, LibraryPage, openLibrary } from "./library.js";
 import { startEdgeBack, startSwipes, useDragToClose } from "./gestures.js";
 import { Splash } from "./home.js";
 import { UsageMeter } from "./usage.js";
@@ -545,6 +546,8 @@ function App() {
                           ? html`<${GatewayPage} key=${state.page.id} tab=${state.page.id} />`
                           : state.page.module === KEPT_PAGE
                           ? html`<${KeptPage} key=${state.page.id} id=${state.page.id} />`
+                          : state.page.module === LIBRARY_PAGE
+                          ? html`<${LibraryPage} tab=${state.page.id} />`
                           : html`<${ExtensionPage} key=${`${state.page.module}:${state.page.id}`} />`
                       : inConversation
                         ? html`<${Topbar} />
@@ -925,6 +928,8 @@ const LINKED_SHEETS = new Set([
     "appearance",
     "browser",
     "dictation",
+    // `/s/<id>?sheet=library-session`: that session's Skills & commands (PP-467).
+    "library-session",
     "extensions",
     "github",
     "machines",
@@ -981,7 +986,13 @@ const linkedPage = /^([A-Za-z0-9_-]+):([A-Za-z0-9][A-Za-z0-9_.:-]{0,63})$/.exec(
 if (linkedPage !== null) {
     // A `#…` after it is the page's own (a task, say): kept for it.
     replaceAddress(location.pathname + location.hash);
-    openPageWhenReady(linkedPage[1], linkedPage[2]);
+
+    // Skills & commands (PP-467) is the app's own page, not a module's.
+    if (linkedPage[1] === LIBRARY_PAGE) {
+        openLibrary(linkedPage[2]);
+    } else {
+        openPageWhenReady(linkedPage[1], linkedPage[2]);
+    }
 }
 
 // An extension's side panel tab, or one of its rows run, by link (`/s/3?panelTab=notes:notes`, `/s/3?run=timer:open`):

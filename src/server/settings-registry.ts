@@ -574,6 +574,17 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             choices: () => ["last", "all", "priority"],
             apply: (_user, value, target) => app.setListOpens(person(target), value.trim().toLowerCase()),
         },
+        // ─── The library of skills and commands (PP-467) ───
+        {
+            id: "library.onRail",
+            area: "library",
+            title: "Skills & commands on the rail",
+            help: "on or off: a button on the owner's rail that opens Skills & commands (Menu › Skills & commands, Keep on the rail).",
+            owner: true,
+            read: () => (owner().libraryOnRail === true ? "on" : "off"),
+            choices: () => ["on", "off"],
+            apply: (user, value) => app.setLibraryOnRail(user, onOff(value)),
+        },
         // ─── Web access ───
         {
             id: "web.provider",

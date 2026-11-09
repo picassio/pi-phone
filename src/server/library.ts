@@ -40,6 +40,8 @@ export type LibraryItem = {
     argumentHint?: string;
     /** The version that is current. */
     version: number;
+    /** How many versions are kept. */
+    versions: number;
     createdAt: number;
     updatedAt: number;
     pins: LibraryPin[];
@@ -349,6 +351,9 @@ export class Library {
             description: row.description,
             ...(row.argument_hint === null ? {} : { argumentHint: row.argument_hint }),
             version: Number(row.current),
+            versions: Number(
+                (this.#db.prepare("SELECT COUNT(*) AS n FROM pocket_library_versions WHERE kind = ? AND name = ?").get(kind, row.name) as { n: number }).n,
+            ),
             createdAt: Number(row.created_at),
             updatedAt: Number(row.updated_at),
             pins: this.#pins(kind, row.name),

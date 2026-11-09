@@ -236,6 +236,26 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         view,
     );
     route("POST", "projects/:key/team", async (request, actor) => ({ session: await team.startLead(actor.person, request.params.key!) }), steer);
+    // The owner's skills and commands pinned to the board (the library, PP-467): every session on it has them.
+    route("GET", "projects/:key/library", async (request, actor) => {
+        await boards.board(actor, request.params.key!);
+
+        return { items: host.libraryBoard(actor.person.id, request.params.key!) };
+    }, view);
+    route("PUT", "projects/:key/library", async (request, actor) => {
+        const key = request.params.key!;
+        const { kind, name, pinned } = request.body as { kind?: unknown; name?: unknown; pinned?: unknown };
+
+        await boards.board(actor, key);
+
+        if (typeof name !== "string") {
+            throw new HttpError(400, "Name the skill or command.");
+        }
+
+        host.libraryPinBoard(actor.person.id, key, kind, name, pinned);
+
+        return { items: host.libraryBoard(actor.person.id, key) };
+    }, steer);
     route(
         "PATCH",
         "projects/:key",

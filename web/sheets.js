@@ -52,6 +52,7 @@ import { TextSheet } from "./sheets/text.js";
 import { ArtifactsSheet, ArtifactViewer, ImageViewer } from "./sheets/viewers.js";
 import { AllArtifactsSheet } from "./sheets/all-artifacts.js";
 import { PagesSheet } from "./sheets/pages.js";
+import { LibrarySessionSheet } from "./library.js";
 import { WorktreeSheet } from "./sheets/worktree.js";
 import { TrustSheet } from "./trust.js";
 import { addLayer, goBack, removeLayer } from "./back.js";
@@ -282,6 +283,10 @@ function sheetBody(sheet) {
         // A shell, full screen (terminal.js): the owner's, as it reaches everything.
         case "terminal":
             body = store.state.me?.role === "owner" ? html`<${TerminalSheet} key=${sheet.place} place=${sheet.place} run=${sheet.run} />` : null;
+            break;
+        // A session's own skills and commands from the library (PP-467): the owner's.
+        case "library-session":
+            body = store.state.me?.role === "owner" ? html`<${LibrarySessionSheet} id=${sheet.id ?? store.state.conversationId} />` : null;
             break;
         case "send-limit":
             body = html`<${SendLimitSheet} />`;

@@ -467,6 +467,9 @@ export function onExtensionsGone(listener) {
     return () => goneListeners.delete(listener);
 }
 
+/** The page slot's names for the app's own pages: `KEPT_PAGE`, `GATEWAY_PAGE`, `LIBRARY_PAGE`. */
+const APP_PAGES = new Set(["kept", "gateway", "library"]);
+
 /** Load what the server lists, and unload what it no longer does or lists at a new address (a new version). */
 function sync(list) {
     order = list.map((each) => each.module);
@@ -498,7 +501,8 @@ function sync(list) {
     const { page, sheet } = store.state;
     const gone = (module) => !wanted.has(module);
 
-    if (page && gone(page.module)) {
+    // The app's own pages in the same place (a kept artifact's, the gateway's, Skills & commands) are no module's.
+    if (page && !APP_PAGES.has(page.module) && gone(page.module)) {
         closePage();
     }
 

@@ -913,6 +913,19 @@ export function Composer() {
             return runShell(full);
         }
 
+        // One of the owner's library commands (PP-467): its template, filled with what follows the name, goes into the
+        // box to read and change; the next send sends it.
+        if (template?.library) {
+            const filled = await attempt(() => api(`c/${conversationId}/library-command`, { text: full }));
+
+            if (filled) {
+                update(filled.text);
+                focusEnd();
+            }
+
+            return;
+        }
+
         setSending(true);
         const attachments = files
             .filter((file) => file.state === "done")
@@ -1515,7 +1528,7 @@ export function Composer() {
                         ${
                             template.args &&
                             html` <span class="command-args">${template.args}</span>`
-                        } <span class="muted">${template.skill ? t("· skill · Pi gets its instructions with your request") : t("· prompt template · Pi gets it filled in")}</span>
+                        } <span class="muted">${template.skill ? t("· skill · Pi gets its instructions with your request") : template.library ? t("· your command · Enter fills the message box") : t("· prompt template · Pi gets it filled in")}</span>
                     </div>`
                 }
                 <div

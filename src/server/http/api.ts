@@ -270,7 +270,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
         }
 
         if (first === "me" && second === undefined && method === "POST") {
-            const body = await readJson<{ name?: string; language?: unknown; welcome?: unknown; dictation?: unknown; whatsNew?: unknown; appearance?: { option?: unknown; on?: unknown }; listOpens?: unknown }>(request);
+            const body = await readJson<{ name?: string; language?: unknown; welcome?: unknown; dictation?: unknown; whatsNew?: unknown; appearance?: { option?: unknown; on?: unknown }; listOpens?: unknown; libraryOnRail?: unknown }>(request);
 
             // One of their appearance options that follow them on every device (PP-345): `{ option, on }`.
             if (body.appearance !== undefined && body.name === undefined) {
@@ -280,6 +280,13 @@ export function createApi(options: HttpOptions, auth: Auth) {
             }
 
             // What the session list shows when the app opens (PP-346).
+            // Skills & commands kept on their rail (PP-467).
+            if (body.libraryOnRail !== undefined && body.name === undefined) {
+                app.setLibraryOnRail(user, body.libraryOnRail);
+
+                return json(response, 200, { ok: true });
+            }
+
             if (body.listOpens !== undefined && body.name === undefined) {
                 app.setListOpens(user, body.listOpens);
 

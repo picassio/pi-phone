@@ -366,6 +366,13 @@ export interface PocketHost {
     librarySkills(conversationId: ConversationId): string[];
     /** A number that changes with every change to the library: an edit of a pinned skill loads again at once. */
     libraryRevision(): number;
+    /**
+     * The owner's library items for a board's settings (PP-467), each with whether it is pinned to the board `key`; the
+     * owner's alone (a 403 for anyone else).
+     */
+    libraryBoard(personId: string, key: string): { kind: string; name: string; description: string; pinned: boolean }[];
+    /** Pin a library item to the board `key`, or take the pin away (the owner's alone). */
+    libraryPinBoard(personId: string, key: string, kind: unknown, name: string, pinned: unknown): unknown;
     /** The app's own skill folders now: those of extensions that are on (Design & video's) among them. */
     builtInSkills(): string[];
     /** What the prompt says of the person's default design system (`design-systems.ts`), or undefined for none. */
