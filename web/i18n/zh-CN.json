@@ -3855,5 +3855,11 @@
     "Compacting this session…": "正在压缩此会话…",
     "Not compacted": "未压缩",
     "Not compacted: the summary turn gave no summary.": "未压缩：总结回合没有给出总结。",
-    "Read from the app's state when it compacted": "压缩时从应用状态读取"
+    "Read from the app's state when it compacted": "压缩时从应用状态读取",
+    "5 minutes": "5 分钟",
+    "the default; a write costs 1.25× input": "默认；每次写入为输入价格的 1.25 倍",
+    "a write costs 2× input": "每次写入为输入价格的 2 倍",
+    "Prompt cache": "提示缓存",
+    "How long the prompt cache lasts": "提示缓存保留多久",
+    "Claude keeps the context in a cache, which costs far less to read than to send again. After the cache expires, the next turn writes the whole context again. 1 hour suits a session that waits on subagents, CI runs or schedules for longer than 5 minutes; each write then costs more. Switching a session that already has a context writes it again once. A session's own choice comes first, and its subagents follow it.": "Claude 把上下文保存在缓存中，读取缓存比重新发送便宜得多。缓存过期后，下一轮会重新写入整个上下文。1 小时适合等待子代理、CI 运行或定时消息超过 5 分钟的会话；此时每次写入更贵。切换一个已有上下文的会话会重新写入一次。会话自己的选择优先，其子代理跟随它。"
 }

@@ -57,6 +57,8 @@ export type SessionMeta = {
     sendLimit?: number | null;
     /** When this session compacts by itself (`auto-compact.ts`): a percentage of the context, or "full". Absent: the setting for all. */
     compactAt?: number | "full";
+    /** How long this session's prompt cache lasts (`cache-retention.ts`): short or long. Absent: the setting for all. */
+    cacheRetention?: "short" | "long";
     /** What of the wiki, secrets, and skills goes into this session's prompt (`context-policy.ts`). Absent: the setting for all. */
     contextPolicy?: Partial<ContextPolicy>;
     /** The model and thinking level Pi starts this session's subagents on (`subagent-defaults.ts`). Absent: the setting for all. */

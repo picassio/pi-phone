@@ -135,12 +135,12 @@ test("a message the wiki's pages came with shows only the person's words, its me
 
     // Menu › Compact context: this session's choices (as every session's) and every session's.
     await page.evaluate(`(await import("/store.js")).openSheet({ type: "compact" }); return "true";`);
-    await see(`return JSON.stringify(document.querySelectorAll(".pp-row .choice").length === 9)`, "four parts, twice, and how Pi calls its tools");
+    await see(`return JSON.stringify(document.querySelectorAll('[data-part^="prompt-part"] .choice').length === 9)`, "four parts, twice, and how Pi calls its tools");
 
     // The app's own dropdowns, not the system's.
     assert.equal(await inPage<number>(`return JSON.stringify(document.querySelectorAll(".sheet select").length)`), 0);
 
-    const chosen = await inPage<string[]>(`return JSON.stringify([...document.querySelectorAll(".pp-row .choice-text > span:first-child")].map((each) => each.textContent.trim()))`);
+    const chosen = await inPage<string[]>(`return JSON.stringify([...document.querySelectorAll('[data-part^="prompt-part"] .choice-text > span:first-child')].map((each) => each.textContent.trim()))`);
 
     assert.deepEqual(chosen, [
         "Pages that match each message",
@@ -191,4 +191,55 @@ test("Compact context sets how Pi calls its tools for every session: only from c
     await page.setViewport(VIEWPORTS.desktop);
     await shot("codemode-only-1280");
     await app.setCodemodeMode(owner(app), "on");
+});
+
+test("Compact context sets how long the prompt cache lasts, for this session and every session (PP-475)", real, async () => {
+    app.config.lastModel ??= { provider: "faux", modelId: "faux-1", thinkingLevel: "off" };
+    const { id } = await app.commands.createSession(owner(app), { cwd: work });
+    const pick = async (row: string, option: string, options: number) => {
+        await see(`return JSON.stringify(document.querySelector(".choice-menu") === null)`, "no menu open");
+        // Scrolled first, and still: a scroll closes an open menu, and a menu opened on a moving button follows it.
+        await page.evaluate(`document.querySelector('[data-part="${row}"]').scrollIntoView({ block: "center" }); return "true";`);
+        // Animations running on the row's button or around it, as the dropdown's `moving` sees them (web/ui.js).
+        const running = () =>
+            inPage<number>(`
+                let count = 0;
+
+                for (let at = document.querySelector('[data-part="${row}"] .choice'); at; at = at.parentElement) {
+                    count += at.getAnimations().filter((each) => each.playState === "running").length;
+                }
+
+                return JSON.stringify(count);
+            `);
+
+        await until(async () => (await running()) === 0, `${row} still`);
+        await page.evaluate(`document.querySelector('[data-part="${row}"] .choice').click(); return "true";`);
+        await see(`return JSON.stringify(document.querySelectorAll('.choice-menu [role="option"]').length === ${options})`, `${row}'s options`);
+        // The open button's own transition ends first: a menu that follows its moving button would open again.
+        await until(async () => (await running()) === 0, `${row}'s menu still`);
+        assert.deepEqual(await outside(), []);
+        await page.evaluate(`[...document.querySelectorAll('.choice-menu [role="option"]')].find((each) => each.textContent.includes(${JSON.stringify(option)})).click(); return "true";`);
+        await see(`return JSON.stringify(document.querySelector('[data-part="${row}"] .choice-text > span:first-child')?.textContent.trim() === ${JSON.stringify(option)})`, `${row} says ${option}`);
+    };
+
+    await open(Number(id), "mobile");
+    await page.evaluate(`(await import("/store.js")).openSheet({ type: "compact" }); return "true";`);
+    await see(`return JSON.stringify(document.querySelector('[data-part="prompt-cache-session"] .choice-text > span:first-child')?.textContent.trim() === "As every session")`, "inherit, by default");
+    assert.equal(await inPage<string>(`return JSON.stringify(document.querySelector('[data-part="prompt-cache-all"] .choice-text > span:first-child').textContent.trim())`), "5 minutes");
+
+    // This session: inherit, 5 minutes or 1 hour.
+    await pick("prompt-cache-session", "1 hour", 3);
+    await until(() => app.sessionMeta(id)?.cacheRetention === "long", "this session's 1 hour");
+    assert.equal(app.config.cacheRetention, "short", "every session's as it was");
+    await shot("prompt-cache-session-390");
+
+    // Every session: 5 minutes or 1 hour.
+    await pick("prompt-cache-all", "1 hour", 2);
+    await until(() => app.config.cacheRetention === "long", "every session's 1 hour");
+    await pick("prompt-cache-session", "As every session", 3);
+    await until(() => app.sessionMeta(id)?.cacheRetention === undefined, "this session inherits");
+    assert.deepEqual(await outside(), []);
+    await page.setViewport(VIEWPORTS.desktop);
+    await shot("prompt-cache-1280");
+    await app.setCacheRetention(owner(app), "short");
 });

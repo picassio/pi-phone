@@ -1289,6 +1289,25 @@ so Pi changes them through the settings tools; "the last session" is the one the
     only when the turn has unchecked UI edits; one that does not resolve (a machine gone) still counts, as a hook that
     threw would lose the turn's answer. Tests give the app `tempFolders` (their folders are all under the system's temp
     folder).
+  - **The prompt cache's lifetime** (PP-475, story PP-472; measured in PP-474, wiki resources/anthropic-prompt-cache-1h;
+    `cache-retention.ts`). The owner's decision (2026-11-10): a setting, off by default, for every session
+    (`config.cacheRetention`, absent: short) and for one (`SessionMeta.cacheRetention`, which comes first); no automatic
+    turn-on for orchestrators. `short` is pi-ai's default (Anthropic's 5 minutes); `long` makes pi-ai mark the cache
+    breakpoints `ttl: "1h"` (Anthropic; OpenAI's Responses API: a 24-hour retention), where a write costs 2× the input
+    price against 1.25× (pi-ai's `calculateCost` prices `usage.cacheWrite1h` so, and Pi Durable's `UsageDoc` sums it,
+    so Spend's totals need nothing more). It pays when a session waits 5 to 60 minutes between turns; switching a
+    session with a context rewrites its whole prefix once at the 1-hour price (an entry cannot be upgraded, PP-474).
+    **How it reaches pi-ai:** Pi Durable's stream options (`HarnessSettings.stream`) are harness-wide, read with no
+    conversation, so the app wraps `models.streamSimple` (`installCacheRetention`, outermost, so once a request and not
+    at every try of the limit gate): a request with Pi Durable's provider session id and no `cacheRetention` of its own
+    waits for `#conversationOfSession` (the busy conversation whose `ProviderDoc` has that id, as the limit gate finds
+    it) and goes with `cacheRetentionOf(id)` (the root session's own, else the setting for all: subagents follow their
+    session). A request that sets its own keeps it: Pi Durable's summarizer and the side model send `"none"`. A team
+    account's request relays `cacheRetention` to the gateway (`RELAYED`), which sends it on. A lookup that throws fails
+    the request with the reason. Menu › Compact context, "How long the prompt cache lasts" (owner's: it changes what Pi
+    spends): this session (inherit, 5 minutes, 1 hour) and every session; Pi's `sessions.cacheRetention` and
+    `sessions.sessionCacheRetention`. `test/cache-retention.test.ts` holds it with the faux provider (the options each
+    request carries) and pi-ai's Anthropic payload (no ttl by default, `ttl: "1h"` when long).
   - **Self-compaction** (PP-473, story PP-472; the owner's ask of 2026-11-09: an orchestrator session that waits long
     should not pay for a cold cache when its agents report back; `self-compact.ts`, `extensions/self-compact.ts`, module
     "Compact while waiting"). Anthropic's prompt cache lasts 5 minutes: a wake-up after it writes the whole context
@@ -1331,14 +1350,14 @@ so Pi changes them through the settings tools; "the last session" is the one the
       context read warm and 2k tokens of summary) and the wake-up after it (the prompt's system messages, 20k kept and
       the summary), at the model's catalogue prices. Pi decides; the prompt-eval scenarios `compact-long-wait`,
       `compact-brief-wait` and `compact-nothing-pending` hold that it does so well.
-    - **Compact before the cache expires** (`beforeExpiry`, off): after each run, a timer at the cache's lifetime less
-      30 s (`cacheTtlMs`: 5 minutes, or 1 hour with `PI_CACHE_RETENTION=long`, pi-ai's switch for the long retention,
-      PP-474); when it fires, a session still idle, waiting, its measured context past `remindAt`, and not held back by a
+    - **Compact before the cache expires** (`beforeExpiry`, off): after each run, a timer at the session's cache
+      lifetime less a lead (`SelfCompact.timingOf`, `cacheTiming`: 5 minutes less 30 s, or with the 1-hour cache 60
+      minutes less 5; the prompt cache's lifetime below); when it fires, a session still idle, waiting, its measured context past `remindAt`, and not held back by a
       spend limit, is sent the summary request itself (`whenBusy: "reject"`, as the person Pi works for there); the same
       `ready` path compacts it. A report that comes first starts a run: the session is busy when the timer fires, and
       that run's end plans anew. Timers live in memory: a restart drops them until the next run ends.
     - **What it saved** (`savingOf`): (before − after) × the cache-write price (`writePrice`: the catalogue's 5-minute
-      write, or twice the input price for the 1-hour cache) − what compacting cost: the summary answer's `usage.cost`
+      write, or twice the input price for a session on the 1-hour cache) − what compacting cost: the summary answer's `usage.cost`
       and the answers after compact_self's result (the request its result took; `turnInfo`), all real usage. The after
       is measured on the compacted view; the summary request's cached read and its write are kept with it (`read`,
       `written`), and the server log has the line. The reminder's estimate uses the same prices: a cold wake-up is the
@@ -1346,7 +1365,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
       of summary. Each is kept in the session (`SelfCompactDoc.done`, 50; the room sends
       `selfCompactions`, and the transcript's compaction divider reads "Compacted: why, before → after tokens, cost,
       saved about …" in the person's language) and in `SpendDoc.selfCompactions` (count, cost, saved, the newest 100;
-      Spend's "Compacting while waiting" group, the owner's).
+      Spend's "Compacting while waiting" group, the owner's). Spend keeps plain copies of the records the commit read: a
+      document's records cannot be read once their commit settles ("Cannot use a settled overlay", found in PP-475: a
+      self-compaction after an earlier one broke Spend's summary).
     - **Quiet in the transcript** (PP-477; the owner, 2026-11-10: the request and the summary as messages were noise).
       Display only: the model's context keeps the request and its answer, which the compaction needs.
       `selfCompactionsOf` (`web/turns.js`) reads the rows by id (the context repeats the kept rows after the

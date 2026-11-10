@@ -102,6 +102,12 @@ dự án thật.</sub>
   tắt) làm việc đó không cần hỏi: phiên đang chờ mà rảnh 4,5 phút sẽ tự nén, trừ khi có báo cáo đến trước. Cả ba ở
   Menu › Nén ngữ cảnh (Pi: `sessions.compactSelf`, `sessions.compactRemindAt`, `sessions.compactBeforeExpiry`). Không
   áp dụng cho subagent: câu trả lời cuối của subagent là báo cáo của nó.
+- **Bộ nhớ đệm prompt 1 giờ, khi bạn cần.** Mặc định bộ nhớ đệm prompt của Claude giữ 5 phút. Với phiên chờ lâu hơn
+  (chờ subagent, lượt chạy CI, lịch hẹn), chọn 1 giờ trong Menu › Nén ngữ cảnh, cho phiên này hoặc mọi phiên: thức
+  dậy trong vòng một giờ sẽ đọc lại bộ nhớ đệm thay vì ghi lại toàn bộ ngữ cảnh, còn mỗi lần ghi bộ nhớ đệm tốn 2 lần giá
+  đầu vào thay vì 1,25 lần. Mặc định tắt; lựa chọn riêng của phiên được ưu tiên, và subagent theo phiên của nó. Với 1 giờ,
+  lời nhắc nén và phần tiết kiệm trong Chi tiêu tính theo giá ghi 1 giờ, còn nén trước khi hết hạn sẽ chờ 55 phút. Pi đổi
+  nó qua thẻ (`sessions.cacheRetention`, `sessions.sessionCacheRetention`).
 - **Prompt không làm đầy ngữ cảnh.** Phần chữ trong prompt của Pi mà thay đổi sẽ được gửi lại, và mỗi bản ở lại cho
   tới khi phiên nén. Vì vậy mặc định chỉ mục của wiki không nằm trong prompt: một phần wiki ngắn, cố định, và Pi tự tìm
   trong wiki bằng `wiki_query` khi cần (hoặc, nếu bạn chọn relevant, các trang khớp với từng tin nhắn đi kèm tin nhắn
@@ -953,6 +959,7 @@ hiện tại và giá trị mới. Hỏi “bạn đổi được những gì?�
 | Chi tiêu và giới hạn | **Chi tiêu** | “Giới hạn phiên này ở $5” |
 | Khi nào phiên tự nén | **Menu › Nén ngữ cảnh**, cho phiên này hoặc mọi phiên | “Nén phiên này ở 60%” |
 | Nén khi phiên đang chờ (`compact_self`, tỉ lệ của lời nhắc, trước khi bộ nhớ đệm hết hạn) | **Menu › Nén ngữ cảnh** | “Nén các phiên đang chờ trước khi bộ nhớ đệm hết hạn” |
+| Bộ nhớ đệm prompt giữ bao lâu (5 phút hoặc 1 giờ) | **Menu › Nén ngữ cảnh**, cho phiên này hoặc mọi phiên | “Cho phiên này dùng bộ nhớ đệm prompt 1 giờ” |
 | Wiki, bí mật và kỹ năng nào vào prompt | **Menu › Nén ngữ cảnh** | “Đưa lại chỉ mục wiki vào prompt của phiên này” |
 | Thiết bị và người khác | **Truy cập** (Tailscale), **Mọi người** (thiết bị, lời mời, mã khôi phục) | Có với liệt kê thiết bị, đăng xuất một hoặc tất cả, hoặc đổi vai trò của một người. Mã khôi phục là việc của bạn |
 | Thông báo đẩy trong trình duyệt | **Thông báo**: Bật, Gửi thử, Gỡ trình duyệt khác | Không: trình duyệt tự hỏi bạn, trên thiết bị đó |

@@ -99,6 +99,13 @@ No Termux, no laptop, no cloud VM.
   idle 4.5 minutes compacts itself, unless a report comes first. All three are in Menu › Compact context (Pi:
   `sessions.compactSelf`, `sessions.compactRemindAt`, `sessions.compactBeforeExpiry`). Not in subagents: a subagent's
   final answer is its report.
+- **A 1-hour prompt cache, when you want it.** Claude's prompt cache lasts 5 minutes by default. For a session that
+  waits longer (on subagents, CI runs, schedules), pick 1 hour in Menu › Compact context, for this session or every
+  session: a wake-up within the hour reads the cache instead of writing the whole context again, and each cache write
+  costs twice the input price instead of 1.25 times. Off by default; a session's own choice comes first, and its
+  subagents follow it. With 1 hour, the compact reminder and Spend's saving count the 1-hour write price, and compacting
+  before the cache expires waits 55 minutes. Pi changes it on a card (`sessions.cacheRetention`,
+  `sessions.sessionCacheRetention`).
 - **A prompt that does not fill the context.** Text in Pi's prompt that changes is sent again, and each copy stays until
   the session compacts. So by default the wiki's index stays out: a short, fixed wiki section, and Pi searches the wiki
   with `wiki_query` when it needs to (or, if you pick relevant, the pages that match each of your messages come with
@@ -932,6 +939,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | Spend and limits | **Spend** | "Limit this session to $5" |
 | When sessions compact by themselves | **Menu › Compact context**, for this session or every session | "Compact this session at 60%" |
 | Compacting while a session waits (`compact_self`, the reminder's share, before the cache expires) | **Menu › Compact context** | "Compact waiting sessions before their cache expires" |
+| How long the prompt cache lasts (5 minutes or 1 hour) | **Menu › Compact context**, for this session or every session | "Give this session the 1-hour prompt cache" |
 | What of the wiki, secrets and skills goes into the prompt | **Menu › Compact context** | "Put the wiki's index back in this session's prompt" |
 | Other devices and people | **Access** (Tailscale), **People** (devices, invites, recovery code) | Yes for listing devices, signing one or all out, or changing a person's role. The recovery code is yours |
 | Push notifications in a browser | **Notifications**: Turn on, Send a test, Remove another browser's | No: a browser asks you itself, on that device |

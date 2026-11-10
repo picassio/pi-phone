@@ -17,8 +17,10 @@
  *   share of the window gets one follow-up a wait (`reminded`, the wait's key), with the cost of a cold wake-up against
  *   compacting now. Pi decides.
  * - Compact before the cache expires (`beforeExpiry`, off by default): a waiting session idle for the cache's lifetime
- *   less `LEAD_MS`, its context at or past the share, is sent the summary request itself (`#expire`); a report that
- *   arrives first starts a run, which cancels it.
+ *   less a lead (at 4.5 of 5 minutes, or 55 of 60 with the 1-hour cache, `cache-retention.ts`), its context at or past
+ *   the share, is sent the summary request itself (`#expire`); a report that arrives first starts a run, which cancels it.
+ * - The cache's lifetime and the price of a write are the session's (PP-475): 5 minutes at the catalogue's write price,
+ *   or 1 hour at twice the input price.
  * - Each self-compaction is recorded (`SelfCompaction`): its cost (the summary turn), the context before and after, and
  *   what it saved (`savingOf`), in the session (the transcript's line) and in Spend.
  */
@@ -27,6 +29,7 @@ import { type ConversationId, UsageDoc } from "@earendil-works/pi-durable";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { estimateMessageTokens } from "@earendil-works/pi-ai/utils/estimate";
 import type { PocketApp } from "./app.ts";
+import { cacheTiming } from "./cache-retention.ts";
 import type { SelfCompactSettings } from "./config.ts";
 import { AuthorsDoc, CiWatchesDoc, ScheduleDoc, SelfCompactDoc, type SelfCompaction, type SelfCompactReason, type SelfCompactState, SpendDoc, SubagentsDoc } from "./docs.ts";
 import { describe, HttpError } from "./errors.ts";
@@ -53,19 +56,11 @@ const KEEP_RECENT_TOKENS = 20_000;
 const SUMMARY_TOKENS = 2_000;
 /** About what the two requests of a self-compaction add to the prefix (the reminder's answer, the summary request). */
 const REQUEST_TOKENS = 1_500;
-/** How long before the cache expires the expiry mode compacts: 4.5 minutes of 5. */
-const LEAD_MS = 30_000;
 /** Self-compactions kept in a session, and in Spend. */
 const KEEP_DONE = 50;
 const KEEP_SPEND = 100;
 /** A board task the summary names: the session's own work. */
 const OPEN_STATES: readonly TaskState[] = ["in_progress", "review"];
-
-/**
- * How long a prompt cache lasts (the TTL actually used): Anthropic's 5 minutes, or 1 hour when Pi's requests ask for the
- * long retention (`PI_CACHE_RETENTION=long`, as pi-ai reads it; PP-474 measures and may turn it on).
- */
-export const cacheTtlMs = (retention: string | undefined = process.env.PI_CACHE_RETENTION): number => (retention === "long" ? 3_600_000 : 300_000);
 
 /** What a session waits on, read from the app's state, and its board tasks in progress. */
 export type Pending = {
@@ -240,11 +235,16 @@ export class SelfCompact {
     readonly #compacting = new Set<ConversationId>();
     /** The expiry mode's timer of each waiting session. */
     readonly #timers = new Map<ConversationId, NodeJS.Timeout>();
-    /** How long the cache lasts and how long before its end the expiry mode compacts (tests make them short). */
-    timing = { ttlMs: cacheTtlMs(), leadMs: LEAD_MS };
+    /** Tests make the cache's lifetime and the expiry mode's lead short; otherwise each session's (`timingOf`). */
+    timing: { ttlMs: number; leadMs: number } | undefined;
 
     constructor(app: PocketApp) {
         this.#app = app;
+    }
+
+    /** How long `id`'s cache lasts, and how long before its end the expiry mode compacts: its setting's (PP-475). */
+    timingOf(id: ConversationId): { ttlMs: number; leadMs: number } {
+        return this.timing ?? cacheTiming(this.#app.cacheRetentionOf(id));
     }
 
     settings(): SelfCompactSettings {
@@ -422,7 +422,7 @@ export class SelfCompact {
         const promptTokens = view.messages.filter((message) => message.role === "system").reduce((sum, message) => sum + estimateMessageTokens(message), 0);
 
         return {
-            continue: reminderText(pending, { tokens, window, model: answer.model, prices, ttlMs: this.timing.ttlMs, promptTokens }),
+            continue: reminderText(pending, { tokens, window, model: answer.model, prices, ttlMs: this.timingOf(id).ttlMs, promptTokens }),
             patch: { reminded: key },
         };
     }
@@ -528,10 +528,11 @@ export class SelfCompact {
         }
 
         if (this.settings().beforeExpiry && this.refused(id) === undefined) {
+            const { ttlMs, leadMs } = this.timingOf(id);
             const timer = setTimeout(() => {
                 this.#timers.delete(id);
                 void this.#expire(id).catch((error: unknown) => this.#app.log(`self-compact before expiry in ${String(id)}: ${describe(error)}`));
-            }, Math.max(0, this.timing.ttlMs - this.timing.leadMs));
+            }, Math.max(0, ttlMs - leadMs));
 
             timer.unref();
             this.#timers.set(id, timer);
@@ -627,7 +628,7 @@ export class SelfCompact {
             const after = projectStats(undefined, view.entries).contextTokens ?? 0;
             const [provider = "", ...rest] = ready.model.split("/");
             const { prices } = this.#model(provider, rest.join("/"));
-            const write = writePrice(prices, this.timing.ttlMs);
+            const write = writePrice(prices, this.timingOf(id).ttlMs);
             const record: SelfCompaction = {
                 session: Number(app.rootOf(id)),
                 entry: entry ?? 0,
@@ -649,7 +650,9 @@ export class SelfCompact {
                 doc.done = [...doc.done, record].slice(-KEEP_DONE);
                 const spend = await tx.doc(SpendDoc);
                 const before = spend.selfCompactions ?? { count: 0, cost: 0, saved: 0, recent: [] };
-                const now = { count: before.count + 1, cost: before.cost + record.cost, saved: before.saved + record.saving, recent: [...before.recent, record].slice(-KEEP_SPEND) };
+                // Plain copies: the document's own records cannot be read once the commit settles, and Spend keeps these.
+                const recent = [...before.recent.map((each) => ({ ...each })), record].slice(-KEEP_SPEND);
+                const now = { count: before.count + 1, cost: before.cost + record.cost, saved: before.saved + record.saving, recent };
 
                 spend.selfCompactions = now;
 

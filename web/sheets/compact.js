@@ -170,6 +170,36 @@ function WhileWaiting({ settings }) {
     </div>`;
 }
 
+/**
+ * How long the prompt cache lasts (PP-475, src/server/cache-retention.ts): this session's own (its subagents follow it),
+ * and every session's. Short (5 minutes) by default; long (1 hour) costs more a write. The owner's.
+ */
+function PromptCache({ id, own, all }) {
+    const modes = [
+        { value: "short", label: t("5 minutes"), detail: t("the default; a write costs 1.25× input") },
+        { value: "long", label: t("1 hour"), detail: t("a write costs 2× input") },
+    ];
+    const row = (part, name, value, options, onChange) => html`<div class="pp-row" data-part=${part}>
+        <span>${name}</span>
+        <div class="pp-choice">
+            <${Choice} label=${`${t("Prompt cache")}: ${name}`} value=${value} options=${options} onChange=${onChange} />
+        </div>
+    </div>`;
+
+    return html`<div class="field" data-part="prompt-cache">
+        <div class="label">${t("How long the prompt cache lasts")}</div>
+        <p class="muted small">${t("Claude keeps the context in a cache, which costs far less to read than to send again. After the cache expires, the next turn writes the whole context again. 1 hour suits a session that waits on subagents, CI runs or schedules for longer than 5 minutes; each write then costs more. Switching a session that already has a context writes it again once. A session's own choice comes first, and its subagents follow it.")}</p>
+        ${row(
+            "prompt-cache-session",
+            t("This session"),
+            own ?? "inherit",
+            [{ value: "inherit", label: t("As every session"), detail: modes.find((mode) => mode.value === all).label }, ...modes],
+            (retention) => attempt(() => api(`c/${id}/cache-retention`, { retention })),
+        )}
+        ${row("prompt-cache-all", t("Every session"), all, modes, (retention) => attempt(() => api("settings", { cacheRetention: retention })))}
+    </div>`;
+}
+
 export function CompactSheet() {
     const { view, server, me } = store.state;
     const id = store.state.conversationId;
@@ -193,6 +223,7 @@ export function CompactSheet() {
         <${AtChoices} key=${`own-${String(own)}`} label=${t("This session compacts by itself")} value=${own} inherit=${all} onPick=${setOwn} />
         ${me?.role === "owner" && html`<${AtChoices} key=${`all-${String(all)}`} label=${t("Every session, unless it has its own")} value=${all} onPick=${setAll} />`}
         ${me?.role === "owner" && server?.selfCompact && html`<${WhileWaiting} settings=${server.selfCompact} />`}
+        ${me?.role === "owner" && server?.cacheRetention && html`<${PromptCache} id=${id} own=${view.conversation?.cacheRetention} all=${server.cacheRetention} />`}
         ${
             me?.role === "owner" &&
             html`<p class="muted small">${t("What goes into Pi's prompt fills the context too. Text that changes is sent again, and each copy stays until the session compacts; a change here shows from the next message.")}</p>

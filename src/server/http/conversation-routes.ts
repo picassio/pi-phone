@@ -83,6 +83,13 @@ export async function conversationRoutes(
         return json(response, 200, { ok: true });
     }
 
+    // How long this session's prompt cache lasts (PP-475): short, long, or "inherit" the setting for all.
+    if (third === "cache-retention" && method === "POST") {
+        await app.setSessionCacheRetention(id, user, (await readJson<{ retention?: unknown }>(request)).retention);
+
+        return json(response, 200, { ok: true });
+    }
+
     // What of the wiki, secrets, and skills goes into this session's prompt (PP-276): { part, mode }, mode "inherit" too.
     // This session's own subagents' model and thinking (PP-281): { part, value }, "inherit" for every session's.
     if (third === "subagent-defaults" && method === "POST") {

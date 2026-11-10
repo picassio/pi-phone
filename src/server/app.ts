@@ -113,6 +113,7 @@ import { FolderFavorites } from "./folder-favorites.ts";
 import { KeptPages } from "./kept-pages.ts";
 import { SessionGroups } from "./session-groups.ts";
 import { AutoCompact, checkCompactAt } from "./auto-compact.ts";
+import { type CacheRetentionChoice, checkCacheRetention, installCacheRetention } from "./cache-retention.ts";
 import { SelfCompact } from "./self-compact.ts";
 import { withAssistant } from "./assistant.ts";
 import { type CallPlan, type CallStart, chatgptAccount, type VoiceEndpoints, type VoiceMode, VOICES, VoiceService, isVoiceMode, voiceInstructions, withVoice, wordsHint } from "./voice.ts";
@@ -1247,6 +1248,12 @@ export class PocketApp {
 
         // No image over 2000 px a side reaches a model: one would fail every request after it (`image-guard.ts`).
         installImageGuard(this.models, images, (line) => this.#log(line));
+        // Outermost: a session's prompt cache setting (PP-475) is read once a request, not at every try of the limit gate.
+        installCacheRetention(this.models, async (sessionId) => {
+            const id = await this.#conversationOfSession(sessionId);
+
+            return id === undefined ? undefined : this.cacheRetentionOf(id as ConversationId);
+        });
 
         registry.install(
             defineExtension({
@@ -4611,6 +4618,8 @@ export class PocketApp {
                 compactAt: this.config.compactAt,
                 // compact_self, the compact reminder's share, and compacting before the cache expires (PP-473).
                 selfCompact: this.config.selfCompact,
+                // How long every session's prompt cache lasts: short or long (PP-475, `cache-retention.ts`).
+                cacheRetention: this.config.cacheRetention,
                 // What of the wiki, secrets, and skills goes into every session's prompt (`context-policy.ts`).
                 contextPolicy: resolveContextPolicy(this.config.contextPolicy, undefined),
                 // How Pi calls its tools in every session: on, or only from codemode scripts (PP-379).
@@ -4960,6 +4969,8 @@ export class PocketApp {
             ...(meta?.sendLimit === undefined ? {} : { sendLimit: meta.sendLimit }),
             // Its own auto-compact (`auto-compact.ts`); absent, the setting for all.
             ...(meta?.compactAt === undefined ? {} : { compactAt: meta.compactAt }),
+            // Its own prompt cache (`cache-retention.ts`); absent, the setting for all.
+            ...(meta?.cacheRetention === undefined ? {} : { cacheRetention: meta.cacheRetention }),
             // Its own choices of what goes into its prompt (`context-policy.ts`); absent, the setting for all.
             ...(meta?.contextPolicy === undefined ? {} : { contextPolicy: meta.contextPolicy }),
             // Its own subagents' model and thinking (PP-281); absent, the setting for all.
@@ -7071,6 +7082,45 @@ export class PocketApp {
     async setSelfCompact(user: User, part: unknown, value: unknown): Promise<void> {
         this.selfCompact.set(user, String(part), value);
         await this.#refreshClients();
+    }
+
+    /** How long a session's prompt cache lasts (PP-475): its own setting, else the setting for all; a subagent follows its session. */
+    cacheRetentionOf(id: ConversationId): CacheRetentionChoice {
+        return this.sessionMeta(this.rootOf(id))?.cacheRetention ?? this.config.cacheRetention;
+    }
+
+    /** How long every session's prompt cache lasts (PP-475): short or long. The owner's. */
+    async setCacheRetention(user: User, value: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        this.config.cacheRetention = checkCacheRetention(value, false);
+        await this.#refreshClients();
+    }
+
+    /** One session's own prompt cache: short, long, or "inherit" (the setting for all). The owner's: it changes what Pi spends. */
+    async setSessionCacheRetention(id: ConversationId, user: User, value: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        const retention = checkCacheRetention(value, true);
+        const root = this.rootOf(id);
+
+        await this.harness.commit(async (tx) => {
+            const meta = (await tx.doc(SessionsDoc)).items[String(root)];
+
+            if (meta === undefined) {
+                throw new HttpError(404, "There is no such session.");
+            }
+
+            if (retention === "inherit") {
+                delete meta.cacheRetention;
+            } else {
+                meta.cacheRetention = retention;
+            }
+        }, context);
     }
 
     /** A session's board tasks in `states` (PP-473: what its self-compaction keeps). */

@@ -214,6 +214,43 @@ test("the compact reminder goes once a wait, only while the session waits and it
     await app.setSelfCompact(owner(app), "remindAt", 40);
 });
 
+test("with the 1-hour cache (PP-475), self-compaction reckons with 1 hour, its lead of 5 minutes, and the 1-hour write price", async () => {
+    const id = await filled();
+    const other = await newSession(app);
+
+    await app.setSessionCacheRetention(id, owner(app), "long");
+    assert.deepEqual(app.selfCompact.timingOf(id), { ttlMs: 3_600_000, leadMs: 300_000 });
+    assert.deepEqual(app.selfCompact.timingOf(other), { ttlMs: 300_000, leadMs: 30_000 });
+    await app.setSelfCompact(owner(app), "remindAt", 10);
+
+    try {
+        // The reminder: the cache lasts 60 minutes, and a cold wake-up writes the context at twice the input price ($10/M).
+        await watchCi(id, 51);
+        await say(id, "hello");
+        const all = await entries(id);
+        const at = all.findIndex((entry) => entry.kind === "pi.user" && textOf(entry).startsWith(COMPACT_REMINDER_PREFIX));
+        const answer = all.slice(0, at).findLast((entry) => entry.kind === "pi.assistant")!;
+        const usage = (answer.model![0] as { usage: { input: number; cacheRead: number; cacheWrite: number; output: number } }).usage;
+        const cold = ((usage.input + usage.cacheRead + usage.cacheWrite + usage.output) * 10) / 1_000_000;
+        const reminder = textOf(all[at]!);
+
+        assert.match(reminder, /The prompt cache lasts 60 minutes/);
+        assert.ok(reminder.includes(`writes the whole context again, about $${cold.toFixed(cold < 0.1 ? 3 : 2)}.`), reminder);
+
+        // compact_self: Spend's saving reckons the wake-up at the 1-hour write price too.
+        await say(id, "wait for it");
+        await until(async () => (await compactions(id)).length === 1, "the compaction", 15_000);
+        const done = (await app.harness.snapshot(SelfCompactDoc, id, context))!.done[0]!;
+        // The newest first; reading it after a second compaction also proves Spend keeps plain records, not the document's.
+        const recent = app.spend.summary(owner(app)).selfCompactions!.recent[0]!;
+
+        assert.equal(recent.entry, done.entry);
+        assert.ok(Math.abs(recent.saving - savingOf(done.before, done.after, done.cost, 10)) < 1e-9, `saved ${recent.saving}`);
+    } finally {
+        await app.setSelfCompact(owner(app), "remindAt", 40);
+    }
+});
+
 test("compacting before the cache expires is off by default; on, it compacts at the time, unless a report comes first", async () => {
     assert.equal(app.config.selfCompact.beforeExpiry, false);
     app.selfCompact.timing = { ttlMs: 1_400, leadMs: 400 };

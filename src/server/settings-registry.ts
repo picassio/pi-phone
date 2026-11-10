@@ -13,6 +13,7 @@ import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
 import { HttpError } from "./errors.ts";
 import { MAX_COMPACT_AT, MIN_COMPACT_AT } from "./auto-compact.ts";
+import { CACHE_RETENTIONS } from "./cache-retention.ts";
 import { makeBackup } from "./backup.ts";
 import { DESIGN_MODULE } from "./design-systems.ts";
 import type { KeptPagesView } from "./kept-pages.ts";
@@ -444,6 +445,32 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             read: () => (app.config.selfCompact.beforeExpiry ? "on" : "off"),
             choices: () => ["on", "off"],
             apply: (user, value) => app.setSelfCompact(user, "beforeExpiry", onOff(value)),
+        },
+        // ─── The prompt cache's lifetime (PP-475) ───
+        {
+            id: "sessions.cacheRetention",
+            area: "sessions",
+            title: "How long every session's prompt cache lasts",
+            help: "For every session: short (the default: 5 minutes on Claude, writes at 1.25× the input price) or long (1 hour, writes at 2×). Long suits sessions that wait on subagents, CI runs or schedules longer than 5 minutes. A session's own setting (sessions.sessionCacheRetention) comes first; switching a session with a context writes it all again once. Menu › Compact context.",
+            owner: true,
+            read: () => app.config.cacheRetention,
+            choices: () => [...CACHE_RETENTIONS],
+            apply: (user, value) => app.setCacheRetention(user, value),
+        },
+        {
+            id: "sessions.sessionCacheRetention",
+            area: "sessions",
+            title: "How long one session's prompt cache lasts",
+            help: "short (5 minutes), long (1 hour), or inherit (the setting for every session). Its subagents follow it. Target: the session's number.",
+            owner: true,
+            target: "session",
+            read: (target) => {
+                const own = app.sessionMeta(session(target))?.cacheRetention;
+
+                return own ?? `inherit (${app.config.cacheRetention})`;
+            },
+            choices: () => [...CACHE_RETENTIONS, "inherit"],
+            apply: (user, value, target) => app.setSessionCacheRetention(session(target), user, value),
         },
         // What of the wiki, secrets, and skills goes into the prompt (PP-276): every session's, and one session's own.
         ...CONTEXT_PARTS.flatMap((part): Setting[] => [

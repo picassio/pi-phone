@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type AssistantSettings, readAssistant, storedAssistant } from "./assistant.ts";
 import type { PermissionMode, PopupMode } from "./browser/pi-browser.ts";
+import type { CacheRetentionChoice } from "./cache-retention.ts";
 import { type CodemodeMode, type ContextPart, type ContextPolicy, DEFAULT_CONTEXT_POLICY } from "./context-policy.ts";
 import { type HookId, hookInfo } from "./hooks.ts";
 import { type SubagentDefaults, type SubagentPart, withPart } from "./subagent-defaults.ts";
@@ -261,6 +262,8 @@ interface PocketConfig {
     hooks?: Partial<Record<HookId, boolean>>;
     /** Self-compaction (PP-473, `self-compact.ts`): only what differs from `SELF_COMPACT_DEFAULTS`. */
     selfCompact?: Partial<SelfCompactSettings>;
+    /** How long every session's prompt cache lasts (PP-475, `cache-retention.ts`): "long", 1 hour. Absent: short. */
+    cacheRetention?: "long";
     /** How Pi calls its tools in every session (PP-379, `context-policy.ts`): "only" from codemode scripts. Absent: on. */
     codemodeMode?: CodemodeMode;
     /** Whether people may keep artifacts as pages on their rail (PP-370, `kept-pages.ts`). Absent: on. */
@@ -864,6 +867,21 @@ export class ConfigStore {
             delete this.#config.selfCompact;
         } else {
             this.#config.selfCompact = own;
+        }
+
+        this.save();
+    }
+
+    /** How long every session's prompt cache lasts (PP-475): short (the default, 5 minutes) or long (1 hour). */
+    get cacheRetention(): CacheRetentionChoice {
+        return this.#config.cacheRetention ?? "short";
+    }
+
+    set cacheRetention(retention: CacheRetentionChoice) {
+        if (retention === "long") {
+            this.#config.cacheRetention = retention;
+        } else {
+            delete this.#config.cacheRetention;
         }
 
         this.save();

@@ -813,5 +813,7 @@
     "Self-compaction {1}{2}": "Tự nén {1}{2}",
     "Self-compaction failed: {1}": "Tự nén thất bại: {1}",
     "Not compacted: the summary turn gave no summary.": "Chưa nén: lượt tóm tắt không đưa ra bản tóm tắt.",
-    "Not compacted: a message came first.": "Chưa nén: có tin nhắn đến trước."
+    "Not compacted: a message came first.": "Chưa nén: có tin nhắn đến trước.",
+    "The prompt cache is short (5 minutes), long (1 hour), or inherit.": "Bộ nhớ đệm prompt là short (5 phút), long (1 giờ), hoặc inherit.",
+    "The prompt cache is short (5 minutes) or long (1 hour).": "Bộ nhớ đệm prompt là short (5 phút) hoặc long (1 giờ)."
 }

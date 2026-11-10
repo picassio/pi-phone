@@ -1872,6 +1872,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 wikiCaptureMinutes?: unknown;
                 compactAt?: unknown;
                 selfCompact?: unknown;
+                cacheRetention?: unknown;
                 contextPolicy?: unknown;
                 codemodeMode?: unknown;
                 subagentDefault?: unknown;
@@ -1893,6 +1894,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                     body.wikiCaptureMinutes,
                     body.compactAt,
                     body.selfCompact,
+                    body.cacheRetention,
                     body.contextPolicy,
                     body.codemodeMode,
                     body.subagentDefault,
@@ -1934,6 +1936,11 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 const { part, value } = (body.selfCompact ?? {}) as { part?: unknown; value?: unknown };
 
                 await app.setSelfCompact(user, part, value);
+            }
+
+            // How long every session's prompt cache lasts (PP-475): short or long.
+            if (body.cacheRetention !== undefined) {
+                await app.setCacheRetention(user, body.cacheRetention);
             }
 
             // What of the wiki, secrets, and skills goes into every session's prompt (PP-276): { part, mode }.

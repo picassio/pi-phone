@@ -3835,5 +3835,11 @@
     "Compacting this session…": "Đang nén phiên này…",
     "Not compacted": "Chưa nén",
     "Not compacted: the summary turn gave no summary.": "Chưa nén: lượt tóm tắt không đưa ra bản tóm tắt.",
-    "Read from the app's state when it compacted": "Đọc từ trạng thái của ứng dụng lúc nén"
+    "Read from the app's state when it compacted": "Đọc từ trạng thái của ứng dụng lúc nén",
+    "5 minutes": "5 phút",
+    "the default; a write costs 1.25× input": "mặc định; mỗi lần ghi tốn 1,25× giá đầu vào",
+    "a write costs 2× input": "mỗi lần ghi tốn 2× giá đầu vào",
+    "Prompt cache": "Bộ nhớ đệm prompt",
+    "How long the prompt cache lasts": "Bộ nhớ đệm prompt giữ trong bao lâu",
+    "Claude keeps the context in a cache, which costs far less to read than to send again. After the cache expires, the next turn writes the whole context again. 1 hour suits a session that waits on subagents, CI runs or schedules for longer than 5 minutes; each write then costs more. Switching a session that already has a context writes it again once. A session's own choice comes first, and its subagents follow it.": "Claude giữ ngữ cảnh trong bộ nhớ đệm, đọc lại rẻ hơn nhiều so với gửi lại. Khi bộ nhớ đệm hết hạn, lượt tiếp theo ghi lại toàn bộ ngữ cảnh. 1 giờ hợp với phiên chờ subagent, lượt chạy CI hoặc lịch hẹn lâu hơn 5 phút; khi đó mỗi lần ghi tốn hơn. Đổi cho một phiên đã có ngữ cảnh sẽ ghi lại ngữ cảnh đó một lần. Lựa chọn riêng của phiên được ưu tiên, và subagent theo phiên của nó."
 }
