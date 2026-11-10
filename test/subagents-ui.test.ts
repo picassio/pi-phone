@@ -92,13 +92,30 @@ const says = (selector: string, pattern: RegExp, timeoutMs?: number) =>
 /** Past what slides in, as a person's next tap is (`back.js` lets go of a tap that lands on something just moved). */
 const settled = () => new Promise((resolve) => setTimeout(resolve, 450));
 
+/**
+ * A page of its own, signed in, for each test (PP-470): the last test's page is closed first. Its scripts may still be
+ * stepping through history (back.js takes a closed layer's entry back off with `history.go`, as after the board's double
+ * click), and a history step or reload in the page while Page.navigate loads the next session aborts that load
+ * (net::ERR_ABORTED): the last test's session stayed on screen, and the next test waited on it.
+ */
+async function freshPage(): Promise<void> {
+    await browsers.close(1);
+    page = await browsers.open(1, { restore: false });
+    assert.equal((await page.navigate(`${base}/login?token=${encodeURIComponent(app.config.ownerToken)}`)).error, undefined, "the sign-in page loaded");
+    await see(
+        `return JSON.stringify((await import("/store.js")).store.state.me?.role === "owner")`,
+        "signed in",
+    );
+}
+
 /** A session at phone size whose parent starts "quick" and "slow". */
 async function started(sleep: number): Promise<ConversationId> {
     parentSleep = sleep;
     const id = await newSession(app);
 
+    await freshPage();
     await page.setViewport(VIEWPORTS.mobile);
-    await page.navigate(`${base}/s/${id}`);
+    assert.equal((await page.navigate(`${base}/s/${id}`)).error, undefined, `the page loaded session ${id}`);
     await see(
         `return JSON.stringify(document.querySelector(".composer textarea") !== null)`,
         "the session",
@@ -127,12 +144,6 @@ before(async () => {
         load: async () => undefined,
         save: () => {},
     });
-    page = await browsers.open(1);
-    await page.navigate(`${base}/login?token=${encodeURIComponent(app.config.ownerToken)}`);
-    await see(
-        `return JSON.stringify((await import("/store.js")).store.state.me?.role === "owner")`,
-        "signed in",
-    );
 });
 
 after(() =>
