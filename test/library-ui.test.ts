@@ -3,7 +3,8 @@
 // message box (/library-command) and sends nothing; the page's tabs, list, detail (pins, editor, versions, Undo, the
 // Delete card), New skill and Keep on the rail; and the board settings' pins. Nothing runs past the screen, and every
 // must-fix kind of the layout check is zero in what this change draws. With PHONE_SHOTS, screenshots and the layout
-// check's reports go there.
+// check's reports go there. Each test starts from the same pins, and a pin switch waits for its answer before it takes
+// another tap (PP-478).
 import { type App, cleanUp, cleanUpAll, modelTexts, newSession, openApp, owner, root, scriptedModel } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -30,6 +31,8 @@ let browsers: Browsers;
 let page: BrowserPage;
 let base = "";
 let id: ConversationId;
+/** While set, the server holds back its answers to PUTs on the library (pins) here, until the test lets them go. */
+let held: (() => void)[] | undefined;
 
 const skillMd = (name: string, description: string) => `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\n---\n\nThe steps of ${name}.\n`;
 
@@ -39,7 +42,23 @@ before(async () => {
     }
 
     app = await openApp(scriptedModel());
-    server = createServer(createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }));
+    const handler = createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} });
+
+    server = createServer((request, response) => {
+        const answers = held;
+
+        if (answers !== undefined && request.method === "PUT" && /\/library\b/.test(request.url ?? "")) {
+            const end = response.end.bind(response);
+
+            response.end = ((...args: Parameters<typeof end>) => {
+                answers.push(() => end(...args));
+
+                return response;
+            }) as typeof response.end;
+        }
+
+        void handler(request, response);
+    });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 
@@ -60,8 +79,7 @@ before(async () => {
     boards.create(actor, { key: "SSP", name: "SSP work" });
     boards.setBoardMode(actor, String(id), true, "SSP");
     boards.close();
-    app.librarySetPin(me, "skill", "board-rules", "board", "SSP", true);
-    app.librarySetPin(me, "skill", "house-style", "all", undefined, true);
+    cleanPins(false);
 
     browsers = new Browsers({ dataDir: mkdtempSync(join(root, "library-ui-")), load: async () => undefined, save: () => {} });
     page = await browsers.open(1);
@@ -78,6 +96,28 @@ after(() =>
         () => cleanUp(),
     ),
 );
+
+/**
+ * The pins each test starts from (PP-478): board-rules on the board SSP, house-style in every session, and with
+ * `reviewHere` /ssp-review in the test's session (what the session sheet's test pins), nothing else. A test that stopped
+ * half-way (a pin left on, or one not made) cannot change what the next tests read.
+ */
+function cleanPins(reviewHere: boolean) {
+    const me = owner(app);
+
+    for (const item of app.library.list()) {
+        for (const pin of item.pins) {
+            app.librarySetPin(me, item.kind, item.name, pin.scope, pin.target, false);
+        }
+    }
+
+    app.librarySetPin(me, "skill", "board-rules", "board", "SSP", true);
+    app.librarySetPin(me, "skill", "house-style", "all", undefined, true);
+
+    if (reviewHere) {
+        app.librarySetPin(me, "command", "ssp-review", "session", String(id), true);
+    }
+}
 
 async function until(check: () => Promise<boolean> | boolean, what: string, timeoutMs = 20_000): Promise<void> {
     const started = Date.now();
@@ -133,11 +173,49 @@ async function mustFix(report: Awaited<ReturnType<typeof measure>>, scope: strin
     return kinds.filter((_, index) => inside[index]);
 }
 
+const switchState = (selector: string) =>
+    inPage<{ on: string; disabled: boolean }>(
+        `const each = document.querySelector(${JSON.stringify(selector)}); return JSON.stringify({ on: each.getAttribute("aria-checked"), disabled: each.disabled });`,
+    );
+
+/**
+ * Taps a pin switch with the server's answer held back (PP-478): the server has the change before the page has its
+ * answer, as under load. The switch waits for the answer, so a second tap cannot send the state the page still shows;
+ * then the answer goes, and the page shows the switch flipped and ready, as a person sees it before tapping again.
+ */
+async function toggleHeld(selector: string, changed: () => boolean, what: string) {
+    const answers: (() => void)[] = [];
+    const was = (await switchState(selector)).on;
+
+    held = answers;
+
+    try {
+        await click(selector);
+        await until(() => answers.length === 1, `the answer to ${what}`);
+        assert.ok(changed(), what);
+        assert.deepEqual(await switchState(selector), { on: was, disabled: true }, "the switch waits for the answer");
+        await click(selector);
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        assert.equal(answers.length, 1, "a tap while the answer is on its way sends nothing");
+    } finally {
+        held = undefined;
+
+        for (const release of answers) {
+            release();
+        }
+    }
+
+    const now = was === "true" ? "false" : "true";
+
+    await until(async () => (await switchState(selector)).on === now && !(await switchState(selector)).disabled, `the switch ${now === "true" ? "on" : "off"} and ready`);
+}
+
 const menuRow = (start: string) =>
     inPage<string[]>(`return JSON.stringify([...document.querySelectorAll(".sheet .list-item")].map((each) => each.innerText.trim().replace(/\\s+/g, " ")).filter((text) => text.startsWith(${JSON.stringify(start)})))`);
 
 for (const [viewport, label] of [[VIEWPORTS.mobile, "390"], [VIEWPORTS.desktop, "1280"], [LARGE, "1920"]] as const) {
     test(`at ${label} px: the menus, the session's sheet, and a library command filling the message box (PP-467)`, real, async () => {
+        cleanPins(false);
         await page.setViewport(viewport);
         await page.navigate(`${base}/s/${id}`);
         await present(".composer textarea", "the session");
@@ -164,12 +242,11 @@ for (const [viewport, label] of [[VIEWPORTS.mobile, "390"], [VIEWPORTS.desktop, 
         assert.match(named("ssp-review").text, /^\/ssp-review Review an SSP task\./);
         assert.deepEqual(await mustFix(await measure(`session-sheet-${label}`, viewport.width), ".sheet"), []);
 
-        // The switch pins /ssp-review to this session (once: the next widths find it on).
-        if (named("ssp-review").on === "false") {
-            await click('[data-name="ssp-review"] [role="switch"]');
-            await until(() => app.libraryPinned(id).some((item) => item.name === "ssp-review" && item.pin.scope === "session"), "the pin");
-            await until(async () => (await inPage<string>(`return JSON.stringify(document.querySelector('[data-name="ssp-review"] [role="switch"]').getAttribute("aria-checked"))`)) === "true", "the switch on");
-        }
+        // The switch pins /ssp-review to this session.
+        assert.equal(named("ssp-review").on, "false");
+        await click('[data-name="ssp-review"] [role="switch"]');
+        await until(() => app.libraryPinned(id).some((item) => item.name === "ssp-review" && item.pin.scope === "session"), "the pin");
+        await until(async () => (await switchState('[data-name="ssp-review"] [role="switch"]')).on === "true", "the switch on");
 
         await page.evaluate(`(await import("/store.js")).closeSheet(); return "true";`);
         await until(async () => !(await inPage<boolean>(`return JSON.stringify(document.querySelector(".sheet") !== null)`)), "the sheet closed");
@@ -189,6 +266,7 @@ for (const [viewport, label] of [[VIEWPORTS.mobile, "390"], [VIEWPORTS.desktop, 
     test(`at ${label} px: Skills & commands: tabs, list, an item's pins, editor, versions, Delete card, New skill, Keep on the rail (PP-467)`, real, async () => {
         const me = owner(app);
 
+        cleanPins(true);
         await page.setViewport(viewport);
         await page.navigate(`${base}/?page=library:skills`);
         await present('[data-part="library-item"]', "the list");
@@ -213,8 +291,7 @@ for (const [viewport, label] of [[VIEWPORTS.mobile, "390"], [VIEWPORTS.desktop, 
         assert.deepEqual(await mustFix(await measure(`library-detail-${label}`, viewport.width), ".lib-page"), []);
 
         // Every session, on and off again.
-        await click('.lib-every [role="switch"]');
-        await until(() => app.library.item("skill", "ssp-notes").pins.some((pin) => pin.scope === "all"), "pinned to every session");
+        await toggleHeld('.lib-every [role="switch"]', () => app.library.item("skill", "ssp-notes").pins.some((pin) => pin.scope === "all"), "pinned to every session");
         await click('.lib-every [role="switch"]');
         await until(() => !app.library.item("skill", "ssp-notes").pins.some((pin) => pin.scope === "all"), "unpinned");
 
@@ -250,9 +327,10 @@ for (const [viewport, label] of [[VIEWPORTS.mobile, "390"], [VIEWPORTS.desktop, 
         await until(() => app.library.list().some((item) => item.name === `made-${label}`), "the new skill");
         assert.match(app.library.files("skill", `made-${label}`)["SKILL.md"]!, /^---\nname: made-\d+\ndescription: "A skill made on the page\."\n---\n\nDo the thing\.\n$/);
 
-        // Commands tab.
+        // Commands tab: the list once the tab has closed the form (on a phone the form hides it, and a hidden row reads
+        // without spaces).
         await click('[data-part="library-tab"][data-tab="commands"]');
-        await present('[data-part="library-item"][data-name="ssp-review"]', "the commands");
+        await present('.lib-layout:not(.open) [data-part="library-item"][data-name="ssp-review"]', "the commands");
         assert.match(await textOf('[data-part="library-item"][data-name="ssp-review"]'), /^\/ssp-review Review an SSP task\. 1 session 1 version$/);
         assert.deepEqual(await mustFix(await measure(`library-commands-${label}`, viewport.width), ".lib-page"), []);
 
@@ -268,6 +346,7 @@ for (const [viewport, label] of [[VIEWPORTS.mobile, "390"], [VIEWPORTS.desktop, 
     });
 
     test(`at ${label} px: a board's settings pin library items to it (PP-467)`, real, async () => {
+        cleanPins(true);
         await page.setViewport(viewport);
         await page.navigate(`${base}/`);
         // The project's settings, once the Projects extension has loaded (its sheet by name, with the board's key).
@@ -296,8 +375,7 @@ for (const [viewport, label] of [[VIEWPORTS.mobile, "390"], [VIEWPORTS.desktop, 
         const pinned = () => app.library.item("command", "ssp-review").pins.some((pin) => pin.scope === "board" && pin.target === "SSP");
         const was = pinned();
 
-        await click('[data-part="board-library-item"][data-name="ssp-review"] [role="switch"]');
-        await until(() => pinned() !== was, "the board pin changed");
+        await toggleHeld('[data-part="board-library-item"][data-name="ssp-review"] [role="switch"]', () => pinned() !== was, "the board pin changed");
         await click('[data-part="board-library-item"][data-name="ssp-review"] [role="switch"]');
         await until(() => pinned() === was, "and back");
     });

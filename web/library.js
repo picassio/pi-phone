@@ -79,11 +79,20 @@ function ItemRow({ item, chosen, onPick }) {
     </button>`;
 }
 
-/** Where the item is pinned, and the controls to pin it: every session, sessions, boards. */
+/**
+ * Where the item is pinned, and the controls to pin it: every session, sessions, boards. While a change is on its way
+ * the controls wait (PP-478): a second tap before the answer would send the state the page still shows, and be lost.
+ */
 function Pins({ item, boards, onPins }) {
+    const [busy, setBusy] = useState(false);
     const sessions = store.state.sessions ?? [];
+    const change = async (action) => {
+        setBusy(true);
+        await attempt(action);
+        setBusy(false);
+    };
     const pin = (scope, target, pinned) =>
-        attempt(async () => {
+        change(async () => {
             const answer = await api(`library/${item.kind}/${item.name}/pins`, { scope, ...(target === undefined ? {} : { target }), pinned }, { method: "PUT" });
 
             onPins(answer.pins);
@@ -102,6 +111,7 @@ function Pins({ item, boards, onPins }) {
             class="icon-button"
             title=${t("Unpin from {name}", { name: each.label ?? each.target })}
             aria-label=${t("Unpin from {name}", { name: each.label ?? each.target })}
+            disabled=${busy}
             onClick=${() => pin(each.scope, each.target, false)}
         >
             <${Icon} name="close" size=${16} />
@@ -116,7 +126,7 @@ function Pins({ item, boards, onPins }) {
                     <div>${t("Every session")}</div>
                     <div class="muted small">${t("Every session of yours has it, from its next message.")}</div>
                 </div>
-                <${Switch} on=${every} label=${t("Every session")} onChange=${() => pin("all", undefined, !every)} />
+                <${Switch} on=${every} disabled=${busy} label=${t("Every session")} onChange=${() => pin("all", undefined, !every)} />
             </div>
         </div>
         <div class="lib-pins">
@@ -127,8 +137,8 @@ function Pins({ item, boards, onPins }) {
                     label=${t("Pin to sessions")}
                     placeholder=${t("Pin to sessions…")}
                     options=${sessionOptions}
-                    disabled=${sessionOptions.length === 0}
-                    onAdd=${(ids) => attempt(async () => {
+                    disabled=${busy || sessionOptions.length === 0}
+                    onAdd=${(ids) => change(async () => {
                         let pins = item.pins;
 
                         for (const id of ids) {
@@ -150,7 +160,7 @@ function Pins({ item, boards, onPins }) {
                               placeholder=${t("Pin to a board…")}
                               value=${null}
                               options=${boardOptions}
-                              disabled=${boardOptions.length === 0}
+                              disabled=${busy || boardOptions.length === 0}
                               onChange=${(key) => pin("board", key, true)}
                           />`
                 }
@@ -554,11 +564,12 @@ export function LibraryPage({ tab }) {
 
 /**
  * The session menu's Skills & commands: a switch per library item pins it to this session; what its board or every
- * session gives it shows as a state.
+ * session gives it shows as a state. While a pin is on its way the switches wait for its answer (PP-478).
  */
 export function LibrarySessionSheet({ id }) {
     const [items, setItems] = useState(null);
     const [board, setBoard] = useState(null);
+    const [busy, setBusy] = useState(false);
 
     const load = () =>
         attempt(async () => {
@@ -575,8 +586,9 @@ export function LibrarySessionSheet({ id }) {
         }
     }, [id]);
 
-    const toggle = (item, pinned) =>
-        attempt(async () => {
+    const toggle = async (item, pinned) => {
+        setBusy(true);
+        await attempt(async () => {
             const answer = await api(`library/${item.kind}/${item.name}/pins`, { scope: "session", target: String(id), pinned }, { method: "PUT" });
 
             setItems(items.map((each) => (each === item ? { ...item, pins: answer.pins } : each)));
@@ -584,6 +596,8 @@ export function LibrarySessionSheet({ id }) {
             store.set({ templates: null });
             loadTemplates();
         });
+        setBusy(false);
+    };
     const group = (kind) => {
         const list = (items ?? []).filter((item) => item.kind === kind);
 
@@ -607,7 +621,7 @@ export function LibrarySessionSheet({ id }) {
                             </div>
                             <div class="muted small">${item.description}</div>
                         </div>
-                        <${Switch} on=${here} label=${t("Pin {name} to this session", { name })} onChange=${() => toggle(item, !here)} />
+                        <${Switch} on=${here} disabled=${busy} label=${t("Pin {name} to this session", { name })} onChange=${() => toggle(item, !here)} />
                     </div>`;
                 })}
             </div>`;

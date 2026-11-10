@@ -2297,17 +2297,24 @@ export default function projects(pocket) {
 
     /**
      * The owner's skills and commands pinned to the board (the library, PP-467): every session in board mode on it has
-     * them. A switch per item; Menu › Skills & commands makes and edits them.
+     * them. A switch per item; Menu › Skills & commands makes and edits them. While a pin is on its way the switches
+     * wait for its answer (PP-478): a second tap before it would send the state the page still shows, and be lost.
      */
     function BoardLibrary({ project }) {
         const [items, setItems] = useState(null);
+        const [busy, setBusy] = useState(false);
 
         useEffect(() => {
             pocket.api(`projects/${project.key}/library`).then((answer) => setItems(answer.items), failed);
         }, [project.key]);
 
-        const pin = (item, pinned) =>
-            pocket.api(`projects/${project.key}/library`, { kind: item.kind, name: item.name, pinned }, { method: "PUT" }).then((answer) => setItems(answer.items), failed);
+        const pin = (item, pinned) => {
+            setBusy(true);
+            pocket
+                .api(`projects/${project.key}/library`, { kind: item.kind, name: item.name, pinned }, { method: "PUT" })
+                .then((answer) => setItems(answer.items), failed)
+                .finally(() => setBusy(false));
+        };
 
         return html`<div class="field" data-part="board-library">
             <span class="label">${t("Skills & commands pinned to this board")}</span>
@@ -2325,7 +2332,7 @@ export default function projects(pocket) {
                                 <div>${name} ${item.pinned && html`<${StateTag} tone="ok" label=${t("On this board")} />`}</div>
                                 <div class="muted small">${item.description}</div>
                             </div>
-                            <${Switch} on=${item.pinned} label=${t("Pin {name} to {key}", { name, key: project.key })} onChange=${() => pin(item, !item.pinned)} />
+                            <${Switch} on=${item.pinned} disabled=${busy} label=${t("Pin {name} to {key}", { name, key: project.key })} onChange=${() => pin(item, !item.pinned)} />
                         </div>`;
                     })}
                 </div>`
