@@ -622,6 +622,14 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, await app.piSessions.import(user, url.searchParams.get("name") ?? "", request));
         }
 
+        // A Claude Code session on this phone, converted into a Pi session to continue (PP-496); a machine's goes
+        // through `pi-sessions/machine`.
+        if (first === "pi-sessions" && second === "claude" && method === "POST") {
+            const body = await readJson<{ path?: unknown }>(request);
+
+            return json(response, 200, await app.piSessions.importClaude(user, body.path));
+        }
+
         // Ports of machines opened here (`forwards.ts`): the owner's, as the machines are.
         if (first === "forwards") {
             if (user.role !== "owner") {

@@ -2,9 +2,12 @@
 // (another machine, Termux). The list, by folder, and one of them before it continues, as a short conversation.
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { actions, api, attempt, closeSheet, navigate, notify, openSheet, store } from "../store.js";
-import { html, Icon, Loader, Sheet, shortPath, timeAgo } from "../ui.js";
+import { formatBytes, html, Icon, Loader, Sheet, shortPath, timeAgo } from "../ui.js";
 import { isRemotePlace } from "../place.js";
 import { t, tn, tx } from "../i18n.js";
+
+/** Where Claude Code keeps its sessions (PP-496): a path, not words. */
+const CLAUDE_FOLDER = "~/.claude/projects";
 
 /** Only the owner: Pi's sessions are the owner's files. */
 export const piSessionsAvailable = () => store.state.me?.role === "owner";
@@ -30,19 +33,35 @@ function byFolder(sessions) {
     return [...folders];
 }
 
-function SessionRow({ session }) {
+/** The tag of a session from Claude Code (PP-496): one of its own, or a Pi session made from one. */
+const claudeTag = () => html`<span class="pi-tag">${t("Claude Code")}</span>`;
+
+/**
+ * A Claude Code session is converted into a Pi session first (the server reads it a part at a time), then shown as
+ * one; `converting` says which while it is.
+ */
+function SessionRow({ session, converting, convert }) {
     const pocket = session.pocket;
+    const claude = session.claudeCode !== undefined;
 
     return html`<button
         class="pi-session"
-        onClick=${() => openSheet({ type: "pi-session", id: session.path })}
+        disabled=${converting !== null}
+        onClick=${() => (claude ? convert(session) : openSheet({ type: "pi-session", id: session.path }))}
     >
         <span class="pi-session-text">
             <span class="pi-session-title">${session.title}</span>
             <span class="pi-session-meta">
-                ${tn(session.messages, "{n} message · {when}", "{n} messages · {when}", { when: timeAgo(session.modified) })}
+                ${
+                    claude
+                        ? converting === session.path
+                            ? t("Converting it to a Pi session…")
+                            : t("{size} · {when}", { size: formatBytes(session.claudeCode.size), when: timeAgo(session.modified) })
+                        : tn(session.messages, "{n} message · {when}", "{n} messages · {when}", { when: timeAgo(session.modified) })
+                }
             </span>
         </span>
+        ${(claude || session.fromClaudeCode) && claudeTag()}
         ${
             pocket &&
             html`<span class=${`pi-tag ${pocket.behind ? "behind" : ""}`}>
@@ -68,6 +87,20 @@ export function PiSessionsSheet() {
     const [floor, setFloor] = useState(0);
     const picker = useRef(null);
     const [importing, setImporting] = useState(false);
+    // The Claude Code session being converted, by its path (PP-496).
+    const [converting, setConverting] = useState(null);
+    const convert = (session) => {
+        setConverting(session.path);
+        attempt(async () => {
+            try {
+                const { path } = await api("pi-sessions/claude", { path: session.path });
+
+                openSheet({ type: "pi-session", id: path });
+            } finally {
+                setConverting(null);
+            }
+        });
+    };
     // A machine whose Pi sessions are listed (place.js), and that list.
     const [machine, setMachine] = useState(null);
     const [onMachine, setOnMachine] = useState(null);
@@ -79,6 +112,7 @@ export function PiSessionsSheet() {
     };
     const importFromMachine = (session) => {
         setImporting(true);
+        setConverting(session.claudeCode ? session.path : null);
         attempt(async () => {
             try {
                 const { path } = await api(`pi-sessions/machine/${encodeURIComponent(machine.id)}`, { path: session.path });
@@ -86,6 +120,7 @@ export function PiSessionsSheet() {
                 openSheet({ type: "pi-session", id: path });
             } finally {
                 setImporting(false);
+                setConverting(null);
             }
         });
     };
@@ -145,6 +180,7 @@ export function PiSessionsSheet() {
     return html`<${Sheet} title=${t("Continue a Pi session")} onClose=${closeSheet}>
         <p class="muted small">
             ${tx("Sessions of Pi on this phone, and session files brought from elsewhere (a {jsonl} from {folder} on another machine or in Termux). One continues here as a new session; its file stays as it is.", { jsonl: html`<span class="mono">.jsonl</span>`, folder: html`<span class="mono">~/.pi/agent/sessions</span>` })}
+            ${" "}${tx("Claude Code's sessions ({folder}) are listed too: one continues converted into a Pi session.", { folder: html`<span class="mono">${CLAUDE_FOLDER}</span>` })}
         </p>
         <div class="sheet-list">
             <button class="list-item" disabled=${importing} onClick=${() => picker.current?.click()}>
@@ -168,7 +204,7 @@ export function PiSessionsSheet() {
             html`<div class="pi-machine">
                 <div class="label">${t("On {machine}", { machine: machine.name })}</div>
                 ${onMachine === null && html`<${Loader} label=${t("Reading Pi's sessions on {machine}", { machine: machine.name })} />`}
-                ${onMachine?.length === 0 && html`<p class="muted small">${t("No Pi sessions in ~/.pi/agent/sessions there.")}</p>`}
+                ${onMachine?.length === 0 && html`<p class="muted small">${t("No Pi or Claude Code sessions there.")}</p>`}
                 ${
                     onMachine?.length > 0 &&
                     html`<div class="pi-folder-list">
@@ -187,8 +223,17 @@ export function PiSessionsSheet() {
                                         ${session.title}
                                         ${session.phoneSession !== undefined && html` <span class="pi-tag">${t("from a session here")}</span>`}
                                     </span>
-                                    <span class="pi-session-meta">${t("{folder} · {when} ago", { folder: shortPath(session.cwd, machine.home), when: timeAgo(session.modified) })}</span>
+                                    <span class="pi-session-meta">
+                                        ${
+                                            converting === session.path
+                                                ? t("Converting it to a Pi session…")
+                                                : session.claudeCode
+                                                  ? t("{folder} · {size} · {when} ago", { folder: shortPath(session.cwd, machine.home), size: formatBytes(session.size), when: timeAgo(session.modified) })
+                                                  : t("{folder} · {when} ago", { folder: shortPath(session.cwd, machine.home), when: timeAgo(session.modified) })
+                                        }
+                                    </span>
                                 </span>
+                                ${session.claudeCode && claudeTag()}
                             </button>`,
                         )}
                     </div>`
@@ -235,7 +280,7 @@ export function PiSessionsSheet() {
                         ${parent && html`<span class="pi-folder-parent">${parent}</span>`}
                     </div>
                     <div class="pi-folder-list">
-                        ${list.map((session) => html`<${SessionRow} key=${session.path} session=${session} />`)}
+                        ${list.map((session) => html`<${SessionRow} key=${session.path} session=${session} converting=${converting} convert=${convert} />`)}
                     </div>
                 </section>`;
             })}
@@ -247,6 +292,28 @@ export function PiSessionsSheet() {
             }
         </div>
     <//>`;
+}
+
+/** What continues of a session converted from Claude Code (PP-496): all of it, from its last compaction, or its last turns. */
+function ClaudeKept({ kept }) {
+    const since = kept.since ? new Date(kept.since).toLocaleDateString() : "";
+    const what =
+        kept.from === "all"
+            ? tn(kept.messages, "All of it continues: {n} message.", "All of it continues: {n} messages.")
+            : kept.from === "compaction"
+              ? t("The summary of its last compaction ({date}) continues, with the {n} messages after it.", { date: since, n: kept.messages })
+              : t("Its last {n} messages continue (from {date}), after a summary of what came before.", { date: since, n: kept.messages });
+
+    return html`<div class="pi-kept">
+        <${Icon} name="compact" size=${16} />
+        <p>
+            ${t("From Claude Code.")} ${what}
+            ${kept.left > 0 && html` ${tn(kept.left, "{n} earlier entry stays in its file.", "{n} earlier entries stay in its file.")}`}
+            <span class="muted">
+                ${" "}${t("Tool calls {calls}, thinking {thinking}, images {images}.", { calls: kept.toolCalls, thinking: kept.thinking, images: kept.images })}
+            </span>
+        </p>
+    </div>`;
 }
 
 /** One of Pi's sessions: where it worked and with what, its last messages, and continuing it here. */
@@ -318,8 +385,9 @@ export function PiSessionSheet({ path }) {
         <//>`;
     }
 
-    return html`<${Sheet} title=${t("Pi session")} onClose=${closeSheet}>
+    return html`<${Sheet} title=${info.claudeCode ? t("Claude Code session") : t("Pi session")} onClose=${closeSheet}>
         <h3 class="pi-title">${info.title}</h3>
+        ${info.claudeCode && html`<${ClaudeKept} kept=${info.claudeCode} />`}
         <dl class="pi-facts">
             <div>
                 <dt>${t("Folder")}</dt>

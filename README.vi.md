@@ -602,8 +602,11 @@ dự án thật.</sub>
   sẵn, trừ ffmpeg, HyperFrames và TLC); **Duyệt và kết nối** thêm máy, cài pi-env, kết nối và cài các công cụ đã chọn; Từ chối thì không lưu gì.
 - **Cổng** của một máy (một dev server ở đó) mở được trong trình duyệt của điện thoại.
 - **Tiếp tục phiên Pi.** Tiếp tục một phiên từ Pi trên điện thoại này, một tệp `.jsonl`, hoặc `~/.pi/agent/sessions`
-  của một máy, kèm lịch sử, với mọi kích thước (hàng trăm MB: tệp được đọc từng phần, phần xem trước chỉ đọc phần cuối); hoặc gửi một phiên sang `pi` trên máy và mang về những gì đã làm ở đó. Pi tự làm được cả
-  hai (`pi_sessions`, `pi_session_import`, `continue_in_pi`, `pi_bring_back`).
+  của một máy, kèm lịch sử, với mọi kích thước (hàng trăm MB: tệp được đọc từng phần, phần xem trước chỉ đọc phần cuối).
+  Các phiên của Claude Code (`~/.claude/projects`, trên điện thoại hoặc một máy) cũng được liệt kê, gắn nhãn Claude Code:
+  một phiên được chuyển thành phiên Pi để tiếp tục (văn bản, suy nghĩ, lệnh gọi công cụ và kết quả, ảnh), từ lần nén cuối,
+  hoặc các lượt cuối kèm bản tóm tắt khi quá dài, và thẻ cho biết phần nào được tiếp tục; tệp gốc chỉ được đọc.
+  Hoặc gửi một phiên sang `pi` trên máy và mang về những gì đã làm ở đó. Pi tự làm được cả hai (`pi_sessions`, `pi_session_import`, `continue_in_pi`, `pi_bring_back`).
 
 ### Ứng dụng trên điện thoại này
 - **Pi dùng ứng dụng của bạn.** Trong một phiên điều khiển bạn duyệt trên một thẻ (các ứng dụng thẻ nêu, và màn hình

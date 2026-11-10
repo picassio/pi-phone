@@ -631,6 +631,47 @@ test("Pi's sessions on a machine are listed from their headers, and one copied h
     }
 });
 
+test("Claude Code's sessions on a machine are listed and converted where they are; one continues in its folder there", { skip }, async () => {
+    const home = app.machines.get(machineId).remote!.home;
+    // The project's folder: the machine's test project, and Claude Code's folder for it, named by its slug.
+    const project = join(remoteHome, "project");
+    const slug = project.replace(/[^a-zA-Z0-9]/g, "-");
+    const folder = join(home, ".claude", "projects", slug);
+    const path = join(folder, "5e55e5e5-0000-4000-8000-000000000001.jsonl");
+
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(
+        path,
+        readFileSync(join(import.meta.dirname, "fixtures", "claude", "tools.jsonl"), "utf8").replaceAll("/srv/shop/apps/web", join(project, "apps", "web")),
+    );
+    const original = readFileSync(path);
+
+    try {
+        const { sessions } = await app.piSessions.listOnMachine(owner(app), machineId);
+        const found = sessions.find((each) => each.path === path);
+
+        assert.ok(found, JSON.stringify(sessions.slice(0, 3)));
+        assert.equal(found.claudeCode, true);
+        assert.equal(found.title, "Why does the cart total drift by a cent?");
+        assert.equal(found.cwd, project);
+
+        const imported = await app.piSessions.importFromMachine(owner(app), machineId, found.path);
+        const preview = await app.piSessions.preview(owner(app), imported.path);
+
+        assert.equal(preview.cwd, `machine:${machineId}:${project}`);
+        assert.equal(preview.cwdExists, true);
+        assert.equal(preview.claudeCode?.from, "all");
+        assert.equal(preview.claudeCode?.messages, 7);
+
+        const { id } = await app.commands.continuePiSession(owner(app), imported.path, preview.cwd);
+
+        assert.equal(app.cwdOf(id), `machine:${machineId}:${project}`);
+        assert.deepEqual(readFileSync(path), original, "the machine's file is only read");
+    } finally {
+        rmSync(folder, { recursive: true, force: true });
+    }
+});
+
 test("Files, the viewer, images, Changes, diffs, and undo work on the machine's folder", { skip }, async () => {
     const repo = join(remoteHome, "repo");
     const git = (...args: string[]) =>

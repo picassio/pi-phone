@@ -14,6 +14,7 @@ import type { ConversationId } from "@earendil-works/pi-durable";
 import type { Message } from "@earendil-works/pi-ai";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { PocketApp } from "./app.ts";
+import { claudeSlug, describeKept } from "./claude-sessions.ts";
 import type { Attachment } from "./commands.ts";
 import type { User } from "./config.ts";
 import { HttpError } from "./errors.ts";
@@ -31,9 +32,11 @@ export type PiSessionListing = {
     title: string;
     cwd: string;
     modified: number;
-    /** Bytes (a machine's) or messages (the phone's): what each list knows. */
+    /** Bytes (a machine's, or a Claude Code session's) or messages (the phone's): what each list knows. */
     size?: number;
     messages?: number;
+    /** A Claude Code session (PP-496): it continues converted. */
+    claudeCode?: boolean;
     /** The session here that continues it. */
     continuedIn?: number;
     busy: boolean;
@@ -298,7 +301,8 @@ export class SessionControl implements SessionsApi {
                 title: each.title,
                 cwd: each.cwd,
                 modified: each.modified,
-                messages: each.messages,
+                ...(each.messages === undefined ? {} : { messages: each.messages }),
+                ...(each.claudeCode === undefined ? {} : { size: each.claudeCode.size, claudeCode: true }),
                 ...(each.pocket === undefined ? {} : { continuedIn: each.pocket.id }),
                 busy: now - each.modified < BUSY_MS,
             }));
@@ -313,22 +317,30 @@ export class SessionControl implements SessionsApi {
                 cwd: each.cwd,
                 modified: each.modified,
                 size: each.size,
+                ...(each.claudeCode === undefined ? {} : { claudeCode: true }),
                 ...(each.phoneSession === undefined ? {} : { continuedIn: each.phoneSession }),
+                ...(each.continuedIn === undefined ? {} : { continuedIn: each.continuedIn }),
                 busy: now - each.modified < BUSY_MS,
             }));
     }
 
     /**
      * Continue one of Pi's sessions here, as the Pi sessions sheet does: a machine's is copied in first (with where it came
-     * from), then a new session continues it in its folder (on that machine), or in `folder`. Counts as a start.
+     * from), then a new session continues it in its folder (on that machine), or in `folder`. Counts as a start. A Claude
+     * Code session (PP-496) is converted into a Pi session first; `kept` then says what continues of it.
      */
     async importPiSession(
         caller: ConversationId,
         request: { machineId?: string; path: string; folder?: string },
-    ): Promise<{ id: number; cwd: string; title: string }> {
+    ): Promise<{ id: number; cwd: string; title: string; kept?: string }> {
         const { user, root } = this.#caller(caller);
         const pi = this.#app.piSessions;
-        const local = request.machineId === undefined ? request.path : (await pi.importFromMachine(user, request.machineId, request.path)).path;
+        const local =
+            request.machineId !== undefined
+                ? (await pi.importFromMachine(user, request.machineId, request.path)).path
+                : claudeSlug(this.#app.home, request.path) !== undefined
+                  ? (await pi.importClaude(user, request.path)).path
+                  : request.path;
         const preview = await pi.preview(user, local);
         const cwd =
             request.folder === undefined
@@ -344,7 +356,12 @@ export class SessionControl implements SessionsApi {
         this.#spend(root);
         const { id } = await this.#app.commands.continuePiSession(user, local, cwd);
 
-        return { id: Number(id), cwd: this.#app.cwdOf(id), title: preview.title };
+        return {
+            id: Number(id),
+            cwd: this.#app.cwdOf(id),
+            title: preview.title,
+            ...(preview.claudeCode === undefined ? {} : { kept: describeKept(preview.claudeCode) }),
+        };
     }
 
     /** Hand a session to Pi in a machine's terminal (Continue in Pi): a new Pi session file in `folder` there. */

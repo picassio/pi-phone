@@ -411,6 +411,25 @@ so Pi changes them through the settings tools; "the last session" is the one the
   `.part` file as they come; only the header is checked then. Measured on a 287 MB session (143,650 entries, 9
   pictures of 4 MB): the heap after is as before (59 MB); with the heap capped at 96 MB it continues with RSS 50 MB
   over the start; uncapped, V8 lets garbage reach about 200 MB over the start, the same for 93, 287 and 561 MB files.
+- **Claude Code sessions** (PP-496, `src/server/claude-sessions.ts`): the Pi sessions sheet and `pi_sessions` also list
+  `~/.claude/projects/<slug>/*.jsonl` (subagents' `agent-*` left out) on the phone and on machines, from each file's
+  first 40 lines: Claude Code's session id, the project's folder (the entries' `cwd`, or the folder above it whose
+  slug names the projects folder), the first request as the title, its size and time, tagged Claude Code. Continue
+  converts it into a Pi session file (format 3) in the imported folder, named after its id (`fromPi.session`), with an
+  `.origin.json` that says what continues; then it continues as any Pi session. A machine's file is read there, over
+  its connection, never copied whole. The converter reads the file twice: numbers per entry first (the branch is the
+  walk back from the last message along `parentUuid`, plus the parts of the same answer and the tool results hanging
+  off it, as parallel tool calls write them; `isSidechain` entries out), then only what continues. Mapping: an
+  answer's parts (one entry per text, thinking, tool_use, all with the answer's `message.id`) become one assistant
+  message (thinking keeps its signature, redacted thinking its data), tool_result blocks Pi's tool results (a result
+  whose call is not in the answer before it left out), people's text and images user messages. Left out: Claude Code's
+  records (mode, permission-mode, file-history-snapshot, attachments, api requests, titles), its local commands'
+  caveat, command and output, and `<synthetic>` replies. What continues: from the last compaction (its
+  `isCompactSummary` message as a Pi compaction, the `preservedMessages` before it as the kept messages) or all of it;
+  when that is over 400,000 characters of text (an image counts 6,000), the last turns that fit, from a request on, after
+  a summary made here (Claude Code's summary and the last 40 requests left out). The model becomes `anthropic/<model>`,
+  and thinking seen makes Pi's thinking medium. The real case (agent-crew, 152 MB, 42,707 lines, 11 compactions)
+  converts in about a second: 146 messages after its last compaction (93 tool calls, 33 thinking), 288,000 characters.
 - **Pi's sessions as tools** (`src/server/extensions/pi-sessions.ts`; owner's decisions of 2026-10-19, wiki:
   pi-session-agent-tools): `pi_sessions` (the phone's or a machine's, a file changed in the last 2 minutes marked busy),
   `pi_session_import` (a machine's copied in with its origin, then continued in its folder there), `continue_in_pi`,

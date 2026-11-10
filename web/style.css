@@ -16728,8 +16728,9 @@ textarea.notes {
     color: var(--accent);
     background: var(--accent-soft);
     border-radius: var(--r-pill);
-    padding: 0.7000000000000001px 8px;
+    padding: 2px 8px;
     font-size: 12px;
+    line-height: 16px;
     white-space: nowrap;
 }
 
@@ -16784,6 +16785,30 @@ textarea.notes {
     align-items: baseline;
     gap: 4px 8px;
     font-size: 12px;
+}
+
+/* What continues of a session converted from Claude Code (PP-496). */
+.pi-kept {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 13px;
+    line-height: 20px;
+}
+
+.pi-kept > .icon {
+    flex: none;
+    margin-top: 2px;
+    color: var(--muted);
+}
+
+.pi-kept > p {
+    margin: 0;
+    min-width: 0;
 }
 
 .pi-convo {

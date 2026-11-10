@@ -75,6 +75,38 @@ export async function envSource(
     };
 }
 
+/**
+ * Lines read again by where they are, found by a first read: a megabyte of the file is held for the lines in it, as
+ * the lines asked for mostly follow each other.
+ */
+export class LineReader {
+    readonly #source: ByteSource;
+    #held: { at: number; bytes: Buffer } = { at: 0, bytes: Buffer.alloc(0) };
+
+    constructor(source: ByteSource) {
+        this.#source = source;
+    }
+
+    /** The line at `at`, `size` bytes long; undefined when the file is shorter now. */
+    async line(at: number, size: number): Promise<Buffer | undefined> {
+        const held = this.#held;
+
+        if (at < held.at || at + size > held.at + held.bytes.length) {
+            this.#held = { at, bytes: await this.#source.read(at, Math.max(size, CHUNK)) };
+        }
+
+        const start = at - this.#held.at;
+        const line = this.#held.bytes.subarray(start, start + size);
+
+        return line.length === size ? line : undefined;
+    }
+
+    /** Let the held part go. */
+    release(): void {
+        this.#held = { at: 0, bytes: Buffer.alloc(0) };
+    }
+}
+
 /** A line of a file: where it starts, and its bytes without the newline. */
 export type Line = { at: number; bytes: Buffer };
 

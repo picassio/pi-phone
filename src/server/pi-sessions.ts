@@ -21,6 +21,8 @@ import { createWriteStream, existsSync, readFileSync } from "node:fs";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { mkdir, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
+import { once } from "node:events";
+import { finished } from "node:stream/promises";
 import { pipeline } from "node:stream/promises";
 import type { Message } from "@earendil-works/pi-ai";
 import {
@@ -44,12 +46,24 @@ import {
     type Tx,
     UserEntry,
 } from "@earendil-works/pi-durable";
+import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
 import { FROM_PI_ENTRY, type FromPiData, LINK_TYPE } from "./entry-format.ts";
 import { HttpError } from "./errors.ts";
 import { formatPlace } from "./places.ts";
-import { type ByteSource, CHUNK, envSource, linesFromEnd, linesOf, localSource, parseLine } from "./session-lines.ts";
+import {
+    CLAUDE_PROJECTS,
+    claudeHead,
+    type ClaudeKept,
+    type ClaudeListing,
+    ClaudeSessionError,
+    claudeSlug,
+    convertClaude,
+    HEAD_LINES,
+    listClaudeHere,
+} from "./claude-sessions.ts";
+import { type ByteSource, CHUNK, envSource, LineReader, linesFromEnd, linesOf, localSource, parseLine } from "./session-lines.ts";
 
 const context = BACKGROUND_CONTEXT;
 
@@ -75,6 +89,10 @@ export type MachineSession = {
     size: number;
     /** The session here it went to Pi from (`pi-handoff.ts`), while it is still linked to this file. */
     phoneSession?: number;
+    /** A Claude Code session (PP-496): it continues converted. */
+    claudeCode?: true;
+    /** The newest session here that continues it (a Claude Code session's). */
+    continuedIn?: number;
 };
 /** How long a list of Pi's sessions answers "is this one of them?" for a preview or a continue after it. */
 const FOUND_FOR_MS = 5_000;
@@ -117,7 +135,9 @@ export type PiSession = {
 };
 
 /** One of Pi's sessions as listed: what Pi says of it, and what a search looks through (lower case). */
-type Listed = { info: SessionInfo; words: string };
+type PiListed = { info: SessionInfo; words: string };
+/** A list's session: one of Pi's, or one of Claude Code's (PP-496). */
+type Listed = PiListed | { claude: ClaudeListing; words: string };
 
 /** A session file Pi Pocket cannot continue, and why, in words for people. */
 export class PiSessionError extends Error {}
@@ -633,35 +653,16 @@ export class PiSessionCopy {
         return this.#copy.wanted(from);
     }
 
-    // A part of the file read once for the lines in it: the branch's lines follow each other, mostly.
-    #window: { at: number; bytes: Buffer } = { at: 0, bytes: Buffer.alloc(0) };
-
-    /** The line at `at`, `size` bytes long. */
-    async #line(at: number, size: number): Promise<Buffer> {
-        const held = this.#window;
-
-        if (at < held.at || at + size > held.at + held.bytes.length) {
-            this.#window = { at, bytes: await this.#source.read(at, Math.max(size, CHUNK)) };
-        }
-
-        const start = at - this.#window.at;
-        const line = this.#window.bytes.subarray(start, start + size);
-
-        if (line.length !== size) {
-            throw new PiSessionError("This Pi session file changed while it was read. Try again.");
-        }
-
-        return line;
-    }
-
     /** The copy's messages, about `bytes` of the file's lines at a time. */
     async *batches(bytes = COMMIT_BYTES): AsyncGenerator<PiEntry[]> {
         const { branch, version } = this.index;
+        const reader = new LineReader(this.#source);
         let batch: PiEntry[] = [];
         let size = 0;
 
         for (let index = 0; index < branch.place.length; index += 1) {
-            const entry = parseLine(await this.#line(branch.at[index]!, branch.size[index]!)) as FileEntry | undefined;
+            const line = await reader.line(branch.at[index]!, branch.size[index]!);
+            const entry = line === undefined ? undefined : (parseLine(line) as FileEntry | undefined);
 
             // Each line was an entry when the file was first read.
             if (entry === undefined) {
@@ -678,7 +679,7 @@ export class PiSessionCopy {
             }
         }
 
-        this.#window = { at: 0, bytes: Buffer.alloc(0) };
+        reader.release();
         batch.push(...this.#copy.finish());
 
         if (batch.length > 0) {
@@ -916,7 +917,7 @@ function listedText(message: { content?: unknown }): string {
  * words a search looks through: its name, folder and first message, and its messages' text up to `MAX_WORDS`.
  * Undefined for a file that is not a Pi session, or cannot be read.
  */
-async function listedInfo(path: string, mtime: Date): Promise<Listed | undefined> {
+async function listedInfo(path: string, mtime: Date): Promise<PiListed | undefined> {
     let source: ByteSource;
 
     try {
@@ -1026,7 +1027,7 @@ async function listedInfo(path: string, mtime: Date): Promise<Listed | undefined
  * Pi's sessions as `SessionManager.listAll` finds them, newest first: the `.jsonl` files of `custom`, or of every
  * folder in Pi's sessions folder. Read a few at a time, each a line at a time (`listedInfo`).
  */
-async function listPiSessions(custom: string | undefined): Promise<Listed[]> {
+async function listPiSessions(custom: string | undefined): Promise<PiListed[]> {
     let folders: string[];
 
     if (custom !== undefined) {
@@ -1054,7 +1055,7 @@ async function listPiSessions(custom: string | undefined): Promise<Listed[]> {
         }
     }
 
-    const found: Listed[] = [];
+    const found: PiListed[] = [];
     let next = 0;
     const reader = async () => {
         while (next < files.length) {
@@ -1079,13 +1080,18 @@ function titleOf(info: SessionInfo): string {
     return info.name ?? (first || "Pi session");
 }
 
-/** A Pi session as the list shows it. */
+/** A Pi session as the list shows it, or a Claude Code one (PP-496). */
 export type PiSessionSummary = {
     path: string;
     title: string;
     cwd: string;
     modified: number;
-    messages: number;
+    /** A Pi session's messages. */
+    messages?: number;
+    /** A Claude Code session (`claude-sessions.ts`): its file's size. It continues converted (`importClaude`). */
+    claudeCode?: { size: number };
+    /** A Pi session converted from a Claude Code one. */
+    fromClaudeCode?: true;
     /** The newest session here that continues it, and whether Pi went on in the terminal since. */
     pocket?: { id: number; behind: boolean };
 };
@@ -1114,7 +1120,12 @@ export class PiSessions {
             return this.#found.list;
         }
 
-        const list = listPiSessions(this.#customFolder());
+        const list = Promise.all([listPiSessions(this.#customFolder()), listClaudeHere(this.#app.home, MAX_LISTED)]).then(
+            ([pi, claude]): Listed[] => [
+                ...pi,
+                ...claude.map((each) => ({ claude: each, words: `${each.title}\n${each.cwd}`.toLowerCase() })),
+            ],
+        );
         const found = { at: Date.now(), list };
 
         this.#found = found;
@@ -1234,79 +1245,16 @@ export class PiSessions {
         this.#requireOwner(user);
         const machine = this.#app.machines.ready(machineId);
         const home = machine.remote!.home;
-        const root = `${home}/.pi/agent/sessions`;
         const env = this.#app.places.env(formatPlace({ machineId, path: home }));
         const failure = (what: string, error: { message: string }) =>
             new HttpError(502, `Could not read Pi's sessions on ${machine.name} (${what}): ${error.message}`);
-        const exists = await env.exists(root, context);
-
-        if (!exists.ok) {
-            throw failure(root, exists.error);
-        }
-
-        if (!exists.value) {
-            return { sessions: [] };
-        }
-
         // Every folder's files, newest first by mtime, headers read for the first MAX_ON_MACHINE.
-        const files: { path: string; modified: number; size: number }[] = [];
-        const folders = await env.openDirReader(root, context);
-
-        if (!folders.ok) {
-            throw failure(root, folders.error);
-        }
-
-        try {
-            for (;;) {
-                const page = await folders.value.next(500, context);
-
-                if (!page.ok) {
-                    throw failure(root, page.error);
-                }
-
-                for (const folder of page.value.entries) {
-                    if (folder.kind !== "directory") {
-                        continue;
-                    }
-
-                    const inside = await env.openDirReader(folder.path, context);
-
-                    if (!inside.ok) {
-                        continue;
-                    }
-
-                    try {
-                        for (;;) {
-                            const filesPage = await inside.value.next(500, context);
-
-                            if (!filesPage.ok) {
-                                break;
-                            }
-
-                            for (const file of filesPage.value.entries) {
-                                if (file.kind === "file" && file.name.endsWith(".jsonl")) {
-                                    files.push({ path: file.path, modified: file.mtimeMs, size: file.size });
-                                }
-                            }
-
-                            if (filesPage.value.done) {
-                                break;
-                            }
-                        }
-                    } finally {
-                        await inside.value.close(context);
-                    }
-                }
-
-                if (page.value.done) {
-                    break;
-                }
-            }
-        } finally {
-            await folders.value.close(context);
-        }
+        const files = await filesBelow(env, `${home}/.pi/agent/sessions`, failure);
+        // Claude Code's too (PP-496), its subagents' left out.
+        const claude = (await filesBelow(env, `${home}/${CLAUDE_PROJECTS}`, failure)).filter((file) => claudeSlug(home, file.path) !== undefined);
 
         files.sort((a, b) => b.modified - a.modified);
+        claude.sort((a, b) => b.modified - a.modified);
         const sessions: MachineSession[] = [];
 
         for (const file of files.slice(0, MAX_ON_MACHINE)) {
@@ -1384,7 +1332,30 @@ export class PiSessions {
             });
         }
 
-        return { sessions };
+        const continued = this.#continued();
+
+        for (const file of claude.slice(0, MAX_ON_MACHINE)) {
+            // Its id, folder and first request: the first lines only.
+            const lines = await env.readTextLines(file.path, { maxLines: HEAD_LINES }, context);
+            const head = lines.ok ? claudeHead(lines.value, claudeSlug(home, file.path)!) : undefined;
+
+            if (head === undefined) {
+                continue;
+            }
+
+            const here = continued.get(head.id);
+
+            sessions.push({
+                path: file.path,
+                ...head,
+                modified: file.modified,
+                size: file.size,
+                claudeCode: true,
+                ...(here === undefined ? {} : { continuedIn: here.id }),
+            });
+        }
+
+        return { sessions: sessions.sort((a, b) => b.modified - a.modified) };
     }
 
     /**
@@ -1402,9 +1373,15 @@ export class PiSessions {
         const env = this.#app.places.env(formatPlace({ machineId, path: machine.remote!.home }));
         const failed = (message: string) => new HttpError(502, `Could not read ${path} on ${machine.name}: ${message}`);
         const source = await envSource(env, path, context, failed);
+        const slug = claudeSlug(machine.remote!.home, path);
         let imported: { path: string };
 
         try {
+            // A Claude Code session is read where it is, and only its Pi session comes here (PP-496).
+            if (slug !== undefined) {
+                return await this.#convertClaude(source, slug, `claude-${machine.name}-${basename(path)}`, { machineId, path });
+            }
+
             imported = await this.#keep(`${machine.name}-${basename(path)}`, (part) => copyOut(source, part));
         } finally {
             await source.close();
@@ -1419,15 +1396,82 @@ export class PiSessions {
         return imported;
     }
 
-    /** Where an imported file came from, when a machine. */
-    #originOf(path: string): { machineId: string; path: string } | undefined {
+    /**
+     * A Claude Code session on this phone (`~/.claude/projects/<slug>/<id>.jsonl`), converted into a Pi session in the
+     * imported folder, to continue as one. Answers its path.
+     */
+    async importClaude(user: User, path: unknown): Promise<{ path: string }> {
+        this.#requireOwner(user);
+        const file = typeof path === "string" ? resolve(path) : "";
+        const slug = claudeSlug(this.#app.home, file);
+
+        if (slug === undefined || file !== path) {
+            throw new HttpError(400, "Choose one of Claude Code's sessions in ~/.claude/projects.");
+        }
+
+        const source = await this.#reading(() => localSource(file));
+
+        try {
+            return await this.#convertClaude(source, slug, `claude-phone-${basename(file)}`, { path: file });
+        } finally {
+            await source.close();
+        }
+    }
+
+    /** Convert a Claude Code session into a Pi session kept as `name`, with where it came from and what continues. */
+    async #convertClaude(
+        source: ByteSource,
+        slug: string,
+        name: string,
+        origin: { machineId?: string; path: string },
+    ): Promise<{ path: string }> {
+        let kept: ClaudeKept | undefined;
+        const made = await this.#keep(name, async (part) => {
+            const out = createWriteStream(part, { mode: 0o600 });
+            const done = finished(out);
+
+            try {
+                kept = (
+                    await convertClaude(source, slug, async (line) => {
+                        if (!out.write(`${line}\n`)) {
+                            await once(out, "drain");
+                        }
+                    })
+                ).kept;
+            } catch (error) {
+                out.destroy();
+                await done.catch(() => {});
+
+                if (error instanceof ClaudeSessionError) {
+                    throw new HttpError(400, error.message);
+                }
+
+                throw error;
+            }
+
+            out.end();
+            await done;
+        });
+
+        await writeFile(`${made.path}${ORIGIN_SUFFIX}`, `${JSON.stringify({ ...origin, claudeCode: kept }, null, 2)}\n`, { mode: 0o600 });
+
+        return made;
+    }
+
+    /** Where an imported file came from: a machine, and for one converted from Claude Code, what continues of it. */
+    #originOf(path: string): { machineId?: string; path: string; claudeCode?: ClaudeKept } | undefined {
         const file = `${path}${ORIGIN_SUFFIX}`;
 
         if (!existsSync(file)) {
             return undefined;
         }
 
-        return JSON.parse(readFileSync(file, "utf8")) as { machineId: string; path: string };
+        return JSON.parse(readFileSync(file, "utf8")) as { machineId?: string; path: string; claudeCode?: ClaudeKept };
+    }
+
+    /** What continues of a Pi session converted from Claude Code's (`importClaude`), when it is one. */
+    claudeKept(path: string): ClaudeKept | undefined {
+        return this.#originOf(path)?.claudeCode;
     }
 
     #requireOwner(user: User): void {
@@ -1436,32 +1480,50 @@ export class PiSessions {
         }
     }
 
-    /** Pi's sessions on this machine, newest first; with `query`, those whose title, folder, or words have it. */
+    /**
+     * Pi's sessions on this machine, and Claude Code's (PP-496), newest first; with `query`, those whose title, folder,
+     * or words have it.
+     */
     async list(user: User, query = ""): Promise<{ sessions: PiSessionSummary[] }> {
         this.#requireOwner(user);
         const continued = this.#continued();
         const needle = query.trim().toLowerCase();
+        const imported = resolve(this.#customFolder() ?? join(getAgentDir(), "sessions", IMPORTED));
         // Opening the list reads it again; a search narrows the one just read.
-        const found = (await this.#find(needle === ""))
-            .filter((each) => needle === "" || each.words.includes(needle))
-            .map((each) => each.info);
-
-        return {
-            sessions: found.slice(0, MAX_LISTED).map((info) => {
-                const pocket = continued.get(info.id);
+        const found = (await this.#find(needle === "")).filter((each) => needle === "" || each.words.includes(needle));
+        const sessions = found.map((each): PiSessionSummary => {
+            if ("claude" in each) {
+                const { claude } = each;
+                const pocket = continued.get(claude.id);
 
                 return {
-                    path: info.path,
-                    title: titleOf(info),
-                    cwd: info.cwd,
-                    modified: info.modified.getTime(),
-                    messages: info.messageCount,
-                    ...(pocket === undefined
-                        ? {}
-                        : { pocket: { id: pocket.id, behind: info.messageCount > pocket.count } }),
+                    path: claude.path,
+                    title: claude.title,
+                    cwd: claude.cwd,
+                    modified: claude.modified,
+                    claudeCode: { size: claude.size },
+                    ...(pocket === undefined ? {} : { pocket: { id: pocket.id, behind: false } }),
                 };
-            }),
-        };
+            }
+
+            const { info } = each;
+            const pocket = continued.get(info.id);
+            const fromClaudeCode = dirname(info.path) === imported && this.#originOf(info.path)?.claudeCode !== undefined;
+
+            return {
+                path: info.path,
+                title: titleOf(info),
+                cwd: info.cwd,
+                modified: info.modified.getTime(),
+                messages: info.messageCount,
+                ...(fromClaudeCode ? { fromClaudeCode: true } : {}),
+                ...(pocket === undefined
+                    ? {}
+                    : { pocket: { id: pocket.id, behind: !fromClaudeCode && info.messageCount > pocket.count } }),
+            };
+        });
+
+        return { sessions: sessions.sort((a, b) => b.modified - a.modified).slice(0, MAX_LISTED) };
     }
 
     /** What Pi lists of one of its sessions: only a file Pi lists is read, so nothing else can be read through this. */
@@ -1469,7 +1531,7 @@ export class PiSessions {
         this.#requireOwner(user);
 
         const find = async (fresh: boolean) =>
-            (await this.#find(fresh)).find((each) => each.info.path === path)?.info;
+            (await this.#find(fresh)).flatMap((each) => ("info" in each && each.info.path === path ? [each.info] : []))[0];
         // The list the sheet just showed, or, for a session new since, the list as it is now.
         const info = (await find(false)) ?? (await find(true));
 
@@ -1580,11 +1642,92 @@ export class PiSessions {
             model: model === null ? null : `${model.provider}/${model.modelId}`,
             modelHere,
             last,
+            // Converted from Claude Code: what continues of it, for the card to say.
+            ...(origin?.claudeCode === undefined ? {} : { claudeCode: origin.claudeCode }),
             ...(pocket === undefined
                 ? {}
-                : { pocket: { id: pocket.id, behind: info.messageCount > pocket.count } }),
+                : { pocket: { id: pocket.id, behind: origin?.claudeCode === undefined && info.messageCount > pocket.count } }),
         };
     }
+}
+
+/**
+ * The files in the folders of `root` (not deeper) in an environment, a machine's: `.jsonl` files with their time and
+ * size. None when `root` is not there.
+ */
+async function filesBelow(
+    env: ExecutionEnv,
+    root: string,
+    failure: (what: string, error: { message: string }) => Error,
+): Promise<{ path: string; modified: number; size: number }[]> {
+    const exists = await env.exists(root, context);
+
+    if (!exists.ok) {
+        throw failure(root, exists.error);
+    }
+
+    if (!exists.value) {
+        return [];
+    }
+
+    const files: { path: string; modified: number; size: number }[] = [];
+    const folders = await env.openDirReader(root, context);
+
+    if (!folders.ok) {
+        throw failure(root, folders.error);
+    }
+
+    try {
+        for (;;) {
+            const page = await folders.value.next(500, context);
+
+            if (!page.ok) {
+                throw failure(root, page.error);
+            }
+
+            for (const folder of page.value.entries) {
+                if (folder.kind !== "directory") {
+                    continue;
+                }
+
+                const inside = await env.openDirReader(folder.path, context);
+
+                if (!inside.ok) {
+                    continue;
+                }
+
+                try {
+                    for (;;) {
+                        const filesPage = await inside.value.next(500, context);
+
+                        if (!filesPage.ok) {
+                            break;
+                        }
+
+                        for (const file of filesPage.value.entries) {
+                            if (file.kind === "file" && file.name.endsWith(".jsonl")) {
+                                files.push({ path: file.path, modified: file.mtimeMs, size: file.size });
+                            }
+                        }
+
+                        if (filesPage.value.done) {
+                            break;
+                        }
+                    }
+                } finally {
+                    await inside.value.close(context);
+                }
+            }
+
+            if (page.value.done) {
+                break;
+            }
+        }
+    } finally {
+        await folders.value.close(context);
+    }
+
+    return files;
 }
 
 /** Copy a file out of `source` to `path` here, a chunk at a time. */
