@@ -3508,6 +3508,8 @@
     "price not listed": "未列出价格",
     "your provider's price": "你的提供商的价格",
     "ChatGPT sign-in": "ChatGPT 登录",
+    "ChatGPT Images (ChatGPT picks the model and quality)": "ChatGPT Images（ChatGPT 自行选择模型和画质）",
+    "On the ChatGPT sign-in, ChatGPT picks the image model and the quality itself; no setting here changes them.": "使用 ChatGPT 登录时，ChatGPT 自行选择图片模型和画质；这里的设置无法更改它们。",
     "The model Pi's image_generate makes and edits images with. Pi saves them in the session's folder (images/) and shows them in the chat. Pi may use another model for one image when you ask.": "Pi 的 image_generate 用来生成和编辑图片的模型。Pi 把图片保存在会话的文件夹（images/）中，并在聊天中显示。你要求时，Pi 可以为某张图片改用其他模型。",
     "Loading image models": "正在加载图片模型",
     "The image model {id} is not signed in now; pick another or Automatic.": "图片模型 {id} 现在未登录；请选择其他模型或“自动”。",

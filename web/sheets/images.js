@@ -9,6 +9,14 @@ import { t } from "../i18n.js";
 /** Dollars per million tokens as a short price. */
 const perMillion = (amount) => `$${amount < 1 ? amount.toFixed(2) : String(Math.round(amount * 100) / 100)}`;
 
+/**
+ * A model as people see it: ChatGPT's by what it is (PP-481: its route picks the model and quality itself, so its id
+ * openai-codex/gpt-image-2.5 names no model), any other by its name, or by its id when only that is known.
+ */
+export function imageModelTitle(model) {
+    return model.id.startsWith("openai-codex/") ? t("ChatGPT Images (ChatGPT picks the model and quality)") : (model.name ?? model.id);
+}
+
 /** A model's price, as OpenRouter gives it, or where it is paid. */
 function priceOf(model) {
     if (model.provider === "openai-codex") {
@@ -63,14 +71,22 @@ export function ImagesSheet() {
                         ? html`<p class="muted small" data-part="images-empty">${t("No provider makes images yet: sign in to ChatGPT or OpenRouter, or mark a model of your own provider as making images.")}</p>
                               <div class="sheet-actions"><button class="button small" onClick=${() => openSheet({ type: "providers" })}>${t("Providers")}</button></div>`
                         : html`<div class="sheet-list">
-                              ${row(null, t("Automatic"), state.default === null ? t("ChatGPT's when you are signed in, else OpenRouter's first") : t("Now {model}", { model: state.default }), state.model === null)}
+                              ${row(null, t("Automatic"), state.default === null ? t("ChatGPT's when you are signed in, else OpenRouter's first") : t("Now {model}", { model: imageModelTitle({ id: state.default }) }), state.model === null)}
                           </div>
                           ${groups.map(
                               (provider) => html`<div class="label">${providerTitle(provider)}</div>
+                                  ${provider === "openai-codex" && html`<p class="muted small" data-part="images-codex-note">${t("On the ChatGPT sign-in, ChatGPT picks the image model and the quality itself; no setting here changes them.")}</p>`}
                                   <div class="sheet-list">
                                       ${state.models
                                           .filter((model) => model.provider === provider)
-                                          .map((model) => row(model.id, model.name, html`<span class="mono">${model.model}</span> · ${priceOf(model)}`, state.model === model.id))}
+                                          .map((model) =>
+                                              row(
+                                                  model.id,
+                                                  imageModelTitle(model),
+                                                  provider === "openai-codex" ? priceOf(model) : html`<span class="mono">${model.model}</span> · ${priceOf(model)}`,
+                                                  state.model === model.id,
+                                              ),
+                                          )}
                                   </div>`,
                           )}`
                 }`

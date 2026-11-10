@@ -422,8 +422,9 @@ No Termux, no laptop, no cloud VM.
   the automatic behaviours that keep settings of their own (capturing idle sessions into the wiki, compacting a full
   context, compacting before the prompt cache expires) show their value now.
 - **Images.** `image_generate` makes and edits images (up to five to edit at once; 1 to 4 at a time; 1:1, 16:9, 9:16,
-  4:3 or 3:4) with the model you pick in **Menu › Images** (`image.model`): GPT Image 2.5 on your ChatGPT sign-in (on
-  the plan, counted in Spend as images), an OpenRouter image model such as Nano Banana (`google/gemini-*-image`; its
+  4:3 or 3:4) with the model you pick in **Menu › Images** (`image.model`): *ChatGPT Images* on your ChatGPT sign-in
+  (`openai-codex/gpt-image-2.5`, where ChatGPT picks the model and the quality itself; on the plan, counted in Spend as
+  images), an OpenRouter image model such as Nano Banana (`google/gemini-*-image`; its
   price per million image tokens shown, its cost in the session's spend), or a model of your own provider marked
   **Makes images** in Providers. *Automatic* is ChatGPT's when you are signed in, else OpenRouter's first. Pi may name
   another model for one image. The pictures are saved where the session works (on a machine too) in `images/`, named
@@ -920,7 +921,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | Wiki capture and prompt context | **Wiki**: minutes idle before a session is captured, the model that writes captures (picked as a session's model is: every account with its plan figures, so one at its limit shows before you pick it, and *The default model for new sessions*), tokens of wiki in each prompt, lint options | "Capture idle sessions after 30 minutes", "use claude-haiku for wiki captures" |
 | Web search | **Web access**: a provider, and its key (typed there or kept in Secrets) | "Switch web search to exa". The key itself is yours to type |
 | The design system Pi designs with | **Design system**: search, pick one, or *None* | "Design in the Stripe style from now on", "No default design system" |
-| The model `image_generate` makes images with | **Images**: *Automatic*, ChatGPT's GPT Image 2.5, an OpenRouter image model (with its price), or your provider's model marked *Makes images* | "Make images with Nano Banana from now on", "Use gpt-image-2.5 for this one" |
+| The model `image_generate` makes images with | **Images**: *Automatic*, *ChatGPT Images* (ChatGPT picks the model and quality), an OpenRouter image model (with its price), or your provider's model marked *Makes images* | "Make images with Nano Banana from now on", "Use ChatGPT Images for this one" |
 | API keys and tokens | **Secrets**. Pi asks for a missing one with a hidden field on a card, never in the chat | Pi can ask for one, change a secret's flags, or delete one. You type the value |
 | Other computers | **SSH keys**, then **Machines** (**Install tools** there adds OfficeCLI, ripgrep, fd, Chrome, Computer use, ffmpeg, HyperFrames, TLC) | Yes for renaming, installing tools, ports, or removing. Accepting a new host key is yours |
 | Extensions (Projects, Wiki, Pi's browser, Design & video, Formal checks, Extension builder, …) | **Extensions** | "Turn on Projects", "Turn off Design & video" |

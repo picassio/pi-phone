@@ -937,7 +937,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
   (`images: [{ image_url: <data URL> }]`), `model: gpt-image-2.5`, `size: auto`, its headers (`ChatGPT-Account-ID` from
   the token, `originator: codex_cli_rs`), answer `{ data: [{ b64_json }] }`. It ignores `size` (a 1024x1024 ask came
   back 1536x1024, 2026-10-31), so the aspect goes in the prompt (`Aspect ratio 16:9.`), which it follows (1672x941,
-  1254x1254). **OpenRouter:** `POST /api/v1/chat/completions` with `modalities` (image and text, or image alone for an
+  1254x1254). The route takes any model id (a made-up one too), ignores `quality: high` and names no model in its
+  answer (measured 2026-11-10), so ChatGPT picks the model and the quality: the id `openai-codex/gpt-image-2.5` stays
+  for saved settings, and people see it as *ChatGPT Images (ChatGPT picks the model and quality)* with a note in Menu ›
+  Images, no version (PP-481, owner's choice (a)). **OpenRouter:** `POST /api/v1/chat/completions` with `modalities` (image and text, or image alone for an
   image-only model), `image_config.aspect_ratio` and `usage.include`; the images are data URLs in `message.images`, the
   cost is `usage.cost`. Its models are those of `GET /api/v1/models` with `image` in `architecture.output_modalities`
   (kept an hour; routers priced -1 left out), priced from `pricing.image_output` per million tokens. Its newer

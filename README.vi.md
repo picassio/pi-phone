@@ -428,8 +428,8 @@ dự án thật.</sub>
   vi tự động có cài đặt riêng (ghi phiên không hoạt động vào wiki, nén ngữ cảnh đầy, nén trước khi bộ nhớ đệm prompt
   hết hạn) cùng giá trị hiện tại của chúng.
 - **Hình ảnh.** `image_generate` tạo và sửa hình ảnh (sửa tối đa năm hình một lần; tạo 1 đến 4 hình; 1:1, 16:9,
-  9:16, 4:3 hoặc 3:4) bằng mô hình bạn chọn ở **Menu › Hình ảnh** (`image.model`): GPT Image 2.5 qua đăng nhập
-  ChatGPT (tính vào gói, Chi phí đếm số hình), một mô hình hình ảnh của OpenRouter như Nano Banana
+  9:16, 4:3 hoặc 3:4) bằng mô hình bạn chọn ở **Menu › Hình ảnh** (`image.model`): *ChatGPT Images* qua đăng
+  nhập ChatGPT (`openai-codex/gpt-image-2.5`, ChatGPT tự chọn model và độ nét; tính vào gói, Chi phí đếm số hình), một mô hình hình ảnh của OpenRouter như Nano Banana
   (`google/gemini-*-image`; hiển giá theo triệu token hình ảnh, chi phí tính vào phiên), hoặc một mô hình của nhà
   cung cấp riêng được đánh dấu **Tạo hình ảnh** trong Nhà cung cấp. *Tự động* là của ChatGPT khi bạn đã đăng nhập,
   nếu không thì mô hình đầu tiên của OpenRouter. Pi có thể dùng mô hình khác cho một hình. Hình được lưu nơi phiên
@@ -943,7 +943,7 @@ hiện tại và giá trị mới. Hỏi “bạn đổi được những gì?�
 | Ghi nhận wiki và ngữ cảnh prompt | **Wiki**: số phút rảnh trước khi ghi nhận một phiên, mô hình viết phần ghi nhận (chọn như chọn mô hình của phiên: mọi tài khoản kèm mức dùng gói, nên tài khoản đã chạm giới hạn hiện ra trước khi chọn, và *Mô hình mặc định cho phiên mới*), số token wiki trong mỗi prompt, tùy chọn lint | “Ghi nhận phiên rảnh sau 30 phút”, “dùng claude-haiku để ghi nhận wiki” |
 | Tìm kiếm web | **Truy cập web**: một nhà cung cấp, và khóa của nó (gõ ở đó hoặc lưu trong Bí mật) | “Chuyển tìm kiếm web sang exa”. Khóa thì bạn tự gõ |
 | Hệ thống thiết kế Pi dùng | **Hệ thống thiết kế**: tìm, chọn một cái, hoặc *Không* | “Từ giờ thiết kế theo phong cách Stripe”, “Bỏ hệ thống thiết kế mặc định” |
-| Mô hình `image_generate` dùng để tạo hình | **Hình ảnh**: *Tự động*, GPT Image 2.5 của ChatGPT, một mô hình hình ảnh của OpenRouter (kèm giá), hoặc mô hình của nhà cung cấp riêng được đánh dấu *Tạo hình ảnh* | “Từ giờ tạo hình bằng Nano Banana”, “Dùng gpt-image-2.5 cho hình này” |
+| Mô hình `image_generate` dùng để tạo hình | **Hình ảnh**: *Tự động*, *ChatGPT Images* (ChatGPT tự chọn model và độ nét), một mô hình hình ảnh của OpenRouter (kèm giá), hoặc mô hình của nhà cung cấp riêng được đánh dấu *Tạo hình ảnh* | “Từ giờ tạo hình bằng Nano Banana”, “Dùng ChatGPT Images cho hình này” |
 | Khóa API và token | **Bí mật**. Pi xin bí mật còn thiếu qua một ô ẩn trên thẻ, không bao giờ trong cuộc trò chuyện | Pi có thể xin một bí mật, đổi cờ của bí mật, hoặc xóa nó. Giá trị thì bạn tự gõ |
 | Máy tính khác | **Khóa SSH**, rồi **Máy** (**Cài công cụ** ở đó thêm OfficeCLI, ripgrep, fd, Chrome, Computer use, ffmpeg, HyperFrames, TLC) | Có với đổi tên, cài công cụ, cổng, hoặc gỡ máy. Chấp nhận host key mới là việc của bạn |
 | Tiện ích (Dự án, Wiki, Trình duyệt của Pi, Thiết kế & video, Kiểm chứng hình thức, Trình tạo tiện ích, …) | **Tiện ích** | “Bật Dự án”, “Tắt Thiết kế & video” |

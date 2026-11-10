@@ -18,6 +18,7 @@ import { UsageDoc } from "@earendil-works/pi-durable";
 import createImages, { ownModelNote, slugOf } from "../src/server/extensions/images.ts";
 import { ImageGen, openRouterImageModels } from "../src/server/image-gen.ts";
 import { pathsOf } from "../src/server/extensions/secrets.ts";
+import { appSettings } from "../src/server/settings-registry.ts";
 
 /** A picture of one colour, as a PNG or a JPEG. */
 const picture = (width: number, height: number, png: boolean, value = 200) => {
@@ -191,6 +192,29 @@ test("the setting lists the image models of the providers signed in, ChatGPT's f
     );
     assert.deepEqual(models[1]!.price, { imageOut: 30, input: 0.3 });
     assert.equal(ImageGen.defaultOf(models)?.id, "openai-codex/gpt-image-2.5");
+    assert.equal(app.config.imageModel, null);
+});
+
+test("ChatGPT's image model keeps its id and is named for what it is: ChatGPT picks the model and quality, no version (PP-481)", async () => {
+    const { models } = await app.images.models();
+    const setting = appSettings(app).settings.find((each) => each.id === "image.model")!;
+    const label = "ChatGPT Images (ChatGPT picks the model and quality)";
+
+    assert.deepEqual({ id: models[0]!.id, name: models[0]!.name }, { id: "openai-codex/gpt-image-2.5", name: label });
+    assert.match(setting.help, /openai-codex\/gpt-image-2\.5, where ChatGPT picks the model and quality itself/);
+
+    const choices = await setting.choices!();
+
+    assert.equal(choices[1], `openai-codex/gpt-image-2.5 (${label})`);
+
+    // The choice as listed is kept as the id, so a saved setting still names the same model.
+    try {
+        await setting.apply(owner(app), choices[1]!, undefined);
+        assert.equal(app.config.imageModel, "openai-codex/gpt-image-2.5");
+    } finally {
+        await setting.apply(owner(app), "auto", undefined);
+    }
+
     assert.equal(app.config.imageModel, null);
 });
 

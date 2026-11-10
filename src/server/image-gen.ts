@@ -22,6 +22,11 @@ import { chatgptAccount } from "./voice.ts";
 
 export const CODEX_PROVIDER = "openai-codex";
 export const CODEX_IMAGE_MODEL = "gpt-image-2.5";
+/**
+ * What people see for the Codex model (PP-481): Codex's images route takes any model id and ignores `quality` (measured
+ * 2026-11-10), so the id only keeps saved settings working, and the name says ChatGPT picks both, with no version.
+ */
+export const CODEX_IMAGE_NAME = "ChatGPT Images (ChatGPT picks the model and quality)";
 export const OPENROUTER = "openrouter";
 export const ASPECTS = ["1:1", "16:9", "9:16", "4:3", "3:4"] as const;
 export type Aspect = (typeof ASPECTS)[number];
@@ -210,7 +215,7 @@ export class ImageGen {
         const problems: string[] = [];
 
         if ((await this.#options.codexAuth()) !== undefined) {
-            models.push({ id: `${CODEX_PROVIDER}/${CODEX_IMAGE_MODEL}`, provider: CODEX_PROVIDER, model: CODEX_IMAGE_MODEL, name: "GPT Image 2.5 (ChatGPT sign-in)", text: false });
+            models.push({ id: `${CODEX_PROVIDER}/${CODEX_IMAGE_MODEL}`, provider: CODEX_PROVIDER, model: CODEX_IMAGE_MODEL, name: CODEX_IMAGE_NAME, text: false });
         }
 
         if ((await this.#options.openRouterKey()) !== undefined) {

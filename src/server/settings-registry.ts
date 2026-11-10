@@ -18,7 +18,7 @@ import { DESIGN_MODULE } from "./design-systems.ts";
 import type { KeptPagesView } from "./kept-pages.ts";
 import { type CustomProviderView, idFromName, type KeyChoice } from "./custom-providers.ts";
 import { type VoiceCheck, VOICES } from "./voice.ts";
-import { ImageGen } from "./image-gen.ts";
+import { CODEX_PROVIDER, ImageGen } from "./image-gen.ts";
 import { DEFAULT_ASK_MODEL, DEFAULT_MAKE_MODEL } from "./video-gen.ts";
 import { DEFAULT_SPEAK_MODEL, DEFAULT_TRANSCRIBE_MODEL, DEFAULT_VOICE, SPEAK_MODELS, TRANSCRIBE_MODELS, VOICES as SPEAK_VOICES } from "./audio.ts";
 import { PERMISSION_MODES, POPUP_MODES } from "./browser/pi-browser.ts";
@@ -692,7 +692,7 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             id: "image.model",
             area: "images",
             title: "Model image_generate makes images with",
-            help: "provider/model of an image model of a signed-in provider (ChatGPT: openai-codex/gpt-image-2.5; OpenRouter: openrouter/google/gemini-2.5-flash-image and others; your own provider's models marked as making images), or auto: ChatGPT's when signed in, else OpenRouter's first. Pi may name another for one call (image_generate's model).",
+            help: "provider/model of an image model of a signed-in provider (ChatGPT: openai-codex/gpt-image-2.5, where ChatGPT picks the model and quality itself; OpenRouter: openrouter/google/gemini-2.5-flash-image and others; your own provider's models marked as making images), or auto: ChatGPT's when signed in, else OpenRouter's first. Pi may name another for one call (image_generate's model).",
             owner: true,
             read: async () => {
                 const chosen = app.config.imageModel;
@@ -709,7 +709,7 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             choices: async () => {
                 const { models, problems } = await app.images.models();
 
-                return ["auto", ...models.map((model) => `${model.id}${model.price?.imageOut === undefined ? "" : ` ($${model.price.imageOut}/M image tokens)`}`), ...problems.map((problem) => `(${problem})`)];
+                return ["auto", ...models.map((model) => `${model.id}${model.provider === CODEX_PROVIDER ? ` (${model.name})` : model.price?.imageOut === undefined ? "" : ` ($${model.price.imageOut}/M image tokens)`}`), ...problems.map((problem) => `(${problem})`)];
             },
             apply: (user, value) => app.setImageModel(user, /^auto$/i.test(value.trim()) || NONE.test(value.trim()) ? null : value.trim().replace(/\s+\(.*\)$/, "")),
         },

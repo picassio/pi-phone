@@ -65,6 +65,8 @@ const route: FauxResponseStep = (request) => {
     return fauxAssistantMessage([fauxText("ok")]);
 };
 
+/** The ChatGPT sign-in as image-gen sees it: none, but for the test of ChatGPT's row. */
+let codex: { token: string } | undefined;
 let app: App;
 let server: Server;
 let browsers: Browsers;
@@ -105,7 +107,7 @@ before(async () => {
         home,
         configureModels: (models) => models.registerNativeProvider(faux.provider),
         officecli: { runs: false },
-        images: { endpoints: { openRouter: `http://127.0.0.1:${(stub.address() as AddressInfo).port}/api/v1` }, codexAuth: async () => undefined },
+        images: { endpoints: { openRouter: `http://127.0.0.1:${(stub.address() as AddressInfo).port}/api/v1` }, codexAuth: async () => codex },
     });
     pastWelcome(app);
     await app.models.setRuntimeApiKey("openrouter", "or-test-key");
@@ -173,4 +175,64 @@ test("Menu › Images lists Automatic and the signed-in image models with their 
     await page.evaluate(`document.querySelector('[data-model="openrouter/${NANO}"]').click(); return "true";`);
     await until(() => app.config.imageModel === `openrouter/${NANO}`, "the choice kept");
     await see(`return JSON.stringify(document.querySelector('[data-model="openrouter/${NANO}"]').getAttribute("aria-pressed") === "true")`, "the row marked");
+});
+
+test("ChatGPT's image model shows as ChatGPT Images, with a note that ChatGPT picks the model and quality, in English and Vietnamese; its id stays (PP-481)", real, async () => {
+    const label = "ChatGPT Images (ChatGPT picks the model and quality)";
+    const shown = () =>
+        inPage<{ rows: { model: string; text: string }[]; note: string | null }>(`
+            return JSON.stringify({
+                rows: [...document.querySelectorAll('[data-part="image-model"]')].map((row) => ({
+                    model: row.dataset.model,
+                    text: [...row.querySelectorAll(".ds-text > span")].map((line) => line.textContent.replace(/\\s+/g, " ").trim()).join(" | "),
+                })),
+                note: document.querySelector('[data-part="images-codex-note"]')?.textContent.trim() ?? null,
+            });
+        `);
+
+    codex = { token: "codex-test-token" };
+
+    try {
+        app.config.imageModel = null;
+        await open(undefined, "mobile");
+        await page.evaluate(`(await import("/store.js")).openSheet({ type: "images" }); return "true";`);
+        await see(`return JSON.stringify(document.querySelectorAll('[data-part="image-model"]').length === 3)`, "Automatic, ChatGPT's and Nano Banana");
+
+        const english = await shown();
+
+        assert.deepEqual(english.rows.slice(0, 2), [
+            { model: "auto", text: `Automatic | Now ${label}` },
+            { model: "openai-codex/gpt-image-2.5", text: `${label} | on your ChatGPT plan` },
+        ]);
+        assert.equal(english.note, "On the ChatGPT sign-in, ChatGPT picks the image model and the quality itself; no setting here changes them.");
+
+        // Picked, it is kept by its id, and the menu's Images row names it as the sheet does.
+        await page.evaluate(`document.querySelector('[data-model="openai-codex/gpt-image-2.5"]').click(); return "true";`);
+        await until(() => app.config.imageModel === "openai-codex/gpt-image-2.5", "the choice kept by its id");
+        await page.evaluate(`(await import("/store.js")).openSheet({ type: "menu" }); return "true";`);
+        await see(
+            `return JSON.stringify([...document.querySelectorAll(".list-item")].some((row) => [...row.children].map((part) => part.textContent.trim()).join(" | ") === "Images | ${label}"))`,
+            "the menu's Images row with the label",
+        );
+
+        // In Vietnamese.
+        await page.evaluate(`
+            const i18n = await import("/i18n.js");
+            i18n.useCatalog("vi", await (await fetch("/i18n/vi.json")).json());
+            const store = await import("/store.js");
+            store.closeSheet();
+            store.openSheet({ type: "images" });
+            return "true";
+        `);
+        await see(`return JSON.stringify(document.querySelector('[data-part="images-codex-note"]')?.textContent.includes("ChatGPT tự chọn") === true)`, "the sheet in Vietnamese");
+
+        const vietnamese = await shown();
+
+        assert.equal(vietnamese.rows[1]!.text, "ChatGPT Images (ChatGPT tự chọn model và độ nét) | tính vào gói ChatGPT của bạn");
+        assert.equal(vietnamese.note, "Khi dùng đăng nhập ChatGPT, ChatGPT tự chọn model hình ảnh và độ nét; không cài đặt nào ở đây thay đổi được chúng.");
+    } finally {
+        codex = undefined;
+        app.config.imageModel = null;
+        await page.evaluate(`(await import("/i18n.js")).useCatalog("en", {}); return "true";`);
+    }
 });
