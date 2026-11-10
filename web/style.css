@@ -4732,6 +4732,19 @@ pre.diff .del {
     font-size: 14px;
 }
 
+/* A self-compaction's body (PP-477): Pi's summary, then what the app read from its state. */
+.divider-part {
+    margin-top: 16px;
+    padding-top: 8px;
+    border-top: 1px solid var(--hair);
+}
+
+.quiet-compaction [role="status"] {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .history {
     display: flex;
     flex-direction: column;

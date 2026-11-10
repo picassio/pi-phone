@@ -3812,9 +3812,12 @@
     "Saved: the cache write a wake-up after the prompt cache expired would have cost, less the compaction and the smaller context's own write. Counted in the sessions' spend above.": "Tiết kiệm: chi phí ghi bộ nhớ đệm mà lần thức dậy sau khi bộ nhớ đệm prompt hết hạn sẽ tốn, trừ đi lần nén và lần ghi ngữ cảnh nhỏ hơn. Đã tính trong chi tiêu của các phiên ở trên.",
     "{n} compaction · cost {cost}": "{n} lần nén · chi phí {cost}",
     "{n} compactions · cost {cost}": "{n} lần nén · chi phí {cost}",
-    "compacting this session": "nén phiên này",
     "{n}k": "{n}k",
     "Pi chose to while waiting": "Pi tự nén khi chờ",
     "the prompt cache was about to expire": "bộ nhớ đệm prompt sắp hết hạn",
-    "Compacted: {reason}, {before} → {after} tokens, {cost}, saved about {saving}": "Đã nén: {reason}, {before} → {after} token, {cost}, tiết kiệm khoảng {saving}"
+    "Compacted: {reason}, {before} → {after} tokens, {cost}, saved about {saving}": "Đã nén: {reason}, {before} → {after} token, {cost}, tiết kiệm khoảng {saving}",
+    "Compacting this session…": "Đang nén phiên này…",
+    "Not compacted": "Chưa nén",
+    "Not compacted: the summary turn gave no summary.": "Chưa nén: lượt tóm tắt không đưa ra bản tóm tắt.",
+    "Read from the app's state when it compacted": "Đọc từ trạng thái của ứng dụng lúc nén"
 }

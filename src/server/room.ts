@@ -377,6 +377,8 @@ export class Room {
     ciWatches: Record<string, CiWatch> = {};
     /** The self-compactions done here (PP-473): the transcript's line on each compaction they placed. */
     selfCompactions: SelfCompaction[] = [];
+    /** A self-compaction under way: its summary asked for or written, not placed yet (PP-477: the transcript's quiet row). */
+    selfCompacting = false;
     /** Who is typing where, by user id. Memory only: it means nothing after a restart. */
     readonly #typing = new Map<string, { where: TypingPlace; timer: NodeJS.Timeout }>();
     parent: { id: ConversationId; title: string } | undefined;
@@ -456,7 +458,10 @@ export class Room {
         this.goal = (await harness.snapshot(GoalDoc, this.id, context))?.goal;
         this.guide = guideOf(await harness.snapshot(GuideDoc, this.id, context));
         this.ciWatches = { ...((await harness.snapshot(CiWatchesDoc, this.id, context))?.items ?? {}) };
-        this.selfCompactions = [...((await harness.snapshot(SelfCompactDoc, this.id, context))?.done ?? [])];
+        const selfCompact = await harness.snapshot(SelfCompactDoc, this.id, context);
+
+        this.selfCompactions = [...(selfCompact?.done ?? [])];
+        this.selfCompacting = selfCompact?.asked !== undefined || selfCompact?.ready !== undefined;
 
         if (owner !== undefined) {
             const siblings =
@@ -532,6 +537,7 @@ export class Room {
             this.ciWatches = { ...((value?.items as Record<string, CiWatch>) ?? {}) };
         } else if (kind === SelfCompactDoc.definition.kind) {
             this.selfCompactions = [...((value?.done as SelfCompaction[] | undefined) ?? [])];
+            this.selfCompacting = value?.asked !== undefined || value?.ready !== undefined;
         }
 
         if (kind === AuthorsDoc.definition.kind) {
@@ -738,6 +744,7 @@ export class Room {
             ),
             // The transcript's line on each self-compaction (PP-473): by the compaction entry it placed.
             selfCompactions: this.selfCompactions.map(({ entry, reason, before, after, cost, saving }) => ({ entry, reason, before, after, cost, saving })),
+            selfCompacting: this.selfCompacting,
             // The branch is read from the repository each time, so one Pi or a person switched to shows on the next update.
             branch: this.#readHead(),
         };

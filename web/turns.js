@@ -581,6 +581,116 @@ export function itemsOf(rows, partial, { prefix = "", from = null, talk = false 
     return items;
 }
 
+/** How the app's summary request starts (`SUMMARY_PREFIX`, src/server/self-compact.ts). */
+export const SELF_COMPACT_REQUEST = "[via compact-self] ";
+/** How a self-compaction's entry starts its own part (`SUMMARY_POINTER`, src/server/self-compact.ts). */
+export const SELF_COMPACT_POINTER = "Your summary of the conversation before this point is your answer to the compact-self request";
+
+const textOf = (entry) =>
+    entry.blocks
+        .filter((block) => block.type === "text")
+        .map((block) => block.text)
+        .join("\n")
+        .trim();
+
+/**
+ * Self-compactions as the transcript shows them (PP-477): quietly. The app's summary request (a message nobody typed
+ * that starts with `SELF_COMPACT_REQUEST`) and Pi's answers to it leave the transcript; the model still has them.
+ * - Compacted: the compaction entry that came after the request (one whose text holds `SELF_COMPACT_POINTER`) carries
+ *   Pi's summary (`selfSummary`), which its "Compacted" line opens with the app's own sections.
+ * - Not compacted yet: one quiet row in the request's place (`kind: "selfCompact"`), "compacting" while the app still
+ *   compacts (`compacting`: the server's `selfCompacting`) and this is the newest request, "stopped" after, with
+ *   `noSummary` when the summary turn gave none.
+ *
+ * `rows` may hold the history before the context and the context (whose kept rows repeat some of it): read by id, as
+ * the log has them. `authors`: who typed each message (`view.authors`). Returns what `quietRows` applies to any part of
+ * them, and `streaming`: the summary is the answer being written now, which shows as the quiet row alone.
+ */
+export function selfCompactionsOf(rows, { authors = {}, compacting = false } = {}) {
+    const ordered = [...new Map(rows.map((row) => [row.id, row])).values()].sort((a, b) => a.id - b.id);
+    const requests = [];
+    const compactions = [];
+    let current = null;
+
+    for (const row of ordered) {
+        if (row.kind === "assistant") {
+            current?.answers.push(row);
+            continue;
+        }
+
+        current = null;
+
+        if (row.kind === "user" && authors[row.id] === undefined && row.text.startsWith(SELF_COMPACT_REQUEST)) {
+            current = { row, answers: [], compaction: null, last: false };
+            requests.push(current);
+        } else if (row.kind === "compaction" && row.summary.includes(SELF_COMPACT_POINTER)) {
+            // The request it compacted with is the newest before it.
+            const request = requests.findLast((each) => each.row.id < row.id);
+
+            if (request !== undefined && request.compaction === null) {
+                request.compaction = row;
+                compactions.push(request);
+            }
+        }
+    }
+
+    if (current !== null) {
+        current.last = true;
+    }
+
+    const hidden = new Set();
+    const replaced = new Map();
+    let streaming = false;
+
+    for (const [index, request] of requests.entries()) {
+        const answer = request.answers.at(-1);
+        const summary = answer === undefined ? "" : textOf(answer);
+
+        for (const each of request.answers) {
+            hidden.add(each.id);
+        }
+
+        if (request.compaction !== null) {
+            hidden.add(request.row.id);
+            replaced.set(request.compaction.id, { ...request.compaction, selfSummary: summary });
+            continue;
+        }
+
+        const state = compacting && index === requests.length - 1 ? "compacting" : "stopped";
+
+        streaming ||= state === "compacting" && request.last;
+        replaced.set(request.row.id, {
+            kind: "selfCompact",
+            id: request.row.id,
+            at: request.row.at,
+            state,
+            summary,
+            noSummary: state === "stopped" && (summary === "" || answer.stopReason !== "stop"),
+        });
+    }
+
+    return { hidden, replaced, streaming };
+}
+
+/** `rows` as the transcript shows them, with the self-compactions `selfCompactionsOf` read folded in. */
+export const quietRows = (rows, folds) =>
+    folds.hidden.size === 0 && folds.replaced.size === 0
+        ? rows
+        : rows.flatMap((row) => (folds.hidden.has(row.id) ? [] : [folds.replaced.get(row.id) ?? row]));
+
+/**
+ * The app's own part of a self-compaction's entry (src/server/self-compact.ts, `appSections`): what it read from its
+ * state, without the line that tells Pi where its summary is, and without Pi Durable's wrapping.
+ */
+export function selfSections(summary) {
+    const own = summary.slice(summary.indexOf(SELF_COMPACT_POINTER));
+
+    return own
+        .slice(own.indexOf("\n") + 1)
+        .replace(/\n<\/summary>\s*$/, "")
+        .trim();
+}
+
 /**
  * Where the rows shown from `start` take their names from (`itemsOf`): the rows before them, back to the last one that
  * is not Pi's. Null when they start at the top.

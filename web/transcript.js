@@ -43,8 +43,11 @@ import {
     itemsOf,
     lineCount,
     matchCount,
+    quietRows,
     rowsBefore,
     says,
+    selfCompactionsOf,
+    selfSections,
     short,
     shortError,
     STOPPED,
@@ -411,9 +414,7 @@ function UserEntry({ entry, view, users }) {
             ? t("the hook {name}", { name: t("Remind to check UI before finishing") })
             : via?.[1] === "hook compact-reminder"
               ? t("the hook {name}", { name: t("Remind to compact while waiting") })
-              : via?.[1] === "compact-self"
-                ? t("compacting this session")
-                : via?.[1];
+              : via?.[1];
     // Your own messages take the accent; someone else's, their color; one from someone the app does not know (a name
     // the message carries, the main agent, Pi's own schedule), a quiet one.
     const mark =
@@ -2847,25 +2848,65 @@ function Divider({ entry }) {
         </div>`;
     }
 
-    // A self-compaction (PP-473, src/server/self-compact.ts): why, the context before and after, its cost and saving.
+    // A self-compaction (PP-473, src/server/self-compact.ts): why, the context before and after, its cost and saving;
+    // opened, Pi's summary (PP-477: its request and answer show nowhere else) and what the app read from its state.
     const self = (store.state.view.selfCompactions ?? []).find((each) => each.entry === entry.id);
+    const quiet = entry.selfSummary !== undefined;
 
-    return html`<div class="divider" data-part=${self ? "self-compaction" : undefined}>
-        <button class="link" onClick=${() => setOpen(!open)}>
+    return html`<div class="divider" data-part=${self || quiet ? "self-compaction" : undefined}>
+        <button class="link" aria-expanded=${open} onClick=${() => setOpen(!open)}>
             ${self ? selfCompactedLine(self) : t("Context compacted")} <${Icon} name="chevron" size=${16} class=${`chev ${open ? "open" : ""}`} />
         </button>
-        ${open && html`<div class="divider-body"><${Markdown} text=${entry.summary} /></div>`}
+        ${
+            open &&
+            (quiet
+                ? html`<div class="divider-body" data-part="self-compaction-body">
+                      <${Markdown} text=${entry.selfSummary} />
+                      <div class="divider-part" data-part="self-compaction-app">
+                          <p class="muted small">${t("Read from the app's state when it compacted")}</p>
+                          <${Markdown} text=${selfSections(entry.summary)} />
+                      </div>
+                  </div>`
+                : html`<div class="divider-body"><${Markdown} text=${entry.summary} /></div>`)
+        }
     </div>`;
 }
 
-function History({ firstId, results, keepPlace, conversationId }) {
+/**
+ * A self-compaction not placed (PP-477): one quiet row where the app's summary request was, while the summary is written
+ * and the context compacts, or after it stopped short; Pi's summary, when it wrote one, opens under it.
+ */
+function QuietCompaction({ entry }) {
+    const [open, setOpen] = useState(false);
+
+    if (entry.state === "compacting") {
+        return html`<div class="divider quiet-compaction" data-part="self-compaction" data-state="compacting" id=${`entry-${entry.id}`}>
+            <span role="status"><${Spinner} hidden=${true} /> ${t("Compacting this session…")}</span>
+        </div>`;
+    }
+
+    if (entry.noSummary) {
+        return html`<div class="divider quiet-compaction" data-part="self-compaction" data-state="stopped" id=${`entry-${entry.id}`}>
+            <span>${t("Not compacted: the summary turn gave no summary.")}</span>
+        </div>`;
+    }
+
+    return html`<div class="divider quiet-compaction" data-part="self-compaction" data-state="stopped" id=${`entry-${entry.id}`}>
+        <button class="link" aria-expanded=${open} onClick=${() => setOpen(!open)}>
+            ${t("Not compacted")} <${Icon} name="chevron" size=${16} class=${`chev ${open ? "open" : ""}`} />
+        </button>
+        ${open && html`<div class="divider-body" data-part="self-compaction-body"><${Markdown} text=${entry.summary} /></div>`}
+    </div>`;
+}
+
+function History({ firstId, results, keepPlace, conversationId, folds }) {
     const history = store.state.history;
     const talk = collab();
     // Built again only when the history changes, not on each draw of the transcript.
     const items = useMemo(
         () =>
-            history === null ? [] : itemsOf(history.filter(isRow), null, { prefix: "h", talk }),
-        [history, talk],
+            history === null ? [] : itemsOf(quietRows(history.filter(isRow), folds), null, { prefix: "h", talk }),
+        [history, talk, folds],
     );
 
     if (history === null) {
@@ -3113,6 +3154,10 @@ function EntryView({ entry }) {
 
     if (entry.kind === "compaction" || entry.kind === "reset" || entry.kind === "fromPi") {
         return html`<${Divider} entry=${entry} />`;
+    }
+
+    if (entry.kind === "selfCompact") {
+        return html`<${QuietCompaction} entry=${entry} />`;
     }
 
     return null;
@@ -3568,7 +3613,7 @@ function LiveThought({ generation, entries, id }) {
  * seconds counting. With Appearance → Show thinking on, Pi's newest thought shows above the line, and a chevron before
  * the line's dot folds it; folded, nothing of the thought is drawn or looked for.
  */
-function LiveLine({ live, approvals, start, entries, conversationId }) {
+function LiveLine({ live, approvals, start, entries, conversationId, summarizing }) {
     const [, tick] = useState(0);
     const line = useRef(null);
     /** Where the line was on screen as the thought above it opened or closed, to keep it there. */
@@ -3636,7 +3681,8 @@ function LiveLine({ live, approvals, start, entries, conversationId }) {
         state = limitWords(limit);
     } else if (retry) {
         state = t("Retrying");
-    } else if ((live.compactions ?? []).length > 0) {
+    } else if ((live.compactions ?? []).length > 0 || summarizing) {
+        // Pi writing the summary of a self-compaction (PP-477) is compacting too.
         state = t("Compacting context");
     } else if (working || (partial.length > 0 && partial.at(-1).type !== "thinking")) {
         state = t("Working");
@@ -3855,11 +3901,22 @@ export function Transcript() {
     );
     // Built again only when the entries change: the app draws for every change to the store, and a streamed answer's
     // updates bring no new entries (`mergeView`).
-    const rows = useMemo(() => entries.filter(isRow), [entries]);
+    const stored = useMemo(() => entries.filter(isRow), [entries]);
+    // Self-compactions, quietly (PP-477): read over the history too, where an older one's request and summary are.
+    const folds = useMemo(
+        () =>
+            selfCompactionsOf([...(history ?? []).filter(isRow), ...stored], {
+                authors: view.authors,
+                compacting: view.selfCompacting === true,
+            }),
+        [history, stored, view.authors, view.selfCompacting],
+    );
+    const rows = useMemo(() => quietRows(stored, folds), [stored, folds]);
     const start = useMemo(() => windowStart(rows, transcriptFrom), [rows, transcriptFrom]);
     const talk = collab();
     const from = useMemo(() => rowsBefore(rows, start, talk), [rows, start, talk]);
-    const partial = partialEntry(view.live.generation?.message?.blocks ?? []);
+    // The summary being written shows as the quiet row alone.
+    const partial = folds.streaming ? null : partialEntry(view.live.generation?.message?.blocks ?? []);
     const items = useMemo(
         () => itemsOf(rows.slice(start), partial, { from, talk }),
         [rows, start, partial, from, talk],
@@ -4174,6 +4231,7 @@ export function Transcript() {
                           results=${results}
                           keepPlace=${keepPlace}
                           conversationId=${conversation.id}
+                          folds=${folds}
                       />`
             }
             ${
@@ -4211,6 +4269,7 @@ export function Transcript() {
                     start=${started}
                     entries=${entries}
                     conversationId=${conversation.id}
+                    summarizing=${folds.streaming}
                 />`
             }
         </div>

@@ -36,12 +36,14 @@ import { requestFor } from "./requests.ts";
 
 const context = BACKGROUND_CONTEXT;
 
-/** How the summary request starts (the transcript names it, `web/transcript.js`). */
+/** How the summary request starts (the transcript folds it into the "Compacted" line, `selfCompactionsOf` in web/turns.js). */
 export const SUMMARY_VIA = "compact-self";
 export const SUMMARY_PREFIX = `[via ${SUMMARY_VIA}] `;
 /** How the compact reminder starts. */
 export const COMPACT_REMINDER_VIA = "hook compact-reminder";
 export const COMPACT_REMINDER_PREFIX = `[via ${COMPACT_REMINDER_VIA}] `;
+/** How a self-compaction's entry starts: the transcript finds Pi's summary by it (`SELF_COMPACT_POINTER`, web/turns.js). */
+export const SUMMARY_POINTER = "Your summary of the conversation before this point is your answer to the compact-self request";
 /** The instructions that mark a compaction as a self-compaction: its summary is the summary turn's answer. */
 export const SELF_COMPACT_MARK = "pocket:self-compact";
 
@@ -207,7 +209,7 @@ export function appSections(pending: Pending, files: { read: string[]; changed: 
     const tasks = taskLines(pending);
 
     return [
-        "Your summary of the conversation before this point is your answer to the compact-self request among the recent messages below. Read from the app's state when it compacted:",
+        `${SUMMARY_POINTER} among the recent messages below. Read from the app's state when it compacted:`,
         "",
         "## Waiting on",
         waits.length === 0 ? "- Nothing." : waits.join("\n"),

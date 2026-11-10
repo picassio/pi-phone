@@ -1314,6 +1314,19 @@ so Pi changes them through the settings tools; "the last session" is the one the
       `selfCompactions`, and the transcript's compaction divider reads "Compacted: why, before → after tokens, cost,
       saved about …" in the person's language) and in `SpendDoc.selfCompactions` (count, cost, saved, the newest 100;
       Spend's "Compacting while waiting" group, the owner's).
+    - **Quiet in the transcript** (PP-477; the owner, 2026-11-10: the request and the summary as messages were noise).
+      Display only: the model's context keeps the request and its answer, which the compaction needs.
+      `selfCompactionsOf` (`web/turns.js`) reads the rows by id (the context repeats the kept rows after the
+      compaction entry, and the history holds them before it): a message nobody typed that starts with
+      `[via compact-self] ` and Pi's answers after it leave the transcript. The compaction entry that came after it (its
+      text holds `SUMMARY_POINTER`, which the transcript's `SELF_COMPACT_POINTER` matches; a test holds them equal)
+      carries Pi's summary, so the "Compacted" line opens it with the app's sections under "Read from the app's state
+      when it compacted" (`selfSections`, without the line meant for Pi). Not placed yet, one quiet row stands where
+      the request was: "Compacting this session…" while the room says `selfCompacting` (`SelfCompactDoc.asked` or
+      `ready`) and it is the newest request, the answer being written not drawn and the live line saying "Compacting
+      context"; after, "Not compacted", opening Pi's summary, or "Not compacted: the summary turn gave no summary.".
+      The same in the live view, after a reload and in the history (read with the context, so a request on one side of
+      the compaction entry finds it on the other); `test/self-compact-ui.test.ts`.
 - **Server edition** (`--platform server`, PP-20; the owner's decision of 2026-10-20, board epic PP-19): the same server in
   Docker (`Dockerfile`, `deploy/`), behind Caddy. `main.ts` runs as `phone` unless told `--platform server` (the image sets `PI_PHONE_PLATFORM=server`). On a
   server, Pi's browser is a `ChromeEngine` with its profile kept in `~/.pi/mobile/browser`, screenshots come from

@@ -3832,9 +3832,12 @@
     "Saved: the cache write a wake-up after the prompt cache expired would have cost, less the compaction and the smaller context's own write. Counted in the sessions' spend above.": "节省：提示缓存过期后唤醒所需的缓存写入费用，减去压缩费用和较小上下文的写入费用。已计入上方各会话的花费。",
     "{n} compaction · cost {cost}": "{n} 次压缩 · 花费 {cost}",
     "{n} compactions · cost {cost}": "{n} 次压缩 · 花费 {cost}",
-    "compacting this session": "压缩此会话",
     "{n}k": "{n}k",
     "Pi chose to while waiting": "Pi 在等待时选择压缩",
     "the prompt cache was about to expire": "提示缓存即将过期",
-    "Compacted: {reason}, {before} → {after} tokens, {cost}, saved about {saving}": "已压缩：{reason}，{before} → {after} 个 token，{cost}，约节省 {saving}"
+    "Compacted: {reason}, {before} → {after} tokens, {cost}, saved about {saving}": "已压缩：{reason}，{before} → {after} 个 token，{cost}，约节省 {saving}",
+    "Compacting this session…": "正在压缩此会话…",
+    "Not compacted": "未压缩",
+    "Not compacted: the summary turn gave no summary.": "未压缩：总结回合没有给出总结。",
+    "Read from the app's state when it compacted": "压缩时从应用状态读取"
 }

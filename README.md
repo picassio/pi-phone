@@ -90,8 +90,9 @@ No Termux, no laptop, no cloud VM.
   Pi can compact its own session first, with `compact_self`: when its turn ends, the app asks it for the summary in the
   same run (read from the warm cache, a twentieth of the input price), then compacts. The summary keeps what the app reads
   from its own state: what the session waits on, its board tasks in progress, the files read and changed, and the last
-  message a person wrote, word for word. The transcript shows each one as "Compacted: why, tokens before → after, cost,
-  saved about …", and **Spend** lists them with what they saved (the cache write a cold wake-up would have cost, less
+  message a person wrote, word for word. The transcript shows each one quietly: "Compacting this session…" while Pi
+  writes the summary, then one line "Compacted: why, tokens before → after, cost, saved about …" that opens Pi's
+  summary (the request and the summary do not show as messages), and **Spend** lists them with what they saved (the cache write a cold wake-up would have cost, less
   the compaction and the smaller context's own write). The hook **Remind to compact while waiting** tells Pi, once a
   wait, what it waits on and what each way costs once its context passes a share of the window (40% by default), and
   Pi decides. **Compact before the prompt cache expires** (off by default) does it without asking: a waiting session
