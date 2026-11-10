@@ -11,23 +11,28 @@
  * its model changes stay behind; Pi Pocket's prompt and tools apply. Nothing Pi did runs again: a tool call that never
  * finished gets a result saying so (Pi's says "No result provided"). Where Pi would send a tool result whose call is
  * not there (a stray one, or one whose call a context edit took out), Pi Durable leaves it out, as providers refuse it.
+ *
+ * Any size continues (PP-486, from pi-pocket #261), and the phone never holds a file whole: a first read goes through
+ * the file a line at a time and keeps only each entry's place in the tree (`indexPiSession`), a second reads the
+ * current branch's entries again, in order, and they are written in commits of a few megabytes (`PiSessionCopy`). A
+ * preview reads only the file's end (`readPiTail`).
  */
-import { existsSync, readFileSync } from "node:fs";
+import { createWriteStream, existsSync, readFileSync } from "node:fs";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { mkdir, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { basename, dirname, join, resolve } from "node:path";
+import { pipeline } from "node:stream/promises";
 import type { Message } from "@earendil-works/pi-ai";
 import {
     buildSessionProjection,
+    type ContextEditEntry,
     convertToLlm,
     CURRENT_SESSION_VERSION,
-    migrateSessionEntries,
-    parseSessionEntries,
+    type FileEntry,
     type SessionEntry,
     sessionEntryToContextMessages,
     type SessionInfo,
     getAgentDir,
-    SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import {
     AssistantEntry,
@@ -44,20 +49,20 @@ import type { User } from "./config.ts";
 import { FROM_PI_ENTRY, type FromPiData, LINK_TYPE } from "./entry-format.ts";
 import { HttpError } from "./errors.ts";
 import { formatPlace } from "./places.ts";
-
+import { type ByteSource, CHUNK, envSource, linesFromEnd, linesOf, localSource, parseLine } from "./session-lines.ts";
 
 const context = BACKGROUND_CONTEXT;
 
 /** Pi's variable for its sessions folder (`ENV_SESSION_DIR` in its config, which the package does not export). */
 const SESSION_DIR_VARIABLE = "PI_CODING_AGENT_SESSION_DIR";
-/** The largest session file read: images make big ones. */
-const MAX_SESSION_BYTES = 32 * 1024 * 1024;
 /** Imported session files go here, a folder in Pi's own sessions folder, so Pi's list finds them as any other. */
 const IMPORTED = "--imported--";
 /** Beside an imported file: where it came from, when a machine (`machines.ts`), so it continues there by default. */
 const ORIGIN_SUFFIX = ".origin.json";
 /** How many session files a machine's listing reads headers of. */
 const MAX_ON_MACHINE = 200;
+/** How much of a session one commit writes, at most about: a big one is written in several, so memory stays flat. */
+const COMMIT_BYTES = 8 * 1024 * 1024;
 
 export type MachineSession = {
     /** The file on the machine. */
@@ -75,6 +80,13 @@ export type MachineSession = {
 const FOUND_FOR_MS = 5_000;
 /** How many sessions a list holds, newest first: a search looks through them all first. */
 const MAX_LISTED = 300;
+/**
+ * How much of a session's text a search looks through, from its start: Pi's own list keeps all of it, which for a
+ * session of hundreds of megabytes would be most of the phone's memory.
+ */
+const MAX_WORDS = 1024 * 1024;
+/** How many session files the list reads at once. */
+const LIST_READS = 4;
 /** How many of its last messages a session's preview shows. */
 const PREVIEW_MESSAGES = 6;
 const PREVIEW_TEXT = 600;
@@ -88,6 +100,9 @@ export type PiEntry =
     /** `head`: the first entry of Pi's the compaction keeps, or null when it keeps none. */
     | { kind: "compaction"; from: string; head: string | null; message: Message };
 
+/** Pi's context edits on the current branch: the entry of Pi's they change, and its messages for Pi (none: left out). */
+export type PiEdit = { target: string; messages: Message[] };
+
 /** A Pi session as it continues here. */
 export type PiSession = {
     id: string;
@@ -98,8 +113,7 @@ export type PiSession = {
     model: { provider: string; modelId: string } | null;
     thinkingLevel: string;
     entries: PiEntry[];
-    /** Pi's context edits on the current branch: the entry of Pi's they change, and its messages for Pi (none: left out). */
-    edits: { target: string; messages: Message[] }[];
+    edits: PiEdit[];
 };
 
 /** One of Pi's sessions as listed: what Pi says of it, and what a search looks through (lower case). */
@@ -108,49 +122,269 @@ type Listed = { info: SessionInfo; words: string };
 /** A session file Pi Pocket cannot continue, and why, in words for people. */
 export class PiSessionError extends Error {}
 
-/**
- * The entries from the first to `leafId`, along `parentId`. A file whose entries lead back to one already passed is
- * damaged: Pi's own walk along them, which comes next, would never end.
- */
-function branchTo(entries: readonly SessionEntry[], leafId: string): SessionEntry[] {
-    const byId = new Map(entries.map((entry) => [entry.id, entry]));
-    const path: SessionEntry[] = [];
-    const seen = new Set<string>();
+/** A session file's header as read: not yet known to be one. */
+type Header = { type?: unknown; id?: unknown; cwd?: unknown; version?: number };
 
-    for (
-        let entry = byId.get(leafId);
-        entry !== undefined;
-        entry = entry.parentId === null ? undefined : byId.get(entry.parentId)
-    ) {
-        if (seen.has(entry.id)) {
-            throw new PiSessionError(
-                "This Pi session file is damaged: its entries lead in a circle.",
-            );
-        }
-
-        seen.add(entry.id);
-        path.push(entry);
+/** Whether a session file's header is one this Pi Pocket reads; why not, in words for people. */
+function checkHeader(header: Header | undefined): asserts header is Header & { type: "session"; id: string } {
+    if (header?.type !== "session" || typeof header.id !== "string") {
+        throw new PiSessionError("This is not a Pi session file.");
     }
 
-    return path.reverse();
+    if ((header.version ?? 1) > CURRENT_SESSION_VERSION) {
+        throw new PiSessionError("A newer Pi wrote this session. Update pi-phone to continue it.");
+    }
 }
 
-/** The first of `sorted` (ascending) at or after `from`, or undefined. */
-function firstFrom(sorted: readonly number[], from: number): number | undefined {
-    let low = 0;
-    let high = sorted.length;
+/**
+ * An entry in the current format, as Pi's `migrateSessionEntries` gives it, one at a time: `n` is its place among the
+ * file's entries (the header is 0). Files from before entries had ids (version 1) get ids made from their place, so
+ * both reads of a file give an entry the same one; Pi makes random ones, which nothing outside one read sees.
+ */
+function migrateEntry(entry: FileEntry, n: number, version: number): SessionEntry {
+    const raw = entry as unknown as Record<string, unknown>;
 
-    while (low < high) {
-        const middle = (low + high) >> 1;
+    if (version < 2) {
+        raw.id = `e${n}`;
+        raw.parentId = n === 1 ? null : `e${n - 1}`;
 
-        if (sorted[middle]! < from) {
-            low = middle + 1;
-        } else {
-            high = middle;
+        if (raw.type === "compaction" && typeof raw.firstKeptEntryIndex === "number") {
+            if (raw.firstKeptEntryIndex >= 1) {
+                raw.firstKeptEntryId = `e${raw.firstKeptEntryIndex}`;
+            }
+
+            delete raw.firstKeptEntryIndex;
         }
     }
 
-    return sorted[low];
+    if (version < 3 && raw.type === "message") {
+        const message = raw.message as { role?: unknown } | undefined;
+
+        if (message?.role === "hookMessage") {
+            message.role = "custom";
+        }
+    }
+
+    return entry as SessionEntry;
+}
+
+/**
+ * What a session file's first read finds: its header, its current branch, and what Pi's context of it is, as Pi's
+ * `buildSessionProjection` finds them. The branch is kept as numbers (where each entry is in the file, how long, its
+ * place among the entries), so a branch of hundreds of thousands of entries takes a few megabytes.
+ */
+export type PiIndex = {
+    id: string;
+    cwd: string;
+    version: number;
+    /** Message entries in the file, as `pi -r` counts them. */
+    count: number;
+    /** Its latest name, as `pi -r` shows it. */
+    name: string | undefined;
+    model: { provider: string; modelId: string } | null;
+    thinkingLevel: string;
+    /** The current branch, first to last: each entry's line in the file (start, length) and place among the entries. */
+    branch: { at: number[]; size: number[]; place: number[] };
+    /** Each compaction's first kept entry, by their places on the branch (-1: none there). */
+    firstKept: Map<number, number>;
+    /** The context edit Pi applies to an entry of its context, by the entry's place on the branch. */
+    edits: Map<number, ContextEditEntry>;
+};
+
+/**
+ * Builds a `PiIndex` from a file's entries, given one at a time in order, keeping of each only numbers and the few
+ * entries that change the context (compactions' kept entry, context edits, model and thinking changes).
+ */
+class PiIndexer {
+    // Every entry's place by its id, while the file is read.
+    readonly #places = new Map<string, number>();
+    // Each entry's parent's place (-1: none), or, for a parent not read yet, its id.
+    readonly #parents: number[] = [];
+    readonly #later = new Map<number, string>();
+    readonly #at: number[] = [];
+    readonly #size: number[] = [];
+    // The model an entry picks (model changes, and assistant messages, which answer with one), as a number.
+    readonly #models: number[] = [];
+    readonly #modelList: { provider: string; modelId: string }[] = [];
+    readonly #modelNumbers = new Map<string, number>();
+    readonly #thinking = new Map<number, string>();
+    readonly #compactions = new Map<number, string>();
+    readonly #edits = new Map<number, ContextEditEntry>();
+    #count = 0;
+    #name: string | undefined;
+
+    /** The next entry, migrated, with its line's start and length. */
+    add(entry: SessionEntry, at: number, size: number): void {
+        const place = this.#at.length;
+        const parent = entry.parentId === null ? -1 : this.#places.get(entry.parentId);
+
+        this.#places.set(entry.id, place);
+        this.#at.push(at);
+        this.#size.push(size);
+
+        if (parent === undefined) {
+            this.#parents.push(-1);
+            this.#later.set(place, entry.parentId!);
+        } else {
+            this.#parents.push(parent);
+        }
+
+        let model: { provider: string; modelId: string } | undefined;
+
+        if (entry.type === "message") {
+            this.#count += 1;
+
+            if (entry.message.role === "assistant") {
+                model = { provider: entry.message.provider, modelId: entry.message.model };
+            }
+        } else if (entry.type === "model_change") {
+            model = { provider: entry.provider, modelId: entry.modelId };
+        } else if (entry.type === "thinking_level_change") {
+            this.#thinking.set(place, entry.thinkingLevel);
+        } else if (entry.type === "compaction") {
+            this.#compactions.set(place, entry.firstKeptEntryId);
+        } else if (entry.type === "context_edit") {
+            this.#edits.set(place, entry);
+        } else if (entry.type === "session_info") {
+            this.#name = entry.name?.trim() || undefined;
+        }
+
+        if (model === undefined) {
+            this.#models.push(0);
+        } else {
+            const key = `${model.provider}\n${model.modelId}`;
+            let number = this.#modelNumbers.get(key);
+
+            if (number === undefined) {
+                this.#modelList.push(model);
+                number = this.#modelList.length;
+                this.#modelNumbers.set(key, number);
+            }
+
+            this.#models.push(number);
+        }
+    }
+
+    /**
+     * The index: the branch from the last entry back along `parentId` (a file whose entries lead back to one already
+     * passed is damaged: Pi's own walk along them would never end), and Pi's context of it, as
+     * `buildSessionProjection` and `buildContextEntries` find it.
+     */
+    finish(header: Header & { id: string }): PiIndex {
+        const total = this.#at.length;
+
+        for (const [place, id] of this.#later) {
+            this.#parents[place] = this.#places.get(id) ?? -1;
+        }
+
+        const places: number[] = [];
+
+        for (let place = total - 1; place !== -1; place = this.#parents[place]!) {
+            if (places.length >= total) {
+                throw new PiSessionError("This Pi session file is damaged: its entries lead in a circle.");
+            }
+
+            places.push(place);
+        }
+
+        places.reverse();
+        // Each entry's place on the branch, -1 off it.
+        const onBranch = new Int32Array(total).fill(-1);
+
+        places.forEach((place, index) => {
+            onBranch[place] = index;
+        });
+        const branchOf = (id: string) => {
+            const place = this.#places.get(id);
+
+            return place === undefined ? -1 : onBranch[place]!;
+        };
+        let model: PiIndex["model"] = null;
+        let thinkingLevel = "off";
+        let latest = -1;
+        const firstKept = new Map<number, number>();
+
+        places.forEach((place, index) => {
+            const number = this.#models[place]!;
+
+            if (number > 0) {
+                model = this.#modelList[number - 1]!;
+            }
+
+            thinkingLevel = this.#thinking.get(place) ?? thinkingLevel;
+            const kept = this.#compactions.get(place);
+
+            if (kept !== undefined) {
+                const start = branchOf(kept);
+
+                firstKept.set(index, start < index ? start : -1);
+                latest = index;
+            }
+        });
+        // Pi's context: everything, or the latest compaction, the entries it keeps before it, and all after it.
+        const keptFrom = latest === -1 ? 0 : firstKept.get(latest)!;
+        const inContext = (index: number) =>
+            latest === -1 || index >= latest || (keptFrom !== -1 && index >= keptFrom);
+        const edits = new Map<number, ContextEditEntry>();
+
+        // As Pi applies them: the last edit of an entry, both in its context.
+        places.forEach((place, index) => {
+            const edit = this.#edits.get(place);
+            const target = edit === undefined ? -1 : branchOf(edit.targetId);
+
+            if (edit !== undefined && inContext(index) && target !== -1 && inContext(target)) {
+                edits.set(target, edit);
+            }
+        });
+
+        return {
+            id: header.id,
+            cwd: typeof header.cwd === "string" ? header.cwd : "",
+            version: header.version ?? 1,
+            count: this.#count,
+            name: this.#name,
+            model,
+            thinkingLevel,
+            branch: {
+                at: places.map((place) => this.#at[place]!),
+                size: places.map((place) => this.#size[place]!),
+                place: places,
+            },
+            firstKept,
+            edits,
+        };
+    }
+}
+
+/**
+ * A session file's first read, a line at a time: its header checked, and every entry's place, without its messages.
+ * A line that is not JSON (a last one cut off while Pi writes it) is left out, as Pi reads it.
+ */
+export async function indexPiSession(source: ByteSource): Promise<PiIndex> {
+    let header: (Header & { id: string }) | undefined;
+    const indexer = new PiIndexer();
+    let n = 0;
+
+    for await (const line of linesOf(source)) {
+        const parsed = parseLine(line.bytes) as FileEntry | undefined;
+
+        if (parsed === undefined) {
+            continue;
+        }
+
+        if (header === undefined) {
+            checkHeader(parsed as Header);
+            header = parsed as Header & { id: string };
+            continue;
+        }
+
+        n += 1;
+        indexer.add(migrateEntry(parsed, n, header.version ?? 1), line.at, line.bytes.length);
+    }
+
+    checkHeader(header);
+
+    return indexer.finish(header);
 }
 
 /** What an entry of Pi's gives the model, as Pi sends it; Pi's system messages stay behind for Pi Pocket's own. */
@@ -174,36 +408,138 @@ function textOf(message: Message): string {
         .trim();
 }
 
-/** A Pi session's file, read: the conversation on its current branch, and what Pi's context of it is. */
-export function readPiSession(text: string): PiSession {
-    const file = parseSessionEntries(text);
-    const header = file[0];
-
-    if (header?.type !== "session" || typeof header.id !== "string") {
-        throw new PiSessionError("This is not a Pi session file.");
-    }
-
-    if ((header.version ?? 1) > CURRENT_SESSION_VERSION) {
-        throw new PiSessionError("A newer Pi wrote this session. Update pi-phone to continue it.");
-    }
-
-    // In memory only: older files get the current format, as Pi gives them when it opens one.
-    migrateSessionEntries(file);
-    const all = file.slice(1) as SessionEntry[];
-    const leaf = all.at(-1);
-    const path = leaf === undefined ? [] : branchTo(all, leaf.id);
-    const projection = buildSessionProjection(all, leaf?.id);
-    const entries: PiEntry[] = [];
-    // Where each entry is on the branch, and where those that became messages here are (in order): a compaction finds
-    // the first it keeps without a scan, so a file with many compactions reads in time that grows with its length.
-    const at = new Map(path.map((entry, index) => [entry.id, index]));
-    const copied: number[] = [];
+/**
+ * The current branch made into the copy's messages, one entry at a time in order, as `add` is given each whole with
+ * its place on the branch: only what later entries need of earlier ones is kept, so a branch of any length goes
+ * through in little memory.
+ */
+class BranchCopy {
+    readonly #editsOf: Map<number, ContextEditEntry>;
+    // The compactions that keep entries, by where their first kept entry is, in order: each keeps from the first entry
+    // there or after it that became a message here, as Pi keeps them up to the compaction.
+    readonly #starts: { start: number; compaction: number }[];
+    #nextStart = 0;
+    #lastCopied = -1;
+    // Each such compaction's first kept entry, by the compaction's place on the branch.
+    readonly #heads = new Map<number, string>();
+    // The entries of Pi's a later entry of the copy refers to (a compaction's head, an edit's target).
+    readonly #wanted = new Set<string>();
     // Tool calls of the last assistant message without a result yet.
-    const open = new Map<string, { name: string; timestamp: number }>();
+    readonly #open = new Map<string, { name: string; timestamp: number }>();
+    /** Pi's context edits met so far. */
+    readonly edits: PiEdit[] = [];
+    /** The first line of what the branch first asks, for a title. */
+    firstAsked: string | undefined;
 
-    const closeOpen = () => {
-        for (const [toolCallId, call] of open) {
-            entries.push({
+    constructor(index: PiIndex) {
+        this.#editsOf = index.edits;
+        this.#starts = [...index.firstKept]
+            .flatMap(([compaction, start]) => (start === -1 ? [] : [{ start, compaction }]))
+            .sort((a, b) => a.start - b.start);
+    }
+
+    /** Whether a later entry of the copy refers to this entry of Pi's: the conversation's entry for it is kept. */
+    wanted(from: string): boolean {
+        return this.#wanted.has(from);
+    }
+
+    /** The entry at `index` on the branch became a message here: the first kept of the compactions that start by it. */
+    #copied(entry: SessionEntry, index: number): void {
+        if (this.#lastCopied === index) {
+            return;
+        }
+
+        this.#lastCopied = index;
+
+        for (; this.#nextStart < this.#starts.length && this.#starts[this.#nextStart]!.start <= index; this.#nextStart += 1) {
+            const { compaction } = this.#starts[this.#nextStart]!;
+
+            if (index < compaction) {
+                this.#heads.set(compaction, entry.id);
+                this.#wanted.add(entry.id);
+            }
+        }
+    }
+
+    /** The copy's messages from the branch's entry at `index`, given whole. */
+    add(entry: SessionEntry, index: number): PiEntry[] {
+        const out: PiEntry[] = [];
+
+        if (entry.type === "compaction") {
+            const summary = forModel(sessionEntryToContextMessages(entry))[0];
+
+            if (summary !== undefined) {
+                out.push({ kind: "compaction", from: entry.id, head: this.#heads.get(index) ?? null, message: summary });
+            }
+
+            return out;
+        }
+
+        if (entry.type !== "message" && entry.type !== "custom_message" && entry.type !== "branch_summary") {
+            return out;
+        }
+
+        if (this.firstAsked === undefined && entry.type === "message" && entry.message.role === "user") {
+            this.firstAsked = textOf(entry.message as Message).split("\n")[0]!;
+        }
+
+        const own = forModel(sessionEntryToContextMessages(entry));
+        const edit = this.#editsOf.get(index);
+
+        // Where Pi's context of an entry differs from the entry, a context edit changed it: the copy edits it the same
+        // way. Pi's own projection of the entry with its edit says how.
+        if (edit !== undefined && own.length > 0) {
+            const projected = buildSessionProjection(
+                [{ ...entry, parentId: null }, { ...edit, parentId: entry.id }],
+                edit.id,
+            );
+            const seen = forModel(projected.entries[0]?.messages ?? []);
+
+            if (JSON.stringify(own) !== JSON.stringify(seen)) {
+                this.edits.push({ target: entry.id, messages: seen });
+                this.#wanted.add(entry.id);
+            }
+        }
+
+        for (const message of own) {
+            this.#copied(entry, index);
+
+            if (message.role === "toolResult") {
+                this.#open.delete(message.toolCallId);
+                out.push({ kind: "toolResult", from: entry.id, message });
+                continue;
+            }
+
+            this.#closeOpen(out);
+
+            if (message.role === "assistant") {
+                for (const part of message.content) {
+                    if (part.type === "toolCall") {
+                        this.#open.set(part.id, { name: part.name, timestamp: message.timestamp });
+                    }
+                }
+
+                out.push({ kind: "assistant", from: entry.id, message });
+            } else if (message.role === "user") {
+                out.push({ kind: "user", from: entry.id, message });
+            }
+        }
+
+        return out;
+    }
+
+    /** The results of the last tool calls that never got one. */
+    finish(): PiEntry[] {
+        const out: PiEntry[] = [];
+
+        this.#closeOpen(out);
+
+        return out;
+    }
+
+    #closeOpen(out: PiEntry[]): void {
+        for (const [toolCallId, call] of this.#open) {
+            out.push({
                 kind: "toolResult",
                 message: {
                     role: "toolResult",
@@ -216,122 +552,269 @@ export function readPiSession(text: string): PiSession {
             });
         }
 
-        open.clear();
-    };
+        this.#open.clear();
+    }
+}
 
-    for (const [index, entry] of path.entries()) {
-        if (entry.type === "compaction") {
-            const summary = forModel(sessionEntryToContextMessages(entry))[0];
-            const start = at.get(entry.firstKeptEntryId) ?? -1;
-            // The first of the kept entries that is a message here, as Pi keeps them up to the compaction.
-            const first = start === -1 || start > index ? undefined : firstFrom(copied, start);
-            const kept = first === undefined || first >= index ? undefined : path[first];
+/** A session's title as `pi -r` names it: its latest name, or what it was first asked. */
+function sessionTitle(name: string | undefined, firstAsked: string | undefined): string {
+    return name || (firstAsked ?? "").slice(0, TITLE_LENGTH).trim() || "Pi session";
+}
 
-            if (summary !== undefined) {
-                entries.push({
-                    kind: "compaction",
-                    from: entry.id,
-                    head: kept?.id ?? null,
-                    message: summary,
-                });
-            }
+/** A Pi session's file, read whole from its text: the conversation on its current branch, and Pi's context of it. */
+export function readPiSession(text: string): PiSession {
+    let header: (Header & { id: string }) | undefined;
+    const all: SessionEntry[] = [];
 
+    for (const line of text.split("\n")) {
+        const parsed = parseLine(line) as FileEntry | undefined;
+
+        if (parsed === undefined) {
             continue;
         }
 
-        if (
-            entry.type !== "message" &&
-            entry.type !== "custom_message" &&
-            entry.type !== "branch_summary"
-        ) {
+        if (header === undefined) {
+            checkHeader(parsed as Header);
+            header = parsed as Header & { id: string };
             continue;
         }
 
-        for (const message of forModel(sessionEntryToContextMessages(entry))) {
-            if (copied.at(-1) !== index) {
-                copied.push(index);
-            }
-
-            if (message.role === "toolResult") {
-                open.delete(message.toolCallId);
-                entries.push({ kind: "toolResult", from: entry.id, message });
-                continue;
-            }
-
-            closeOpen();
-
-            if (message.role === "assistant") {
-                for (const part of message.content) {
-                    if (part.type === "toolCall") {
-                        open.set(part.id, { name: part.name, timestamp: message.timestamp });
-                    }
-                }
-
-                entries.push({ kind: "assistant", from: entry.id, message });
-            } else if (message.role === "user") {
-                entries.push({ kind: "user", from: entry.id, message });
-            }
-        }
+        all.push(migrateEntry(parsed, all.length + 1, header.version ?? 1));
     }
 
-    closeOpen();
+    checkHeader(header);
+    const indexer = new PiIndexer();
 
-    // Where Pi's context of an entry differs from the entry, a context edit changed it: the copy edits it the same way.
-    const edits = projection.entries.flatMap(({ sourceEntry, messages }) => {
-        if (sourceEntry.type === "compaction") {
-            return [];
-        }
+    for (const entry of all) {
+        indexer.add(entry, 0, 0);
+    }
 
-        const own = forModel(sessionEntryToContextMessages(sourceEntry));
-        const seen = forModel(messages);
-
-        return own.length === 0 || JSON.stringify(own) === JSON.stringify(seen)
-            ? []
-            : [{ target: sourceEntry.id, messages: seen }];
-    });
-    // As `pi -r` names it: its latest name, or what it was first asked.
-    const named = all.findLast((entry) => entry.type === "session_info");
-    const firstAsked = path.find(
-        (entry) => entry.type === "message" && entry.message.role === "user",
-    );
-    const firstText =
-        firstAsked?.type === "message" ? textOf(firstAsked.message as Message).split("\n")[0]! : "";
-    const title =
-        (named?.type === "session_info" ? named.name?.trim() : undefined) ||
-        firstText.slice(0, TITLE_LENGTH).trim() ||
-        "Pi session";
+    const index = indexer.finish(header);
+    const copy = new BranchCopy(index);
+    const entries = [...index.branch.place.flatMap((place, at) => copy.add(all[place]!, at)), ...copy.finish()];
 
     return {
-        id: header.id,
-        cwd: header.cwd,
-        title,
-        count: all.filter((entry) => entry.type === "message").length,
-        model: projection.model,
-        thinkingLevel: projection.thinkingLevel,
+        id: index.id,
+        cwd: index.cwd,
+        title: sessionTitle(index.name, copy.firstAsked),
+        count: index.count,
+        model: index.model,
+        thinkingLevel: index.thinkingLevel,
         entries,
-        edits,
+        edits: copy.edits,
     };
 }
 
 /**
- * Write a Pi session's copy into a new conversation, from its `init`: its messages, then where it came from. Or, to
- * bring back what Pi did after a session went to Pi (`pi-handoff.ts`), only `entries`, after what the conversation
- * has: `known` then finds the conversation's entry for an entry of Pi's written before, which a compaction may keep or
- * an edit change. Answers the last entry written with messages for the model.
+ * A Pi session's file, continued a part at a time (`batches`): its index from the first read, then its branch read
+ * again from the file, in order. After the batches, `edits` and `title` hold what the whole branch says.
  */
-export async function writePiSession(
+export class PiSessionCopy {
+    readonly index: PiIndex;
+    readonly #source: ByteSource;
+    readonly #copy: BranchCopy;
+
+    constructor(source: ByteSource, index: PiIndex) {
+        this.#source = source;
+        this.index = index;
+        this.#copy = new BranchCopy(index);
+    }
+
+    get edits(): PiEdit[] {
+        return this.#copy.edits;
+    }
+
+    get title(): string {
+        return sessionTitle(this.index.name, this.#copy.firstAsked);
+    }
+
+    /** Whether a later entry of the copy refers to this entry of Pi's (`BranchCopy.wanted`). */
+    wanted(from: string): boolean {
+        return this.#copy.wanted(from);
+    }
+
+    // A part of the file read once for the lines in it: the branch's lines follow each other, mostly.
+    #window: { at: number; bytes: Buffer } = { at: 0, bytes: Buffer.alloc(0) };
+
+    /** The line at `at`, `size` bytes long. */
+    async #line(at: number, size: number): Promise<Buffer> {
+        const held = this.#window;
+
+        if (at < held.at || at + size > held.at + held.bytes.length) {
+            this.#window = { at, bytes: await this.#source.read(at, Math.max(size, CHUNK)) };
+        }
+
+        const start = at - this.#window.at;
+        const line = this.#window.bytes.subarray(start, start + size);
+
+        if (line.length !== size) {
+            throw new PiSessionError("This Pi session file changed while it was read. Try again.");
+        }
+
+        return line;
+    }
+
+    /** The copy's messages, about `bytes` of the file's lines at a time. */
+    async *batches(bytes = COMMIT_BYTES): AsyncGenerator<PiEntry[]> {
+        const { branch, version } = this.index;
+        let batch: PiEntry[] = [];
+        let size = 0;
+
+        for (let index = 0; index < branch.place.length; index += 1) {
+            const entry = parseLine(await this.#line(branch.at[index]!, branch.size[index]!)) as FileEntry | undefined;
+
+            // Each line was an entry when the file was first read.
+            if (entry === undefined) {
+                throw new PiSessionError("This Pi session file changed while it was read. Try again.");
+            }
+
+            batch.push(...this.#copy.add(migrateEntry(entry, branch.place[index]! + 1, version), index));
+            size += branch.size[index]!;
+
+            if (size >= bytes) {
+                yield batch;
+                batch = [];
+                size = 0;
+            }
+        }
+
+        this.#window = { at: 0, bytes: Buffer.alloc(0) };
+        batch.push(...this.#copy.finish());
+
+        if (batch.length > 0) {
+            yield batch;
+        }
+    }
+
+    close(): Promise<void> {
+        return this.#source.close();
+    }
+}
+
+/** What a preview shows of a session's current branch: its model, and its last messages with text, in order. */
+type Tail = {
+    model: { provider: string; modelId: string } | null;
+    last: { role: "user" | "assistant"; text: string }[];
+};
+
+/** The last messages of people and the agent with text, for a preview. */
+function lastTexts(entries: readonly PiEntry[]): Tail["last"] {
+    return entries
+        .flatMap((entry) => {
+            if (entry.kind !== "user" && entry.kind !== "assistant") {
+                return [];
+            }
+
+            const text = textOf(entry.message);
+
+            return text === "" ? [] : [{ role: entry.kind, text: text.slice(0, PREVIEW_TEXT) }];
+        })
+        .slice(-PREVIEW_MESSAGES);
+}
+
+/** A file's first entry, as Pi reads it: its first line that is JSON. */
+async function firstEntry(source: ByteSource): Promise<Header | undefined> {
+    for await (const line of linesOf(source)) {
+        const parsed = parseLine(line.bytes) as Header | undefined;
+
+        if (parsed !== undefined) {
+            return parsed;
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * A session's tail, read from the end of its file: its current branch goes back from the last entry along
+ * `parentId`, and a parent is always written before its children, so a walk back through the file finds the branch
+ * in order and stops at the last few messages. Files from before entries had ids (version 1) are read through, a part
+ * at a time.
+ */
+export async function readPiTail(source: ByteSource): Promise<Tail> {
+    const header = await firstEntry(source);
+
+    checkHeader(header);
+
+    if ((header.version ?? 1) < 2) {
+        const copy = new PiSessionCopy(source, await indexPiSession(source));
+        let last: Tail["last"] = [];
+
+        for await (const batch of copy.batches()) {
+            last = [...last, ...lastTexts(batch)].slice(-PREVIEW_MESSAGES);
+        }
+
+        return { model: copy.index.model, last };
+    }
+
+    let want: string | undefined;
+    let model: Tail["model"] = null;
+    const last: Tail["last"] = [];
+
+    for await (const line of linesFromEnd(source)) {
+        const entry = parseLine(line) as SessionEntry | { type: "session" } | undefined;
+
+        // A line cut off, as a `pi` still writing it leaves it: as Pi reads it, it is not there.
+        if (entry === undefined) {
+            continue;
+        }
+
+        if (entry.type === "session") {
+            break;
+        }
+
+        want ??= entry.id;
+
+        if (entry.id !== want) {
+            continue;
+        }
+
+        if (model === null && entry.type === "model_change") {
+            model = { provider: entry.provider, modelId: entry.modelId };
+        } else if (model === null && entry.type === "message" && entry.message.role === "assistant") {
+            model = { provider: entry.message.provider, modelId: entry.message.model };
+        }
+
+        if (
+            last.length < PREVIEW_MESSAGES &&
+            (entry.type === "message" || entry.type === "custom_message" || entry.type === "branch_summary")
+        ) {
+            const texts = lastTexts(
+                forModel(sessionEntryToContextMessages(entry)).map((message) => ({
+                    kind: message.role as PiEntry["kind"],
+                    message,
+                })) as PiEntry[],
+            );
+
+            last.unshift(...texts.slice(-(PREVIEW_MESSAGES - last.length)));
+        }
+
+        if ((last.length >= PREVIEW_MESSAGES && model !== null) || entry.parentId === null) {
+            break;
+        }
+
+        want = entry.parentId;
+    }
+
+    return { model, last };
+}
+
+/**
+ * Write messages of a Pi session's copy into a conversation, after what it has: `made` gets, and finds, the
+ * conversation's entry for each of Pi's entries written that `keep` says a later one refers to; `known` finds one
+ * written before (`pi-handoff.ts`), which a compaction may keep. Answers the last entry written.
+ */
+export async function writePiEntries(
     tx: Tx,
     id: ConversationId,
-    session: PiSession,
-    data: FromPiData,
-    { entries = session.entries, known = () => undefined }: { entries?: readonly PiEntry[]; known?: (from: string) => EntryId | undefined } = {},
+    entries: readonly PiEntry[],
+    made: Map<string, EntryId>,
+    { known = () => undefined, keep = () => true }: { known?: (from: string) => EntryId | undefined; keep?: (from: string) => boolean } = {},
 ): Promise<EntryId | undefined> {
-    const made = new Map<string, EntryId>();
-    const find = (from: string) => made.get(from) ?? known(from);
     let last: EntryId | undefined;
 
     for (const entry of entries) {
-        const head = entry.kind === "compaction" && entry.head !== null ? find(entry.head) : undefined;
+        const head = entry.kind === "compaction" && entry.head !== null ? (made.get(entry.head) ?? known(entry.head)) : undefined;
 
         if (entry.kind === "compaction" && entry.head !== null && head === undefined) {
             throw new PiSessionError("Pi's compaction keeps a message this session does not have.");
@@ -354,14 +837,25 @@ export async function writePiSession(
                         model: [entry.message],
                     });
 
-        if (entry.from !== undefined && !made.has(entry.from)) {
+        if (entry.from !== undefined && !made.has(entry.from) && keep(entry.from)) {
             made.set(entry.from, written.id);
         }
 
         last = written.id;
     }
 
-    const edits: ContextEdit[] = session.edits.flatMap(({ target, messages }) => {
+    return last;
+}
+
+/** Where a copy came from, after every entry it edits: Pi's context edits, made on the entries written for them. */
+export async function writeFromPi(
+    tx: Tx,
+    id: ConversationId,
+    edits: readonly PiEdit[],
+    data: FromPiData,
+    find: (from: string) => EntryId | undefined,
+): Promise<void> {
+    const made: ContextEdit[] = edits.flatMap(({ target, messages }) => {
         const entry = find(target);
 
         if (entry === undefined) {
@@ -379,10 +873,210 @@ export async function writePiSession(
     await tx.appendEntry(id, {
         kind: FROM_PI_ENTRY,
         data,
-        ...(edits.length === 0 ? {} : { edits }),
+        ...(made.length === 0 ? {} : { edits: made }),
     });
+}
+
+/**
+ * Write a Pi session's copy, read whole, into a conversation: its messages, then where it came from. Or, to bring back
+ * what Pi did after a session went to Pi (`pi-handoff.ts`), only `entries`, after what the conversation has: `known`
+ * then finds the conversation's entry for an entry of Pi's written before, which a compaction may keep or an edit
+ * change. Answers the last entry written with messages for the model.
+ */
+export async function writePiSession(
+    tx: Tx,
+    id: ConversationId,
+    session: PiSession,
+    data: FromPiData,
+    { entries = session.entries, known = () => undefined }: { entries?: readonly PiEntry[]; known?: (from: string) => EntryId | undefined } = {},
+): Promise<EntryId | undefined> {
+    const made = new Map<string, EntryId>();
+    const last = await writePiEntries(tx, id, entries, made, { known });
+
+    await writeFromPi(tx, id, session.edits, data, (from) => made.get(from) ?? known(from));
 
     return last;
+}
+
+/** A message's text as Pi's list reads it: its text parts, joined by spaces. */
+function listedText(message: { content?: unknown }): string {
+    const content = message.content;
+
+    if (typeof content === "string") {
+        return content;
+    }
+
+    return Array.isArray(content)
+        ? content.flatMap((part: { type?: unknown; text?: unknown }) => (part.type === "text" && typeof part.text === "string" ? [part.text] : [])).join(" ")
+        : "";
+}
+
+/**
+ * What Pi's list (`SessionManager.listAll`) says of a session file, read a line at a time as Pi reads it, with the
+ * words a search looks through: its name, folder and first message, and its messages' text up to `MAX_WORDS`.
+ * Undefined for a file that is not a Pi session, or cannot be read.
+ */
+async function listedInfo(path: string, mtime: Date): Promise<Listed | undefined> {
+    let source: ByteSource;
+
+    try {
+        source = await localSource(path);
+    } catch {
+        return undefined;
+    }
+
+    try {
+        let header: (Header & { timestamp?: unknown; parentSession?: unknown }) | undefined;
+        let name: string | undefined;
+        let count = 0;
+        let firstMessage = "";
+        let lastActivity: number | undefined;
+        const texts: string[] = [];
+        let textLength = 0;
+
+        for await (const line of linesOf(source)) {
+            const entry = parseLine(line.bytes) as
+                | { type?: unknown; name?: unknown; timestamp?: unknown; message?: { role?: unknown; content?: unknown; timestamp?: unknown } }
+                | undefined;
+
+            if (entry === undefined) {
+                continue;
+            }
+
+            if (header === undefined) {
+                if (entry.type !== "session") {
+                    return undefined;
+                }
+
+                header = entry as Header & { timestamp?: unknown; parentSession?: unknown };
+                continue;
+            }
+
+            if (entry.type === "session_info") {
+                name = (typeof entry.name === "string" ? entry.name.trim() : "") || undefined;
+            }
+
+            const message = entry.message;
+
+            if (entry.type !== "message" || message === undefined) {
+                continue;
+            }
+
+            count += 1;
+
+            if (typeof message.role !== "string" || !("content" in message) || (message.role !== "user" && message.role !== "assistant")) {
+                continue;
+            }
+
+            const at = typeof message.timestamp === "number" ? message.timestamp : new Date(String(entry.timestamp)).getTime();
+
+            if (!Number.isNaN(at)) {
+                lastActivity = Math.max(lastActivity ?? 0, at);
+            }
+
+            const text = listedText(message);
+
+            if (text === "") {
+                continue;
+            }
+
+            if (firstMessage === "" && message.role === "user") {
+                firstMessage = text;
+            }
+
+            if (textLength < MAX_WORDS) {
+                texts.push(text.slice(0, MAX_WORDS - textLength));
+                textLength += text.length;
+            }
+        }
+
+        if (header === undefined) {
+            return undefined;
+        }
+
+        const cwd = typeof header.cwd === "string" ? header.cwd : "";
+        const started = new Date(String(header.timestamp));
+        const info: SessionInfo = {
+            path,
+            id: String(header.id),
+            cwd,
+            ...(name === undefined ? {} : { name }),
+            ...(typeof header.parentSession === "string" ? { parentSessionPath: header.parentSession } : {}),
+            created: started,
+            modified:
+                lastActivity !== undefined && lastActivity > 0
+                    ? new Date(lastActivity)
+                    : Number.isNaN(started.getTime())
+                      ? mtime
+                      : started,
+            messageCount: count,
+            firstMessage: firstMessage || "(no messages)",
+            allMessagesText: "",
+        };
+
+        return { info, words: [name ?? "", cwd, firstMessage, texts.join(" ")].join("\n").toLowerCase() };
+    } catch {
+        return undefined;
+    } finally {
+        await source.close();
+    }
+}
+
+/**
+ * Pi's sessions as `SessionManager.listAll` finds them, newest first: the `.jsonl` files of `custom`, or of every
+ * folder in Pi's sessions folder. Read a few at a time, each a line at a time (`listedInfo`).
+ */
+async function listPiSessions(custom: string | undefined): Promise<Listed[]> {
+    let folders: string[];
+
+    if (custom !== undefined) {
+        folders = [custom];
+    } else {
+        const root = join(getAgentDir(), "sessions");
+
+        folders = (await readdir(root, { withFileTypes: true }).catch(() => []))
+            .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
+            .map((entry) => join(root, entry.name));
+    }
+
+    const files: { path: string; mtime: Date }[] = [];
+
+    for (const folder of folders) {
+        for (const name of await readdir(folder).catch(() => [])) {
+            if (name.endsWith(".jsonl")) {
+                const path = join(folder, name);
+                const info = await stat(path).catch(() => undefined);
+
+                if (info?.isFile()) {
+                    files.push({ path, mtime: info.mtime });
+                }
+            }
+        }
+    }
+
+    const found: Listed[] = [];
+    let next = 0;
+    const reader = async () => {
+        while (next < files.length) {
+            const file = files[next++]!;
+            const listed = await listedInfo(file.path, file.mtime);
+
+            if (listed !== undefined) {
+                found.push(listed);
+            }
+        }
+    };
+
+    await Promise.all(Array.from({ length: LIST_READS }, reader));
+
+    return found.sort((a, b) => b.info.modified.getTime() - a.info.modified.getTime());
+}
+
+/** A session's title as `pi -r` shows it: its name, or the first line of what it was first asked. */
+function titleOf(info: SessionInfo): string {
+    const first = info.firstMessage.split("\n")[0]!.slice(0, TITLE_LENGTH).trim();
+
+    return info.name ?? (first || "Pi session");
 }
 
 /** A Pi session as the list shows it. */
@@ -412,32 +1106,15 @@ export class PiSessions {
 
     /**
      * Pi's sessions, newest first, as `pi -r` lists them all, each with what a search looks through, in lower case:
-     * made once per list, not for every letter typed. `fresh` reads them again.
+     * made once per list, not for every letter typed. `fresh` reads them again. Pi's own `SessionManager.listAll` is
+     * not used: it keeps every session's whole text (PP-486).
      */
     #find(fresh = true): Promise<Listed[]> {
         if (!fresh && this.#found !== undefined && Date.now() - this.#found.at < FOUND_FOR_MS) {
             return this.#found.list;
         }
 
-        const custom = this.#customFolder();
-        const list = (custom ? SessionManager.listAll(custom) : SessionManager.listAll()).then(
-            (infos) =>
-                infos.map((info) => {
-                    const words = [
-                        info.name ?? "",
-                        info.cwd,
-                        info.firstMessage,
-                        info.allMessagesText,
-                    ]
-                        .join("\n")
-                        .toLowerCase();
-
-                    // Kept once, as the search's words: a session's whole text is the bulk of the list.
-                    info.allMessagesText = "";
-
-                    return { info, words };
-                }),
-        );
+        const list = listPiSessions(this.#customFolder());
         const found = { at: Date.now(), list };
 
         this.#found = found;
@@ -490,26 +1167,11 @@ export class PiSessions {
     }
 
     /**
-     * A Pi session file brought from elsewhere (another machine, Termux): checked as Pi would read it, then kept with
-     * Pi's sessions, where the list finds it. Answers its path. A file of the same name is replaced.
+     * Keep a session file with Pi's sessions, where the list finds it, under `name` (a file of the same name is
+     * replaced): `write` writes it to a file beside it first, whose header is checked as Pi would read it; the rest is
+     * checked as it continues. Answers its path.
      */
-    async import(user: User, name: string, data: Buffer): Promise<{ path: string }> {
-        this.#requireOwner(user);
-
-        if (data.length > MAX_SESSION_BYTES) {
-            throw new HttpError(413, "This Pi session is too large to continue here.");
-        }
-
-        try {
-            readPiSession(data.toString("utf8"));
-        } catch (error) {
-            if (error instanceof PiSessionError) {
-                throw new HttpError(400, `This is not a Pi session file: ${error.message}`);
-            }
-
-            throw error;
-        }
-
+    async #keep(name: string, write: (path: string) => Promise<void>): Promise<{ path: string }> {
         const file = basename(name).replace(/[^\w.-]/g, "_");
 
         if (!file.endsWith(".jsonl")) {
@@ -518,12 +1180,49 @@ export class PiSessions {
 
         const folder = this.#customFolder() ?? join(getAgentDir(), "sessions", IMPORTED);
         const path = join(folder, file);
+        // Not a .jsonl: Pi's list does not see it while it is written.
+        const part = `${path}.part`;
 
         await mkdir(folder, { recursive: true });
-        await writeFile(path, data, { mode: 0o600 });
+
+        try {
+            await write(part);
+            const source = await localSource(part);
+
+            try {
+                checkHeader(await firstEntry(source));
+            } finally {
+                await source.close();
+            }
+
+            await rename(part, path);
+        } catch (error) {
+            await rm(part, { force: true });
+
+            if (error instanceof PiSessionError) {
+                throw new HttpError(400, `This is not a Pi session file: ${error.message}`);
+            }
+
+            throw error;
+        }
+
         this.#found = undefined;
 
         return { path };
+    }
+
+    /**
+     * A Pi session file brought from elsewhere (another machine, Termux): its bytes, or a stream of them (an upload),
+     * written as they come, never held whole. Answers its path.
+     */
+    async import(user: User, name: string, data: Buffer | AsyncIterable<Buffer>): Promise<{ path: string }> {
+        this.#requireOwner(user);
+
+        return this.#keep(name, (path) =>
+            Buffer.isBuffer(data)
+                ? writeFile(path, data, { mode: 0o600 })
+                : pipeline(data, createWriteStream(path, { mode: 0o600 })),
+        );
     }
 
     /**
@@ -689,8 +1388,8 @@ export class PiSessions {
     }
 
     /**
-     * Copy a session file from a machine into the imported folder, with where it came from beside it, so continuing it
-     * defaults to its folder on that machine. Answers the path here.
+     * Copy a session file from a machine into the imported folder, a megabyte at a time, with where it came from beside
+     * it, so continuing it defaults to its folder on that machine. Answers the path here.
      */
     async importFromMachine(user: User, machineId: string, path: unknown): Promise<{ path: string }> {
         this.#requireOwner(user);
@@ -701,23 +1400,15 @@ export class PiSessions {
         }
 
         const env = this.#app.places.env(formatPlace({ machineId, path: machine.remote!.home }));
-        const info = await env.fileInfo(path, context);
+        const failed = (message: string) => new HttpError(502, `Could not read ${path} on ${machine.name}: ${message}`);
+        const source = await envSource(env, path, context, failed);
+        let imported: { path: string };
 
-        if (!info.ok) {
-            throw new HttpError(502, `Could not read ${path} on ${machine.name}: ${info.error.message}`);
+        try {
+            imported = await this.#keep(`${machine.name}-${basename(path)}`, (part) => copyOut(source, part));
+        } finally {
+            await source.close();
         }
-
-        if (info.value.size > MAX_SESSION_BYTES) {
-            throw new HttpError(413, "This Pi session is too large to continue here.");
-        }
-
-        const bytes = await env.readBinaryFile(path, context);
-
-        if (!bytes.ok) {
-            throw new HttpError(502, `Could not read ${path} on ${machine.name}: ${bytes.error.message}`);
-        }
-
-        const imported = await this.import(user, `${machine.name}-${basename(path)}`, Buffer.from(bytes.value));
 
         await writeFile(
             `${imported.path}${ORIGIN_SUFFIX}`,
@@ -758,11 +1449,10 @@ export class PiSessions {
         return {
             sessions: found.slice(0, MAX_LISTED).map((info) => {
                 const pocket = continued.get(info.id);
-                const first = info.firstMessage.split("\n")[0]!.slice(0, TITLE_LENGTH).trim();
 
                 return {
                     path: info.path,
-                    title: info.name ?? (first || "Pi session"),
+                    title: titleOf(info),
                     cwd: info.cwd,
                     modified: info.modified.getTime(),
                     messages: info.messageCount,
@@ -774,36 +1464,32 @@ export class PiSessions {
         };
     }
 
-    /** One of Pi's sessions, read: only a file Pi lists, so nothing else can be read through this. */
-    async read(user: User, path: string): Promise<PiSession> {
+    /** What Pi lists of one of its sessions: only a file Pi lists is read, so nothing else can be read through this. */
+    async #listed(user: User, path: string): Promise<SessionInfo> {
         this.#requireOwner(user);
 
-        const listed = async (fresh: boolean) =>
-            (await this.#find(fresh)).some((each) => each.info.path === path);
-
+        const find = async (fresh: boolean) =>
+            (await this.#find(fresh)).find((each) => each.info.path === path)?.info;
         // The list the sheet just showed, or, for a session new since, the list as it is now.
-        if (!(await listed(false)) && !(await listed(true))) {
+        const info = (await find(false)) ?? (await find(true));
+
+        if (info === undefined) {
             throw new HttpError(404, "Pi has no such session. It may have been deleted.");
         }
 
-        // Gone since the list was read (it is kept a few seconds), or unreadable: as Pi not having it.
-        const missing = (error: unknown) => {
+        return info;
+    }
+
+    /** Read one of Pi's listed sessions with `read`, in words for people when it cannot be. */
+    async #reading<T>(read: () => Promise<T>): Promise<T> {
+        try {
+            return await read();
+        } catch (error) {
+            // Gone since the list was read (it is kept a few seconds): as Pi not having it.
             if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
                 throw new HttpError(404, "Pi has no such session. It may have been deleted.");
             }
 
-            throw error;
-        };
-
-        if ((await stat(path).catch(missing)).size > MAX_SESSION_BYTES) {
-            throw new HttpError(413, "This Pi session is too large to continue here.");
-        }
-
-        const text = await readFile(path, "utf8").catch(missing);
-
-        try {
-            return readPiSession(text);
-        } catch (error) {
             if (error instanceof PiSessionError) {
                 throw new HttpError(400, error.message);
             }
@@ -812,14 +1498,64 @@ export class PiSessions {
         }
     }
 
-    /** One of Pi's sessions, to decide whether to continue it: where it worked, and its last messages. */
+    /**
+     * Whether a file is where Pi's list looks (`listPiSessions`): a `.jsonl` in the owner's sessions folder, or in a
+     * folder of Pi's own. Its header is checked as it is read, as the list checks it, so continuing a big session
+     * does not read every session for the list first.
+     */
+    #requirePiFolder(user: User, path: string): void {
+        this.#requireOwner(user);
+        const custom = this.#customFolder();
+        const file = resolve(path);
+        const inFolder =
+            custom === undefined
+                ? dirname(dirname(file)) === resolve(getAgentDir(), "sessions")
+                : dirname(file) === resolve(custom);
+
+        if (file !== path || !inFolder || !file.endsWith(".jsonl")) {
+            throw new HttpError(404, "Pi has no such session. It may have been deleted.");
+        }
+    }
+
+    /**
+     * One of Pi's sessions, to continue it: its first read done (the file checked, its branch found), its messages
+     * read again as the copy goes. Close it after.
+     */
+    async open(user: User, path: string): Promise<PiSessionCopy> {
+        this.#requirePiFolder(user, path);
+
+        return this.#reading(async () => {
+            const source = await localSource(path);
+
+            try {
+                return new PiSessionCopy(source, await indexPiSession(source));
+            } catch (error) {
+                await source.close();
+                throw error;
+            }
+        });
+    }
+
+    /**
+     * One of Pi's sessions, to decide whether to continue it: where it worked, and its last messages. Quick for a big
+     * one: what Pi lists of it, and its file's end.
+     */
     async preview(user: User, path: string) {
-        const session = await this.read(user, path);
-        const pocket = this.#continued().get(session.id);
+        const info = await this.#listed(user, path);
+        const { model, last } = await this.#reading(async () => {
+            const source = await localSource(path);
+
+            try {
+                return await readPiTail(source);
+            } finally {
+                await source.close();
+            }
+        });
+        const pocket = this.#continued().get(info.id);
         // A session from a machine continues in its folder on that machine, when it is still there.
         const origin = this.#originOf(path);
         const machine = origin === undefined ? undefined : this.#app.machines.list().find((each) => each.id === origin.machineId);
-        const place = machine === undefined ? session.cwd : formatPlace({ machineId: machine.id, path: session.cwd });
+        const place = machine === undefined ? info.cwd : formatPlace({ machineId: machine.id, path: info.cwd });
         let cwdExists = true;
 
         try {
@@ -828,19 +1564,6 @@ export class PiSessions {
             cwdExists = false;
         }
 
-        const last = session.entries
-            .flatMap((entry) => {
-                if (entry.kind !== "user" && entry.kind !== "assistant") {
-                    return [];
-                }
-
-                const text = textOf(entry.message);
-
-                return text === "" ? [] : [{ role: entry.kind, text: text.slice(0, PREVIEW_TEXT) }];
-            })
-            .slice(-PREVIEW_MESSAGES);
-
-        const { model } = session;
         const modelHere =
             model !== null &&
             this.#app.models
@@ -849,17 +1572,35 @@ export class PiSessions {
 
         return {
             path,
-            title: session.title,
+            title: titleOf(info),
             cwd: place,
             cwdExists,
             ...(machine === undefined ? {} : { machine: { id: machine.id, name: machine.name } }),
-            messages: session.count,
+            messages: info.messageCount,
             model: model === null ? null : `${model.provider}/${model.modelId}`,
             modelHere,
             last,
             ...(pocket === undefined
                 ? {}
-                : { pocket: { id: pocket.id, behind: session.count > pocket.count } }),
+                : { pocket: { id: pocket.id, behind: info.messageCount > pocket.count } }),
         };
     }
+}
+
+/** Copy a file out of `source` to `path` here, a chunk at a time. */
+async function copyOut(source: ByteSource, path: string): Promise<void> {
+    async function* chunks(): AsyncGenerator<Buffer> {
+        for (let at = 0; at < source.size; ) {
+            const chunk = await source.read(at, Math.min(CHUNK, source.size - at));
+
+            if (chunk.length === 0) {
+                break;
+            }
+
+            yield chunk;
+            at += chunk.length;
+        }
+    }
+
+    await pipeline(chunks(), createWriteStream(path, { mode: 0o600 }));
 }

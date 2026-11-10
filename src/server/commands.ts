@@ -62,7 +62,7 @@ import { homePath } from "./paths.ts";
 import { forModel, MAX_INLINE_IMAGE, modelImage } from "./model-images.ts";
 import { mentionedPaths, viewFile } from "./files.ts";
 import { isThinkingLevel, THINKING_LEVELS } from "./models.ts";
-import { writePiSession } from "./pi-sessions.ts";
+import { PiSessionError, writeFromPi, writePiEntries } from "./pi-sessions.ts";
 import { isRemote } from "./places.ts";
 import { describeMoment, describeRepeat, knownZone } from "./when.ts";
 import { snippet } from "./projection.ts";
@@ -512,56 +512,79 @@ export class Commands {
      * Continue one of Pi's sessions here: a new session with its history, in its folder (or `folder`, for a session
      * whose folder is not on this machine, such as one imported from elsewhere), with its model when that one is signed
      * in here (`pi-sessions.ts`). The owner's, as Pi's own files are.
+     *
+     * A session of any size (PP-486): its messages are read from the file as they are written, in commits of a few
+     * megabytes, and the session joins the list with the last commit, whole. One that fails on the way stays out of the
+     * list, with what it had written.
      */
     async continuePiSession(user: User, path: string, folder?: string): Promise<{ id: ConversationId }> {
         const app = this.#app;
-        const session = await app.piSessions.read(user, path);
-        let cwd: string;
+        const copy = await app.piSessions.open(user, path);
 
         try {
-            cwd = await app.workspace.checkPlace(folder ?? session.cwd);
-        } catch {
-            throw new HttpError(
-                400,
-                folder === undefined
-                    ? `The folder this Pi session worked in is not on this phone: ${session.cwd}. Choose a folder for it.`
-                    : `There is no folder ${folder}`,
-            );
-        }
+            const session = copy.index;
+            let cwd: string;
 
-        const start = this.#defaultModel(session);
-        const title = session.title.slice(0, MAX_TITLE);
-        const now = Date.now();
-        const conversation = await app.harness.createConversation(
-            {
-                ownership: { kind: "ownerless" },
-                agent: {
-                    cwd,
-                    ...(start.model === undefined ? {} : { model: start.model }),
-                    ...(start.thinkingLevel === undefined
-                        ? {}
-                        : { thinkingLevel: start.thinkingLevel }),
+            try {
+                cwd = await app.workspace.checkPlace(folder ?? session.cwd);
+            } catch {
+                throw new HttpError(
+                    400,
+                    folder === undefined
+                        ? `The folder this Pi session worked in is not on this phone: ${session.cwd}. Choose a folder for it.`
+                        : `There is no folder ${folder}`,
+                );
+            }
+
+            const start = this.#defaultModel(session);
+            const conversation = await app.harness.createConversation(
+                {
+                    ownership: { kind: "ownerless" },
+                    agent: {
+                        cwd,
+                        ...(start.model === undefined ? {} : { model: start.model }),
+                        ...(start.thinkingLevel === undefined
+                            ? {}
+                            : { thinkingLevel: start.thinkingLevel }),
+                    },
                 },
-                init: async (tx, id) => {
+                context,
+            );
+            const id = conversation.id;
+            const made = new Map<string, EntryId>();
+
+            try {
+                for await (const batch of copy.batches()) {
+                    await conversation.commit((tx) => writePiEntries(tx, id, batch, made, { keep: (from) => copy.wanted(from) }), context);
+                }
+
+                const now = Date.now();
+
+                await conversation.commit(async (tx) => {
                     (await tx.doc(SessionsDoc)).items[String(id)] = {
                         cwd,
-                        title,
+                        title: copy.title.slice(0, MAX_TITLE),
                         createdAt: now,
                         updatedAt: now,
                         createdBy: user.id,
                         fromPi: { session: session.id, count: session.count },
                     };
-                    await writePiSession(tx, id, session, {
-                        session: session.id,
-                        title: session.title,
-                        file: path,
-                    });
-                },
-            },
-            context,
-        );
+                    await writeFromPi(tx, id, copy.edits, { session: session.id, title: copy.title, file: path }, (from) => made.get(from));
+                }, context);
+            } catch (error) {
+                app.log(`continuing the Pi session ${path} stopped: ${describe(error)}; conversation ${id} stays out of the list`);
 
-        return { id: conversation.id };
+                if (error instanceof PiSessionError) {
+                    throw new HttpError(400, error.message);
+                }
+
+                throw error;
+            }
+
+            return { id };
+        } finally {
+            await copy.close();
+        }
     }
 
     /**

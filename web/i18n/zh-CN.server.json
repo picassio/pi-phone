@@ -84,7 +84,6 @@
     "Pi on {1} went back to an earlier message, so this session cannot take what follows. Bring it back as a new session.": "{1} 上的 Pi 回到了更早的消息，这个会话无法接上后续内容。请作为新会话带回。",
     "This session went on here too since it went to Pi. Bring Pi's back as a new session.": "这个会话交给 Pi 后，在这里也有了新进展。请把 Pi 的会话作为新会话带回。",
     "{1} Bring it back as a new session.": "{1} 请作为新会话带回。",
-    "This Pi session is too large to continue here.": "这个 Pi 会话太大，无法在这里继续。",
     "This is not a Pi session file: {1}": "这不是 Pi 会话文件：{1}",
     "A Pi session file ends in .jsonl.": "Pi 会话文件以 .jsonl 结尾。",
     "Could not read Pi's sessions on {1} ({2}): {3}": "无法读取 {1} 上 Pi 的会话（{2}）：{3}",

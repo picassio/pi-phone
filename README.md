@@ -592,7 +592,8 @@ No Termux, no laptop, no cloud VM.
   installs pi-env, connects, and installs the ticked tools; Deny saves nothing.
 - **Ports** of a machine (a dev server there) open in the phone's browser.
 - **Continue Pi sessions.** Pick up a session from Pi on this phone, a `.jsonl` file, or a machine's
-  `~/.pi/agent/sessions`, with its history; or send a session to `pi` on a machine and bring back what was done there.
+  `~/.pi/agent/sessions`, with its history, at any size (hundreds of megabytes: it is read a part at a time, and the
+  preview reads only its end); or send a session to `pi` on a machine and bring back what was done there.
   Pi can do both itself (`pi_sessions`, `pi_session_import`, `continue_in_pi`, `pi_bring_back`).
 
 ### This phone's apps

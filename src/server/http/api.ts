@@ -617,22 +617,9 @@ export function createApi(options: HttpOptions, auth: Auth) {
             );
         }
 
+        // Written to a file as it comes: a session of any size (PP-486).
         if (first === "pi-sessions" && second === "import" && method === "POST") {
-            const chunks: Buffer[] = [];
-
-            for await (const chunk of request) {
-                chunks.push(chunk as Buffer);
-            }
-
-            return json(
-                response,
-                200,
-                await app.piSessions.import(
-                    user,
-                    url.searchParams.get("name") ?? "",
-                    Buffer.concat(chunks),
-                ),
-            );
+            return json(response, 200, await app.piSessions.import(user, url.searchParams.get("name") ?? "", request));
         }
 
         // Ports of machines opened here (`forwards.ts`): the owner's, as the machines are.

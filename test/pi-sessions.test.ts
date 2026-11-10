@@ -14,7 +14,7 @@ import {
     work,
 } from "./helpers.ts";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -29,7 +29,8 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import { createHandler } from "../src/server/http.ts";
-import { PiSessionError, readPiSession } from "../src/server/pi-sessions.ts";
+import { indexPiSession, PiSessionCopy, PiSessionError, readPiSession } from "../src/server/pi-sessions.ts";
+import { localSource } from "../src/server/session-lines.ts";
 
 /** The messages of the newest request to the model. */
 let requested: Message[] = [];
@@ -269,6 +270,105 @@ test("Pi's files are only read: one cut off mid-line stays as it is", async () =
 
     assert.equal(readFileSync(path, "utf8"), cut);
     assert.deepEqual(await pocketContext(id), piContext(path));
+});
+
+test("a session larger than one commit (images make big ones) is uploaded as it comes and continues whole", async () => {
+    const manager = SessionManager.inMemory(work);
+    const picture = "A".repeat(4 * 1024 * 1024);
+
+    for (let index = 0; index < 9; index += 1) {
+        manager.appendMessage({
+            role: "user",
+            content: [
+                { type: "text", text: `Picture ${index}` },
+                { type: "image", data: picture, mimeType: "image/png" },
+            ],
+            timestamp: index,
+        });
+        manager.appendMessage(fauxAssistantMessage(`Seen ${index}`));
+    }
+
+    const saved = save(manager, "big");
+
+    assert.ok(statSync(saved).size > 32 * 1024 * 1024, "more than the old limit");
+    // As the sheet's upload comes: a stream, written to the file as it comes.
+    const { path } = await app.piSessions.import(owner(app), "big-upload.jsonl", createReadStream(saved));
+    const { id } = await app.commands.continuePiSession(owner(app), path);
+
+    assert.deepEqual(await pocketContext(id), piContext(path));
+    assert.equal(app.sessionMeta(id)?.fromPi?.count, 18);
+    assert.equal(app.sessionMeta(id)?.title, "Picture 0");
+});
+
+test("read a part at a time, a session's copy is the one read whole: messages, edits, and title", async () => {
+    const path = save(rich(), "parts");
+    const whole = readPiSession(readFileSync(path, "utf8"));
+    const source = await localSource(path);
+    const copy = new PiSessionCopy(source, await indexPiSession(source));
+    const batches = [];
+
+    try {
+        // A byte a time: every entry in a commit of its own.
+        for await (const batch of copy.batches(1)) {
+            batches.push(batch);
+        }
+    } finally {
+        await copy.close();
+    }
+
+    assert.ok(batches.length > 5);
+    assert.deepEqual(batches.flat(), whole.entries);
+    assert.deepEqual(copy.edits, whole.edits);
+    assert.equal(copy.title, whole.title);
+    assert.equal(copy.index.count, whole.count);
+    assert.deepEqual(copy.index.model, whole.model);
+});
+
+test("a preview reads only the file's end: the last messages of the current branch, whole characters", async () => {
+    const manager = SessionManager.inMemory(work);
+
+    manager.appendMessage({ role: "user", content: "First question", timestamp: 1 });
+    manager.appendMessage(fauxAssistantMessage("An answer on a branch left behind"));
+    const fork = manager.getLeafId()!;
+
+    manager.appendMessage({ role: "user", content: "Left behind", timestamp: 2 });
+    manager.branch(fork);
+    // Over 32 MB (the old limit) of two-byte characters: the file's end is read in chunks that split some of them.
+    manager.appendMessage({ role: "user", content: "é".repeat(17_000_000), timestamp: 3 });
+    manager.appendMessage({ ...fauxAssistantMessage("The last answer"), model: "faux-2" });
+    const path = save(manager, "tail");
+    const preview = await app.piSessions.preview(owner(app), path);
+
+    assert.deepEqual(
+        preview.last.map((each) => each.text.slice(0, 20)),
+        ["First question", "An answer on a branc", "é".repeat(20), "The last answer"],
+    );
+    assert.equal(preview.last[2]!.text, "é".repeat(600));
+    assert.equal(preview.model, "faux/faux-2");
+    assert.equal(preview.messages, 5);
+});
+
+test("a preview stops at its last messages: a file damaged far from its end still shows them", async () => {
+    const manager = SessionManager.inMemory(work);
+
+    for (let index = 0; index < 8; index += 1) {
+        manager.appendMessage({ role: "user", content: `Question ${index}`, timestamp: index });
+        manager.appendMessage(fauxAssistantMessage(`Answer ${index}`));
+    }
+
+    const [header, first, second, ...rest] = [manager.getHeader(), ...manager.getEntries()];
+    // The first two entries lead to each other, as a damaged file might have them: read whole, it is refused.
+    const lines = [header, { ...first, parentId: second!.id }, second, ...rest].map((entry) => JSON.stringify(entry));
+    const path = join(sessions, `--${work.replace(/^\//, "").replace(/\//g, "-")}--`, "damaged-start.jsonl");
+
+    writeFileSync(path, lines.join("\n") + "\n");
+    assert.throws(() => readPiSession(lines.join("\n")), /in a circle/);
+    const preview = await app.piSessions.preview(owner(app), path);
+
+    assert.deepEqual(
+        preview.last.map((each) => each.text),
+        ["Question 5", "Answer 5", "Question 6", "Answer 6", "Question 7", "Answer 7"],
+    );
 });
 
 test("only files Pi lists, from a Pi this one knows, in a folder that is there", async () => {

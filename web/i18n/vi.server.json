@@ -423,7 +423,6 @@
     "Pi on {1} went back to an earlier message, so this session cannot take what follows. Bring it back as a new session.": "Pi trên {1} đã quay lại một tin nhắn trước đó, nên phiên này không nhận được phần sau. Hãy mang nó về thành phiên mới.",
     "This session went on here too since it went to Pi. Bring Pi's back as a new session.": "Phiên này cũng đã tiếp tục ở đây từ khi chuyển sang Pi. Hãy mang phần của Pi về thành phiên mới.",
     "{1} Bring it back as a new session.": "{1} Hãy mang nó về thành phiên mới.",
-    "This Pi session is too large to continue here.": "Phiên Pi này quá lớn để tiếp tục ở đây.",
     "This is not a Pi session file: {1}": "Đây không phải tệp phiên Pi: {1}",
     "A Pi session file ends in .jsonl.": "Tệp phiên Pi có đuôi .jsonl.",
     "Could not read Pi's sessions on {1} ({2}): {3}": "Không đọc được phiên của Pi trên {1} ({2}): {3}",

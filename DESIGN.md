@@ -400,6 +400,17 @@ so Pi changes them through the settings tools; "the last session" is the one the
   through its environment (first lines only: id, folder, first message as title), copies the chosen file into the
   imported folder with an `.origin.json` beside it, and the preview then defaults to the session's folder on that
   machine (checked there).
+- **Pi sessions of any size** (PP-486, from pi-pocket #261): a session file is never held whole. `session-lines.ts`
+  reads a file by position, on the phone or a machine (`openBinaryReader`), a megabyte at a time. Continuing reads it
+  twice: `indexPiSession` keeps numbers for each entry (where its line is, its parent, the model it picks) and the few
+  entries that change the context, finds the branch and Pi's context of it as `buildSessionProjection` does, then
+  `PiSessionCopy` reads the branch's lines again and the session is written in commits of 8 MB; it joins the list with
+  the last one (one that fails on the way stays out of it). The preview reads the file from its end (`readPiTail`).
+  The list is pi-phone's own reading of Pi's folders, as `SessionManager.listAll` finds them, but a search looks
+  through each session's first megabyte of text (Pi keeps all of it). Uploads and a machine's copy are written to a
+  `.part` file as they come; only the header is checked then. Measured on a 287 MB session (143,650 entries, 9
+  pictures of 4 MB): the heap after is as before (59 MB); with the heap capped at 96 MB it continues with RSS 50 MB
+  over the start; uncapped, V8 lets garbage reach about 200 MB over the start, the same for 93, 287 and 561 MB files.
 - **Pi's sessions as tools** (`src/server/extensions/pi-sessions.ts`; owner's decisions of 2026-10-19, wiki:
   pi-session-agent-tools): `pi_sessions` (the phone's or a machine's, a file changed in the last 2 minutes marked busy),
   `pi_session_import` (a machine's copied in with its origin, then continued in its folder there), `continue_in_pi`,

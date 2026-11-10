@@ -175,3 +175,10 @@ is skipped on purpose.
   headers, per-model context, output, images and reasoning; a tool for Pi): one way, pi-phone's. ef24777 (Home's menu
   button): pi-phone's rail has the menu on every screen, a session open or not. ca9fe5a, 0b85e98, 27ab7ce: ported
   with Pi 1.5 (PP-378). 0457d2f (Tailscale Serve's launcher): pi-phone has no launcher or serve mode.
+- Big Pi sessions from 0.28 (PP-486): merge 3e8e77cd (#261 by @vitalNohj: 3b776227, continue big ones whole, preview
+  from the end of the file), with its two tests. Taken: no 32 MB limit, `linesFromEnd` and the preview from the file's
+  end (`readPiTail`), the preview's facts from the list. Differs: the phone never holds a session whole (pocket reads
+  every entry into memory, then writes one commit): a first read keeps only numbers for each entry (`PiIndexer`), a
+  second reads the branch again and writes commits of 8 MB; the list is pi-phone's own (Pi's `listAll` keeps every
+  session's whole text; here a search looks through a session's first megabyte of text); uploads and a machine's copy
+  are written as they come; continuing checks the file's folder instead of reading the list.
