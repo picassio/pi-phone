@@ -26,7 +26,7 @@
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { type ComputerOutline, type Cover, type DesktopApp, type Frame, parseApps, parseError, parseOutline, pngSize } from "./computer-outline.ts";
+import { type ComputerElement, type ComputerOutline, type Cover, type DesktopApp, type Frame, parseApps, parseError, parseOutline, pngSize } from "./computer-outline.ts";
 import { hideTyped, SHORT_TYPED_NOTE, shortTypedShowing, type TypedFill, typedAreas } from "./computer-typed.ts";
 import { imageOf, OcuClient, type OcuProcess, type OcuResult, textOf } from "./ocu-client.ts";
 import { type Approve, riskOf, RiskyRefused, riskWords } from "./risky.ts";
@@ -225,6 +225,8 @@ type Live = {
     takenOver: boolean;
     /** Calls in flight: the panel does not read again meanwhile. */
     busy: number;
+    /** The calls' turns, one at a time (`#call`): the end of the last one asked. */
+    turn: Promise<unknown>;
     /** What the owner typed on computer_sign_in cards (PP-183): kept out of all Pi reads of the windows (`computer-typed.ts`). */
     typed: TypedFill[];
 };
@@ -774,6 +776,7 @@ export class ComputerControl {
             doing: null,
             takenOver: false,
             busy: 0,
+            turn: Promise.resolve(),
             typed: [],
         });
         this.#save();
@@ -962,8 +965,20 @@ export class ComputerControl {
      * A call to the session's ocu, the panel saying what Pi does meanwhile; its picture goes to the tabs that watch. An
      * action names the newest read of the app (ocu 1.1.2-pp.3, PP-270: `snapshot_id`, refused with stale_ref once the
      * window was read again or changed under it), and its window when the app's name matches more than one.
+     *
+     * The calls take turns (PP-470): each names the newest read as it is when its turn comes, after the calls before it
+     * have answered, so a read of the panel's sent just before an action no longer makes ocu refuse it as stale. An
+     * action on an element Pi read (`read`) checks then that the newest read still has it at that number.
      */
-    async #call(session: ComputerSession, app: ComputerApp, tool: string, args: Record<string, unknown>, doing: string | null, hit?: { frame: Frame; label: string }): Promise<OcuResult> {
+    async #call(
+        session: ComputerSession,
+        app: ComputerApp,
+        tool: string,
+        args: Record<string, unknown>,
+        doing: string | null,
+        hit?: { frame: Frame; label: string },
+        read?: ComputerElement,
+    ): Promise<OcuResult> {
         const live = this.#liveOf(session);
 
         live.busy += 1;
@@ -974,39 +989,12 @@ export class ComputerControl {
             this.#panelChanged(session.machine);
         }
 
+        const turn = live.turn.then(() => this.#send(session, live, app, tool, args, hit, read));
+
+        live.turn = turn.catch(() => undefined);
+
         try {
-            const newest = live.outlines.get(app.name);
-            const refs =
-                tool === "get_app_state" || tool === "list_apps" || newest === undefined
-                    ? {}
-                    : {
-                          ...(newest.snapshot === undefined ? {} : { snapshot_id: newest.snapshot }),
-                          ...(newest.windowId !== undefined && (newest.otherWindows?.length ?? 0) > 0 ? { window_id: newest.windowId } : {}),
-                      };
-            const result = await live.ocu.call(tool, { app: app.name, ...args, ...refs });
-
-            if (!result.isError && textOf(result).startsWith("App=")) {
-                const outline = parseOutline(textOf(result));
-
-                live.outlines.set(app.name, outline);
-
-                // The panel says when its window is covered (its picture black there) or has no picture.
-                if (app.name === live.tab && (newest?.cover ?? null) !== (outline.cover ?? null)) {
-                    this.#panelChanged(session.machine);
-                }
-            }
-
-            if (hit !== undefined) {
-                live.hit = { app: app.name, ...hit };
-            }
-
-            const png = imageOf(result);
-
-            if (png !== undefined) {
-                this.#frame(session, live, app.name, png);
-            }
-
-            return result;
+            return await turn;
         } finally {
             live.busy -= 1;
 
@@ -1015,6 +1003,46 @@ export class ComputerControl {
                 this.#panelChanged(session.machine);
             }
         }
+    }
+
+    /** A call's turn: what `#call` sends, and the newest read, picture and box it brings. */
+    async #send(session: ComputerSession, live: Live, app: ComputerApp, tool: string, args: Record<string, unknown>, hit: { frame: Frame; label: string } | undefined, read: ComputerElement | undefined): Promise<OcuResult> {
+        if (read !== undefined) {
+            this.#stillThere(live, app, read);
+        }
+
+        const newest = live.outlines.get(app.name);
+        const refs =
+            tool === "get_app_state" || tool === "list_apps" || newest === undefined
+                ? {}
+                : {
+                      ...(newest.snapshot === undefined ? {} : { snapshot_id: newest.snapshot }),
+                      ...(newest.windowId !== undefined && (newest.otherWindows?.length ?? 0) > 0 ? { window_id: newest.windowId } : {}),
+                  };
+        const result = await live.ocu.call(tool, { app: app.name, ...args, ...refs });
+
+        if (!result.isError && textOf(result).startsWith("App=")) {
+            const outline = parseOutline(textOf(result));
+
+            live.outlines.set(app.name, outline);
+
+            // The panel says when its window is covered (its picture black there) or has no picture.
+            if (app.name === live.tab && (newest?.cover ?? null) !== (outline.cover ?? null)) {
+                this.#panelChanged(session.machine);
+            }
+        }
+
+        if (hit !== undefined) {
+            live.hit = { app: app.name, ...hit };
+        }
+
+        const png = imageOf(result);
+
+        if (png !== undefined) {
+            this.#frame(session, live, app.name, png);
+        }
+
+        return result;
     }
 
     #frame(session: ComputerSession, live: Live, app: string, png: string): void {
@@ -1089,13 +1117,18 @@ export class ComputerControl {
             throw new Error(`There is no [${index}] in ${app.label} as you read it last: read it again.`);
         }
 
-        const now = live.outlines.get(app.name)?.elements.find((each) => each.index === index);
-
-        if (now === undefined || now.what !== element.what) {
-            throw new Error(`[${index}] in ${app.label} is no longer what you read (the window changed): read it again with computer_screen.`);
-        }
+        this.#stillThere(live, app, element);
 
         return element;
+    }
+
+    /** The element Pi read is still at its number in ocu's newest read of the app (whoever made it), or why not. */
+    #stillThere(live: Live, app: ComputerApp, element: ComputerElement): void {
+        const now = live.outlines.get(app.name)?.elements.find((each) => each.index === element.index);
+
+        if (now === undefined || now.what !== element.what) {
+            throw new Error(`[${element.index}] in ${app.label} is no longer what you read (the window changed): read it again with computer_screen.`);
+        }
     }
 
     /** The newest read of an app (whoever made it), for its focus. */
@@ -1233,7 +1266,7 @@ export class ComputerControl {
                 : action.op === "click" && action.x !== undefined && action.y !== undefined && outline?.size !== undefined
                   ? { frame: { x: action.x - 6, y: action.y - 6, width: 12, height: 12 }, label: "click" }
                   : undefined;
-        const result = await this.#call(session, app, tool, args, `${did}`, hit);
+        const result = await this.#call(session, app, tool, args, `${did}`, hit, element);
         const filled = action.op === "set_value" ? action.value : action.op === "type_text" ? action.text : "";
         // A secret's value never comes back in what Pi reads (ocu does not read password fields; elsewhere, its name).
         // What the owner typed on a sign-in card never either (`computer-typed.ts`).
@@ -1333,6 +1366,7 @@ export class ComputerControl {
                 { element_index: String(element.index), value: field.value, allow_password_input: true },
                 `Filling in the sign-in in ${app.label}`,
                 element.frame === undefined ? undefined : { frame: element.frame, label: `set [${element.index}]` },
+                element,
             );
 
             if (result.isError) {

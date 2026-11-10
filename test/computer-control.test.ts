@@ -464,6 +464,40 @@ test("an action names the newest read of its app (the panel's too), and the wind
     await control.end("m1", "test over");
 });
 
+test("a read of the panel's sent just before Pi acts: the action takes its turn after it, names it, and checks its element in it (PP-470)", async () => {
+    const { control, rawCalls } = make();
+    const session = await start(control);
+
+    await control.screen(session, "demo_app.py");
+    // The tab starts watching: its read goes to ocu at once, and Pi's click comes before ocu has answered it. The click
+    // names that read (ocu's newest), not Pi's, which ocu would refuse as stale.
+    control.watch(7, true);
+    const greeted = await control.act(session, undefined, { op: "click", index: 5 }, NO_ASK);
+
+    assert.match(greeted.text, /label Hello, stranger!/);
+    assert.deepEqual(
+        rawCalls()
+            .slice(-2)
+            .map((each) => [each.tool, each.args.snapshot_id]),
+        [
+            ["get_app_state", undefined],
+            ["click", "s2"],
+        ],
+    );
+    // Ticker's numbers move with every read: in the panel's read, [2] is no longer the OK Pi read, so the click is
+    // refused before ocu gets it.
+    assert.match((await control.screen(session, "ticker")).text, /2 push button OK/);
+    control.watch(7, true);
+    await assert.rejects(control.act(session, "ticker", { op: "click", index: 2 }, NO_ASK), /^Error: \[2\] in Ticker is no longer what you read \(the window changed\): read it again with computer_screen\.$/);
+    assert.deepEqual(
+        rawCalls()
+            .filter((each) => each.args.app === "ticker")
+            .map((each) => each.tool),
+        ["get_app_state", "get_app_state"],
+    );
+    await control.end("m1", "test over");
+});
+
 test("ocu's stale_ref (the window changed under the read): Pi is told plainly to read it again, and nothing was done", async () => {
     const staleFile = join(root, `stale-${++made}`);
     const { control, calls } = make({ env: { FAKE_OCU_STALE: staleFile } });
