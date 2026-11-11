@@ -10,7 +10,7 @@ import { type Cursor, defineExtension, defineTool, GenerationTask, type HookApi,
 import type { PocketHost } from "../host.ts";
 import { compareImages, describeComparison, diffPathOf } from "../image-compare.ts";
 import { describeLayout } from "../layout-check.ts";
-import { DEFAULT_WIDTHS } from "../screenshots.ts";
+import { DEFAULT_WIDTHS, type RenderOptions, type Shot } from "../screenshots.ts";
 import { isPicturePath, NO_DOM, parseRedline, redlinePictures, redlineScript, specFrom } from "../redline.ts";
 import { isPng, markUp } from "../markup.ts";
 import { AREA, MARK_STYLE, MARKS_NOTE } from "../mark-schema.ts";
@@ -69,12 +69,47 @@ const STEPS = opt(
     }),
 );
 
-/** The steps checked, or why not; and what the answer says of them. */
-const stepsOf = (given: readonly unknown[] | undefined): { steps: RenderStep[]; words: string } | { error: string } => {
-    const steps = checkSteps(given ?? []);
+/**
+ * The steps checked, with each saved secret's value looked up (PP-500: `value`, which only the page's script holds), or
+ * why not; and what the answer says of them (secrets by name).
+ */
+const stepsOf = (
+    given: readonly unknown[] | undefined,
+    secrets: { value(name: string): string | undefined; used(names: string[]): void },
+): { steps: RenderStep[]; words: string } | { error: string } => {
+    const checked = checkSteps(given ?? []);
 
-    return "error" in steps ? steps : { steps, words: steps.length === 0 ? "" : ` after ${steps.length === 1 ? "one step" : `${steps.length} steps`} (${steps.map(stepWords).join(", ")})` };
+    if ("error" in checked) {
+        return checked;
+    }
+
+    const steps: RenderStep[] = [];
+
+    for (const step of checked) {
+        if (!("secret" in step)) {
+            steps.push(step);
+            continue;
+        }
+
+        const value = secrets.value(step.secret);
+
+        if (value === undefined) {
+            return { error: `There is no secret ${step.secret}: secrets_list says which you may use.` };
+        }
+
+        secrets.used([step.secret]);
+        steps.push({ ...step, value });
+    }
+
+    return { steps, words: steps.length === 0 ? "" : ` after ${steps.length === 1 ? "one step" : `${steps.length} steps`} (${steps.map(stepWords).join(", ")})` };
 };
+
+/**
+ * Said under a page rendered without Pi's browser's sign-ins that shows a password field (PP-500): why, and how to see
+ * it signed in.
+ */
+export const SIGN_IN_NOTE =
+    "The page shows a password field: this may be its sign-in screen, as the render has no sign-in of yours. To see it signed in, open the site in Pi's browser (browser_open) and sign in there, then take the screenshot again: a site open in this session's Pi browser renders with its sign-in. Or sign in in the render with steps: {type: css, secret: NAME} types a saved secret into a password field (then click the button, and wait for what the next page shows).";
 
 const DESCRIPTION =
     "See a page as it shows: the phone renders it off screen and gives you a picture at each width (default 390, 1280 and 1920 px: a phone, a desktop, a large screen; whole page up to 4000 px tall). " +
@@ -97,6 +132,13 @@ export function loopbackOf(url: URL): { host: string; port: number } | undefined
 
     return host === undefined ? undefined : { host, port: url.port === "" ? (url.protocol === "https:" ? 443 : 80) : Number(url.port) };
 }
+
+/**
+ * How a page is rendered: its name in answers, how ("as the phone renders it"), and the render; `signIn`: a web page
+ * rendered without Pi's browser's sign-ins, whose password field may be its sign-in screen (`SIGN_IN_NOTE`).
+ */
+const AS_THE_PHONE = "as the phone renders it";
+type Renderer = { what: string; how: string; signIn: boolean; render(options: RenderOptions): Promise<Shot[]>; close?: () => void };
 
 export default function createScreenshot(host: PocketHost) {
     /**
@@ -153,6 +195,30 @@ export default function createScreenshot(host: PocketHost) {
         return { url: `${base}/a/${office ? "office" : "file"}/${conversation}?path=${encodeURIComponent(path)}${whole}`, what: path };
     };
 
+    /**
+     * How to render what the call names (PP-500): a url whose site is open in this session's Pi browser with that browser's
+     * sign-ins, for work the owner asked for (Pi's browser is the owner's); anything else as the phone renders it.
+     */
+    const rendererOf = async (args: { artifact?: string; path?: string; url?: string; fullPage?: boolean }, conversation: string, cwd: string): Promise<Renderer | { error: string }> => {
+        const owner = host.people().find((each) => each.id === host.requesterOf(Number(conversation) as never))?.role === "owner";
+        const signed = owner && args.url !== undefined && /^https?:\/\//i.test(args.url) ? host.signedInRender(cwd, Number(conversation), args.url) : undefined;
+
+        if (signed !== undefined) {
+            return "error" in signed
+                ? { error: `${args.url}: ${signed.error}` }
+                : { what: args.url!, how: `rendered with the sign-in of Pi's browser on ${signed.where} (out of sight: its tabs stay as they are)`, signIn: false, render: signed.render };
+        }
+
+        const page = await pageOf(args, conversation, cwd);
+
+        return "error" in page
+            ? page
+            : { what: page.what, how: AS_THE_PHONE, signIn: args.url !== undefined, render: (options) => host.render(page.url, options), ...(page.close === undefined ? {} : { close: page.close }) };
+    };
+
+    /** The sign-in note, when a page rendered without Pi's browser's sign-ins shows a password field. */
+    const signInNote = (renderer: Renderer, password: boolean) => (renderer.signIn && password ? `\n${SIGN_IN_NOTE}` : "");
+
     const screenshot = defineTool({
         name: "screenshot",
         description: DESCRIPTION,
@@ -183,7 +249,7 @@ export default function createScreenshot(host: PocketHost) {
                 return reply(`widths are 1 to 4 whole numbers from ${MIN_WIDTH} to ${MAX_WIDTH}.`, true);
             }
 
-            const steps = stepsOf(args.steps);
+            const steps = stepsOf(args.steps, host.secrets);
 
             if ("error" in steps) {
                 return reply(steps.error, true);
@@ -199,7 +265,7 @@ export default function createScreenshot(host: PocketHost) {
             let page;
 
             try {
-                page = await pageOf(args, String(api.conversationId), cwd);
+                page = await rendererOf(args, String(api.conversationId), cwd);
             } catch (error) {
                 return reply(error instanceof Error ? error.message : String(error), true);
             }
@@ -208,12 +274,12 @@ export default function createScreenshot(host: PocketHost) {
                 return reply(page.error, true);
             }
 
-            const { url, what } = page;
+            const { what } = page;
             let shots;
             const saved: string[] = [];
 
             try {
-                shots = await host.render(url, {
+                shots = await page.render({
                     widths,
                     fullPage: args.fullPage ?? true,
                     settleMs: Math.round(Math.max(0, Math.min(10, args.settle ?? 1.5)) * 1000),
@@ -256,7 +322,7 @@ export default function createScreenshot(host: PocketHost) {
                 output: [
                     {
                         type: "text" as const,
-                        text: `${what}, as the phone renders it${steps.words}: ${shots.map((shot) => `${shot.width}×${shot.height}${shot.parts.length > 1 ? ` in ${shot.parts.length} pictures, top to bottom` : ""}`).join(", ")} (CSS pixels${shots.some((shot) => shot.height >= 4000) ? "; cut at 4000 px tall" : ""}).${saved.length === 0 ? "" : ` Saved as ${saved.join(", ")}.`}`,
+                        text: `${what}, ${page.how}${steps.words}: ${shots.map((shot) => `${shot.width}×${shot.height}${shot.parts.length > 1 ? ` in ${shot.parts.length} pictures, top to bottom` : ""}`).join(", ")} (CSS pixels${shots.some((shot) => shot.height >= 4000) ? "; cut at 4000 px tall" : ""}).${saved.length === 0 ? "" : ` Saved as ${saved.join(", ")}.`}${signInNote(page, shots.some((shot) => shot.layout?.password === true))}`,
                     },
                     ...shots.flatMap((shot) => [
                         ...shot.parts.map((part) => ({ type: "image" as const, data: part.toString("base64"), mimeType: "image/jpeg" })),
@@ -445,7 +511,7 @@ export default function createScreenshot(host: PocketHost) {
                 return reply("Give save a path ending in .png or .jpg.", true);
             }
 
-            const steps = stepsOf(args.steps);
+            const steps = stepsOf(args.steps, host.secrets);
 
             if ("error" in steps) {
                 return reply(steps.error, true);
@@ -455,7 +521,7 @@ export default function createScreenshot(host: PocketHost) {
             let page;
 
             try {
-                page = await pageOf(args, String(api.conversationId), cwd);
+                page = await rendererOf(args, String(api.conversationId), cwd);
             } catch (error) {
                 return reply(error instanceof Error ? error.message : String(error), true);
             }
@@ -475,7 +541,7 @@ export default function createScreenshot(host: PocketHost) {
 
                     return read.value;
                 });
-                const [shot] = await host.render(page.url, {
+                const [shot] = await page.render({
                     widths: [width],
                     fullPage: args.fullPage ?? true,
                     settleMs: Math.round(Math.max(0, Math.min(10, args.settle ?? 1.5)) * 1000),
@@ -520,7 +586,10 @@ export default function createScreenshot(host: PocketHost) {
 
                 return {
                     output: [
-                        { type: "text" as const, text: `${page.what}, measured and pictured${steps.words} at ${shot.width}×${shot.height} CSS px.${saved.length === 0 ? "" : ` Saved as ${saved.join(", ")}.`}\n${text}` },
+                        {
+                            type: "text" as const,
+                            text: `${page.what}, measured and pictured${page.how === AS_THE_PHONE ? "" : `, ${page.how}`}${steps.words} at ${shot.width}×${shot.height} CSS px.${saved.length === 0 ? "" : ` Saved as ${saved.join(", ")}.`}${signInNote(page, measure.password === true)}\n${text}`,
+                        },
                         ...pictures.map((picture) => ({ type: "image" as const, data: Buffer.from(picture).toString("base64"), mimeType: kind === "png" ? "image/png" : "image/jpeg" })),
                     ],
                 };

@@ -81,7 +81,8 @@ function redactJson(value: JsonValue, redact: (text: string) => string): JsonVal
 
 /**
  * The secrets a browser call (PP-32) or a computer call (`computer_act`'s set_value and type_text, PP-178; computer_run's values) types by
- * name, and a line saying so for an approval card; undefined for any other call, or one that names none.
+ * name, or a screenshot's or redline's steps (PP-500), and a line saying so for an approval card; undefined for any other call, or one
+ * that names none.
  */
 export function browserSecretNames(tool: string, args: Record<string, unknown>): { names: string[]; subject: string } | undefined {
     if (tool === "browser_type" && typeof args.secret === "string") {
@@ -101,6 +102,16 @@ export function browserSecretNames(tool: string, args: Record<string, unknown>):
         const run = tool === "browser_run" ? "Browser run" : "Computer run";
 
         return names.length === 0 ? undefined : { names, subject: `${run} "${String(args.goal ?? "").slice(0, 80)}" types ${names.map((name) => `[secret ${name}]`).join(", ")}` };
+    }
+
+    // A screenshot's or a redline's steps type a saved secret into a page's password field (PP-500).
+    if ((tool === "screenshot" || tool === "redline") && Array.isArray(args.steps)) {
+        const names = args.steps.flatMap((step: unknown) =>
+            typeof step === "object" && step !== null && typeof (step as { secret?: unknown }).secret === "string" ? [(step as { secret: string }).secret] : [],
+        );
+        const page = String(args.url ?? args.artifact ?? args.path ?? "").slice(0, 120);
+
+        return names.length === 0 ? undefined : { names, subject: `${tool === "screenshot" ? "Screenshot" : "Redline"} of ${page} types ${names.map((name) => `[secret ${name}]`).join(", ")}` };
     }
 
     return undefined;

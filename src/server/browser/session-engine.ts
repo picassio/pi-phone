@@ -10,6 +10,28 @@ import { readFileSync, writeFileSync } from "node:fs";
 import type { Cdp } from "./cdp.ts";
 import type { BrowserPage, PictureOptions } from "./page.ts";
 import type { BrowserEngine, BrowserSize, EngineDownloads, WindowAsk } from "./pi-browser.ts";
+import type { TabMaker } from "../tab-render.ts";
+
+/** A tab's owner while a screenshot renders in it (PP-500): no session, so none takes it for its own or a page's window. */
+export const RENDERING = 0;
+
+/** Tabs for a screenshot in a place's engine (`tab-render.ts`): in its profile, owned by no session, closed after. */
+export function renderTabs(engine: BrowserEngine, place: string, owners: TabOwners): TabMaker {
+    return {
+        newTab: async () => {
+            const tab = await engine.newTab();
+
+            owners.set(place, tab, RENDERING);
+
+            return tab;
+        },
+        connect: (id) => engine.connect(id),
+        closeTab: async (id) => {
+            await engine.closeTab(id);
+            owners.set(place, id, undefined);
+        },
+    };
+}
 
 /** Which session owns each tab, by place and tab id, kept in a JSON file. */
 export class TabOwners {

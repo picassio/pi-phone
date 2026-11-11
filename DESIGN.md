@@ -1252,6 +1252,32 @@ so Pi changes them through the settings tools; "the last session" is the one the
     render's error ("a step failed: step 2 (click \"#x\"): nothing matches \"#x\""). Each shot answers `steps` with
     their count: an app from before them answers none, and the server refuses its pictures (they would show the page
     closed) saying to update the app. The request waits 90 s plus 20 s a width when it has steps.
+  - **Behind a sign-in** (PP-500; reported from #214022, which could not shoot visa-dashboard's signed-in screens: the
+    renderer had the app's sign-in only). A `url` whose origin one of the session's tabs in Pi's browser shows
+    (`PiBrowser.showsOrigin`, the tabs in memory; after a restart `browser_open` brings them back) renders with that
+    browser's sign-in (`App.signedInRender`), for work the owner asked for (Pi's browser is the owner's): on the phone,
+    `Renderer.java` makes its WebView in Pi's browser's profile (`profile: "pi-browser"` in the request, set before
+    anything else on the view, no owner token) and each shot answers `profile`; an app that does not is refused, saying
+    to update it (`parseShot`, as for steps). In a Chrome (a machine's, the server edition's) it renders in a tab of its
+    own there (`tab-render.ts`, the server renderer's code, now shared: CDP viewport per width, the same check, steps,
+    height and parts), owned by no session while it lives (`renderTabs`, owner `RENDERING` = 0 in `TabOwners`), so no
+    session takes it for its own or a page's window, and closed after; the session's tabs and the one in front stay. A
+    machine's Chrome reaches its own localhost, so no port is opened. Not rendered out of sight, with an error saying
+    what to use (`browser_screenshot`, `browser_layout_check`): a machine's browser in window mode (a new tab would come
+    to the front of someone's window) and a browser Pi attached to. The answer says "rendered with the sign-in of Pi's
+    browser on <where>". A web page rendered without it that shows a password field (the layout check's and the
+    redlines' `password`, `PASSWORD_SHOWN`) gets `SIGN_IN_NOTE`: why, `browser_open` and sign in, or a secret step. No
+    prompt text changed: the answers explain.
+    *Secret steps:* `{type: css, secret: NAME}` (`checkSteps`), its value looked up by the tool (`host.secrets`, marked
+    used; `browserSecretNames` puts screenshot and redline under the secrets' rules: folders, ask-first cards, not for
+    teammates). Only the page's script holds the value (`stepsScript` drops the name there); answers and errors say
+    `type [secret NAME] into "#pass"`. Into a password field only, as its picture shows dots: any other field fails
+    the step. *Steps across pages:* a step may send a form; its script goes with the page. `__piSteps.resume` counts
+    the steps done; a renderer that reads no state (a new page) waits for it to be complete and starts the script again
+    there (`window.__piStepsFrom`), up to `MAX_PAGES` (5), then measures the height again. A click or a key first waits
+    until the renderer has read that it counts as done (`seen`, set by each read of `STEPS_STATE`): the fixture's
+    sign-in, read 100 ms before its click, clicked again on the next page ("nothing matches #go"). A renderer from
+    before it never sets `seen`; after 1 s the steps stop waiting. Tests: `screenshot-signed-in.test.ts`.
   - **ui-verify** (`src/skills/ui-verify/SKILL.md`, PP-405): pi-phone's own skill, in every session like
     getting-started (`builtInSkills()`'s `src/skills/`, not behind Design & video, as the screenshot tools it uses are
     always there). It puts the checks above in one order: `screenshot` at 390, 1280 and 1920 px (the layout check's numbers

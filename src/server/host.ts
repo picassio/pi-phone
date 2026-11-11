@@ -1,7 +1,6 @@
 import type { Context } from "@earendil-works/chord";
-import type { Shot } from "./screenshots.ts";
+import type { RenderOptions, Shot } from "./screenshots.ts";
 import type { HookId } from "./hooks.ts";
-import type { RenderStep } from "./render-steps.ts";
 import type { PiBrowser } from "./browser/pi-browser.ts";
 import type { AppAction, Setting, TargetKind } from "./settings-registry.ts";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
@@ -446,7 +445,14 @@ export interface PocketHost {
     /** Pictures of a page, rendered by the app's service on the phone (`screenshots.ts`). */
     /** `check`: the script the page runs before it is pictured, whose answer comes back (default the layout check). */
     /** `timeoutMs`: how long the phone may take to answer (default 90 s); `steps`: run in the page first (PP-423). */
-    render(url: string, options: { widths: number[]; fullPage?: boolean; settleMs?: number; check?: string; timeoutMs?: number; steps?: readonly RenderStep[] }): Promise<Shot[]>;
+    render(url: string, options: RenderOptions): Promise<Shot[]>;
+    /**
+     * A render of `url` with the sign-ins of the session's Pi browser (PP-500), when one of its tabs there shows that site:
+     * on the phone, in its WebView profile; in a Chrome (a machine's, the server edition's), in a background tab of it.
+     * `where` is the place in words. Undefined when no tab of the session shows the site; an error when its browser
+     * cannot render out of sight (a window someone may use, a browser Pi attached to).
+     */
+    signedInRender(cwd: string, session: number, url: string): { where: string; render(options: RenderOptions): Promise<Shot[]> } | { error: string } | undefined;
     /**
      * Pi's browser for a session working in `cwd` (`browser/pi-browser.ts`): the phone's, or for a session on a machine,
      * a Chrome on that machine (`browser/machine-engine.ts`). The pages Pi reads and acts on, which the owner watches.

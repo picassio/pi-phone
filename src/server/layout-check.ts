@@ -96,7 +96,13 @@ export type LayoutReport = {
      * only feature-detects it is not one, PP-459), and the renderer's Chrome version.
      */
     canvas?: { uses: string; chrome: string };
+    /** A password field shows (PP-500): a sign-in screen, maybe, which a render without the site's sign-in gets. */
+    password?: boolean;
 };
+
+/** An expression: whether a password field shows on the page (PP-500), for the layout check and the redlines' measure. */
+export const PASSWORD_SHOWN =
+    "[...document.querySelectorAll('input[type=password]')].some((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden'; })";
 
 /** Groups the page keeps of each kind; the words show fewer (`SHOWN`). */
 const FINDS_KEPT = 20;
@@ -904,7 +910,7 @@ ${PAGE_HELPERS}
     else if (Array.isArray(window.__piPageErrors) && window.__piPageErrors.some((x) => /\bdrawElementImage\b/.test(String(x)))) canvasUse = 'a call to drawElementImage';
   }
   const canvas = canvasUse ? { uses: canvasUse, chrome: (/Chrome\/(\d+)/.exec(navigator.userAgent) || [, 'unknown'])[1] } : undefined;
-  return JSON.stringify(Object.assign({ width: W, height: innerHeight, checked: Math.min(checked, 4000), issues, more, found, totals, summary }, shellBox ? { scroller: shellBox } : {}, errors.length ? { errors } : {}, canvas ? { canvas } : {}));
+  return JSON.stringify(Object.assign({ width: W, height: innerHeight, checked: Math.min(checked, 4000), issues, more, found, totals, summary }, shellBox ? { scroller: shellBox } : {}, errors.length ? { errors } : {}, canvas ? { canvas } : {}, ${PASSWORD_SHOWN} ? { password: true } : {}));
 })()`;
 
 /** Each kind's heading, in the order the words give them. */
@@ -1119,6 +1125,10 @@ export function parseLayout(text: unknown, width: number): LayoutReport | undefi
 
         if (value.canvas !== undefined && (typeof value.canvas?.uses !== "string" || typeof value.canvas.chrome !== "string")) {
             delete value.canvas;
+        }
+
+        if (value.password !== undefined && value.password !== true) {
+            delete value.password;
         }
 
         if (value.width > width + 1 && !value.issues.some((issue) => issue.kind === "page-wider")) {

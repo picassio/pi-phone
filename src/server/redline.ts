@@ -9,7 +9,7 @@
  * Auto mode measures the page's main blocks: its surfaces (a background, a border or a shadow of their own) and its
  * controls; a selector measures the elements it finds. Coordinates are CSS pixels of the view the picture shows.
  */
-import { PAGE_HELPERS, PHONE_MAX, TAP_MIN } from "./layout-check.ts";
+import { PAGE_HELPERS, PASSWORD_SHOWN, PHONE_MAX, TAP_MIN } from "./layout-check.ts";
 import { drawRedlines } from "./markup.ts";
 
 /** Most blocks a page answers, of each kind. */
@@ -54,6 +54,8 @@ export type RedlineMeasure = {
     blocks: RedlineBlock[];
     types: TypeStyle[];
     found: number;
+    /** A password field shows (PP-500): a sign-in screen, maybe. */
+    password?: boolean;
 };
 
 /**
@@ -161,7 +163,7 @@ ${PAGE_HELPERS}
     const had = types.get(key);
     if (had) had.count++; else types.set(key, Object.assign(t, { what: name(p), count: 1 }));
   }
-  return JSON.stringify({ width: W, height: Math.max(VH, document.documentElement.scrollHeight), mode: SELECTOR === null ? 'auto' : 'selector', selector: SELECTOR === null ? undefined : SELECTOR, layer: scope && scope !== document.body ? name(scope) : undefined, blocks, types: [...types.values()].sort((a, b) => b.count - a.count).slice(0, 30), found });
+  return JSON.stringify({ width: W, height: Math.max(VH, document.documentElement.scrollHeight), mode: SELECTOR === null ? 'auto' : 'selector', selector: SELECTOR === null ? undefined : SELECTOR, layer: scope && scope !== document.body ? name(scope) : undefined, blocks, types: [...types.values()].sort((a, b) => b.count - a.count).slice(0, 30), found, password: ${PASSWORD_SHOWN} });
 })()`;
 
 /** The page's measure, checked: undefined when the text is not one. */

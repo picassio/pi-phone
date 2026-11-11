@@ -370,6 +370,11 @@ No Termux, no laptop, no cloud VM.
   an app that scrolls in its main area, not the body, is pictured whole (up to 4000 px), or the check says how much the
   picture leaves out. In a session on a machine, `screenshot` and `redline` take that machine's files, and a `localhost`
   or `127.0.0.1` address there is the machine's: the app opens that port to the phone for the shot and closes it after.
+- **Screenshots behind a sign-in.** A site the session signed in to in Pi's browser (on the phone, a machine, or the
+  server) is shot and redlined signed in: the page renders with that browser's sign-in, out of sight (a tab of its own
+  on a machine, closed after; the phone's off-screen renderer with Pi's browser's cookies), at every width with the
+  layout check, and the session's own tabs stay as they are. A page shot without a sign-in that shows a password field
+  says so, and how to see it signed in.
 - **Measured screenshots.** Every `screenshot` width comes with a layout check the page runs before it is drawn: what spills
   out of its box or its parent, and whether the page is wider than the screen, with sizes. It also finds what makes a
   page look unfinished: text cut by its box (an ellipsis, a clipped line), an element covering another's text or
@@ -392,7 +397,9 @@ No Termux, no laptop, no cloud VM.
 - **Steps before the shot.** `screenshot` and `redline` take `steps` that run in the page before each width's picture
   and layout check (tap an element, type into a field, press a key, wait for a time or an element), so a menu, a picker
   or a dialog that shows only after a tap is pictured and measured open; a step that cannot be done fails the call,
-  naming the step and why (nothing matches, not visible).
+  naming the step and why (nothing matches, not visible). A step can type a saved secret into a password field by its
+  name, never shown, and a step that sends a form goes on on the page it loads, so a sign-in form can be filled in the
+  shot itself.
 - **Pixel compare.** For pixel-perfect work, `image_compare` compares a new screenshot with a reference picture (a
   mockup, or a screenshot Pi kept once it was right): the share of changed pixels, the changed areas with their
   positions and sizes, and a diff picture saved beside it with the changes in red and the areas framed and numbered.

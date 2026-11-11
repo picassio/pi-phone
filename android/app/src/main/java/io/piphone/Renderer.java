@@ -25,6 +25,10 @@ import android.webkit.ValueCallback;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import androidx.webkit.ProfileStore;
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -40,6 +44,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -47,6 +52,9 @@ import java.util.function.Supplier;
  * (`GET /api/phone/renders`), draws each in an off-screen WebView of the app at the widths asked, signed in as the app's
  * own WebView is (the same cookies, and the owner token on the app's own pages), and posts JPEGs back
  * (`POST /api/phone/renders/<id>`).
+ *
+ * A request may ask for Pi's browser's WebView profile (`profile`, PP-500): the page then loads with the sign-ins Pi made
+ * in Pi's browser (PiBrowser.PROFILE), not the app's, and without the owner token; each shot answers the profile it used.
  *
  * Each page gets a display of its own: a private virtual display of density 1 (a pixel is a CSS pixel), as wide as
  * asked and as tall as the picture may be, with a Presentation window on it. The WebView is laid out at the page's size
@@ -61,8 +69,14 @@ final class Renderer {
     private static final long SHOT_MS = 45_000;
     /** How long the steps before a shot may take (src/server/render-steps.ts STEPS_MS), on top of SHOT_MS. */
     private static final long STEPS_MS = 20_000;
-    /** Where the steps are, as JSON text (render-steps.ts STEPS_STATE). */
-    private static final String STEPS_STATE = "JSON.stringify(window.__piSteps || null)";
+    /**
+     * Where the steps are, as JSON text (render-steps.ts STEPS_STATE); each read marks the count of steps done as seen, so
+     * a click that loads another page waits until this renderer knows it is done (PP-500).
+     */
+    private static final String STEPS_STATE =
+            "JSON.stringify(window.__piSteps ? Object.assign(window.__piSteps, { seen: window.__piSteps.resume }) : null)";
+    /** The pages steps may go through (render-steps.ts MAX_PAGES). */
+    private static final int MAX_PAGES = 5;
 
     private final Context context;
     private final Supplier<String> token;
@@ -128,7 +142,8 @@ final class Renderer {
             for (int index = 0; index < widths.length(); index++) {
                 shots.put(shot(request.getString("url"), widths.getInt(index), request.getBoolean("fullPage"),
                         request.getInt("maxHeight"), request.getLong("settleMs"), request.optString("check", ""),
-                        request.optString("steps", ""), request.optInt("stepCount", 0), request.getString("height")));
+                        request.optString("steps", ""), request.optInt("stepCount", 0), request.getString("height"),
+                        request.optString("profile", "")));
             }
             reply.put("shots", shots);
         } catch (Exception e) {
@@ -139,14 +154,14 @@ final class Renderer {
 
     /** One picture at `width` CSS pixels, on the main thread, waited for here. */
     private JSONObject shot(String url, int width, boolean fullPage, int maxHeight, long settleMs, String check,
-            String steps, int stepCount, String tallScript) throws Exception {
+            String steps, int stepCount, String tallScript, String profile) throws Exception {
         CountDownLatch done = new CountDownLatch(1);
         Object[] result = new Object[1];
         Stage[] made = new Stage[1];
         long limit = SHOT_MS + (stepCount > 0 ? STEPS_MS : 0);
         main.post(() -> {
             try {
-                made[0] = start(url, width, fullPage, maxHeight, settleMs, check, steps, stepCount, tallScript, (value) -> {
+                made[0] = start(url, width, fullPage, maxHeight, settleMs, check, steps, stepCount, tallScript, profile, (value) -> {
                     result[0] = value;
                     done.countDown();
                 });
@@ -183,7 +198,7 @@ final class Renderer {
         int frames;
         Runnable onFrame;
 
-        Stage(int width, int height) {
+        Stage(int width, int height, String profile) {
             reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 3);
             reader.setOnImageAvailableListener((source) -> {
                 Image image = source.acquireLatestImage();
@@ -208,6 +223,19 @@ final class Renderer {
             window.setContentView(pages);
             window.show();
             view = new WebView(pages.getContext());
+            // Pi's browser's sign-ins (PP-500): the profile is set before anything else on the view, once for its life.
+            if (!profile.isEmpty()) {
+                if (!profile.equals(PiBrowser.PROFILE)) {
+                    release();
+                    throw new IllegalStateException("no WebView profile " + profile + " to render in");
+                }
+                if (!WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+                    release();
+                    throw new IllegalStateException("rendering with Pi's browser's sign-ins needs a newer Android System WebView (110 or later): update it in the Play Store");
+                }
+                ProfileStore.getInstance().getOrCreateProfile(profile);
+                WebViewCompat.setProfile(view, profile);
+            }
         }
 
         void release() {
@@ -222,9 +250,9 @@ final class Renderer {
 
     /** Load the page in a WebView laid out at the width; once it finished and settled, take its frame (main thread). */
     private Stage start(String url, int width, boolean fullPage, int maxHeight, long settleMs, String check,
-            String steps, int stepCount, String tallScript, Done done) {
+            String steps, int stepCount, String tallScript, String profile, Done done) {
         int viewport = width < 600 ? 844 : 800;
-        Stage stage = new Stage(width, fullPage ? Math.max(viewport, maxHeight) : viewport);
+        Stage stage = new Stage(width, fullPage ? Math.max(viewport, maxHeight) : viewport, profile);
         WebView view = stage.view;
         view.setBackgroundColor(Color.WHITE);
         WebSettings settings = view.getSettings();
@@ -253,8 +281,9 @@ final class Renderer {
                             throw new IOException("the page's height could not be measured (" + tall + ")");
                         }
                         int content = Math.max(viewport, (int) Math.ceil(pageHeight));
-                        int height = fullPage ? Math.min(content, maxHeight) : viewport;
-                        layout(page, width, height);
+                        // The picture's height: measured again when a step loaded another page (PP-500).
+                        int[] height = {fullPage ? Math.min(content, maxHeight) : viewport};
+                        layout(page, width, height[0]);
                         page.invalidate();
                         main.postDelayed(() -> {
                             // The page measures itself first (layout-check.ts): Pi gets numbers with the picture.
@@ -262,9 +291,11 @@ final class Renderer {
                                 int mark = stage.frames;
                                 Runnable take = () -> {
                                     try {
-                                        JSONObject shot = capture(stage.latest, width, height, !MainActivity.inFront);
+                                        JSONObject shot = capture(stage.latest, width, height[0], !MainActivity.inFront);
                                         // The steps ran (PP-423): the server tells an app without them by its absence.
                                         if (stepCount > 0) shot.put("steps", stepCount);
+                                        // So does the profile (PP-500): an app without it draws the sign-in page.
+                                        if (!profile.isEmpty()) shot.put("profile", profile);
                                         if (report != null && !report.equals("null")) {
                                             // evaluateJavascript answers with the value as JSON: here, a JSON string.
                                             shot.put("check", new JSONArray("[" + report + "]").getString(0));
@@ -289,10 +320,28 @@ final class Renderer {
                                 if (check.isEmpty()) measured.onReceiveValue(null);
                                 else page.evaluateJavascript(check, measured);
                             };
-                            // Steps before the shot (PP-423, render-steps.ts): what a person would tap first.
+                            // Steps before the shot (PP-423, render-steps.ts): what a person would tap first. A page a
+                            // step loaded is measured again for a whole-page picture (PP-500).
+                            Consumer<Boolean> stepped = (loaded) -> {
+                                if (!loaded) {
+                                    measure.run();
+                                    return;
+                                }
+                                page.evaluateJavascript(tallScript, (again) -> {
+                                    try {
+                                        int now = Math.max(viewport, (int) Math.ceil(Double.parseDouble(again)));
+                                        height[0] = fullPage ? Math.min(now, maxHeight) : viewport;
+                                        layout(page, width, height[0]);
+                                        page.invalidate();
+                                        main.postDelayed(measure, 600);
+                                    } catch (NumberFormatException | NullPointerException e) {
+                                        done.accept(new IOException("the page's height could not be measured (" + again + ")"));
+                                    }
+                                });
+                            };
                             if (stepCount == 0) measure.run();
                             else page.evaluateJavascript(steps, (started) ->
-                                    stepsDone(page, System.currentTimeMillis() + STEPS_MS, measure, done));
+                                    stepsDone(page, steps, stepCount, new int[] {0, 0}, System.currentTimeMillis() + STEPS_MS, stepped, done));
                         }, 600);
                     } catch (Exception e) {
                         done.accept(e);
@@ -309,31 +358,54 @@ final class Renderer {
             }
         });
         Map<String, String> headers = new HashMap<>();
-        if (url.startsWith(BASE + "/")) headers.put("Authorization", "Bearer " + token.get());
+        // The owner token is the app's own sign-in: never in Pi's browser's profile.
+        if (profile.isEmpty() && url.startsWith(BASE + "/")) headers.put("Authorization", "Bearer " + token.get());
         view.loadUrl(url, headers);
         return stage;
     }
 
     /**
      * The steps started in the page keep where they are in window.__piSteps (render-steps.ts): read every 100 ms until they
-     * are done (then `next`), one failed, or STEPS_MS passed (main thread).
+     * are done (then `next`, told whether a step loaded another page), one failed, or STEPS_MS passed (main thread). No
+     * state is a new page a step loaded (PP-500): once it is complete, the steps go on there from the first not done
+     * (`window.__piStepsFrom`). `run`: how many steps did what they do, and the pages loaded.
      */
-    private void stepsDone(WebView page, long until, Runnable next, Done done) {
+    private void stepsDone(WebView page, String steps, int stepCount, int[] run, long until, Consumer<Boolean> next, Done done) {
+        Runnable again = () -> main.postDelayed(() -> stepsDone(page, steps, stepCount, run, until, next, done), 100);
         page.evaluateJavascript(STEPS_STATE, (value) -> {
             try {
+                if (System.currentTimeMillis() > until) {
+                    done.accept(new IOException("the steps did not finish within " + (STEPS_MS / 1000) + " seconds (at step "
+                            + (run[0] + 1) + ")"));
+                    return;
+                }
                 // evaluateJavascript answers with the value as JSON: here a JSON string holding JSON text, or "null".
                 String text = value == null || value.equals("null") ? "null" : new JSONArray("[" + value + "]").getString(0);
-                JSONObject state = text.equals("null") ? null : new JSONObject(text);
-                String now = state == null ? "running" : state.optString("state", "running");
+                if (text.equals("null")) {
+                    page.evaluateJavascript("document.readyState === 'complete'", (ready) -> {
+                        if (!"true".equals(ready)) {
+                            again.run();
+                        } else if (++run[1] > MAX_PAGES) {
+                            done.accept(new IOException("the steps loaded more than " + MAX_PAGES + " pages (at step " + (run[0] + 1) + ")"));
+                        } else if (run[0] >= stepCount) {
+                            main.postDelayed(() -> next.accept(true), 300);
+                        } else {
+                            // Its scripts start, as after the first page's load; then the steps go on.
+                            main.postDelayed(() -> page.evaluateJavascript("window.__piStepsFrom = " + run[0] + ";" + steps,
+                                    (started) -> again.run()), 300);
+                        }
+                    });
+                    return;
+                }
+                JSONObject state = new JSONObject(text);
+                run[0] = state.optInt("resume", run[0]);
+                String now = state.optString("state", "running");
                 if (now.equals("done")) {
-                    next.run();
+                    next.accept(run[1] > 0);
                 } else if (now.equals("failed")) {
                     done.accept(new IOException("a step failed: " + state.optString("error", "no reason given")));
-                } else if (System.currentTimeMillis() > until) {
-                    done.accept(new IOException("the steps did not finish within " + (STEPS_MS / 1000) + " seconds (at step "
-                            + (state == null ? 0 : state.optInt("at", 0)) + ")"));
                 } else {
-                    main.postDelayed(() -> stepsDone(page, until, next, done), 100);
+                    again.run();
                 }
             } catch (Exception e) {
                 done.accept(e);

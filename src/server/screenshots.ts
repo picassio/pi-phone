@@ -38,7 +38,82 @@ export type RenderRequest = {
     stepCount: number;
     /** A script the renderer runs once the page settled, for how tall a whole-page picture is (`PAGE_HEIGHT`, PP-440). */
     height: string;
+    /**
+     * The WebView profile the phone renders in (PP-500): `pi-browser`, Pi's browser's, with the sign-ins the session made
+     * there; "" for the app's own. A renderer that used it answers `profile` with it in each shot.
+     */
+    profile: string;
 };
+
+/** The app on the phone renders without something the request needs (steps, a profile): update it. */
+class OldApp extends Error {}
+
+/** What a render takes besides its address and widths. */
+export type RenderOptions = {
+    widths: number[];
+    fullPage?: boolean;
+    maxHeight?: number;
+    settleMs?: number;
+    timeoutMs?: number;
+    check?: string;
+    steps?: readonly RenderStep[];
+    /** Render in Pi's browser's WebView profile on the phone (PP-500). */
+    profile?: "pi-browser";
+};
+
+/** A request to render `url`, as a renderer takes it (`seq` and `id` 0 and "" until `Screenshots` queues it). */
+export function renderRequest(
+    url: string,
+    { widths, fullPage = true, maxHeight = 4000, settleMs = 1500, check = layoutCheck(), steps = [], profile }: RenderOptions,
+): RenderRequest {
+    return {
+        seq: 0,
+        id: "",
+        url,
+        widths,
+        fullPage,
+        maxHeight,
+        settleMs,
+        check,
+        steps: steps.length === 0 ? "" : stepsScript(steps),
+        stepCount: steps.length,
+        height: PAGE_HEIGHT,
+        profile: profile ?? "",
+    };
+}
+
+/**
+ * A renderer's shot, checked: `{ width, height, parts: [jpeg base64], check?, steps?, profile? }`. A request with steps
+ * or a profile needs a renderer that says it used them (an app from before them draws the page without), else it fails
+ * saying to update the app.
+ */
+export function parseShot(request: RenderRequest, shot: unknown): Shot {
+    const each = (typeof shot === "object" && shot !== null ? shot : {}) as { width?: unknown; height?: unknown; parts?: unknown; check?: unknown; steps?: unknown; profile?: unknown };
+
+    // An app from before steps (PP-423) draws the page without them: a picture of another state, never passed off.
+    if (request.stepCount > 0 && each.steps !== request.stepCount) {
+        throw new OldApp("This pi-phone app does not run steps before a screenshot yet: update it (Menu › Check for app updates), or take the screenshot without steps.");
+    }
+
+    // One from before PP-500 renders without Pi's browser's sign-ins: the sign-in page, never passed off as the page.
+    if (request.profile !== "" && each.profile !== request.profile) {
+        throw new OldApp("This pi-phone app does not render with Pi's browser's sign-ins yet: update it (Menu › Check for app updates), then take the screenshot again.");
+    }
+
+    if (typeof each.width !== "number" || typeof each.height !== "number" || !Array.isArray(each.parts) || each.parts.length === 0 || !each.parts.every((part) => typeof part === "string")) {
+        throw new Error("A shot is { width, height, parts: [jpeg] }.");
+    }
+
+    const layout = parseLayout(each.check, each.width);
+
+    return {
+        width: each.width,
+        height: each.height,
+        parts: (each.parts as string[]).map((part) => Buffer.from(part, "base64")),
+        ...(layout === undefined ? {} : { layout }),
+        ...(typeof each.check === "string" ? { check: each.check } : {}),
+    };
+}
 
 /**
  * How tall the whole page is, in CSS pixels, for a full-page picture (PP-440): the document's height; or for a page that
@@ -101,35 +176,13 @@ export class Screenshots {
     }
 
     /** Render `url` at each width; resolves with one picture per width, or fails saying why. */
-    render(
-        url: string,
-        {
-            widths,
-            fullPage = true,
-            maxHeight = 4000,
-            settleMs = 1500,
-            timeoutMs = 90_000,
-            check = layoutCheck(),
-            steps = [],
-        }: { widths: number[]; fullPage?: boolean; maxHeight?: number; settleMs?: number; timeoutMs?: number; check?: string; steps?: readonly RenderStep[] },
-    ): Promise<Shot[]> {
+    render(url: string, options: RenderOptions): Promise<Shot[]> {
         if (!this.present()) {
             return Promise.reject(new Error("No phone is rendering: screenshots need the pi-phone app's service, which polls the server on the phone itself."));
         }
 
-        const request: RenderRequest = {
-            seq: ++this.#seq,
-            id: crypto.randomUUID(),
-            url,
-            widths,
-            fullPage,
-            maxHeight,
-            settleMs,
-            check,
-            steps: steps.length === 0 ? "" : stepsScript(steps),
-            stepCount: steps.length,
-            height: PAGE_HEIGHT,
-        };
+        const timeoutMs = options.timeoutMs ?? 90_000;
+        const request: RenderRequest = { ...renderRequest(url, options), seq: ++this.#seq, id: crypto.randomUUID() };
 
         this.#requests.push(request);
 
@@ -227,31 +280,20 @@ export class Screenshots {
         }
 
         const shots = Array.isArray(body.shots) ? body.shots : [];
+        let parsed: Shot[];
 
-        // An app from before steps (PP-423) draws the page without them: a picture of another state, never passed off.
-        if (pending.request.stepCount > 0 && !shots.every((shot: unknown) => (shot as { steps?: unknown }).steps === pending.request.stepCount)) {
-            pending.reject(new Error("This pi-phone app does not run steps before a screenshot yet: update it (Menu › Check for app updates), or take the screenshot without steps."));
+        try {
+            parsed = shots.map((shot: unknown) => parseShot(pending.request, shot));
+        } catch (error) {
+            pending.reject(error instanceof Error ? error : new Error(String(error)));
 
-            return;
-        }
-
-        const parsed = shots.map((shot: unknown) => {
-            const each = shot as { width?: unknown; height?: unknown; parts?: unknown; check?: unknown };
-
-            if (typeof each.width !== "number" || typeof each.height !== "number" || !Array.isArray(each.parts) || each.parts.length === 0 || !each.parts.every((part) => typeof part === "string")) {
-                throw new Error("A shot is { width, height, parts: [jpeg] }.");
+            // An app too old for the request is the caller's answer alone; a malformed shot is the service's too.
+            if (error instanceof OldApp) {
+                return;
             }
 
-            const layout = parseLayout(each.check, each.width);
-
-            return {
-                width: each.width,
-                height: each.height,
-                parts: (each.parts as string[]).map((part) => Buffer.from(part, "base64")),
-                ...(layout === undefined ? {} : { layout }),
-                ...(typeof each.check === "string" ? { check: each.check } : {}),
-            };
-        });
+            throw error;
+        }
 
         if (parsed.length === 0) {
             pending.reject(new Error(`The phone answered no pictures for ${pending.request.url}.`));

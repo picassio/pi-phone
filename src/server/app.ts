@@ -150,10 +150,11 @@ import { BUILDER_MODULE, BUILDER_SKILLS } from "./extension-builder.ts";
 import { reviewTargets } from "./review.ts";
 import { changedSince, composeFeedback, diffSince, makeCheckpoint, newComment, snapshotTree } from "./review-loop.ts";
 import { type CrdRun, CrdError } from "./crd.ts";
-import { Screenshots } from "./screenshots.ts";
+import { renderRequest, type RenderOptions, Screenshots, type Shot } from "./screenshots.ts";
+import { renderInTabs } from "./tab-render.ts";
 import { FilePages } from "./file-pages.ts";
 import { CHROME_FEATURES_MAX, MACHINE_BROWSER_MODES, type MachineAccess, type MachineBrowserMode, MachineEngine, parseChromeFeatures } from "./browser/machine-engine.ts";
-import { BrowserPlaces, BrowserSizes, SessionEngine, TabOwners } from "./browser/session-engine.ts";
+import { BrowserPlaces, BrowserSizes, renderTabs, SessionEngine, TabOwners } from "./browser/session-engine.ts";
 import { activePortScript, AttachedEngine, type BrowserEndpoint, connectBrowser, inspectScript, isOwnProfile, processKnown, profileFromInspect } from "./browser/attached-engine.ts";
 import { checkPolicy, EXTENSIONS as POLICY_EXTENSIONS, PolicyStore } from "./policy.ts";
 import { installImageGuard } from "./image-guard.ts";
@@ -1382,6 +1383,7 @@ export class PocketApp {
             serverBase: () => (this.serverPort === undefined ? undefined : `http://127.0.0.1:${this.serverPort}`),
             machinePort: (cwd, host, port) => this.#machinePort(cwd, host, port),
             render: (url, options) => this.screenshots.render(url, options),
+            signedInRender: (cwd, session, url) => this.signedInRender(cwd, session, url),
             browserFor: (cwd, session) => this.browserFor(cwd, session),
             setBrowserPlace: (cwd, session, where) => this.setBrowserPlace(cwd, session, where),
             browserWhere: (place) => this.browserWhere(place),
@@ -3991,6 +3993,43 @@ export class PocketApp {
      */
     browserFor(cwd: string, session: number): PiBrowser {
         return this.browserAt(this.browserPlaceOf(cwd, session), session);
+    }
+
+    /**
+     * A render of `url` with the sign-ins of the session's Pi browser (PP-500), when one of its tabs there shows that
+     * site (`host.signedInRender`). The phone's renders in Pi's browser's WebView profile (`Renderer.java`); a Chrome's
+     * (a machine's, or the server edition's) in a tab of its own there, which no session owns while it lives
+     * (`renderTabs`), so the session's tabs stay as they are. A browser with a window someone may use, or one Pi
+     * attached to, is not rendered in out of sight: an error says so.
+     */
+    signedInRender(cwd: string, session: number, url: string): { where: string; render(options: RenderOptions): Promise<Shot[]> } | { error: string } | undefined {
+        const place = this.browserPlaceOf(cwd, session);
+        const browser = this.#browsers.get(`${place}#${session}`);
+
+        if (browser === undefined || !URL.canParse(url) || !browser.showsOrigin(new URL(url).origin)) {
+            return undefined;
+        }
+
+        const where = this.browserWhere(place);
+        const tabNote = `the site is open in this session's Pi browser on ${where}, but`;
+
+        if (place.startsWith("attach:")) {
+            return { error: `${tabNote} that is a browser Pi attached to, whose tabs screenshot does not open: use browser_screenshot or browser_layout_check in its tab.` };
+        }
+
+        if (place === "phone" && this.#phoneWebView !== undefined) {
+            return { where, render: (options) => this.screenshots.render(url, { ...options, profile: "pi-browser" }) };
+        }
+
+        const engine = place === "phone" ? this.#phoneEngine : this.#machineEngine(place.slice("machine:".length));
+
+        if (engine.visibleOn !== undefined) {
+            return {
+                error: `${tabNote} it shows a window on ${engine.visibleOn} (window mode), where a new tab would come to the front of the person's window: use browser_screenshot or browser_layout_check in its tab, or set the setting browser.machineMode of ${where} to headless.`,
+            };
+        }
+
+        return { where, render: (options) => renderInTabs(renderTabs(engine, place, this.#tabOwners), renderRequest(url, options)) };
     }
 
     /** Where a session's browser is: `phone`, `machine:<id>`, or `attach:<id>:<port>` (PP-274). */

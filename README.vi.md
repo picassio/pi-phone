@@ -374,6 +374,11 @@ dự án thật.</sub>
   của một ứng dụng cuộn trong vùng chính, không phải body, được chụp trọn (tới 4000 px), hoặc lượt kiểm tra nói ảnh bỏ
   sót bao nhiêu. Trong một phiên trên máy, `screenshot` và `redline` lấy tệp của máy đó, và địa chỉ `localhost` hay
   `127.0.0.1` ở đó là của máy: ứng dụng mở cổng đó về điện thoại cho lần chụp rồi đóng lại.
+- **Chụp trang cần đăng nhập.** Một trang mà phiên đã đăng nhập trong trình duyệt của Pi (trên điện thoại, một máy, hay
+  máy chủ) được chụp và đo redline ở trạng thái đã đăng nhập: trang được vẽ với phiên đăng nhập của trình duyệt đó, khuất
+  khỏi tầm nhìn (một tab riêng trên máy, đóng lại sau đó; trình vẽ ngầm của điện thoại với cookie của trình duyệt của Pi),
+  ở mọi độ rộng kèm kiểm tra bố cục, và các tab của phiên giữ nguyên. Một trang chụp khi chưa đăng nhập mà có ô mật khẩu
+  thì câu trả lời nói rõ điều đó, và cách để thấy nó khi đã đăng nhập.
 - **Ảnh chụp có số đo.** Mỗi độ rộng của `screenshot` đi kèm một lượt kiểm tra bố cục mà trang chạy trước khi vẽ: thứ
   gì tràn khỏi khung hoặc khung cha, và trang có rộng hơn màn hình không, kèm kích thước. Nó còn tìm những thứ khiến
   trang trông chưa hoàn thiện: chữ bị khung cắt (dấu ba chấm, dòng bị xén), phần tử đè lên chữ hoặc nút của phần tử
@@ -396,7 +401,9 @@ dự án thật.</sub>
 - **Các bước trước khi chụp.** `screenshot` và `redline` nhận `steps` chạy trong trang trước ảnh và layout check của
   mỗi độ rộng (chạm một phần tử, gõ vào một ô, nhấn một phím, chờ một lúc hoặc chờ một phần tử), nên menu, bộ chọn hay
   hộp thoại chỉ hiện sau một lần chạm được chụp và đo khi đang mở; bước nào không làm được thì lệnh gọi thất bại, nói rõ
-  bước nào và vì sao (không có gì khớp, không hiển thị).
+  bước nào và vì sao (không có gì khớp, không hiển thị). Một bước có thể gõ một secret đã lưu vào ô mật khẩu theo tên của
+  nó, không bao giờ hiện giá trị, và một bước gửi biểu mẫu sẽ tiếp tục trên trang nó mở ra, nên có thể điền form đăng nhập
+  ngay trong lần chụp.
 - **So từng điểm ảnh.** Để làm giao diện chuẩn đến từng điểm ảnh, `image_compare` so một ảnh chụp mới với một hình
   mẫu (bản mockup, hoặc một ảnh chụp Pi giữ lại khi trang đã đúng): tỉ lệ điểm ảnh đổi, các vùng đổi kèm vị trí và kích
   thước, và một hình khác biệt lưu cạnh ảnh chụp, chỗ đổi tô đỏ, các vùng được đóng khung và đánh số. Viền khử răng cưa

@@ -911,6 +911,11 @@ export class PiBrowser {
         return this.#state.place;
     }
 
+    /** Whether one of its tabs shows a page of `origin` (PP-500: a site the session signed in to here). */
+    showsOrigin(origin: string): boolean {
+        return this.#tabs.some((tab) => URL.canParse(tab.url) && new URL(tab.url).origin === origin);
+    }
+
     state(): BrowserState {
         return this.#state;
     }
