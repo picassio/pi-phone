@@ -3998,8 +3998,8 @@ export class PocketApp {
     }
 
     /**
-     * A render of `url` with the sign-ins of the session's Pi browser (PP-500), when one of its tabs there shows that
-     * site (`host.signedInRender`). The phone's renders in Pi's browser's WebView profile (`Renderer.java`); a Chrome's
+     * A render of `url` with the sign-ins of the session's Pi browser (PP-500), when one of its tabs there shows or showed
+     * that site (`host.signedInRender`; PP-501: the idle sweep closing its tabs leaves the sign-ins in the profile). The phone's renders in Pi's browser's WebView profile (`Renderer.java`); a Chrome's
      * (a machine's, or the server edition's) in a tab of its own there, which no session owns while it lives
      * (`renderTabs`), so the session's tabs stay as they are. A browser with a window someone may use, or one Pi
      * attached to, is not rendered in out of sight: an error says so.

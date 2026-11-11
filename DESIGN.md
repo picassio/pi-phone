@@ -1292,8 +1292,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
     their count: an app from before them answers none, and the server refuses its pictures (they would show the page
     closed) saying to update the app. The request waits 90 s plus 20 s a width when it has steps.
   - **Behind a sign-in** (PP-500; reported from #214022, which could not shoot visa-dashboard's signed-in screens: the
-    renderer had the app's sign-in only). A `url` whose origin one of the session's tabs in Pi's browser shows
-    (`PiBrowser.showsOrigin`, the tabs in memory; after a restart `browser_open` brings them back) renders with that
+    renderer had the app's sign-in only). A `url` whose origin one of the session's tabs in Pi's browser shows or showed
+    while that browser lives (`PiBrowser.showsOrigin`: the tabs in memory, and the origins they showed, kept when the idle
+    sweep or browser_close closes them, as the sign-ins stay in the place's profile; after a restart `browser_open` brings
+    them back) renders with that
     browser's sign-in (`App.signedInRender`), for work the owner asked for (Pi's browser is the owner's): on the phone,
     `Renderer.java` makes its WebView in Pi's browser's profile (`profile: "pi-browser"` in the request, set before
     anything else on the view, no owner token) and each shot answers `profile`; an app that does not is refused, saying
@@ -1317,6 +1319,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
     until the renderer has read that it counts as done (`seen`, set by each read of `STEPS_STATE`): the fixture's
     sign-in, read 100 ms before its click, clicked again on the next page ("nothing matches #go"). A renderer from
     before it never sets `seen`; after 1 s the steps stop waiting. Tests: `screenshot-signed-in.test.ts`.
+    *Idle tabs (PP-501):* on Build #490, #214022 worked half an hour without its browser (building, deploying); the
+    sweep (`BROWSER_IDLE_MS`) closed its tabs, so the next screenshots of the site went to the phone without the sign-in
+    ("The phone could not render …: nothing matches" for a button the signed-in page shows) and `browser_eval` ran in the
+    new blank tab its next action opened (`location.pathname` "blank"). The render never touched the session's tab: the
+    test reads its address in the page before and after a screenshot with steps, and Chrome's page list.
   - **ui-verify** (`src/skills/ui-verify/SKILL.md`, PP-405): pi-phone's own skill, in every session like
     getting-started (`builtInSkills()`'s `src/skills/`, not behind Design & video, as the screenshot tools it uses are
     always there). It puts the checks above in one order: `screenshot` at 390, 1280 and 1920 px (the layout check's numbers

@@ -375,8 +375,9 @@ No Termux, no laptop, no cloud VM.
 - **Screenshots behind a sign-in.** A site the session signed in to in Pi's browser (on the phone, a machine, or the
   server) is shot and redlined signed in: the page renders with that browser's sign-in, out of sight (a tab of its own
   on a machine, closed after; the phone's off-screen renderer with Pi's browser's cookies), at every width with the
-  layout check, and the session's own tabs stay as they are. A page shot without a sign-in that shows a password field
-  says so, and how to see it signed in.
+  layout check, and the session's own tabs stay as they are; it still does after those tabs closed unused (30 minutes
+  idle), as the sign-in stays. A page shot without a sign-in that shows a password field says so, and how to see it
+  signed in.
 - **Measured screenshots.** Every `screenshot` width comes with a layout check the page runs before it is drawn: what spills
   out of its box or its parent, and whether the page is wider than the screen, with sizes. It also finds what makes a
   page look unfinished: text cut by its box (an ellipsis, a clipped line), an element covering another's text or

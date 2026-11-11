@@ -914,9 +914,23 @@ export class PiBrowser {
         return this.#state.place;
     }
 
-    /** Whether one of its tabs shows a page of `origin` (PP-500: a site the session signed in to here). */
+    /**
+     * Whether one of its tabs shows or showed a page of `origin` while it lives (PP-500: a site the session signed in to
+     * here). Its tabs closing (the app's idle sweep after `BROWSER_IDLE_MS`, browser_close) leave the sign-ins in the
+     * place's profile, so such a site still renders signed in (PP-501: a session that worked 30 minutes without its
+     * browser had its screenshots rendered without the sign-in, and its steps found nothing).
+     */
     showsOrigin(origin: string): boolean {
-        return this.#tabs.some((tab) => URL.canParse(tab.url) && new URL(tab.url).origin === origin);
+        return this.#origins.has(origin) || this.#tabs.some((tab) => URL.canParse(tab.url) && new URL(tab.url).origin === origin);
+    }
+
+    /** The sites its tabs showed (`showsOrigin`). */
+    readonly #origins = new Set<string>();
+
+    #saw(url: string): void {
+        if (/^https?:/i.test(url) && URL.canParse(url)) {
+            this.#origins.add(new URL(url).origin);
+        }
     }
 
     state(): BrowserState {
@@ -990,6 +1004,7 @@ export class PiBrowser {
 
             if (frame !== undefined && frame.parentId === undefined) {
                 tab.url = frame.url ?? "";
+                this.#saw(tab.url);
                 this.#set({});
                 // A site Pi's browser comes to by a link has its permissions set too (`open` sets them before it loads).
                 void this.#permissionsFor(page, tab.url);
@@ -997,6 +1012,7 @@ export class PiBrowser {
         });
         tab.url = await page.evaluate<string>("location.href").catch(() => "");
         tab.title = await page.evaluate<string>("document.title").catch(() => "");
+        this.#saw(tab.url);
         this.#tabs.push(tab);
 
         return tab;

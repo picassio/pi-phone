@@ -447,9 +447,10 @@ export interface PocketHost {
     /** `timeoutMs`: how long the phone may take to answer (default 90 s); `steps`: run in the page first (PP-423). */
     render(url: string, options: RenderOptions): Promise<Shot[]>;
     /**
-     * A render of `url` with the sign-ins of the session's Pi browser (PP-500), when one of its tabs there shows that site:
-     * on the phone, in its WebView profile; in a Chrome (a machine's, the server edition's), in a background tab of it.
-     * `where` is the place in words. Undefined when no tab of the session shows the site; an error when its browser
+     * A render of `url` with the sign-ins of the session's Pi browser (PP-500), when one of its tabs there shows or showed
+     * that site (PP-501: its tabs closed for idleness too): on the phone, in its WebView profile; in a Chrome (a machine's,
+     * the server edition's), in a background tab of it. `where` is the place in words. Undefined when no tab of the
+     * session showed the site; an error when its browser
      * cannot render out of sight (a window someone may use, a browser Pi attached to).
      */
     signedInRender(cwd: string, session: number, url: string): { where: string; render(options: RenderOptions): Promise<Shot[]> } | { error: string } | undefined;
