@@ -27,7 +27,7 @@ const MAX_INPUT_BYTES = 20 * 1024 * 1024;
 const FOLDER = "images";
 
 const DESCRIPTION =
-    "Make or edit images with the image model the owner picked (Settings › Images, setting image.model), from a signed-in provider: ChatGPT (gpt-image-2.5), OpenRouter (Nano Banana, google/gemini-*-image, and others) or the owner's own provider. " +
+    "Make or edit images with the image model the owner picked (Settings › Images, setting image.model), from a signed-in provider: ChatGPT Images (openai-codex/gpt-image-2.5; ChatGPT picks the model and quality itself), OpenRouter (Nano Banana, google/gemini-*-image, and others) or the owner's own provider. " +
     `To edit, give up to ${MAX_INPUT_IMAGES} image paths (PNG, JPEG, GIF or WebP) in images. The pictures are saved where this session works, in images/ with a readable name, the first also as images/latest.png, and show in the chat; you get their paths, the model and the cost, not the pictures: read a path to look at one. ` +
     "When the prompt or an image shows a real, identifiable person (a photo of someone, a named person's likeness), say who in person: the owner is asked on a card first. model overrides the setting for this call, one of the models the settings tool lists for image.model.";
 

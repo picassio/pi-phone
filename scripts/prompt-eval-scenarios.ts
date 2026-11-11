@@ -56,6 +56,15 @@ const SSP: Stubs = {
     },
     read: (args) => (/package\.json$/.test(String(args.path)) ? '{ "name": "ssp", "scripts": { "test": "node --test" } }\n' : "# SSP\n\nThe billing service.\n"),
 };
+/** Images (PP-476): the photo there, and the image settings as the settings tool lists them (ChatGPT's picked). */
+const IMAGE_LOOKS: Stubs = {
+    read: "(a JPEG picture, 1200×800: a shop front with small white text in the bottom right corner)",
+    bash: (args) => (/\b(ls|file|identify|stat)\b/.test(command(args)) ? "-rw-r--r-- 1 u u 214733 Nov 11 09:12 /home/u/work/photos/shop.jpg" : "(no output)"),
+    // A crop of the corner to look closer first (media's image action) is a look too.
+    media: (args) => (args.action === "image" ? "media/shop-crop.png (400×200)" : "(done)"),
+    settings:
+        "Images\n- image.model: auto (ChatGPT's when signed in, else OpenRouter's first). Now: openai-codex/gpt-image-2.5 (ChatGPT signed in).",
+};
 /** A library tool waits for tool_search; its words in the query (PP-468). */
 const LIBRARY_QUERY = /skill|command|library|pin|undo|version|slash|template/i;
 /** A codemode script that finds a library tool (`searchTools`) or calls one: the same intent as tool_search. */
@@ -483,5 +492,30 @@ export const SCENARIOS: readonly Scenario[] = [
         variant: "phone",
         message: "Make me a small page with a counter button, as an artifact I can open.",
         expect: { tool: ["artifact"], args: { artifact: { content: matches(/<button/i) } } },
+    },
+    // Images (PP-476): a photo-like picture is image_generate's, with what was asked (a vector logo may well be an SVG
+    // artifact, so the asks are pictures); an edit names the photo. Looking first (the file, the image settings) is fine.
+    {
+        id: "image-make",
+        variant: "phone",
+        message: "Tạo cho tôi một ảnh chụp chân thực: ly cà phê sữa đá trên bàn gỗ ở quán Mây, nắng sáng.",
+        stubs: IMAGE_LOOKS,
+        expect: { tool: ["image_generate"], args: { image_generate: { prompt: matches(/M[âa]y|c[aà] ph[eê]|coffee/i) } }, forbid: ["artifact"] },
+    },
+    {
+        id: "image-edit",
+        variant: "phone",
+        message: "Edit ~/work/photos/shop.jpg: remove the text in the bottom right corner.",
+        stubs: IMAGE_LOOKS,
+        // Looking takes four rounds: ls, the photo, a crop of the corner, the crop.
+        rounds: 5,
+        expect: { tool: ["image_generate"], args: { image_generate: { images: matches(/shop\.jpg/) } } },
+    },
+    {
+        id: "image-best-quality",
+        variant: "phone",
+        message: "Make a poster of Ha Long Bay at sunset, at ChatGPT's best image quality.",
+        stubs: IMAGE_LOOKS,
+        expect: { tool: ["image_generate"], args: { image_generate: { prompt: matches(/Ha ?Long/i) } } },
     },
 ];
