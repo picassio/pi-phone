@@ -1285,7 +1285,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
     the prompt budget). `stepsScript` runs them in the page: pointer and mouse down and up then `click()`, a field's
     value set through its prototype's setter with an input event (as React and Preact hear typing), keydown and keyup
     at the focused element (the page's handlers, not the browser's default actions), a wait polling for a visible
-    match; a click or type waits 2 s for its element. It answers at once and keeps its place in `window.__piSteps`;
+    match; a click or type waits up to 5 s for its element, as the wait for a selector does (`FIND_MS`; 2 s before
+    PP-501, short for a page that draws only once its data came, as visa-dashboard's case page; Playwright's actions wait
+    so too). A step that finds nothing in a web page rendered without Pi's browser's sign-in adds `STEP_SIGN_IN_NOTE`:
+    the render had no sign-in, and how to get one. It answers at once and keeps its place in `window.__piSteps`;
     both renderers (`Renderer.java`, `chrome-renderer.ts`) run it per width after the page is laid out at its picture's
     height and read `STEPS_STATE` every 100 ms for 20 s (`STEPS_MS`), then measure and picture; a failure is the
     render's error ("a step failed: step 2 (click \"#x\"): nothing matches \"#x\""). Each shot answers `steps` with

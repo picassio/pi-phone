@@ -111,6 +111,14 @@ const stepsOf = (
 export const SIGN_IN_NOTE =
     "The page shows a password field: this may be its sign-in screen, as the render has no sign-in of yours. To see it signed in, open the site in Pi's browser (browser_open) and sign in there, then take the screenshot again: a site open in this session's Pi browser renders with its sign-in. Or sign in in the render with steps: {type: css, secret: NAME} types a saved secret into a password field (then click the button, and wait for what the next page shows).";
 
+/**
+ * Said under a step that failed in a page rendered without Pi's browser's sign-ins (PP-501): a page that shows its
+ * content only signed in shows none, so its elements are not there. On Build #490 the render had lost the sign-in
+ * (PP-504) and the answer said only "nothing matches", which read as a page too slow for the step.
+ */
+export const STEP_SIGN_IN_NOTE =
+    "This render has no sign-in of yours (no tab of this session's Pi browser has shown this site). If the page shows that content only signed in, open the site in Pi's browser (browser_open) and sign in there, then take the screenshot again: it then renders with that sign-in.";
+
 const DESCRIPTION =
     "See a page as it shows: the phone renders it off screen and gives you a picture at each width (default 390, 1280 and 1920 px: a phone, a desktop, a large screen; whole page up to 4000 px tall). " +
     "Name one of: artifact (an artifact of this session, by id, as the person opens it), path (a file: .html, .htm, .svg, or .docx/.xlsx/.pptx as OfficeCLI renders it), or url (an http or https page). " +
@@ -219,6 +227,17 @@ export default function createScreenshot(host: PocketHost) {
     /** The sign-in note, when a page rendered without Pi's browser's sign-ins shows a password field. */
     const signInNote = (renderer: Renderer, password: boolean) => (renderer.signIn && password ? `\n${SIGN_IN_NOTE}` : "");
 
+    /**
+     * Why a render failed, with `STEP_SIGN_IN_NOTE` when a step found no element (or none visible) in a web page rendered
+     * without the sign-ins.
+     */
+    const failed = (renderer: Renderer, error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        const missing = /a step failed: .*(nothing matches|nothing visible matched|matches an element that is not visible)/.test(message);
+
+        return reply(renderer.signIn && missing ? `${message}\n${STEP_SIGN_IN_NOTE}` : message, true);
+    };
+
     const screenshot = defineTool({
         name: "screenshot",
         description: DESCRIPTION,
@@ -313,7 +332,7 @@ export default function createScreenshot(host: PocketHost) {
                     }
                 }
             } catch (error) {
-                return reply(error instanceof Error ? error.message : String(error), true);
+                return failed(page, error);
             } finally {
                 page.close?.();
             }
@@ -594,7 +613,7 @@ export default function createScreenshot(host: PocketHost) {
                     ],
                 };
             } catch (error) {
-                return reply(error instanceof Error ? error.message : String(error), true);
+                return failed(page, error);
             } finally {
                 page.close?.();
             }

@@ -20,7 +20,8 @@ import { BROWSER_DIR, stopScript } from "../src/server/browser/machine-engine.ts
 import { ChromeEngine } from "../src/server/browser/pi-browser.ts";
 import { ChromeRenderer } from "../src/server/chrome-renderer.ts";
 import { checkSteps, stepsScript, stepWords } from "../src/server/render-steps.ts";
-import { Screenshots } from "../src/server/screenshots.ts";
+import { renderRequest, Screenshots } from "../src/server/screenshots.ts";
+import { shootInTab } from "../src/server/tab-render.ts";
 import { NO_CARD } from "./no-card.ts";
 
 after(() => cleanUp());
@@ -135,6 +136,8 @@ const CALLS: Record<string, [string, Record<string, unknown>]> = {
         { url: "http://shop.test/app", widths: [390], steps: [{ type: "#user", text: "han" }, { type: "#pass", secret: "SHOP_PW" }, { click: "#go" }, { wait: "#welcome" }] },
     ],
     "type the secret in the open": ["screenshot", { url: "http://shop.test/login", widths: [390], steps: [{ type: "#user", secret: "SHOP_PW" }] }],
+    // Its button only once its data came (PP-501): no wait before the click, no settle, as #214022 asked first.
+    "add an appointment": ["screenshot", { url: "http://shop.test/case", widths: [390], settle: 0, fullPage: false, steps: [{ click: 'button[aria-label="Thêm lịch hẹn"]' }, { wait: "[role=dialog]" }] }],
 };
 const route: FauxResponseStep = (request) => {
     const { role, text } = lastText(request as never);
@@ -205,6 +208,45 @@ test("a site signed in to in Pi's browser: screenshot at 390 and 1280 and redlin
         assert.equal(browser.state().tabs.length, front.tabs.length);
         assert.equal(browser.state().url, front.url);
         assert.ok(!(await modelTexts(app, id)).some((each) => each.includes(PASSWORD)), "the password is in no message");
+    } finally {
+        await app.close();
+        await engine.close();
+    }
+});
+
+test("a page that draws only once its data came: a click waits up to 5 s for its element, in the signed-in render's own tab, its first request signed in; a selector's wait gives up after 5 s (PP-501)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP shop.test 127.0.0.1:${port}`, "--no-sandbox"]);
+    const app = await openApp(scriptedModel(route), join(root, "shot-late-button"), undefined, { browserEngine: engine });
+
+    try {
+        const id = await newSession(app);
+        const session = Number(id);
+        const browser = app.browserFor(app.cwdOf(id), session);
+
+        apiDelay = 300;
+        await browser.open(session, "http://shop.test/signin");
+        assert.match(await browser.wait(session, { text: "Case HS-0089" }), /Case HS-0089/);
+
+        // The case's data 3.5 s after the page asks: the button shows long after the load, past the 2 s a click waited.
+        apiDelay = 3500;
+        visits.length = 0;
+
+        const shot = await turn(app, id, "add an appointment");
+
+        assert.match(shot, /rendered with the sign-in of Pi's browser on this phone \(out of sight: its tabs stay as they are\) after 2 steps \(click [^\n]*\): 390×844/, shot);
+        assert.match(shot, /measured inside the open dialog div#appt/, shot);
+        // The render's own tab, signed in from its first request: the session's tab loaded nothing.
+        assert.deepEqual(
+            visits.map((each) => `${each.path} ${each.signedIn}`),
+            ["/case true", "/api/case true"],
+        );
+
+        // A selector's wait is 5 s, by the clock.
+        const started = Date.now();
+        const never = renderRequest("http://shop.test/case", { widths: [390], settleMs: 0, fullPage: false, steps: [{ wait: "#never" }] });
+
+        await assert.rejects(shootInTab(engine, never, 390), /step 1 \(wait for "#never"\): nothing visible matched within 5 s: nothing matches "#never"/);
+        assert.ok(Date.now() - started >= 5000 && Date.now() - started < 9000, `gave up after ${Date.now() - started} ms`);
     } finally {
         await app.close();
         await engine.close();
@@ -344,6 +386,17 @@ test("without Pi's browser's sign-in, a password field is said with what to do; 
         const refused = await turn(app, id, "type the secret in the open");
 
         assert.match(refused, /step 1 \(type \[secret SHOP_PW\] into \\"#user\\"\): \\"#user\\" is not a password field: a secret is typed into a password field only/);
+        assert.doesNotMatch(refused, /This render has no sign-in of yours/, "a field of the wrong kind is no missing sign-in");
+
+        // Without the sign-in, the case page draws no button: the step's failure says the render had no sign-in, and
+        // what to do (PP-501: it said only "nothing matches", and #214022 took the page for slow). At 127.0.0.1, a site
+        // the steps above did not sign in to in this renderer.
+        apiDelay = 300;
+        CALLS["add an appointment there"] = ["screenshot", { ...CALLS["add an appointment"]![1], url: `http://127.0.0.1:${port}/case` }];
+
+        const unsigned = await turn(app, id, "add an appointment there");
+
+        assert.match(unsigned, /step 1 \(click [^)]*\): nothing matches [^\n]*\\nThis render has no sign-in of yours \(no tab of this session's Pi browser has shown this site\)[^"]*browser_open/, unsigned);
 
         const said = [...(await modelTexts(app, id)), ...logs].join("\n");
 

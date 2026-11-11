@@ -15,8 +15,10 @@
  * - `{ press: key }`: keydown and keyup of `key` ("Escape", "Enter", "ArrowDown", "a") at the element in focus: the
  *   page's own key handlers, not the browser's default actions (Tab does not move the focus);
  * - `{ wait: ms }` (at most 10 000) or `{ wait: selector }` (until a visible element matches, 5 s at most).
- * A click or type waits up to 2 s for its element, as a page that renders after the previous step needs. A step that
- * cannot be done fails the render, saying which step and why.
+ * A click or type waits up to 5 s for its element (`FIND_MS`), as a selector's wait does: a page that renders after
+ * the previous step, or only once its data came (PP-501: visa-dashboard's case page draws nothing until `/api/cases/:id`
+ * answers), as Playwright's actions wait for theirs. A step that cannot be done fails the render, saying which step
+ * and why.
  *
  * A step may load another page (a sign-in form sent, PP-500): the script is gone with its page. `__piSteps.resume` says
  * how many steps have done what they do (a wait once it matched); a renderer that reads no state any more (a new page)
@@ -31,6 +33,8 @@
 export type RenderStep = { click: string } | { type: string; text: string } | { type: string; secret: string; value?: string } | { press: string } | { wait: number | string };
 
 export const MAX_STEPS = 12;
+/** How long a click, a type or a selector's wait looks for its element. */
+const FIND_MS = 5000;
 const MAX_WAIT_MS = 10_000;
 /** All waits of a list together: the renderer gives the steps 20 s. */
 const MAX_WAITS_MS = 15_000;
@@ -98,14 +102,14 @@ export function checkSteps(steps: readonly unknown[]): RenderStep[] | { error: s
             waits += step.wait;
             checked.push({ wait: step.wait });
         } else if (keys === "wait" && text(step.wait)) {
-            waits += 5000;
+            waits += FIND_MS;
             checked.push({ wait: step.wait as string });
         } else {
             return bad("each step is one of { click: selector }, { type: selector, text }, { type: selector, secret: NAME } (a saved secret, into a password field), { press: key }, { wait: ms or selector }.");
         }
     }
 
-    return waits > MAX_WAITS_MS ? { error: `the steps wait ${waits} ms in all (a wait for a selector counts 5000); ${MAX_WAITS_MS} at most.` } : checked;
+    return waits > MAX_WAITS_MS ? { error: `the steps wait ${waits} ms in all (a wait for a selector counts ${FIND_MS}); ${MAX_WAITS_MS} at most.` } : checked;
 }
 
 /**
@@ -172,7 +176,7 @@ export function stepsScript(steps: readonly RenderStep[]): string {
   const press = (element, type, init) => element.dispatchEvent(new (type.startsWith("pointer") && typeof PointerEvent === "function" ? PointerEvent : MouseEvent)(type, { bubbles: true, cancelable: true, composed: true, view: window, ...init }));
   const run = async (step, index) => {
     if ("click" in step) {
-      const element = await found(step.click, 2000);
+      const element = await found(step.click, ${FIND_MS});
       await told(index + 1);
       const box = element.getBoundingClientRect();
       const at = { clientX: box.left + box.width / 2, clientY: box.top + box.height / 2, button: 0 };
@@ -183,7 +187,7 @@ export function stepsScript(steps: readonly RenderStep[]): string {
       press(element, "mouseup", at);
       element.click();
     } else if ("type" in step) {
-      const element = await found(step.type, 2000);
+      const element = await found(step.type, ${FIND_MS});
       // A secret shows as dots only in a password field: anywhere else the picture would show it.
       if (step.secret && !(element instanceof HTMLInputElement && element.type === "password")) {
         throw new Error(JSON.stringify(step.type) + " is not a password field: a secret is typed into a password field only");
@@ -210,9 +214,9 @@ export function stepsScript(steps: readonly RenderStep[]): string {
       await sleep(step.wait);
     } else {
       try {
-        await found(step.wait, 5000);
+        await found(step.wait, ${FIND_MS});
       } catch (error) {
-        throw new Error("nothing visible matched within 5 s: " + error.message);
+        throw new Error("nothing visible matched within ${FIND_MS / 1000} s: " + error.message);
       }
     }
   };

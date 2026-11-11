@@ -402,8 +402,9 @@ No Termux, no laptop, no cloud VM.
   `browser_layout_check`. Pi goes by the numbers.
 - **Steps before the shot.** `screenshot` and `redline` take `steps` that run in the page before each width's picture
   and layout check (tap an element, type into a field, press a key, wait for a time or an element), so a menu, a picker
-  or a dialog that shows only after a tap is pictured and measured open; a step that cannot be done fails the call,
-  naming the step and why (nothing matches, not visible). A step can type a saved secret into a password field by its
+  or a dialog that shows only after a tap is pictured and measured open. A tap or typing waits up to 5 s for its element,
+  for a page that draws once its data came; a step that cannot be done fails the call, naming the step and why (nothing
+  matches, not visible), and says when the page was rendered without your sign-in. A step can type a saved secret into a password field by its
   name, never shown, and a step that sends a form goes on on the page it loads, so a sign-in form can be filled in the
   shot itself.
 - **Pixel compare.** For pixel-perfect work, `image_compare` compares a new screenshot with a reference picture (a

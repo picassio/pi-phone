@@ -405,8 +405,9 @@ dự án thật.</sub>
   bằng `browser_layout_check`. Pi dựa vào các con số.
 - **Các bước trước khi chụp.** `screenshot` và `redline` nhận `steps` chạy trong trang trước ảnh và layout check của
   mỗi độ rộng (chạm một phần tử, gõ vào một ô, nhấn một phím, chờ một lúc hoặc chờ một phần tử), nên menu, bộ chọn hay
-  hộp thoại chỉ hiện sau một lần chạm được chụp và đo khi đang mở; bước nào không làm được thì lệnh gọi thất bại, nói rõ
-  bước nào và vì sao (không có gì khớp, không hiển thị). Một bước có thể gõ một secret đã lưu vào ô mật khẩu theo tên của
+  hộp thoại chỉ hiện sau một lần chạm được chụp và đo khi đang mở. Bước chạm hay gõ chờ phần tử của nó tới 5 giây, cho
+  trang chỉ vẽ xong khi dữ liệu về; bước nào không làm được thì lệnh gọi thất bại, nói rõ bước nào và vì sao (không có
+  gì khớp, không hiển thị), và nói khi trang được vẽ mà không có phiên đăng nhập của bạn. Một bước có thể gõ một secret đã lưu vào ô mật khẩu theo tên của
   nó, không bao giờ hiện giá trị, và một bước gửi biểu mẫu sẽ tiếp tục trên trang nó mở ra, nên có thể điền form đăng nhập
   ngay trong lần chụp.
 - **So từng điểm ảnh.** Để làm giao diện chuẩn đến từng điểm ảnh, `image_compare` so một ảnh chụp mới với một hình
