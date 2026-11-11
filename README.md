@@ -397,9 +397,9 @@ No Termux, no laptop, no cloud VM.
   on a phone, a scrolling dialog without `overscroll-behavior: contain`, a viewport that blocks zoom, `tnum` instead of
   `tabular-nums`), grouped with their numbers, and says when a page uses too many font sizes,
   text colours or icon sizes. Content hidden for screen readers (a chart's data table in a 1 px box) is left out. With a
-  modal dialog open (a `<dialog>` shown modal, one marked `aria-modal`, or one whose page around it is hidden or inert,
-  as Radix, Headless UI and React Aria do), only the dialog is measured, and the report says so. Pi's
-  browser gives the same check with `browser_screenshot`, and alone with
+  modal dialog open (a `<dialog>` shown modal, one marked `aria-modal`, or one whose page around it is hidden, inert,
+  out of a pointer's reach or under an overlay, as Radix, Headless UI and React Aria do), only the dialog is measured,
+  and the report says so. Pi's browser gives the same check with `browser_screenshot`, and alone with
   `browser_layout_check`. Pi goes by the numbers.
 - **Steps before the shot.** `screenshot` and `redline` take `steps` that run in the page before each width's picture
   and layout check (tap an element, type into a field, press a key, wait for a time or an element), so a menu, a picker

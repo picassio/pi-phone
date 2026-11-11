@@ -78,6 +78,11 @@ const AUTON_PAGES = Object.fromEntries([
 const picture = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='97'%3E%3Crect width='300' height='97' fill='%23888888'/%3E%3C/svg%3E`;
 const head = `<!doctype html><meta name="viewport" content="width=device-width"><style>body{margin:0;font:14px sans-serif} .col{width:300px;margin:0 20px}</style>`;
 const words = "Words that wrap in their column, as a reply's do, line after line after line. ";
+const guard = `<span aria-hidden="true" data-aria-hidden="true" data-radix-focus-guard tabindex="0" style="outline:none;opacity:0;position:fixed;pointer-events:none"></span>`;
+const radix = (page: { body: string; overlay: boolean }) =>
+    `${head}<body style="${page.body}"><div id="root"><div class="col"><p id="behind" style="font-size:10px">Behind the dialog</p><button>Thêm lịch hẹn</button></div><div aria-live="polite" role="status" style="position:fixed;bottom:0"></div></div>${guard}${
+        page.overlay ? `<div aria-hidden="true" data-aria-hidden="true" data-state="open" class="fixed inset-0 z-50 bg-black/10" style="position:fixed;inset:0;z-index:50;background:rgba(0,0,0,0.1);pointer-events:auto"></div>` : ""
+    }<div role="dialog" id="radix-r1" aria-labelledby="radix-r2" data-state="open" tabindex="-1" style="pointer-events:auto;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:calc(100% - 32px);z-index:50;padding:16px;box-sizing:border-box;background:#ffffff"><h2 id="radix-r2" style="margin:0">Thêm lịch hẹn</h2><p id="inside" style="font-size:10px;margin:0">Inside the dialog</p></div>${guard}</body>`;
 const PAGES: Record<string, string> = {
     "/clean": `${head}<div class="col"><p>Words that wrap in their column, as a reply's do.</p><pre style="overflow-x:auto;background:#eee"><code>${"a very long line of code ".repeat(20)}</code></pre></div>`,
     "/spill": `${head}<div class="col" id="box" style="overflow:visible"><div style="width:500px;background:#ccc">Wide</div></div>`,
@@ -148,11 +153,17 @@ const PAGES: Record<string, string> = {
     "/aria-modal": `${head}<div class="col"><p id="behind" style="font-size:10px">Behind the sheet</p></div><div id="sheet" role="dialog" aria-modal="true" style="position:fixed;left:0;right:0;bottom:0;padding:16px;background:#ffffff"><p id="inside" style="font-size:10px;margin:0">Inside the sheet</p></div>`,
     "/aria-modal-hidden": `${head}<div class="col"><p id="behind" style="font-size:10px">Behind the sheet</p></div><div role="dialog" aria-modal="true" hidden style="position:fixed;inset:0;background:#ffffff"><p style="font-size:10px">Not open</p></div>`,
     // Modal dialogs no aria-modal or :modal names (PP-501, live on Build #490): the page around them is shut instead.
-    // Radix's, as visa-dashboard's case page has it (its body's children, measured there): focus guards and the page
-    // aria-hidden with data-aria-hidden, a dimmed overlay with no words, the dialog under body. Headless UI's, in its
-    // portal root, the page inert. react-aria's alert dialog in an underlay in its portal, the page inert. Then Radix's
-    // markup with the page reachable (a dialog that is open, data-state=open, but not modal): the page is measured.
-    "/radix": `${head}<span aria-hidden="true" data-aria-hidden="true" data-radix-focus-guard tabindex="0" style="position:fixed"></span><div data-state="open" style="position:fixed;inset:0;background:rgba(0,0,0,0.5)"></div><div aria-hidden="true" data-aria-hidden="true" class="col"><p id="behind" style="font-size:10px">Behind the dialog</p></div><div role="dialog" id="radix-r1" data-state="open" tabindex="-1" style="position:fixed;left:20px;top:200px;width:300px;padding:16px;background:#ffffff"><p id="inside" style="font-size:10px;margin:0">Inside the dialog</p></div><span aria-hidden="true" data-aria-hidden="true" data-radix-focus-guard tabindex="0" style="position:fixed"></span>`,
+    // Radix's, as visa-dashboard's case page has it (its body's children, measured there on Build #492): body
+    // pointer-events:none (DismissableLayer), the page's #root NOT aria-hidden (it holds an aria-live region, which
+    // the aria-hidden library leaves alone), focus guards and the dimmed overlay aria-hidden, the overlay taking the
+    // pointer, the dialog under body with pointer-events:auto. Then each of Radix's two other signs alone: the page out
+    // of a pointer's reach with no overlay, and an overlay over a page that still takes the pointer. Headless UI's, in
+    // its portal root, the page inert. react-aria's alert dialog in an underlay in its portal, the page inert. Then
+    // Radix's markup with the page reachable (a dialog that is open, data-state=open, but not modal): the page is
+    // measured.
+    "/radix": radix({ body: "pointer-events:none", overlay: true }),
+    "/radix-pointer": radix({ body: "pointer-events:none", overlay: false }),
+    "/radix-overlay": radix({ body: "", overlay: true }),
     "/headless": `${head}<div id="app" inert class="col"><p id="behind" style="font-size:10px">Behind the dialog</p></div><div id="headlessui-portal-root"><div><div style="position:fixed;inset:0;background:rgba(0,0,0,0.3)"></div><div role="dialog" id="hui" style="position:fixed;left:20px;top:200px;width:300px;padding:16px;background:#ffffff"><p id="inside" style="font-size:10px;margin:0">Inside the dialog</p></div></div></div>`,
     "/react-aria": `${head}<div id="root" inert class="col"><p id="behind" style="font-size:10px">Behind the dialog</p></div><div data-react-aria-top-layer="true"><div style="position:fixed;inset:0;background:rgba(0,0,0,0.3)"><div role="alertdialog" id="ra" style="position:fixed;left:20px;top:200px;width:300px;padding:16px;background:#ffffff"><p id="inside" style="font-size:10px;margin:0">Inside the dialog</p></div></div></div>`,
     "/radix-open-page": `${head}<div class="col"><p id="behind" style="font-size:10px">Beside the dialog</p></div><div role="dialog" data-state="open" style="position:fixed;left:20px;top:200px;width:300px;padding:16px;background:#ffffff"><p id="inside" style="font-size:10px;margin:0">Inside the dialog</p></div>`,
@@ -415,7 +426,7 @@ test("an element in a display: contents box is measured against the nearest box,
     }
 });
 
-test("a dialog whose page around it is shut is a modal too: Radix's (aria-hidden), Headless UI's and react-aria's (inert); one with the page reachable is not (PP-501)", { skip }, async () => {
+test("a dialog whose page around it is shut is a modal too: Radix's (body out of a pointer's reach, an overlay around it, #root not hidden), Headless UI's and react-aria's (inert); one with the page reachable is not (PP-501)", { skip }, async () => {
     const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
 
     try {
@@ -426,6 +437,8 @@ test("a dialog whose page around it is shut is a modal too: Radix's (aria-hidden
 
         for (const [path, dialog] of [
             ["/radix", "div#radix-r1"],
+            ["/radix-pointer", "div#radix-r1"],
+            ["/radix-overlay", "div#radix-r1"],
             ["/headless", "div#hui"],
             ["/react-aria", "div#ra"],
         ] as const) {

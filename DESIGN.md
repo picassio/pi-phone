@@ -1184,11 +1184,14 @@ so Pi changes them through the settings tools; "the last session" is the one the
     dialog that shows (the last in the page's order) is measured alone, as the person cannot reach the page behind it; overlaps are
     measured inside it (a layer within it is still one), and the words say "measured inside the open dialog …; the
     page behind it is left out" (`modal` in the report). A modal is a `<dialog>` opened with `showModal()` (`:modal`),
-    a dialog marked `aria-modal="true"`, or a `role=dialog`/`alertdialog` whose page around it is shut: every other
-    child of body is `aria-hidden="true"` or `inert`, or has no words and no control (the dimmed overlay Radix leaves).
-    Radix and React Aria hide the page so and Headless UI makes it inert, none marking its dialog `aria-modal` (found
-    live on visa-dashboard's case page, Build #490). A dialog open with the page around it reachable (`data-state=open`
-    alone) is no modal. Findings are grouped (the same
+    a dialog marked `aria-modal="true"`, or a `role=dialog`/`alertdialog` whose page around it is shut, any of three
+    ways: every other child of body is `aria-hidden="true"` or `inert`, or has no words and no control (React Aria,
+    Headless UI); the page cannot take a pointer while the dialog can (body, or every other child of body,
+    `pointer-events: none`: Radix's DismissableLayer); or points just outside the dialog's four edges land on one
+    element outside it with no words and no control (the dimmed overlay). None of these marks its dialog `aria-modal`.
+    Radix's `aria-hidden` alone is not enough: it leaves a child of body that holds an `aria-live` region unhidden,
+    as visa-dashboard's `#root` (live on Build #492). A dialog open with the page around it reachable
+    (`data-state=open` alone) is no modal. Findings are grouped (the same
     kind of element with the same numbers once, with a count), at most 20 groups a kind kept and 3 shown with a count
     of the rest, so a whole app screen stays a screenful; a summary line names more than 6 font sizes or text
     colours, more than 2 families, or icons in more than 2 sizes or stroke widths. The check is a script the server

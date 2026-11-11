@@ -31,8 +31,9 @@
  * Since PP-501, a box of display: contents (which has none) is passed over for the nearest ancestor with a box, and an
  * open modal dialog is measured alone, as the page behind it cannot be reached; the report names it (`modal`). A modal
  * is a <dialog> opened with showModal(), a dialog marked aria-modal, or a dialog whose page around it is shut: the
- * other children of body hidden (aria-hidden, as Radix and react-aria do) or inert (Headless UI). Since
- * PP-433, under text zoom (Android's font scale in a WebView) control heights are measured on the grid as at 100 %.
+ * other children of body hidden (aria-hidden, as react-aria does) or inert (Headless UI), the page out of a pointer's
+ * reach while the dialog is not (Radix sets pointer-events: none on body), or the points around the dialog covered by
+ * an overlay with no words and no control. Since PP-433, under text zoom (Android's font scale in a WebView) control heights are measured on the grid as at 100 %.
  * Since PP-406, a layer laid over a box to make it one tap target is measured with that box's lines, and a control as
  * tall as its one picture at the picture's own shape (a lone thumbnail) is not measured on the grid: its height is the
  * picture's.
@@ -469,17 +470,27 @@ ${PAGE_HELPERS}
   // An open modal dialog (PP-501): a <dialog> opened with showModal(), a dialog marked aria-modal, or a dialog whose
   // page around it is shut (sealed), that shows. The page behind it cannot be reached, so only the dialog is
   // measured: the last one in the page's order, which holds a dialog opened from inside it.
-  // Shut: Radix marks no dialog aria-modal; it hides the other children of body with aria-hidden=true, as react-aria
-  // does, and Headless UI makes them inert. Each other child of body is hidden or inert, or shows no words and no
-  // control (the dimmed overlay Radix leaves). A dialog with the page around it reachable (data-state=open alone) is
-  // no modal.
+  // Shut, any of three ways (a dialog with the page around it reachable, data-state=open alone, is no modal):
+  // - hidden: each other child of body is aria-hidden=true (react-aria) or inert (Headless UI), or bare;
+  // - out of reach: the dialog takes a pointer while body, or each other child of body, takes none (Radix's
+  //   DismissableLayer sets pointer-events:none on body; it leaves the page's root unhidden when that holds an
+  //   aria-live region, as visa-dashboard's case page does: live on Build #492);
+  // - covered: points just outside the dialog's four edges land on one bare element outside it (the dimmed overlay).
+  // Bare: shows no words and no control, the dialog's own left out (an underlay that holds the dialog is bare).
   const shut = (e) => e.getAttribute('aria-hidden') === 'true' || e.hasAttribute('inert');
+  const bare = (e, dialog) => {
+    const text = e.contains(dialog) ? (e.textContent || '').replace(dialog.textContent || '', '') : e.textContent || '';
+    return !/\S/.test(text) && !e.matches(CONTROL) && ![...e.querySelectorAll(CONTROL)].some((c) => !dialog.contains(c));
+  };
   const sealed = (dialog) => {
     let top = dialog;
     while (top.parentElement && top.parentElement !== document.body) top = top.parentElement;
-    if (top.parentElement !== document.body) return false;
-    const others = [...document.body.children].filter((e) => e !== top && !/^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT|LINK|META)$/.test(e.tagName));
-    return others.some(shut) && others.every((e) => shut(e) || (!/\S/.test(e.textContent || '') && !e.matches(CONTROL) && !e.querySelector(CONTROL)));
+    const others = top.parentElement !== document.body ? [] : [...document.body.children].filter((e) => e !== top && !/^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT|LINK|META)$/.test(e.tagName));
+    if (others.length && others.some(shut) && others.every((e) => shut(e) || bare(e, dialog))) return true;
+    if (css(dialog).pointerEvents !== 'none' && (css(document.body).pointerEvents === 'none' || (others.length && others.every((e) => css(e).pointerEvents === 'none')))) return true;
+    const r = dialog.getBoundingClientRect(), cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2;
+    const hits = [[r.left - 2, cy], [r.right + 2, cy], [cx, r.top - 2], [cx, r.bottom + 2]].filter(([x, y]) => x >= 0 && y >= 0 && x < VW && y < VH).map(([x, y]) => document.elementFromPoint(x, y));
+    return hits.length > 0 && hits.every((h) => h && h === hits[0]) && !dialog.contains(hits[0]) && hits[0] !== document.body && hits[0] !== document.documentElement && bare(hits[0], dialog);
   };
   const modal = document.body ? [...document.querySelectorAll(':modal,[aria-modal=true],[role=dialog],[role=alertdialog]')].filter((e) => (e.matches(':modal,[aria-modal=true]') || sealed(e)) && shows(e, e.getBoundingClientRect())).pop() || null : null;
   const measuredAll = !document.body ? [] : modal ? [modal, ...modal.querySelectorAll('*')] : [...document.body.querySelectorAll('*')];
