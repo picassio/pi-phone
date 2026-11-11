@@ -7,6 +7,7 @@ import { execFileSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { after, before, test } from "node:test";
 import { ChromeEngine, PiBrowser } from "../src/server/browser/pi-browser.ts";
+import { type Decider, readAnswers } from "../src/server/browser/run.ts";
 import { NO_CARD } from "./no-card.ts";
 
 const chrome = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"].find((name) => {
@@ -61,6 +62,40 @@ const PAGES: Record<string, string> = {
                         }
                         document.body.append(list);
                     }, 800);
+                };
+                slot.replaceChildren(b);
+            }
+            render(false);
+        </script>`,
+    // The same combobox, its options `?delay=` ms after it opens (PP-457: 1.2 s on the fixture Jev judged wrong), each
+    // click opening another list, as the page did; how many lists it opened is kept in the body's `data-opened` (read
+    // from browser_eval's world of its own, which does not see the page's variables).
+    "/late-combo": `<!doctype html><title>Late combo</title><meta name="viewport" content="width=device-width">
+        <style>body{font:16px sans-serif} [role=listbox]{position:fixed;left:8px;top:120px;background:#fff;border:1px solid #888} [role=option]{padding:8px 16px;cursor:pointer}</style>
+        <span id="slot"></span>
+        <p id="out">Show: All</p>
+        <script>
+            const delay = Number(new URLSearchParams(location.search).get('delay'));
+            let value = 'All';
+            document.body.dataset.opened = '0';
+            function render(open) {
+                const b = document.createElement('button');
+                b.setAttribute('role', 'combobox'); b.setAttribute('aria-haspopup', 'listbox');
+                b.setAttribute('aria-expanded', String(open)); b.textContent = 'Show: ' + value;
+                b.onclick = () => {
+                    render(true);
+                    setTimeout(() => {
+                        document.body.dataset.opened = String(Number(document.body.dataset.opened) + 1);
+                        const list = document.createElement('div');
+                        list.setAttribute('role', 'listbox');
+                        for (const name of ['All', 'Approved', 'Rejected']) {
+                            const o = document.createElement('div');
+                            o.setAttribute('role', 'option'); o.textContent = name;
+                            o.onclick = () => { value = name; list.remove(); render(false); out.textContent = 'Shown: ' + name; };
+                            list.append(o);
+                        }
+                        document.body.append(list);
+                    }, delay);
                 };
                 slot.replaceChildren(b);
             }
@@ -177,6 +212,58 @@ test("with Chrome: browser_select opens a combobox whose options a portal render
         // Never opens: said so, with the page now; the link above was not followed.
         await assert.rejects(browser.select(1, number(chosen, /\[(\d+)\] combobox "Status: Any"/), "Open"), /\[\d+\] Status: Any did not open: no list of options showed within 3 s of the click, and nothing else was clicked\./);
         assert.match(await browser.snapshot(1), /^Combo — http:\/\/pi\.test\/combo\n/);
+    } finally {
+        await browser.close();
+    }
+});
+
+/**
+ * A run model as Jev judged the late combobox (PP-457), never a model: it picks the option "Approved" when one is offered,
+ * else clicks the "Show" combobox (again, if it is still there); done once the page shows "Shown: Approved".
+ */
+const lateComboDecider: Decider = {
+    label: "a stub",
+    async decide(state, questions) {
+        const offered = Object.entries((questions.click_target as { criteria: Record<string, string> } | undefined)?.criteria ?? {});
+        const approved = offered.find(([, label]) => /\] Approved$/.test(label));
+        const show = offered.find(([, label]) => /\] Show: /.test(label));
+        const done = state.page.text.includes("Shown: Approved");
+        const answers: Record<string, unknown> = { operation: { choice: done ? "DONE" : "CLICK" }, goal_achieved: { noul: done ? 0.95 : 0 } };
+
+        if (questions.click_target) {
+            answers.click_target = { choice: (approved ?? show ?? offered[0]!)[0] };
+        }
+
+        if (questions.prev_ok) {
+            answers.prev_ok = { noul: 0.9 };
+        }
+
+        return { answers: readAnswers(questions, answers), cost: 0, tokens: { input: 0, output: 0 } };
+    },
+};
+
+test("with Chrome: browser_run waits for what a click opens late, and never clicks an open combobox again while its options come (PP-457)", { skip }, async () => {
+    const browser = browserHere();
+    const run = () => browser.run(1, { goal: "Set Show to Approved", values: {}, maxSteps: 6, decider: lateComboDecider, approve: NO_CARD });
+
+    try {
+        // Options 1.2 s after the click: the next step reads them, and picks one; one list opened.
+        await browser.open(1, "http://pi.test/late-combo?delay=1200");
+        const late = await run();
+
+        assert.equal(late.result.status, "done", late.page);
+        assert.deepEqual(late.result.steps.map((step) => step.did.replace(/\[\d+\] /, "")), ["clicked Show: All", "clicked Approved"]);
+        assert.deepEqual(await browser.evaluate(1, "document.body.dataset.opened", false), { json: '"1"' });
+
+        // Later than the run waits (3.6 s): the combobox is open with nothing in it; the run waits for its options rather
+        // than click it again (a second list), then picks one.
+        await browser.open(1, "http://pi.test/late-combo?delay=3600");
+        const later = await run();
+
+        assert.equal(later.result.status, "done", later.page);
+        assert.match(later.result.steps[1]!.did, /^waited for the options of \[\d+\] Show: All, which is open \(not clicked again\)$/);
+        assert.equal(later.result.steps.at(-1)!.did.replace(/\[\d+\] /, ""), "clicked Approved");
+        assert.deepEqual(await browser.evaluate(1, "document.body.dataset.opened", false), { json: '"1"' });
     } finally {
         await browser.close();
     }

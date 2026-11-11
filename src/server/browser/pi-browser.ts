@@ -80,6 +80,9 @@ export type PopupMode = "allow" | "ask" | "off";
 export const POPUP_MODES: readonly PopupMode[] = ["allow", "ask", "off"];
 /** How long an answer waits for a window the page asked for (`Page.windowOpen`) to open, or the phone to ask about it. */
 const WINDOW_WAIT_MS = 3000;
+/** How long browser_run waits after a click for the page to settle, and how long without a change counts (PP-457). */
+const RUN_SETTLE_MS = 3000;
+const RUN_QUIET_MS = 300;
 /** How long `browser_select` waits for the options of a list a page draws after opening it (PP-448). */
 const OPTIONS_WAIT_MS = 3000;
 
@@ -2238,6 +2241,16 @@ export class PiBrowser {
                     scroll: (direction) => page.scroll(direction, 0.85),
                     wait: async () => {
                         await page.wait({ seconds: 1 });
+                    },
+                    // What a click opens may come late (a portal's options, PP-457): 300 ms without a change, and no
+                    // list still opening, within 3 s.
+                    settle: async (observed, node) => {
+                        // A click that left the document (a link) has nothing more to wait for here: the next read follows it.
+                        await page.quiet(element(observed, node), RUN_SETTLE_MS, RUN_QUIET_MS).catch((error: unknown) => {
+                            if (!(error instanceof StalePage)) {
+                                throw error;
+                            }
+                        });
                     },
                     stale: (error) => error instanceof StalePage,
                 },

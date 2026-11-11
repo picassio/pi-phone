@@ -6,7 +6,7 @@
  * The loop's shape and the act-time checks follow jev-ultrafast (MIT, Browser Use).
  */
 import { readFileSync } from "node:fs";
-import type { Cdp } from "./cdp.ts";
+import { type Cdp, CdpError } from "./cdp.ts";
 import type { Submit } from "../risky.ts";
 
 const SNAPSHOT = readFileSync(new URL("./snapshot.js", import.meta.url), "utf8");
@@ -2214,6 +2214,49 @@ export class BrowserPage {
           })(${local}, ${ms})`,
             { awaitPromise: true },
         );
+    }
+
+    /**
+     * After a click in browser_run (PP-457): wait until the page settles, `ms` at most: no change to its document for
+     * `quietMs`, and no list a combobox or a menu button opened still waiting for its options (it says it is expanded,
+     * and no option, menu item or list it controls shows yet: a portal may draw them once data comes). Read in the
+     * clicked control's frame, where what it opens is. Answers whether it settled within `ms`.
+     */
+    async quiet(element: Element, ms: number, quietMs: number): Promise<boolean> {
+        return this.#evaluateAt<boolean>(
+            element.node,
+            () => `(async (ms, quietMs) => {
+            const shown=x=>{ const r=x.getBoundingClientRect(); return r.width>0 && r.height>0 && x.checkVisibility({checkOpacity:true,checkVisibilityCSS:true}); };
+            const roots=${ROOTS};
+            const items=()=>roots.some(root=>[...root.querySelectorAll('[role="option"],[role="menuitem"],[role="menuitemradio"],[role="menuitemcheckbox"]')].some(shown));
+            const opening=()=>roots.some(root=>[...root.querySelectorAll('[aria-expanded="true"]')].some(e=>{
+              if (e.getAttribute('role')!=='combobox' && !e.hasAttribute('aria-haspopup')) return false;
+              if (!shown(e)) return false;
+              const ids=(e.getAttribute('aria-controls')||e.getAttribute('aria-owns')||'').split(/\\s+/).filter(Boolean);
+              return !ids.some(id=>{ const list=document.getElementById(id); return list!==null && shown(list); });
+            })) && !items();
+            let last=performance.now();
+            const watch=new MutationObserver(()=>{ last=performance.now(); });
+            watch.observe(document,{subtree:true,childList:true,attributes:true,characterData:true});
+            const until=performance.now()+ms;
+            try {
+              for (;;) {
+                const now=performance.now();
+                if (now-last>=quietMs && !opening()) return true;
+                if (now>=until) return false;
+                await new Promise(done=>setTimeout(done,50));
+              }
+            } finally { watch.disconnect(); }
+          })(${ms}, ${quietMs})`,
+            { awaitPromise: true },
+        ).catch((error: unknown) => {
+            // The click went to another document while this waited: the page changed under it.
+            if (error instanceof CdpError && /context was destroyed|Cannot find context/i.test(error.message)) {
+                throw new StalePage("The page went to another document while it settled.");
+            }
+
+            throw error;
+        });
     }
 
     async select(observed: Observed, element: Element, option: string): Promise<string> {

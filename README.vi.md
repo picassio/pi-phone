@@ -306,7 +306,9 @@ dự án thật.</sub>
   nói mô hình nào đã quyết định và ai chọn nó. Mỗi bước gửi cho mô hình chạy: mục tiêu, các giá trị Pi đưa (bí mật chỉ bằng tên), địa chỉ, tiêu đề và
   văn bản hiển thị của trang, cùng các ô điều khiển và giá trị của chúng: với Jev, gửi tới OpenRouter bằng khóa OpenRouter
   của bạn; với mô hình của phiên, gửi tới nhà cung cấp của nó. Một lượt chạy tự nhấp và gõ mà không hỏi, trên các trang
-  bạn có thể đang đăng nhập. Nó chỉ gõ các giá trị Pi cung cấp, dừng kèm lý do Pi xử lý được (cần một giá trị, bị
+  bạn có thể đang đăng nhập. Sau mỗi cú nhấp, nó chờ trang ổn định (tối đa 3 giây, hoặc đến khi danh sách vừa mở
+  hiện các lựa chọn), nên những gì đến muộn không bị coi là nhấp hỏng, và nó không bao giờ nhấp lại một danh sách thả
+  xuống đang mở khi các lựa chọn của nó còn đang tới. Nó chỉ gõ các giá trị Pi cung cấp, dừng kèm lý do Pi xử lý được (cần một giá trị, bị
   chặn, bị kẹt, chưa thấy xong), và chi phí của Jev được tính vào Chi tiêu. Một thẻ trực tiếp trong cuộc trò chuyện hiện
   mục tiêu, từng bước khi nó diễn ra, thời gian và chi phí, kèm nút Xem. **Hỏi trước khi thanh toán, gửi, đặt
   chỗ hoặc xóa:** trước cú nhấp (`browser_click`), phím Enter hay Space (`browser_press`, `browser_type` có submit)

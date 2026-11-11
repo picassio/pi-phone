@@ -61,6 +61,7 @@ function shop(frozen = false) {
             }
         },
         wait: async () => void done.push("wait"),
+        settle: async () => {},
         stale: () => false,
     };
 
@@ -149,6 +150,7 @@ test("a page with something to drag offers DRAG: what to drag (only what can be)
         drag: async (_observed, from, to) => void done.push(`drag ${from} ${to}`),
         scroll: async () => {},
         wait: async () => {},
+        settle: async () => {},
         stale: () => false,
     };
     const replies = ['{"operation": {"choice": "DRAG"}, "drag_target": {"choice": "1"}, "drop_target": {"choice": "2"}}', '{"operation": {"choice": "DONE"}, "goal_achieved": {"noul": 0.9}}'];

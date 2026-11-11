@@ -284,13 +284,16 @@ export async function testDecision(decider: Decider): Promise<{ choice: string; 
 
 // ─── One step's action space ───────────────────────────────────────────────────────────────────────────────────
 
-type Target = { node: number; index: number; label: string; option?: string };
+/** `open`: a combobox that says it is open (expanded) while no option shows: its options may still be coming. */
+type Target = { node: number; index: number; label: string; option?: string; open?: boolean };
 
 /** The operations and targets the page offers now, numbered as the element table shows them. */
 export function actionSpace(observed: Observed) {
     const indices = new Map<number, number>();
     const elements: DecisionState["elements"] = [];
     const targets: Record<"CLICK" | "TYPE_TEXT" | "SELECT" | "DRAG", Record<string, Target>> = { CLICK: {}, TYPE_TEXT: {}, SELECT: {}, DRAG: {} };
+    // Options on the page: an open combobox has drawn its list.
+    const listing = observed.actions.some((action) => action.role === "option");
 
     for (const action of observed.actions) {
         let index = indices.get(action.node);
@@ -320,7 +323,7 @@ export function actionSpace(observed: Observed) {
             element.options = [...(element.options ?? []), { index: key, label: action.option ?? action.value ?? "" }];
             targets.SELECT[key] = { node: action.node, index, label: action.label, option: action.option ?? action.value ?? "" };
         } else {
-            targets[operation][String(index)] = { node: action.node, index, label: action.label };
+            targets[operation][String(index)] = { node: action.node, index, label: action.label, ...(action.role === "combobox" && action.expanded === "true" && !listing ? { open: true } : {}) };
         }
 
         // Something to drag (PP-376): DRAG takes it, and any element is where it may go (CLICK's targets).
@@ -437,6 +440,11 @@ export interface RunPage {
     drag(observed: Observed, from: number, to: number): Promise<void>;
     scroll(direction: "up" | "down"): Promise<void>;
     wait(): Promise<void>;
+    /**
+     * After a click on `node` (as `observed` read it): until the page settles, a few seconds at most (PP-457): what a
+     * click opens may come late, and the next step judges the click by the page it reads.
+     */
+    settle(observed: Observed, node: number): Promise<void>;
     /** Whether a failure means the page changed under the action (read it again and decide again). */
     stale(error: unknown): boolean;
 }
@@ -597,10 +605,16 @@ export async function runGoal(page: RunPage, decider: Decider, options: RunOptio
 
                 const target = space.targets[operation][key]!;
 
-                if (operation === "CLICK") {
+                if (operation === "CLICK" && target.open === true) {
+                    // Open, its options not shown yet: a click again would close it, or open a second list (PP-457).
+                    did = `waited for the options of [${target.index}] ${target.label}, which is open (not clicked again)`;
+                    options.progress(`Waiting for the options of [${target.index}] ${target.label}`);
+                    await page.settle(observed, target.node);
+                } else if (operation === "CLICK") {
                     did = `clicked [${target.index}] ${target.label}`;
                     options.progress(`Clicking [${target.index}] ${target.label}`);
                     await page.click(observed, target.node);
+                    await page.settle(observed, target.node);
                 } else if (operation === "SELECT") {
                     did = `chose ${JSON.stringify(target.option)} in [${target.index}] ${target.label}`;
                     options.progress(`Choosing ${JSON.stringify(target.option)} in [${target.index}] ${target.label}`);

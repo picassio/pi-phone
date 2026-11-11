@@ -2071,6 +2071,16 @@ so Pi changes them through the settings tools; "the last session" is the one the
   clickable too). `browser_run` offers DRAG when the page has something draggable: `drag_target` (what) and
   `drop_target` (any clickable control), `RunPage.drag`. HTML5 drags that start inside a frame of another site are not
   caught by the page's interception (pointer moves still go there).
+- **browser_run waits for a click's effect** (`RunPage.settle`, `BrowserPage.quiet`, PP-457): after each CLICK the
+  run waits, in the clicked control's frame, until the document has not changed for 300 ms and no combobox or menu
+  button that says it is expanded still lacks its options (no option or menu item shows, nor the list it controls),
+  3 s at most; then it reads the page the next decision judges. Before, it read the page 50 ms after the click: a
+  portal that drew its options 1.2 s later was judged "did not work", clicked again (a second list) and the run ended
+  stale. A CLICK the run model picks on a combobox that is open while no option shows is not clicked again (that
+  closes it, or opens another list): the step waits the same way and says so ("waited for the options of …, which is
+  open"). Every click costs at least the 300 ms of quiet. Measured with a stub run model on the PP-448 fixture with
+  1.2 s and 3.6 s delays (test/browser-stale.test.ts); not with the PP-451/453 eval, which runs Jev through
+  OpenRouter.
 - **The run model for one call** (`runDecider` in `browser/run.ts`, PP-451): browser_run and computer_run take an
   optional `model`, `jev` or `session`, Pi's choice for that call over the owner's setting (`browser.runModel`,
   `browser.sessionRunModel`), with no card: Jev is cheaper and faster than most session models. `jev` is the setting's

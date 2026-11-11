@@ -301,7 +301,9 @@ No Termux, no laptop, no cloud VM.
   `session`), and the run's answer says which decided and who chose it. Each step sends the run model the goal, the values Pi
   gave (a secret by its name only), the page's address, title and visible text, and its controls with their values:
   with Jev, to OpenRouter with your OpenRouter key; with the session's model, to its provider. A run clicks and types
-  without asking, on pages you may be signed in to. It types only values Pi supplies, stops with
+  without asking, on pages you may be signed in to. After each click it waits for the page to settle (up to 3 s, or
+  until a list it opened shows its options), so what comes late is not judged a failed click, and it never clicks an
+  open drop-down again while its options are still coming. It types only values Pi supplies, stops with
   a reason Pi can act on (a value it needs, blocked, stuck, not visibly done), and Jev's cost counts in Spend. A live card in the
   conversation shows its goal, each step as it happens, the time and cost, and Watch.
   **Ask before paying, sending, booking or deleting:** before Pi's click (`browser_click`), Enter or Space
