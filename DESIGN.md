@@ -1149,7 +1149,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
     content (a chart's screen-reader table: the element or an ancestor a box of 1 x 1 px or less that hides its
     overflow, a clip of no area, a clip-path inset that meets itself, or opacity 0; its own box keeps its natural size,
     so the ancestors tell), for every kind. Visibility goes by the element's computed value, which inherits, so a child
-    set visible inside a hidden parent still counts, as it shows. Findings are grouped (the same
+    set visible inside a hidden parent still counts, as it shows. A box of `display: contents` has none (0 x 0): an
+    element in one is held to the nearest ancestor with a box, and its overflow hides nothing (PP-501). An open modal
+    dialog (a `<dialog>` opened with `showModal()`, matched by `:modal`, or a dialog marked `aria-modal="true"` that
+    shows; the last in the page's order) is measured alone, as the person cannot reach the page behind it; overlaps are
+    measured inside it (a layer within it is still one), and the words say "measured inside the open dialog …; the
+    page behind it is left out" (`modal` in the report). Findings are grouped (the same
     kind of element with the same numbers once, with a count), at most 20 groups a kind kept and 3 shown with a count
     of the rest, so a whole app screen stays a screenful; a summary line names more than 6 font sizes or text
     colours, more than 2 families, or icons in more than 2 sizes or stroke widths. The check is a script the server

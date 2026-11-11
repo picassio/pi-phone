@@ -27,6 +27,9 @@
  * chains its scroll to the page, a viewport that blocks zoom, font-feature-settings "tnum"). A pulsing dot is one whose
  * keyframes change its opacity or scale, never a spinner (PP-425). Since PP-432, a child's corner that pokes out of a
  * rounded parent that does not clip it (a progress fill in a rounded bar).
+ *
+ * Since PP-501, a box of display: contents (which has none) is passed over for the nearest ancestor with a box, and an
+ * open modal dialog is measured alone, as the page behind it cannot be reached; the report names it (`modal`).
  */
 
 /** One thing out of place: what it is, and the boxes that show it (x and width, CSS pixels). */
@@ -98,6 +101,8 @@ export type LayoutReport = {
     canvas?: { uses: string; chrome: string };
     /** A password field shows (PP-500): a sign-in screen, maybe, which a render without the site's sign-in gets. */
     password?: boolean;
+    /** An open modal dialog, by name (PP-501): only it was measured, as the page behind it cannot be reached. */
+    modal?: string;
 };
 
 /** An expression: whether a password field shows on the page (PP-500), for the layout check and the redlines' measure. */
@@ -155,7 +160,9 @@ export const PAGE_HELPERS = String.raw`
   const ALL = { l: -1e9, t: -1e9, r: 1e9, b: 1e9 };
   const meet = (a, b) => ({ l: Math.max(a.l, b.l), t: Math.max(a.t, b.t), r: Math.min(a.r, b.r), b: Math.min(a.b, b.b) });
   const empty = (a) => a.r - a.l < 1 || a.b - a.t < 1;
-  const clips = (e) => { const s = css(e); return s.overflowX !== 'visible' || s.overflowY !== 'visible'; };
+  // A box of display: contents has none (0 x 0): its overflow hides nothing, and its children are laid out in its
+  // parent's box (PP-501).
+  const clips = (e) => { const s = css(e); return s.display !== 'contents' && (s.overflowX !== 'visible' || s.overflowY !== 'visible'); };
   const padBox = (e) => {
     const r = e.getBoundingClientRect(), s = css(e);
     return { l: r.left + parseFloat(s.borderLeftWidth), t: r.top + parseFloat(s.borderTopWidth), r: r.right - parseFloat(s.borderRightWidth), b: r.bottom - parseFloat(s.borderBottomWidth) };
@@ -240,7 +247,7 @@ export const PAGE_HELPERS = String.raw`
     let v = concealments.get(e);
     if (v === undefined) {
       const s = css(e), r = e.getBoundingClientRect();
-      v = (r.width <= 1 && r.height <= 1 && /hidden|clip/.test(s.overflowX + ' ' + s.overflowY)) || clipless(s) || insetMeets(s.clipPath, r) || Number(s.opacity) === 0 || concealedBox(e.parentElement);
+      v = (r.width <= 1 && r.height <= 1 && s.display !== 'contents' && /hidden|clip/.test(s.overflowX + ' ' + s.overflowY)) || clipless(s) || insetMeets(s.clipPath, r) || Number(s.opacity) === 0 || concealedBox(e.parentElement);
       concealments.set(e, v);
     }
     return v;
@@ -447,7 +454,12 @@ export const layoutCheck = (width?: number) => String.raw`(() => {
   const issues = [];
   let checked = 0, more = 0;
 ${PAGE_HELPERS}
-  const clipsX = (e) => { const o = css(e).overflowX; return o !== 'visible'; };
+  const clipsX = (e) => css(e).display !== 'contents' && css(e).overflowX !== 'visible';
+  // An open modal dialog (PP-501): a <dialog> opened with showModal(), or a dialog marked aria-modal, that shows. The
+  // page behind it cannot be reached, so only the dialog is measured: the last one in the page's order, which holds
+  // a dialog opened from inside it.
+  const modal = document.body ? [...document.querySelectorAll(':modal,[aria-modal=true]')].filter((e) => shows(e, e.getBoundingClientRect())).pop() || null : null;
+  const measuredAll = !document.body ? [] : modal ? [modal, ...modal.querySelectorAll('*')] : [...document.body.querySelectorAll('*')];
   const add = (issue) => { if (issues.length < 12) issues.push(issue); else more++; };
   const round = (r) => [Math.round(r.left), Math.round(r.width)];
   const groups = new Map();
@@ -490,9 +502,11 @@ ${PAGE_HELPERS}
       const own = link.getBoundingClientRect();
       if (x < own.left || x > own.right || y < own.top || y > own.bottom) return null;
     }
-    if (hit.closest(LAYER) || !hides(hit, target)) return null;
+    // Inside an open modal (PP-501), the modal is the page: a layer in it is still one, the modal itself is not.
+    const around = hit.closest(LAYER);
+    if ((around && !(modal && around.contains(modal))) || !hides(hit, target)) return null;
     let layer = null;
-    for (let a = hit; a && a !== document.body; a = a.parentElement) if (/fixed|absolute|sticky/.test(css(a).position)) { layer = a; break; }
+    for (let a = hit; a && a !== document.body && a !== modal; a = a.parentElement) if (/fixed|absolute|sticky/.test(css(a).position)) { layer = a; break; }
     if (layer) {
       const r = layer.getBoundingClientRect();
       if (r.width * r.height >= 0.4 * VW * VH) return null;
@@ -544,7 +558,7 @@ ${PAGE_HELPERS}
   const SCROLL_LAYER = 'dialog,[role=dialog],[role=alertdialog],[aria-modal=true]';
   const tell = (e, rule) => group('css-tell', sig(e) + '|' + rule, () => ({ what: name(e), rule }));
 
-  for (const e of document.body ? document.body.querySelectorAll('*') : []) {
+  for (const e of measuredAll) {
     if (++checked > 4000) break;
     const r = e.getBoundingClientRect();
     if (r.width < 1 || r.height < 1) continue;
@@ -557,8 +571,10 @@ ${PAGE_HELPERS}
       if (style.overflowX === 'visible' && e.scrollWidth > e.clientWidth + 1 && e.clientWidth > 0 && !['svg', 'img', 'canvas', 'video', 'iframe'].includes(tag)) {
         add({ kind: 'spills', what: name(e), box: [Math.round(r.left), e.scrollWidth], limit: [Math.round(r.left), e.clientWidth] });
       }
-      const p = e.parentElement;
-      if (p && p !== document.body && style.position !== 'fixed' && style.position !== 'absolute') {
+      // Against the nearest ancestor with a box: one of display: contents has none (PP-501).
+      let p = e.parentElement;
+      while (p && p !== document.body && css(p).display === 'contents') p = p.parentElement;
+      if (p && p !== document.body && e !== modal && style.position !== 'fixed' && style.position !== 'absolute') {
         const q = p.getBoundingClientRect();
         if (r.left < q.left - 1 || r.right > q.right + 1) add({ kind: 'outside-parent', what: name(e), box: round(r), limit: round(q) });
       }
@@ -758,7 +774,7 @@ ${PAGE_HELPERS}
   // Text: what each run of words shows, its size, colour and contrast, and what covers it.
   const SKIP = new Set(['script', 'style', 'noscript', 'template', 'textarea', 'option', 'title']);
   const EMOJI = /(?![\u00A9\u00AE\u2122])\p{Extended_Pictographic}\uFE0F?|[\u2713\u2717\u2718\u2605\u2606\u25A0-\u25FF]/gu;
-  const walker = document.body ? document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT) : null;
+  const walker = document.body ? document.createTreeWalker(modal || document.body, NodeFilter.SHOW_TEXT) : null;
   const range = document.createRange(), whole = document.createRange();
   const cutBoxes = new Set();
   let texts = 0;
@@ -895,7 +911,7 @@ ${PAGE_HELPERS}
   // A page that does not scroll itself but inside a box, half a screen or more (the view is as tall as the picture now),
   // that still hides content below (an app shell, PP-440): the most hidden one.
   let shellBox;
-  for (const e of document.body && document.documentElement.scrollHeight <= innerHeight + 1 ? document.body.querySelectorAll('*') : []) {
+  for (const e of document.body && document.documentElement.scrollHeight <= innerHeight + 1 ? measuredAll : []) {
     if (e.clientHeight < Math.min(VH, 800) / 2 || e.clientWidth < W / 2 || e.scrollHeight <= e.clientHeight + 2 || !/^(auto|scroll|overlay)$/.test(css(e).overflowY)) continue;
     if (!shellBox || e.scrollHeight - e.clientHeight > shellBox.full - shellBox.shown) shellBox = { what: name(e), shown: e.clientHeight, full: e.scrollHeight };
   }
@@ -910,7 +926,7 @@ ${PAGE_HELPERS}
     else if (Array.isArray(window.__piPageErrors) && window.__piPageErrors.some((x) => /\bdrawElementImage\b/.test(String(x)))) canvasUse = 'a call to drawElementImage';
   }
   const canvas = canvasUse ? { uses: canvasUse, chrome: (/Chrome\/(\d+)/.exec(navigator.userAgent) || [, 'unknown'])[1] } : undefined;
-  return JSON.stringify(Object.assign({ width: W, height: innerHeight, checked: Math.min(checked, 4000), issues, more, found, totals, summary }, shellBox ? { scroller: shellBox } : {}, errors.length ? { errors } : {}, canvas ? { canvas } : {}, ${PASSWORD_SHOWN} ? { password: true } : {}));
+  return JSON.stringify(Object.assign({ width: W, height: innerHeight, checked: Math.min(checked, 4000), issues, more, found, totals, summary }, modal ? { modal: name(modal) } : {}, shellBox ? { scroller: shellBox } : {}, errors.length ? { errors } : {}, canvas ? { canvas } : {}, ${PASSWORD_SHOWN} ? { password: true } : {}));
 })()`;
 
 /** Each kind's heading, in the order the words give them. */
@@ -1033,7 +1049,7 @@ function pageNotes(report: LayoutReport): string[] {
 
 /** The report in words for Pi: one line when all is in place, else each issue with its numbers, grouped and capped. */
 export function describeLayout(report: LayoutReport): string {
-    const head = `Layout check at ${report.width} px (${report.checked} elements)`;
+    const head = `Layout check at ${report.width} px (${report.checked} elements${report.modal === undefined ? "" : `, measured inside the open dialog ${report.modal}; the page behind it is left out`})`;
     const total = report.issues.length + report.more + Object.values(report.totals).reduce((sum, n) => sum + (n ?? 0), 0);
     const summary = summaryWords(report.summary);
 
@@ -1129,6 +1145,10 @@ export function parseLayout(text: unknown, width: number): LayoutReport | undefi
 
         if (value.password !== undefined && value.password !== true) {
             delete value.password;
+        }
+
+        if (value.modal !== undefined && typeof value.modal !== "string") {
+            delete value.modal;
         }
 
         if (value.width > width + 1 && !value.issues.some((issue) => issue.kind === "page-wider")) {

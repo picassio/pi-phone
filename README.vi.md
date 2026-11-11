@@ -396,7 +396,7 @@ dự án thật.</sub>
   line-height 1 trên chữ xuống dòng, ô nhập chữ dưới 16 px trên điện thoại, hộp thoại cuộn thiếu
   `overscroll-behavior: contain`, viewport chặn phóng to, `tnum` thay vì `tabular-nums`), gom nhóm kèm số đo, và báo khi trang dùng quá nhiều
   cỡ chữ, màu chữ hoặc cỡ biểu tượng. Nội dung ẩn dành cho trình đọc màn hình (bảng dữ liệu của biểu đồ trong hộp 1 px)
-  được bỏ qua. Trình duyệt của Pi cho cùng phép kiểm tra đó với `browser_screenshot`, và riêng
+  được bỏ qua. Khi đang mở một hộp thoại modal, chỉ hộp thoại được đo, và báo cáo nói rõ điều đó. Trình duyệt của Pi cho cùng phép kiểm tra đó với `browser_screenshot`, và riêng
   bằng `browser_layout_check`. Pi dựa vào các con số.
 - **Các bước trước khi chụp.** `screenshot` và `redline` nhận `steps` chạy trong trang trước ảnh và layout check của
   mỗi độ rộng (chạm một phần tử, gõ vào một ô, nhấn một phím, chờ một lúc hoặc chờ một phần tử), nên menu, bộ chọn hay

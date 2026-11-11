@@ -136,6 +136,15 @@ const PAGES: Record<string, string> = {
       <div id="scroll" role="dialog" style="height:80px;overflow-y:auto"><p style="height:240px">Long</p></div><div role="dialog" style="height:80px;overflow-y:auto;overscroll-behavior:contain"><p style="height:240px">Held</p></div>
       <h2 id="one" style="line-height:1;width:120px">A heading that wraps over lines</h2><h2 style="line-height:1">Short</h2>
       <div id="top" style="box-shadow:inset 0 3px 0 #2563eb;padding:8px">Top stripe</div><div id="bar" class="bar">Bar under</div><div class="tab" role="tab">Tab</div></div>`,
+    // display: contents (PP-501): a definition list's rows wrapped in a box-less div, as visa-dashboard's case page has
+    // them; the words are laid out in the list's box. One such div hides its overflow, which it cannot: its words show.
+    "/contents": `${head}<dl class="col" style="margin:0 20px"><div style="display:contents"><dt id="term">Appointment</dt><dd id="date" style="margin:0 0 0 16px">12 November 2026</dd></div><div style="display:contents;overflow:hidden"><dt id="fine" style="font-size:10px">Fine print</dt></div></dl>`,
+    // An open modal dialog (PP-501): the page behind it has faults of its own (small text, a small button), which the
+    // person cannot reach; inside, small text and a button under a box. A dialog opened with showModal(), one marked
+    // aria-modal, and one marked so but hidden, which leaves the page measured.
+    "/modal": `${head}<div class="col"><p id="behind" style="font-size:10px">Behind the dialog</p><button id="tiny" style="width:24px;height:24px;padding:0">x</button></div><dialog id="add" style="width:300px;padding:16px;border:0"><p id="inside" style="font-size:10px;margin:0">Inside the dialog</p><div style="position:relative;margin-top:16px"><button id="save" style="width:120px;height:48px;padding:0">Save</button><div id="veil" style="position:absolute;left:0;top:0;width:100px;height:48px;background:#eeeeee"></div></div></dialog><script>document.getElementById("add").showModal();</script>`,
+    "/aria-modal": `${head}<div class="col"><p id="behind" style="font-size:10px">Behind the sheet</p></div><div id="sheet" role="dialog" aria-modal="true" style="position:fixed;left:0;right:0;bottom:0;padding:16px;background:#ffffff"><p id="inside" style="font-size:10px;margin:0">Inside the sheet</p></div>`,
+    "/aria-modal-hidden": `${head}<div class="col"><p id="behind" style="font-size:10px">Behind the sheet</p></div><div role="dialog" aria-modal="true" hidden style="position:fixed;inset:0;background:#ffffff"><p style="font-size:10px">Not open</p></div>`,
     ...AUTON_PAGES,
 };
 let server: Server;
@@ -329,6 +338,47 @@ test("the layout check finds cut text, overlaps, small tap targets, off-grid siz
         const [essay] = of(await measured(page, "/long"), "long-lines");
 
         assert.ok(essay !== undefined && essay.what.startsWith("p#essay") && essay.chars > 90, JSON.stringify(essay));
+    } finally {
+        await engine.close();
+    }
+});
+
+test("an element in a display: contents box is measured against the nearest box, and an open modal dialog is measured alone, which the words say (PP-501)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+        const short = (what: string) => what.replace(/ ".*$/, "");
+
+        await page.init({ width: 390, height: 844, mobile: true });
+
+        // The <dt> and <dd> sit in the list's box, not outside the wrapper's 0 x 0; the wrapper's overflow hides nothing.
+        const contents = await measured(page, "/contents");
+
+        assert.deepEqual(contents.issues, [], JSON.stringify(contents.issues));
+        assert.deepEqual(of(contents, "small-text").map((find) => short(find.what)), ["dt#fine"]);
+
+        // showModal(): only the dialog, with its own faults; a box over its button is a cover there.
+        const dialog = await measured(page, "/modal");
+
+        assert.equal(dialog.modal, 'dialog#add "Inside the dialogSave"');
+        assert.deepEqual(of(dialog, "small-text").map((find) => short(find.what)), ["p#inside"]);
+        assert.deepEqual(of(dialog, "small-target"), []);
+        assert.deepEqual(of(dialog, "covered").map((find) => [short(find.what), short(find.by)]), [["button#save", "div#veil"]]);
+        assert.match(describeLayout(dialog), /^Layout check at 390 px \(\d+ elements, measured inside the open dialog dialog#add "Inside the dialogSave"; the page behind it is left out\): \d+ out of place\./);
+
+        // aria-modal: the same; hidden, it is not open, and the page is measured.
+        const sheet = await measured(page, "/aria-modal");
+
+        assert.match(sheet.modal ?? "", /^div#sheet /);
+        assert.deepEqual(of(sheet, "small-text").map((find) => short(find.what)), ["p#inside"]);
+
+        const closed = await measured(page, "/aria-modal-hidden");
+
+        assert.equal(closed.modal, undefined);
+        assert.deepEqual(of(closed, "small-text").map((find) => short(find.what)), ["p#behind"]);
+        assert.doesNotMatch(describeLayout(closed), /measured inside/);
+        assert.equal(parseLayout(JSON.stringify({ ...report(390), modal: 3 }), 390)?.modal, undefined);
     } finally {
         await engine.close();
     }
