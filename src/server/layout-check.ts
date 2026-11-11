@@ -148,7 +148,7 @@ export const TEXT_MIN = 12;
  * What the page scripts share (the layout check, PP-395; the redlines, PP-398), in a script that defined `W` (the width
  * the page is laid out at), `VW` and `VH`: element names, computed styles, opacity, the region an element's content
  * shows in (its ancestors' boxes that hide overflow), whether an element shows, colours as Chrome writes them, the
- * background behind an element, and what a control is.
+ * background behind an element, what a control is, and the open modal dialogs (`modals()`, PP-501).
  */
 export const PAGE_HELPERS = String.raw`
   const trim = (s, n) => { s = (s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n) : s; };
@@ -456,20 +456,8 @@ export const PAGE_HELPERS = String.raw`
   };
   const px = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
   const CONTROL = 'a[href],button,input:not([type=hidden]),select,textarea,summary,[role=button],[role=link],[role=tab],[role=checkbox],[role=switch],[role=menuitem],[role=option],[role=radio],[tabindex]:not([tabindex="-1"])';
-`;
-
-export const layoutCheck = (width?: number) => String.raw`(() => {
-  const W = ${width === undefined ? "innerWidth" : String(Math.round(width))}, VW = innerWidth, VH = innerHeight;
-  // The width the page is laid out for (PP-414): a phone page wider than its screen stretches innerWidth to its content
-  // (570 in a 390 px WebView), while the root's clientWidth and the media queries stay the screen's.
-  const PW = ${width === undefined ? "Math.min(innerWidth, document.documentElement.clientWidth || innerWidth)" : "W"};
-  const issues = [];
-  let checked = 0, more = 0;
-${PAGE_HELPERS}
-  const clipsX = (e) => css(e).display !== 'contents' && css(e).overflowX !== 'visible';
-  // An open modal dialog (PP-501): a <dialog> opened with showModal(), a dialog marked aria-modal, or a dialog whose
-  // page around it is shut (sealed), that shows. The page behind it cannot be reached, so only the dialog is
-  // measured: the last one in the page's order, which holds a dialog opened from inside it.
+  // Open modal dialogs (PP-501), in the page's order, for the layout check and the redlines alike: a <dialog> opened
+  // with showModal(), a dialog marked aria-modal, or a dialog whose page around it is shut (sealed), that shows.
   // Shut, any of three ways (a dialog with the page around it reachable, data-state=open alone, is no modal):
   // - hidden: each other child of body is aria-hidden=true (react-aria) or inert (Headless UI), or bare;
   // - out of reach: the dialog takes a pointer while body, or each other child of body, takes none (Radix's
@@ -492,7 +480,21 @@ ${PAGE_HELPERS}
     const hits = [[r.left - 2, cy], [r.right + 2, cy], [cx, r.top - 2], [cx, r.bottom + 2]].filter(([x, y]) => x >= 0 && y >= 0 && x < VW && y < VH).map(([x, y]) => document.elementFromPoint(x, y));
     return hits.length > 0 && hits.every((h) => h && h === hits[0]) && !dialog.contains(hits[0]) && hits[0] !== document.body && hits[0] !== document.documentElement && bare(hits[0], dialog);
   };
-  const modal = document.body ? [...document.querySelectorAll(':modal,[aria-modal=true],[role=dialog],[role=alertdialog]')].filter((e) => (e.matches(':modal,[aria-modal=true]') || sealed(e)) && shows(e, e.getBoundingClientRect())).pop() || null : null;
+  const modals = () => document.body ? [...document.querySelectorAll(':modal,[aria-modal=true],[role=dialog],[role=alertdialog]')].filter((e) => (e.matches(':modal,[aria-modal=true]') || sealed(e)) && shows(e, e.getBoundingClientRect())) : [];
+`;
+
+export const layoutCheck = (width?: number) => String.raw`(() => {
+  const W = ${width === undefined ? "innerWidth" : String(Math.round(width))}, VW = innerWidth, VH = innerHeight;
+  // The width the page is laid out for (PP-414): a phone page wider than its screen stretches innerWidth to its content
+  // (570 in a 390 px WebView), while the root's clientWidth and the media queries stay the screen's.
+  const PW = ${width === undefined ? "Math.min(innerWidth, document.documentElement.clientWidth || innerWidth)" : "W"};
+  const issues = [];
+  let checked = 0, more = 0;
+${PAGE_HELPERS}
+  const clipsX = (e) => css(e).display !== 'contents' && css(e).overflowX !== 'visible';
+  // An open modal dialog (PP-501, PAGE_HELPERS' modals): the page behind it cannot be reached, so only the dialog is
+  // measured: the last one in the page's order, which holds a dialog opened from inside it.
+  const modal = modals().pop() || null;
   const measuredAll = !document.body ? [] : modal ? [modal, ...modal.querySelectorAll('*')] : [...document.body.querySelectorAll('*')];
   // Android's font scale reaches a WebView as text zoom (PP-433): every px font size and line height computes that much
   // larger (at 108 %, 14 px is 15.12), after CSS has rounded, so a row as tall as its lines leaves the 4 px grid there

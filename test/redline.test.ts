@@ -17,6 +17,7 @@ import { ChromeEngine, PiBrowser } from "../src/server/browser/pi-browser.ts";
 import { decodePicture } from "../src/server/markup.ts";
 import { describeRedline, NO_DOM, parseRedline, parseSpec, planRedline, REDLINE_COLORS, type RedlineMeasure, redlinePictures, redlineScript, specFrom } from "../src/server/redline.ts";
 import { Screenshots } from "../src/server/screenshots.ts";
+import { radix } from "./dialog-fixtures.ts";
 
 const chrome = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"].find((name) => {
     try {
@@ -50,6 +51,16 @@ body{margin:0;font:15px/20px sans-serif;background:#fff;color:#111}
 <div class="scrim"><section id="sheet" role="dialog" aria-modal="true"><h2>Dictation</h2><button>Turn on</button></section></div>`;
 /** A phone page wider than its screen (PP-424): the browser stretches innerWidth to the 600 px row. */
 const OVERFLOW = `<!doctype html><meta name="viewport" content="width=device-width"><body style="margin:0"><div style="width:600px;white-space:nowrap">A row wider than the phone</div><button id="tiny" style="width:28px;height:28px;padding:0">A</button>`;
+/**
+ * Radix's dialog, as the layout check's tests have it (PP-501): open as a modal (body out of a pointer's reach, an
+ * overlay around it, or both), and open with the page around it reachable, which is no modal.
+ */
+const DIALOGS: Record<string, string> = {
+    "/radix": radix({ body: "pointer-events:none", overlay: true }),
+    "/radix-pointer": radix({ body: "pointer-events:none", overlay: false }),
+    "/radix-overlay": radix({ body: "", overlay: true }),
+    "/radix-open-page": radix({ body: "", overlay: false }),
+};
 
 let server: Server;
 let port = 0;
@@ -68,7 +79,7 @@ const route: FauxResponseStep = (request) => {
 before(async () => {
     server = createServer((_request, response) => {
         response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        response.end(_request.url === "/sheet" ? SHEET : _request.url === "/overflow" ? OVERFLOW : PAGE);
+        response.end(_request.url === "/sheet" ? SHEET : _request.url === "/overflow" ? OVERFLOW : (DIALOGS[_request.url ?? ""] ?? PAGE));
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     port = (server.address() as { port: number }).port;
@@ -273,6 +284,38 @@ test("with Chrome: with a sheet open over the page, auto mode measures the sheet
 
         assert.equal(rows.layer, undefined);
         assert.equal(rows.blocks.length, 3);
+    } finally {
+        await renderer.stop();
+    }
+});
+
+test("with Chrome: a Radix dialog open as a modal is the top layer, found as the layout check finds it; open with the page around it reachable, the page is measured (PP-501)", { skip }, async () => {
+    const screenshots = new Screenshots();
+    const renderer = new ChromeRenderer(screenshots, { binary: chrome!, flags: ["--no-sandbox"], base: `http://127.0.0.1:${port}`, token: () => "owner-token", log: () => {} });
+
+    void renderer.run();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const measure = async (path: string) => {
+        const [shot] = await screenshots.render(`http://127.0.0.1:${port}${path}`, { widths: [390], settleMs: 200, check: redlineScript({ width: 390 }) });
+
+        return parseRedline(shot!.check)!;
+    };
+
+    try {
+        for (const path of ["/radix", "/radix-pointer", "/radix-overlay"]) {
+            const dialog = await measure(path);
+
+            assert.match(dialog.layer ?? "", /^div#radix-r1 "Thêm lịch hẹn/, `${path}: ${dialog.layer}`);
+            assert.deepEqual(dialog.types.map((type) => type.what.split(" ")[0]).sort(), ["h2#radix-r2", "p#inside"], path);
+            assert.ok(dialog.blocks.every((block) => !/behind|button/.test(block.what)), `${path}: ${dialog.blocks.map((block) => block.what).join(", ")}`);
+        }
+
+        const open = await measure("/radix-open-page");
+
+        assert.equal(open.layer, undefined);
+        assert.ok(open.types.some((type) => type.what.startsWith("p#behind")));
+        assert.ok(open.blocks.some((block) => block.kind === "control" && /Thêm lịch hẹn/.test(block.what)));
     } finally {
         await renderer.stop();
     }

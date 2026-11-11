@@ -112,10 +112,10 @@ ${PAGE_HELPERS}
     if (t) out.type = typeOf(t.node.parentElement, t.rect);
     return out;
   };
-  // A sheet or dialog open over the page (a modal: dialog:modal, aria-modal): auto mode measures that top layer only, not
-  // the page under its backdrop. The topmost is the one whose middle shows at its middle; else the last open.
-  const modal = (e) => { try { if (e.matches('dialog:modal')) return true; } catch {} return e.getAttribute('aria-modal') === 'true'; };
-  const layers = document.body ? [...document.body.querySelectorAll('dialog, [aria-modal="true"]')].filter((e) => modal(e) && shows(e, e.getBoundingClientRect())) : [];
+  // A sheet or dialog open over the page (a modal, as the layout check finds it: PAGE_HELPERS' modals, which takes a
+  // Radix dialog too, PP-501): auto mode measures that top layer only, not the page under its backdrop. The topmost is
+  // the one whose middle shows at its middle; else the last open.
+  const layers = modals();
   let top = null;
   for (const e of [...layers].reverse()) {
     const r = e.getBoundingClientRect(), hit = document.elementFromPoint(Math.min(VW - 1, Math.max(0, r.left + r.width / 2)), Math.min(VH - 1, Math.max(0, r.top + r.height / 2)));

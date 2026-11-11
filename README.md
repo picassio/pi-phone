@@ -417,7 +417,8 @@ No Termux, no laptop, no cloud VM.
   as `screenshot` renders it) and draws the numbers on its picture, as a designer's redlines: padding as green strips
   and gaps between blocks as magenta ones with their pixels, corner radii as blue tags, control sizes (tap targets
   under 40 px on a phone in red), type (size, line height, weight, colour) in purple, and a legend of the values used
-  under the picture. It measures the main blocks (with a sheet or dialog open, only that top layer), or the elements a
+  under the picture. It measures the main blocks (with a modal sheet or dialog open, found as the layout check finds it, Radix's
+  too, only that top layer), or the elements a
   selector finds; given a spec (a design system's
   tokens.css, or a plain list such as "padding 16, radius 24/12/20, font 22/13/12") it marks what is off it in red with
   the spec's value ("gap 23, spec 24") and lists it. `browser_redline` does the same on the page in front of Pi's
