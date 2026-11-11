@@ -111,6 +111,21 @@ const stepsOf = (
 export const SIGN_IN_NOTE =
     "The page shows a password field: this may be its sign-in screen, as the render has no sign-in of yours. To see it signed in, open the site in Pi's browser (browser_open) and sign in there, then take the screenshot again: a site open in this session's Pi browser renders with its sign-in. Or sign in in the render with steps: {type: css, secret: NAME} types a saved secret into a password field (then click the button, and wait for what the next page shows).";
 
+/** The view a renderer lays a page out in (`tab-render.ts`, `Renderer.java`): a phone's height under 600 px wide, a desktop's above. */
+const viewHeight = (width: number): number => (width < 600 ? 844 : 800);
+
+/**
+ * Said when a whole-page picture was taken at the view's height as a modal dialog was open (PP-501: the renderer does
+ * so, as a dialog fixed in a view as tall as the page sat mid-page). An app from before it pictures the whole page.
+ */
+export function modalNote(fullPage: boolean, shots: readonly Shot[]): string {
+    const views = fullPage ? shots.filter((shot) => shot.layout?.modal !== undefined && shot.height === viewHeight(shot.width)) : [];
+
+    return views.length === 0
+        ? ""
+        : ` A modal dialog was open, so ${views.map((shot) => `${shot.width} px`).join(", ")} ${views.length === 1 ? "is" : "are"} pictured as the screen shows ${views.length === 1 ? "it" : "them"} (the screen's height), not the whole page: the dialog is fixed on the screen, and the page behind it does not scroll.`;
+}
+
 /**
  * Said under a step that failed in a page rendered without Pi's browser's sign-ins (PP-501): a page that shows its
  * content only signed in shows none, so its elements are not there. On Build #490 the render had lost the sign-in
@@ -341,7 +356,7 @@ export default function createScreenshot(host: PocketHost) {
                 output: [
                     {
                         type: "text" as const,
-                        text: `${what}, ${page.how}${steps.words}: ${shots.map((shot) => `${shot.width}×${shot.height}${shot.parts.length > 1 ? ` in ${shot.parts.length} pictures, top to bottom` : ""}`).join(", ")} (CSS pixels${shots.some((shot) => shot.height >= 4000) ? "; cut at 4000 px tall" : ""}).${saved.length === 0 ? "" : ` Saved as ${saved.join(", ")}.`}${signInNote(page, shots.some((shot) => shot.layout?.password === true))}`,
+                        text: `${what}, ${page.how}${steps.words}: ${shots.map((shot) => `${shot.width}×${shot.height}${shot.parts.length > 1 ? ` in ${shot.parts.length} pictures, top to bottom` : ""}`).join(", ")} (CSS pixels${shots.some((shot) => shot.height >= 4000) ? "; cut at 4000 px tall" : ""}).${modalNote(args.fullPage ?? true, shots)}${saved.length === 0 ? "" : ` Saved as ${saved.join(", ")}.`}${signInNote(page, shots.some((shot) => shot.layout?.password === true))}`,
                     },
                     ...shots.flatMap((shot) => [
                         ...shot.parts.map((part) => ({ type: "image" as const, data: part.toString("base64"), mimeType: "image/jpeg" })),

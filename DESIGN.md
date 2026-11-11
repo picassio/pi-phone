@@ -1112,6 +1112,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
   1280 one's. Measured on the phone (Settings › Appearance open, 800 px tall): 37 KB at 390, 83 KB at 1280, 92 KB at
   1920; a model that scales a picture to 1568 px a side (Claude) reads a 1920 × 2000 part as about 3,100 tokens, a
   1280 × 2000 one as about 2,100. The 4000 px cap stays: the renderer's display is width × 4000 (31 MB a frame at 1920).
+  A whole-page picture lays the view out as tall as the page, so `position: fixed` follows it: with a modal dialog open
+  (the layout check's `modal`), the dialog sat mid-page (y 1650–2340 of 4000 on visa-dashboard's case page, PP-501).
+  Then both renderers (`tab-render.ts` `modalOpen`, `Renderer.java` `modalOpen`) lay the page out at the view's height
+  again, measure it there and picture that, and the answer says so (`modalNote`, by the shot's height being the view's:
+  an app from before it pictures the whole page and says nothing). The view rather than the whole page because the
+  person cannot scroll the page behind a modal, and a step that opened it is not run twice (it may have sent a form).
   asks the app's service, which long-polls `GET /api/phone/renders` (beside `/api/phone/events`), to draw the page in an
   off-screen WebView of the app (on a private virtual display of its own at density 1, laid out at the page's size, at most
   4000 px tall; the picture is the frame the GPU composed, since `view.draw` into a canvas misplaced composited layers,

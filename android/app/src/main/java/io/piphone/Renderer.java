@@ -287,7 +287,24 @@ final class Renderer {
                         page.invalidate();
                         main.postDelayed(() -> {
                             // The page measures itself first (layout-check.ts): Pi gets numbers with the picture.
+                            Runnable[] remeasure = new Runnable[1];
                             ValueCallback<String> measured = (report) -> {
+                                // An open modal in a whole-page picture (PP-501): position:fixed follows the page's
+                                // height, so the dialog sat mid-page. Pictured at the view's height, measured there.
+                                boolean modal;
+                                try {
+                                    modal = height[0] > viewport && modalOpen(report);
+                                } catch (Exception e) {
+                                    done.accept(e);
+                                    return;
+                                }
+                                if (modal) {
+                                    height[0] = viewport;
+                                    layout(page, width, viewport);
+                                    page.invalidate();
+                                    main.postDelayed(remeasure[0], 600);
+                                    return;
+                                }
                                 int mark = stage.frames;
                                 Runnable take = () -> {
                                     try {
@@ -320,6 +337,7 @@ final class Renderer {
                                 if (check.isEmpty()) measured.onReceiveValue(null);
                                 else page.evaluateJavascript(check, measured);
                             };
+                            remeasure[0] = measure;
                             // Steps before the shot (PP-423, render-steps.ts): what a person would tap first. A page a
                             // step loaded is measured again for a whole-page picture (PP-500).
                             Consumer<Boolean> stepped = (another) -> {
@@ -452,6 +470,16 @@ final class Renderer {
                 child.layout(0, 0, child.getMeasuredWidth(), child.getMeasuredHeight());
             }
         }
+    }
+
+    /**
+     * Whether the check's answer (evaluateJavascript's JSON of the string it returned) is a layout check that names an
+     * open modal dialog (layout-check.ts `modal`, PP-501).
+     */
+    private static boolean modalOpen(String report) throws org.json.JSONException {
+        if (report == null || report.equals("null")) return false;
+        String text = new JSONArray("[" + report + "]").optString(0, "");
+        return text.startsWith("{") && new JSONObject(text).has("modal");
     }
 
     private static void layout(WebView view, int widthPx, int heightPx) {

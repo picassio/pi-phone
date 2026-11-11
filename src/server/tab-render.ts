@@ -76,7 +76,17 @@ export async function shootInTab(tabs: TabMaker, request: RenderRequest, width: 
         }
 
         // The page measures itself just before it is pictured.
-        const check = await evaluate<string>(request.check);
+        let check = await evaluate<string>(request.check);
+
+        // An open modal in a whole-page picture (PP-501): position:fixed follows the view, laid out as tall as the page,
+        // so the dialog sat mid-page (y 1650-2340 of 4000 on visa-dashboard). The view the person has is pictured, at the
+        // phone's or desktop's height, and measured again there; the answer says so.
+        if (height !== viewport && modalOpen(check)) {
+            height = viewport;
+            await layOut(height);
+            check = await evaluate<string>(request.check);
+        }
+
         const parts: string[] = [];
 
         for (let top = 0; top < height; top += PART) {
@@ -159,6 +169,11 @@ async function runSteps(evaluate: <T>(expression: string) => Promise<T>, request
 
         await sleep(100);
     }
+}
+
+/** Whether a check's answer is a layout check that names an open modal dialog (`layout-check.ts` `modal`). */
+export function modalOpen(check: string): boolean {
+    return check.startsWith("{") && typeof (JSON.parse(check) as { modal?: unknown }).modal === "string";
 }
 
 /** Open the page and wait until it loaded (45 s at most). */

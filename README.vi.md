@@ -374,7 +374,8 @@ dự án thật.</sub>
   ứng dụng sẽ hiện đúng kiểu. `localStorage` và `sessionStorage` của nó dùng được, trong bộ nhớ và trống ở mỗi lần chụp,
   nên một ứng dụng một tệp đọc chúng vẫn vẽ ra thay vì trang trắng, và các lỗi trang ném ra được liệt kê dưới ảnh. Trang
   của một ứng dụng cuộn trong vùng chính, không phải body, được chụp trọn (tới 4000 px), hoặc lượt kiểm tra nói ảnh bỏ
-  sót bao nhiêu. Trong một phiên trên máy, `screenshot` và `redline` lấy tệp của máy đó, và địa chỉ `localhost` hay
+  sót bao nhiêu. Khi đang mở một hộp thoại modal, ảnh chụp đúng một màn hình thay vì cả trang, hộp thoại ở chỗ người
+  dùng thấy nó, và câu trả lời nói rõ điều đó. Trong một phiên trên máy, `screenshot` và `redline` lấy tệp của máy đó, và địa chỉ `localhost` hay
   `127.0.0.1` ở đó là của máy: ứng dụng mở cổng đó về điện thoại cho lần chụp rồi đóng lại.
 - **Chụp trang cần đăng nhập.** Một trang mà phiên đã đăng nhập trong trình duyệt của Pi (trên điện thoại, một máy, hay
   máy chủ) được chụp và đo redline ở trạng thái đã đăng nhập: trang được vẽ với phiên đăng nhập của trình duyệt đó, khuất

@@ -370,7 +370,8 @@ No Termux, no laptop, no cloud VM.
   Its `localStorage` and `sessionStorage` work, in memory and empty at each shot, so a single-file app that reads them
   draws instead of showing a blank page, and the errors a page throws are listed under its pictures. The whole page of
   an app that scrolls in its main area, not the body, is pictured whole (up to 4000 px), or the check says how much the
-  picture leaves out. In a session on a machine, `screenshot` and `redline` take that machine's files, and a `localhost`
+  picture leaves out. With a modal dialog open, the screen is pictured instead of the whole page, the dialog where the
+  person sees it, and the answer says so. In a session on a machine, `screenshot` and `redline` take that machine's files, and a `localhost`
   or `127.0.0.1` address there is the machine's: the app opens that port to the phone for the shot and closes it after.
 - **Screenshots behind a sign-in.** A site the session signed in to in Pi's browser (on the phone, a machine, or the
   server) is shot and redlined signed in: the page renders with that browser's sign-in, out of sight (a tab of its own

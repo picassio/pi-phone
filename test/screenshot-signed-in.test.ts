@@ -119,7 +119,10 @@ before(async () => {
         }
 
         response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        response.end(path === "/app" ? APP : path === "/case" ? CASE : LOGIN);
+        // `/case?tall`: the case with 3000 px of history under it, a page taller than any screen.
+        const tall = (request.url ?? "").endsWith("?tall") ? `<div id="history" style="height:3000px"></div>` : "";
+
+        response.end(path === "/app" ? APP : path === "/case" ? CASE + tall : LOGIN);
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     port = (server.address() as { port: number }).port;
@@ -136,6 +139,8 @@ const CALLS: Record<string, [string, Record<string, unknown>]> = {
         { url: "http://shop.test/app", widths: [390], steps: [{ type: "#user", text: "han" }, { type: "#pass", secret: "SHOP_PW" }, { click: "#go" }, { wait: "#welcome" }] },
     ],
     "type the secret in the open": ["screenshot", { url: "http://shop.test/login", widths: [390], steps: [{ type: "#user", secret: "SHOP_PW" }] }],
+    // A whole-page picture of a page taller than the screen, with a dialog opened (PP-501).
+    "open the dialog on the tall case": ["screenshot", { url: "http://shop.test/case?tall", widths: [390, 1280], steps: [{ wait: 'button[aria-label="Thêm lịch hẹn"]' }, { click: 'button[aria-label="Thêm lịch hẹn"]' }, { wait: "[role=dialog]" }] }],
     // Its button only once its data came (PP-501): no wait before the click, no settle, as #214022 asked first.
     "add an appointment": ["screenshot", { url: "http://shop.test/case", widths: [390], settle: 0, fullPage: false, steps: [{ click: 'button[aria-label="Thêm lịch hẹn"]' }, { wait: "[role=dialog]" }] }],
 };
@@ -247,6 +252,49 @@ test("a page that draws only once its data came: a click waits up to 5 s for its
 
         await assert.rejects(shootInTab(engine, never, 390), /step 1 \(wait for "#never"\): nothing visible matched within 5 s: nothing matches "#never"/);
         assert.ok(Date.now() - started >= 5000 && Date.now() - started < 9000, `gave up after ${Date.now() - started} ms`);
+    } finally {
+        await app.close();
+        await engine.close();
+    }
+});
+
+test("a whole-page screenshot with a modal dialog open pictures the screen, the dialog where the person sees it, and says so; without one, the whole page (PP-501)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP shop.test 127.0.0.1:${port}`, "--no-sandbox"]);
+    const app = await openApp(scriptedModel(route), join(root, "shot-modal-view"), undefined, { browserEngine: engine });
+
+    try {
+        const id = await newSession(app);
+        const session = Number(id);
+        const browser = app.browserFor(app.cwdOf(id), session);
+
+        apiDelay = 300;
+        await browser.open(session, "http://shop.test/signin");
+        assert.match(await browser.wait(session, { text: "Case HS-0089" }), /Case HS-0089/);
+
+        const shot = await turn(app, id, "open the dialog on the tall case");
+
+        assert.match(shot, /after 3 steps [^\n]*: 390×844, 1280×800 \(CSS pixels\)\. A modal dialog was open, so 390 px, 1280 px are pictured as the screen shows them \(the screen's height\), not the whole page/, shot);
+        assert.equal(shot.match(/measured inside the open dialog div#appt/g)?.length, 2, shot);
+
+        // Where the dialog is in the picture: 30 % down the screen (top: 30%), not 30 % down a view as tall as the page.
+        const button = 'button[aria-label="Thêm lịch hẹn"]';
+        const where = renderRequest("http://shop.test/case?tall", {
+            widths: [390],
+            steps: [{ wait: button }, { click: button }, { wait: "[role=dialog]" }],
+            check: `JSON.stringify({ modal: document.querySelector("[role=dialog]") ? "div#appt" : undefined, top: document.querySelector("[role=dialog]")?.getBoundingClientRect().top, view: innerHeight })`,
+        });
+        const placed = await shootInTab(engine, where, 390);
+
+        assert.equal(placed.height, 844);
+        const seen = JSON.parse(placed.check) as { modal: string; top: number; view: number };
+
+        assert.equal(seen.view, 844);
+        assert.ok(Math.abs(seen.top - 844 * 0.3) < 1, `the dialog's top: ${seen.top}`);
+
+        // No dialog: the whole page, as before.
+        const page = await shootInTab(engine, renderRequest("http://shop.test/case?tall", { widths: [390], steps: [{ wait: button }] }), 390);
+
+        assert.ok(page.height > 3000, `the whole page: ${page.height}`);
     } finally {
         await app.close();
         await engine.close();
