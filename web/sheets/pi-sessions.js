@@ -5,6 +5,7 @@ import { actions, api, attempt, closeSheet, navigate, notify, openSheet, store }
 import { formatBytes, html, Icon, Loader, Sheet, shortPath, timeAgo } from "../ui.js";
 import { isRemotePlace } from "../place.js";
 import { t, tn, tx } from "../i18n.js";
+import { pickModel } from "./model.js";
 
 /** Where Claude Code keeps its sessions (PP-496): a path, not words. */
 const CLAUDE_FOLDER = "~/.claude/projects";
@@ -56,7 +57,9 @@ function SessionRow({ session, converting, convert }) {
                     claude
                         ? converting === session.path
                             ? t("Converting it to a Pi session…")
-                            : t("{size} · {when}", { size: formatBytes(session.claudeCode.size), when: timeAgo(session.modified) })
+                            : session.claudeCode.noRequest
+                              ? t("{size} · {when} · no request", { size: formatBytes(session.claudeCode.size), when: timeAgo(session.modified) })
+                              : t("{size} · {when}", { size: formatBytes(session.claudeCode.size), when: timeAgo(session.modified) })
                         : tn(session.messages, "{n} message · {when}", "{n} messages · {when}", { when: timeAgo(session.modified) })
                 }
             </span>
@@ -227,7 +230,9 @@ export function PiSessionsSheet() {
                                         ${
                                             converting === session.path
                                                 ? t("Converting it to a Pi session…")
-                                                : session.claudeCode
+                                                : session.noRequest
+                                                  ? t("{folder} · {size} · {when} ago · no request", { folder: shortPath(session.cwd, machine.home), size: formatBytes(session.size), when: timeAgo(session.modified) })
+                                                  : session.claudeCode
                                                   ? t("{folder} · {size} · {when} ago", { folder: shortPath(session.cwd, machine.home), size: formatBytes(session.size), when: timeAgo(session.modified) })
                                                   : t("{folder} · {when} ago", { folder: shortPath(session.cwd, machine.home), when: timeAgo(session.modified) })
                                         }
@@ -316,8 +321,59 @@ function ClaudeKept({ kept }) {
     </div>`;
 }
 
+/** A model as the card names it: its name when it is signed in here, else its `provider/id`. */
+const modelName = (spec) => store.state.models?.find((each) => `${each.provider}/${each.id}` === spec)?.name ?? spec;
+
+/**
+ * The model a session converted from Claude Code starts with (PP-498): this app's default, or one picked here (`picked`,
+ * kept in the sheet while the picker takes its place). Claude Code's own model is named, not used.
+ */
+function ClaudeModel({ path, info, picked }) {
+    const starts = picked ?? info.model;
+    const pick = async () => {
+        const sheet = store.state.sheet;
+        const chosen = await pickModel({ title: t("Model"), sub: t("The converted session starts with it"), value: starts });
+
+        openSheet(chosen === null ? sheet : { type: "pi-session", id: path, model: chosen });
+    };
+    const detail =
+        starts === null
+            ? t("No default model: pick one")
+            : picked !== undefined && picked !== info.model
+              ? t("Picked here")
+              : info.modelHere
+                ? t("This app's default model")
+                : t("This app's default model, not signed in here");
+
+    return html`<div class="pi-model">
+        <div class="label">${t("Model")}</div>
+        <button type="button" class="choice" aria-haspopup="dialog" aria-label=${t("Model it starts with")} onClick=${pick}>
+            <span class="choice-text">
+                <span>${starts === null ? t("None") : modelName(starts)}</span>
+                <span class="choice-detail">${detail}</span>
+            </span>
+            <${Icon} name="down" size=${16} />
+        </button>
+        ${
+            info.claudeCode.model &&
+            html`<p class="muted small">${t("Claude Code worked with {model}; it is not used here unless you pick it.", { model: info.claudeCode.model })}</p>`
+        }
+    </div>`;
+}
+
+/** The history goes to the model as it is (PP-498): what of it is masked, and what is not. */
+function ClaudeHistory({ kept }) {
+    return html`<div class="pi-kept pi-warn" role="note">
+        <${Icon} name="key" size=${16} />
+        <p>
+            ${t("The history goes to the model as it is, with any passwords or keys written in it. Values of your saved secrets are masked as [secret NAME].")}
+            ${kept.masked > 0 && html` ${tn(kept.masked, "Masked in {n} text.", "Masked in {n} texts.")}`}
+        </p>
+    </div>`;
+}
+
 /** One of Pi's sessions: where it worked and with what, its last messages, and continuing it here. */
-export function PiSessionSheet({ path }) {
+export function PiSessionSheet({ path, model: picked }) {
     const home = store.state.server?.home;
     const [info, setInfo] = useState(null);
     const [problem, setProblem] = useState(null);
@@ -361,6 +417,7 @@ export function PiSessionSheet({ path }) {
                 const { id } = await actions.continuePiSession(
                     path,
                     info.cwdExists ? undefined : folder.trim(),
+                    picked !== undefined && picked !== info.model ? picked : undefined,
                 );
 
                 open(id);
@@ -388,17 +445,21 @@ export function PiSessionSheet({ path }) {
     return html`<${Sheet} title=${info.claudeCode ? t("Claude Code session") : t("Pi session")} onClose=${closeSheet}>
         <h3 class="pi-title">${info.title}</h3>
         ${info.claudeCode && html`<${ClaudeKept} kept=${info.claudeCode} />`}
+        ${info.claudeCode && html`<${ClaudeHistory} kept=${info.claudeCode} />`}
         <dl class="pi-facts">
             <div>
                 <dt>${t("Folder")}</dt>
                 <dd class="mono">${shortPath(info.cwd, home)}</dd>
             </div>
-            <div>
-                <dt>${t("Model")}</dt>
-                <dd class="mono">
-                    ${info.model ?? "—"}${info.model && !info.modelHere ? html`<span class="muted"> · ${t("not signed in here")}</span>` : ""}
-                </dd>
-            </div>
+            ${
+                !info.claudeCode &&
+                html`<div>
+                    <dt>${t("Model")}</dt>
+                    <dd class="mono">
+                        ${info.model ?? "—"}${info.model && !info.modelHere ? html`<span class="muted"> · ${t("not signed in here")}</span>` : ""}
+                    </dd>
+                </div>`
+            }
             <div>
                 <dt>${t("Messages")}</dt>
                 <dd>${info.messages}</dd>
@@ -423,7 +484,9 @@ export function PiSessionSheet({ path }) {
                 </div>
             </div>`
         }
+        ${info.claudeCode && html`<${ClaudeModel} path=${path} info=${info} picked=${picked} />`}
         ${
+            !info.claudeCode &&
             info.model &&
             !info.modelHere &&
             html`<p class="muted small">${t("It continues with this app's usual model.")}</p>`

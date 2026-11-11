@@ -37,6 +37,8 @@ export type PiSessionListing = {
     messages?: number;
     /** A Claude Code session (PP-496): it continues converted. */
     claudeCode?: boolean;
+    /** A Claude Code session without a request in its first lines: its title is its folder and start (PP-498). */
+    noRequest?: boolean;
     /** The session here that continues it. */
     continuedIn?: number;
     busy: boolean;
@@ -337,6 +339,7 @@ export class SessionControl implements SessionsApi {
                 modified: each.modified,
                 ...(each.messages === undefined ? {} : { messages: each.messages }),
                 ...(each.claudeCode === undefined ? {} : { size: each.claudeCode.size, claudeCode: true }),
+                ...(each.claudeCode?.noRequest === true ? { noRequest: true } : {}),
                 ...(each.pocket === undefined ? {} : { continuedIn: each.pocket.id }),
                 busy: now - each.modified < BUSY_MS,
             }));
@@ -352,6 +355,7 @@ export class SessionControl implements SessionsApi {
                 modified: each.modified,
                 size: each.size,
                 ...(each.claudeCode === undefined ? {} : { claudeCode: true }),
+                ...(each.noRequest === undefined ? {} : { noRequest: true }),
                 ...(each.phoneSession === undefined ? {} : { continuedIn: each.phoneSession }),
                 ...(each.continuedIn === undefined ? {} : { continuedIn: each.continuedIn }),
                 busy: now - each.modified < BUSY_MS,
@@ -366,7 +370,7 @@ export class SessionControl implements SessionsApi {
     async importPiSession(
         caller: ConversationId,
         request: { machineId?: string; path: string; folder?: string },
-    ): Promise<{ id: number; cwd: string; title: string; kept?: string }> {
+    ): Promise<{ id: number; cwd: string; title: string; model?: string; kept?: string }> {
         const { user, root } = this.#caller(caller);
         const pi = this.#app.piSessions;
         const local =
@@ -389,11 +393,13 @@ export class SessionControl implements SessionsApi {
 
         this.#spend(root);
         const { id } = await this.#app.commands.continuePiSession(user, local, cwd);
+        const model = (await this.#app.agentState(id))?.model;
 
         return {
             id: Number(id),
             cwd: this.#app.cwdOf(id),
             title: preview.title,
+            ...(model === undefined ? {} : { model: `${model.provider}/${model.modelId}` }),
             ...(preview.claudeCode === undefined ? {} : { kept: describeKept(preview.claudeCode) }),
         };
     }

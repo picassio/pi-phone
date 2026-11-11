@@ -513,12 +513,17 @@ export class Commands {
      * whose folder is not on this machine, such as one imported from elsewhere), with its model when that one is signed
      * in here (`pi-sessions.ts`). The owner's, as Pi's own files are.
      *
+     * One converted from Claude Code starts with this app's default model instead (PP-498): Claude Code's model on
+     * whichever account "anthropic" is here is nobody's choice. `model` (`provider/id`, signed in here) is the card's
+     * choice of another, for any session.
+     *
      * A session of any size (PP-486): its messages are read from the file as they are written, in commits of a few
      * megabytes, and the session joins the list with the last commit, whole. One that fails on the way stays out of the
      * list, with what it had written.
      */
-    async continuePiSession(user: User, path: string, folder?: string): Promise<{ id: ConversationId }> {
+    async continuePiSession(user: User, path: string, folder?: string, model?: string): Promise<{ id: ConversationId }> {
         const app = this.#app;
+        const chosen = model === undefined ? undefined : this.#signedIn(model);
         const copy = await app.piSessions.open(user, path);
 
         try {
@@ -536,7 +541,12 @@ export class Commands {
                 );
             }
 
-            const start = this.#defaultModel(session);
+            const start =
+                chosen !== undefined
+                    ? this.#defaultModel({ model: chosen, thinkingLevel: session.thinkingLevel })
+                    : app.piSessions.claudeKept(path) !== undefined
+                      ? this.#defaultModel()
+                      : this.#defaultModel(session);
             const conversation = await app.harness.createConversation(
                 {
                     ownership: { kind: "ownerless" },
@@ -684,6 +694,21 @@ export class Commands {
     /** The model and thinking level a new session starts with now. */
     defaultModel(): { model?: ModelRef; thinkingLevel?: ModelThinkingLevel } {
         return this.#defaultModel();
+    }
+
+    /** A model named `provider/id` that is signed in here, or a 400 that says it is not. */
+    #signedIn(spec: string): { provider: string; modelId: string } {
+        const slash = spec.indexOf("/");
+        const provider = spec.slice(0, slash);
+        const modelId = spec.slice(slash + 1);
+        const found =
+            slash > 0 && this.#app.models.getAvailableSnapshot().some((each) => each.provider === provider && each.id === modelId);
+
+        if (!found) {
+            throw new HttpError(400, `${spec} is not a model signed in here. Choose another.`);
+        }
+
+        return { provider, modelId };
     }
 
     /**

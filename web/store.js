@@ -1483,8 +1483,11 @@ export const actions = {
     piSession: (path) => api(`pi-sessions/preview?path=${encodeURIComponent(path)}`),
     /** A Pi session file from elsewhere (another machine, Termux), kept with Pi's sessions here. */
     importPiSession: (file) => api(`pi-sessions/import?name=${encodeURIComponent(file.name)}`, file),
-    /** `cwd`: the folder to work in, for a session whose own folder is not on this phone. */
-    continuePiSession: (path, cwd) => api("pi-sessions/continue", { path, ...(cwd ? { cwd } : {}) }),
+    /**
+     * `cwd`: the folder to work in, for a session whose own folder is not on this phone; `model` (`provider/id`): the
+     * model it starts with, picked on the card (PP-498).
+     */
+    continuePiSession: (path, cwd, model) => api("pi-sessions/continue", { path, ...(cwd ? { cwd } : {}), ...(model ? { model } : {}) }),
     /** `extra`: what a card sends with Approve (the machine_add card's ticked `tools`). */
     approve: (id, allow, extra = {}) => api(`approvals/${encodeURIComponent(id)}`, { allow, ...extra }),
     /** `worktree`: the session works in a git worktree of its own, made from the folder. */

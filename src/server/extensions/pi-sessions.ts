@@ -64,7 +64,7 @@ export default function createPiSessions(host: PocketHost) {
                               ...shown.map((each) =>
                                   [
                                       `- ${host.text.quoted(each.title || "(no message)")}`,
-                                      `  ${each.claudeCode ? "Claude Code session (continues converted to a Pi session) · " : ""}folder ${each.cwd} · ${ago(each.modified)}${each.size === undefined ? "" : ` · ${Math.round(each.size / 1024)} KB`}${each.messages === undefined ? "" : ` · ${each.messages} messages`}${each.busy ? " · busy: changed in the last 2 minutes, pi may still be running there" : ""}${each.continuedIn === undefined ? "" : ` · continued here in #${each.continuedIn}`}`,
+                                      `  ${each.claudeCode ? "Claude Code session (continues converted to a Pi session) · " : ""}${each.noRequest ? "no request in it · " : ""}folder ${each.cwd} · ${ago(each.modified)}${each.size === undefined ? "" : ` · ${Math.round(each.size / 1024)} KB`}${each.messages === undefined ? "" : ` · ${each.messages} messages`}${each.busy ? " · busy: changed in the last 2 minutes, pi may still be running there" : ""}${each.continuedIn === undefined ? "" : ` · continued here in #${each.continuedIn}`}`,
                                       `  path ${each.path}`,
                                   ].join("\n"),
                               ),
@@ -95,7 +95,9 @@ export default function createPiSessions(host: PocketHost) {
                     ...(args.folder === undefined ? {} : { folder: args.folder }),
                 });
 
-                return reply(`Continued as session #${made.id}, [${made.title}](/s/${made.id}), in ${made.cwd}.${made.kept === undefined ? "" : ` ${made.kept}`}`);
+                return reply(
+                    `Continued as session #${made.id}, [${made.title}](/s/${made.id}), in ${made.cwd}${made.model === undefined ? "" : `, with ${made.model}`}.${made.kept === undefined ? "" : ` ${made.kept}`}`,
+                );
             } catch (error) {
                 return failed(error);
             }

@@ -612,7 +612,10 @@ dự án thật.</sub>
   của một máy, kèm lịch sử, với mọi kích thước (hàng trăm MB: tệp được đọc từng phần, phần xem trước chỉ đọc phần cuối).
   Các phiên của Claude Code (`~/.claude/projects`, trên điện thoại hoặc một máy) cũng được liệt kê, gắn nhãn Claude Code:
   một phiên được chuyển thành phiên Pi để tiếp tục (văn bản, suy nghĩ, lệnh gọi công cụ và kết quả, ảnh), từ lần nén cuối,
-  hoặc các lượt cuối kèm bản tóm tắt khi quá dài, và thẻ cho biết phần nào được tiếp tục; tệp gốc chỉ được đọc.
+  hoặc các lượt cuối kèm bản tóm tắt khi quá dài, và thẻ cho biết phần nào được tiếp tục; tệp gốc chỉ được đọc. Phiên
+  bắt đầu với mô hình mặc định của ứng dụng (thẻ nêu mô hình Claude Code đã dùng và cho chọn mô hình khác), giá trị các
+  bí mật bạn đã lưu được che, và thẻ cảnh báo phần còn lại của lịch sử được gửi cho mô hình nguyên như vậy. Một phiên
+  Claude Code không có yêu cầu nào được liệt kê theo thư mục và thời điểm bắt đầu.
   Hoặc gửi một phiên sang `pi` trên máy và mang về những gì đã làm ở đó. Pi tự làm được cả hai (`pi_sessions`, `pi_session_import`, `continue_in_pi`, `pi_bring_back`).
 
 ### Ứng dụng trên điện thoại này

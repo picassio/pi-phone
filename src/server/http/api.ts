@@ -1434,7 +1434,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
         }
 
         if (first === "pi-sessions" && second === "continue" && method === "POST") {
-            const body = await readJson<{ path?: unknown; cwd?: unknown }>(request);
+            const body = await readJson<{ path?: unknown; cwd?: unknown; model?: unknown }>(request);
 
             if (typeof body.path !== "string") {
                 throw new HttpError(400, "path is required");
@@ -1444,10 +1444,14 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 throw new HttpError(400, "cwd must be a folder's path");
             }
 
+            if (body.model !== undefined && typeof body.model !== "string") {
+                throw new HttpError(400, "model must be provider/id");
+            }
+
             return json(
                 response,
                 200,
-                await app.commands.continuePiSession(user, body.path, body.cwd),
+                await app.commands.continuePiSession(user, body.path, body.cwd, body.model),
             );
         }
 

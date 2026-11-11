@@ -604,7 +604,10 @@ No Termux, no laptop, no cloud VM.
   preview reads only its end); or send a session to `pi` on a machine and bring back what was done there. Claude
   Code's sessions (`~/.claude/projects`, on this phone or a machine) are listed too, marked Claude Code: one continues
   converted into a Pi session (text, thinking, tool calls and results, images), from its last compaction, or its last
-  turns with a summary when it is too long, and the card says what continues; its file is only read.
+  turns with a summary when it is too long, and the card says what continues; its file is only read. It starts with
+  this app's default model (the card names Claude Code's and lets you pick another), the values of your saved secrets
+  are masked in it, and the card warns that the rest of the history goes to the model as it is. A Claude Code session
+  without a request is listed by its folder and start.
   Pi can do both itself (`pi_sessions`, `pi_session_import`, `continue_in_pi`, `pi_bring_back`).
 
 ### This phone's apps

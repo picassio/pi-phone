@@ -1,6 +1,8 @@
 // Claude Code's sessions continued here (PP-496): converted into a Pi session file (text, thinking, tool calls and
 // results, images, a compaction's summary), from its last compaction or its last turns when it is long, listed with
-// Pi's sessions, and continued as one; the original file is only read.
+// Pi's sessions, and continued as one; the original file is only read. Continued, it starts with this app's default
+// model (or one the card picks), with the owner's secrets' values masked in it, and a session without a request is
+// titled by its folder and start (PP-498).
 import { cleanUp, context, home, lastText, newSession, openApp, owner, root, say, scriptedModel, work, type App } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -8,7 +10,7 @@ import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep, Message } from "@earendil-works/pi-ai";
-import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
+import { fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { buildSessionContext, convertToLlm, parseSessionEntries, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import { claudeHead, convertClaude, KEEP_CHARACTERS, projectFolder } from "../src/server/claude-sessions.ts";
@@ -16,6 +18,8 @@ import { readPiSession } from "../src/server/pi-sessions.ts";
 import { localSource } from "../src/server/session-lines.ts";
 
 const fixtures = join(import.meta.dirname, "fixtures", "claude");
+/** Nothing to mask: the converter's tests without the owner's secrets. */
+const keep = (text: string) => text;
 
 /** Convert a Claude Code file as the app does; the Pi session file's text, and what continues. */
 async function convert(path: string, slug: string) {
@@ -23,9 +27,14 @@ async function convert(path: string, slug: string) {
     const lines: string[] = [];
 
     try {
-        const converted = await convertClaude(source, slug, async (line) => {
-            lines.push(line);
-        });
+        const converted = await convertClaude(
+            source,
+            slug,
+            async (line) => {
+                lines.push(line);
+            },
+            keep,
+        );
 
         return { ...converted, text: `${lines.join("\n")}\n` };
     } finally {
@@ -86,7 +95,17 @@ test("a Claude Code session becomes a Pi session: text, thinking, parallel tool 
     const all = JSON.stringify(messages);
 
     assert.doesNotMatch(all, /local-command-caveat|subagent's own work|API Error|And the ta|file-history|permission/);
-    assert.deepEqual(kept, { from: "all", messages: 7, left: 0, compactions: 0, toolCalls: 2, thinking: 2, images: 1 });
+    assert.deepEqual(kept, {
+        from: "all",
+        messages: 7,
+        left: 0,
+        compactions: 0,
+        toolCalls: 2,
+        thinking: 2,
+        images: 1,
+        masked: 0,
+        model: "anthropic/claude-fable-5-1",
+    });
     // Pi itself reads it the same way.
     assert.deepEqual(piContext(text).map((message) => message.role), messages.map((message) => message.role));
 });
@@ -147,13 +166,24 @@ test("a session too long for the context continues from its last turns that fit,
 test("the list reads a file's first lines: its id, the project's folder, its first request", () => {
     const lines = readFileSync(join(fixtures, "tools.jsonl"), "utf8").split("\n").slice(0, 8);
 
-    assert.deepEqual(claudeHead(lines, "-srv-shop"), {
+    assert.deepEqual(claudeHead(lines, "-srv-shop", keep), {
         id: "5e55e5e5-0000-4000-8000-000000000001",
         cwd: "/srv/shop",
         title: "Why does the cart total drift by a cent?",
     });
     assert.equal(projectFolder("/data/projects/agent-crew/apps/web", "-data-projects-agent-crew"), "/data/projects/agent-crew");
     assert.equal(projectFolder("/elsewhere", "-data-projects-agent-crew"), "/elsewhere");
+});
+
+test("a session without a request (Claude Code opened and closed: hooks, a notice, its cost) is titled by its folder and start", () => {
+    const lines = readFileSync(join(fixtures, "no-request.jsonl"), "utf8").split("\n");
+
+    assert.deepEqual(claudeHead(lines, "-data-projects-agent-crew", keep), {
+        id: "5e55e5e5-0000-4000-8000-000000000003",
+        cwd: "/data/projects/agent-crew",
+        title: "agent-crew · 2026-09-30 01:29 UTC",
+        noRequest: true,
+    });
 });
 
 /** The messages of the newest request to the model. */
@@ -174,7 +204,16 @@ const route: FauxResponseStep = (request) => {
 let app: App;
 
 before(async () => {
-    app = await openApp(scriptedModel(route, { contextWindow: 1_000_000 }), join(root, "claude-data"));
+    const scripted = scriptedModel(route, { contextWindow: 1_000_000 });
+    // Claude Code's model, signed in here as the owner's "anthropic" account was (PP-498): it must not be the one used.
+    const claudeHere = fauxProvider({ provider: "anthropic", models: [{ id: "claude-fable-5-1" }] });
+
+    app = await openApp(scripted, join(root, "claude-data"), undefined, {
+        configureModels: (models) => {
+            models.registerNativeProvider(scripted.provider);
+            models.registerNativeProvider(claudeHere.provider);
+        },
+    });
 });
 
 after(async () => {
@@ -241,4 +280,126 @@ test("Pi's tools list Claude Code's sessions and continue one, saying what conti
     assert.ok(made, toolOutput());
     assert.match(toolOutput(), /From Claude Code: the summary of its last compaction \(2026-10-02\) and the 6 messages after it continue; 2 earlier entries stay in its file/);
     assert.equal(app.cwdOf(Number(made![1]) as unknown as ConversationId), work);
+});
+
+/** A copy of a fixture as another Claude Code session (its own id) in ~/.claude/projects/-srv-shop. */
+function claudeCopy(fixture: string, id: string): string {
+    const path = join(home, ".claude", "projects", "-srv-shop", `${id}.jsonl`);
+
+    writeFileSync(path, readFileSync(join(fixtures, fixture), "utf8").replaceAll("5e55e5e5-0000-4000-8000-000000000001", id));
+
+    return path;
+}
+
+test("a converted session starts with this app's default model, not Claude Code's even when it is signed in; the card may pick another", async () => {
+    const path = claudeCopy("tools.jsonl", "5e55e5e5-0000-4000-8000-000000000004");
+    const signedIn = (provider: string, id: string) =>
+        app.models.getAvailableSnapshot().some((each) => each.provider === provider && each.id === id);
+
+    assert.ok(signedIn("anthropic", "claude-fable-5-1"), "Claude Code's model is signed in here");
+    await app.setDefaultModel(owner(app), { provider: "faux", modelId: "faux-2", thinkingLevel: "off" });
+
+    const { path: converted } = await app.piSessions.importClaude(owner(app), path);
+    const preview = await app.piSessions.preview(owner(app), converted);
+
+    assert.equal(preview.model, "faux/faux-2", "the card says the model it starts with: the default");
+    assert.equal(preview.modelHere, true);
+    assert.equal(preview.claudeCode?.model, "anthropic/claude-fable-5-1", "and names Claude Code's");
+
+    const startsWith = async (model?: string) => {
+        const { id } = await app.commands.continuePiSession(owner(app), converted, work, model);
+        const agent = await app.agentState(id);
+
+        return agent?.model === undefined ? undefined : `${agent.model.provider}/${agent.model.modelId}`;
+    };
+
+    assert.equal(await startsWith(), "faux/faux-2");
+    assert.equal(await startsWith("faux/faux-vision"), "faux/faux-vision", "the card's pick");
+    await assert.rejects(startsWith("anthropic/claude-gone"), /anthropic\/claude-gone is not a model signed in here/);
+});
+
+test("the conversion masks the owner's saved secrets' values wherever the history has them; a password not saved stays", async () => {
+    const value = "acs-admin-Pa55word-2026";
+    const id = "5e55e5e5-0000-4000-8000-000000000005";
+    const at = (second: number) => `2026-10-03T10:00:0${second}.000Z`;
+    const base = { isSidechain: false, sessionId: id, cwd: "/srv/shop", version: "2.1.277" };
+    const usage = { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
+    const entries = [
+        { ...base, type: "user", parentUuid: null, uuid: "s1", timestamp: at(1), message: { role: "user", content: `Log in as admin with ${value} and check the ledger` } },
+        {
+            ...base,
+            type: "assistant",
+            parentUuid: "s1",
+            uuid: "s2",
+            timestamp: at(2),
+            message: {
+                id: "msg_S",
+                role: "assistant",
+                model: "claude-fable-5-1",
+                content: [
+                    { type: "thinking", thinking: `The password is ${value}.`, signature: "sig-S" },
+                    { type: "thinking", thinking: "Then the ledger.", signature: "sig-T" },
+                    { type: "tool_use", id: "toolu_S", name: "Bash", input: { command: `curl -u admin:${value} https://acs.local/ledger` } },
+                ],
+                stop_reason: "tool_use",
+                usage,
+            },
+        },
+        {
+            ...base,
+            type: "user",
+            parentUuid: "s2",
+            uuid: "s3",
+            timestamp: at(3),
+            message: { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_S", content: `logged in; demo user demo-pass-2026; admin ${value}` }] },
+        },
+        {
+            ...base,
+            type: "assistant",
+            parentUuid: "s3",
+            uuid: "s4",
+            timestamp: at(4),
+            message: { id: "msg_T", role: "assistant", model: "claude-fable-5-1", content: [{ type: "text", text: `Done: ${value} works.` }], stop_reason: "end_turn", usage },
+        },
+    ];
+    const path = join(home, ".claude", "projects", "-srv-shop", `${id}.jsonl`);
+
+    writeFileSync(path, `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`);
+    app.secrets.set("ACS_ADMIN_PW", { value, description: "The ACS demo's admin password" });
+
+    // Listed after the 5-second list of the tests before.
+    await new Promise((resolve) => setTimeout(resolve, 5_100));
+    const listed = (await app.piSessions.list(owner(app))).sessions.find((each) => each.path === path);
+
+    assert.equal(listed?.title, "Log in as admin with [secret ACS_ADMIN_PW] and check the ledger");
+
+    const { path: converted } = await app.piSessions.importClaude(owner(app), path);
+    const text = readFileSync(converted, "utf8");
+    const preview = await app.piSessions.preview(owner(app), converted);
+
+    assert.ok(!text.includes(value), "no value in the Pi session");
+    assert.equal(text.split("[secret ACS_ADMIN_PW]").length - 1, 6, "its title, the request, a thinking, the call, its result, the answer");
+    assert.match(text, /demo-pass-2026/, "what is not a saved secret goes as it is: the card says so");
+    assert.equal(preview.claudeCode?.masked, 5, "texts masked, the title aside");
+    assert.equal(preview.title, "Log in as admin with [secret ACS_ADMIN_PW] and check the ledger");
+
+    const answer = readPiSession(text).entries.map((entry) => entry.message).find((message) => message.role === "assistant");
+
+    assert.deepEqual(answer?.role === "assistant" ? answer.content.slice(0, 2) : [], [
+        { type: "thinking", thinking: "The password is [secret ACS_ADMIN_PW]." },
+        { type: "thinking", thinking: "Then the ledger.", thinkingSignature: "sig-T" },
+    ], "a masked thinking loses its signature, which signed what it was");
+    assert.equal(readFileSync(path, "utf8").split(value).length - 1, 5, "the original keeps its text");
+});
+
+test("a session without a request is listed by its folder and start, saying so", async () => {
+    const path = join(home, ".claude", "projects", "-data-projects-agent-crew", "5e55e5e5-0000-4000-8000-000000000003.jsonl");
+
+    mkdirSync(join(home, ".claude", "projects", "-data-projects-agent-crew"), { recursive: true });
+    copyFileSync(join(fixtures, "no-request.jsonl"), path);
+    await new Promise((resolve) => setTimeout(resolve, 5_100));
+    const listed = (await app.piSessions.list(owner(app))).sessions.find((each) => each.path === path);
+
+    assert.equal(listed?.title, "agent-crew · 2026-09-30 01:29 UTC");
+    assert.deepEqual(listed?.claudeCode, { size: readFileSync(path).length, noRequest: true });
 });

@@ -89,6 +89,8 @@
     "Could not read Pi's sessions on {1} ({2}): {3}": "无法读取 {1} 上 Pi 的会话（{2}）：{3}",
     "Choose one of the machine's session files.": "请选择这台机器上的一个会话文件。",
     "Choose one of Claude Code's sessions in ~/.claude/projects.": "请选择 ~/.claude/projects 中 Claude Code 的一个会话。",
+    "{1} is not a model signed in here. Choose another.": "{1} 不是此处已登录的模型。请选择其他模型。",
+    "model must be provider/id": "model 必须是 provider/id",
     "Only the owner can continue Pi's sessions here.": "只有所有者能在这里继续 Pi 的会话。",
     "Pi has no such session. It may have been deleted.": "Pi 没有这个会话，可能已被删除。",
     "Not a place: {1}": "不是有效位置：{1}",

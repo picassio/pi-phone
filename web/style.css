@@ -16811,6 +16811,33 @@ textarea.notes {
     min-width: 0;
 }
 
+/* The history goes to the model as it is (PP-498): a warning, in the warning colour's soft tint. */
+.pi-kept.pi-warn {
+    background: var(--warn-soft);
+    border-color: var(--warn-line);
+}
+
+.pi-kept.pi-warn > .icon {
+    color: var(--warn);
+}
+
+/* The model a session converted from Claude Code starts with, and the choice of another (PP-498). */
+.pi-model {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pi-model > .label,
+.pi-model > p {
+    margin: 0;
+}
+
+.pi-model > .choice {
+    font-size: 14px;
+    border-radius: var(--r-control);
+}
+
 .pi-convo {
     display: flex;
     flex-direction: column;

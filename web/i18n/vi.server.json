@@ -428,6 +428,8 @@
     "Could not read Pi's sessions on {1} ({2}): {3}": "Không đọc được phiên của Pi trên {1} ({2}): {3}",
     "Choose one of the machine's session files.": "Chọn một tệp phiên của máy.",
     "Choose one of Claude Code's sessions in ~/.claude/projects.": "Chọn một phiên của Claude Code trong ~/.claude/projects.",
+    "{1} is not a model signed in here. Choose another.": "{1} không phải mô hình đã đăng nhập ở đây. Hãy chọn mô hình khác.",
+    "model must be provider/id": "model phải có dạng provider/id",
     "Only the owner can continue Pi's sessions here.": "Chỉ chủ sở hữu tiếp tục được phiên của Pi ở đây.",
     "Pi has no such session. It may have been deleted.": "Pi không có phiên này. Có thể nó đã bị xóa.",
     "Not a place: {1}": "Không phải nơi làm việc: {1}",

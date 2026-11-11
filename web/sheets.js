@@ -370,7 +370,7 @@ function sheetBody(sheet) {
             break;
         case "pi-session":
             body = piSessionsAvailable()
-                ? html`<${PiSessionSheet} key=${sheet.id} path=${sheet.id} />`
+                ? html`<${PiSessionSheet} key=${sheet.id} path=${sheet.id} model=${sheet.model} />`
                 : null;
             break;
         case "file":

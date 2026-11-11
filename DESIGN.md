@@ -427,9 +427,19 @@ so Pi changes them through the settings tools; "the last session" is the one the
   caveat, command and output, and `<synthetic>` replies. What continues: from the last compaction (its
   `isCompactSummary` message as a Pi compaction, the `preservedMessages` before it as the kept messages) or all of it;
   when that is over 400,000 characters of text (an image counts 6,000), the last turns that fit, from a request on, after
-  a summary made here (Claude Code's summary and the last 40 requests left out). The model becomes `anthropic/<model>`,
+  a summary made here (Claude Code's summary and the last 40 requests left out). The file records `anthropic/<model>`,
   and thinking seen makes Pi's thinking medium. The real case (agent-crew, 152 MB, 42,707 lines, 11 compactions)
   converts in about a second: 146 messages after its last compaction (93 tool calls, 33 thinking), 288,000 characters.
+  Follow-ups (PP-498): a converted session starts with this app's default model (`Commands.defaultModel`), not Claude
+  Code's: that ran on whichever account `anthropic` is here, which may be out of its limit, and nobody chose it here.
+  The card names Claude Code's model and offers another (`continuePiSession`'s `model`, which must be signed in, or a
+  400). The history goes to the model as it is, and the card says so; the values of the owner's saved secrets are
+  masked as they are written (`Secrets.redact`, `[secret NAME]`, as tool output): people's text, answers, thinking
+  (a changed one loses its signature, so Pi sends it as text), tool calls' arguments, tool results, the summary, the
+  requests left out and the title (masked whole, then shortened). `.origin.json` counts the texts masked; values are
+  never logged. A session whose first 40 lines have no request (Claude Code opened and closed: hooks, a notice and its
+  cost; or only `/model`, as han-devbox's 26 KB agent-crew files are) is titled by its folder and start, "agent-crew
+  · 2026-09-30 01:29 UTC", and marked "no request".
 - **Pi's sessions as tools** (`src/server/extensions/pi-sessions.ts`; owner's decisions of 2026-10-19, wiki:
   pi-session-agent-tools): `pi_sessions` (the phone's or a machine's, a file changed in the last 2 minutes marked busy),
   `pi_session_import` (a machine's copied in with its origin, then continued in its folder there), `continue_in_pi`,

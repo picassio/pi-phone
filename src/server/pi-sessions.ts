@@ -91,6 +91,8 @@ export type MachineSession = {
     phoneSession?: number;
     /** A Claude Code session (PP-496): it continues converted. */
     claudeCode?: true;
+    /** A Claude Code session whose first lines have no request: its title is its folder and start (PP-498). */
+    noRequest?: true;
     /** The newest session here that continues it (a Claude Code session's). */
     continuedIn?: number;
 };
@@ -1088,8 +1090,11 @@ export type PiSessionSummary = {
     modified: number;
     /** A Pi session's messages. */
     messages?: number;
-    /** A Claude Code session (`claude-sessions.ts`): its file's size. It continues converted (`importClaude`). */
-    claudeCode?: { size: number };
+    /**
+     * A Claude Code session (`claude-sessions.ts`): its file's size, and whether its first lines have no request (its
+     * title is then its folder and start). It continues converted (`importClaude`).
+     */
+    claudeCode?: { size: number; noRequest?: true };
     /** A Pi session converted from a Claude Code one. */
     fromClaudeCode?: true;
     /** The newest session here that continues it, and whether Pi went on in the terminal since. */
@@ -1120,7 +1125,7 @@ export class PiSessions {
             return this.#found.list;
         }
 
-        const list = Promise.all([listPiSessions(this.#customFolder()), listClaudeHere(this.#app.home, MAX_LISTED)]).then(
+        const list = Promise.all([listPiSessions(this.#customFolder()), listClaudeHere(this.#app.home, MAX_LISTED, this.#hide)]).then(
             ([pi, claude]): Listed[] => [
                 ...pi,
                 ...claude.map((each) => ({ claude: each, words: `${each.title}\n${each.cwd}`.toLowerCase() })),
@@ -1337,7 +1342,7 @@ export class PiSessions {
         for (const file of claude.slice(0, MAX_ON_MACHINE)) {
             // Its id, folder and first request: the first lines only.
             const lines = await env.readTextLines(file.path, { maxLines: HEAD_LINES }, context);
-            const head = lines.ok ? claudeHead(lines.value, claudeSlug(home, file.path)!) : undefined;
+            const head = lines.ok ? claudeHead(lines.value, claudeSlug(home, file.path)!, this.#hide) : undefined;
 
             if (head === undefined) {
                 continue;
@@ -1432,11 +1437,16 @@ export class PiSessions {
 
             try {
                 kept = (
-                    await convertClaude(source, slug, async (line) => {
-                        if (!out.write(`${line}\n`)) {
-                            await once(out, "drain");
-                        }
-                    })
+                    await convertClaude(
+                        source,
+                        slug,
+                        async (line) => {
+                            if (!out.write(`${line}\n`)) {
+                                await once(out, "drain");
+                            }
+                        },
+                        this.#hide,
+                    )
                 ).kept;
             } catch (error) {
                 out.destroy();
@@ -1457,6 +1467,9 @@ export class PiSessions {
 
         return made;
     }
+
+    /** The owner's saved secrets' values masked, as tool output masks them (PP-498): for what comes from Claude Code. */
+    readonly #hide = (text: string): string => this.#app.secrets.redact(text);
 
     /** Where an imported file came from: a machine, and for one converted from Claude Code, what continues of it. */
     #originOf(path: string): { machineId?: string; path: string; claudeCode?: ClaudeKept } | undefined {
@@ -1501,7 +1514,7 @@ export class PiSessions {
                     title: claude.title,
                     cwd: claude.cwd,
                     modified: claude.modified,
-                    claudeCode: { size: claude.size },
+                    claudeCode: { size: claude.size, ...(claude.noRequest === true ? { noRequest: true } : {}) },
                     ...(pocket === undefined ? {} : { pocket: { id: pocket.id, behind: false } }),
                 };
             }
@@ -1626,11 +1639,15 @@ export class PiSessions {
             cwdExists = false;
         }
 
+        // Converted from Claude Code, it starts with this app's default model, not Claude Code's on whichever account
+        // that provider is here (PP-498); the card offers another.
+        const fromClaude = origin?.claudeCode !== undefined;
+        const starts = fromClaude ? (this.#app.commands.defaultModel().model ?? null) : model;
         const modelHere =
-            model !== null &&
+            starts !== null &&
             this.#app.models
                 .getAvailableSnapshot()
-                .some((each) => each.provider === model.provider && each.id === model.modelId);
+                .some((each) => each.provider === starts.provider && each.id === starts.modelId);
 
         return {
             path,
@@ -1639,7 +1656,7 @@ export class PiSessions {
             cwdExists,
             ...(machine === undefined ? {} : { machine: { id: machine.id, name: machine.name } }),
             messages: info.messageCount,
-            model: model === null ? null : `${model.provider}/${model.modelId}`,
+            model: starts === null ? null : `${starts.provider}/${starts.modelId}`,
             modelHere,
             last,
             // Converted from Claude Code: what continues of it, for the card to say.

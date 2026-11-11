@@ -16,9 +16,13 @@
  * a summary made here of what came before: Claude Code's summary and the requests left out. The file is read twice, a
  * line at a time (`session-lines.ts`): the first read keeps numbers for each entry, the second reads only what
  * continues, so a session of hundreds of megabytes is not held.
+ *
+ * The history goes to the model as it is, but the values of the owner's saved secrets in it are masked as they are
+ * written (`hide`: `Secrets.redact`, `[secret NAME]`), as tool output masks them (PP-498). A changed thinking block
+ * loses its signature, which no longer matches it: Pi then sends it as text.
  */
 import { readdir, stat } from "node:fs/promises";
-import { dirname, join } from "node:path/posix";
+import { basename, dirname, join } from "node:path/posix";
 import type {
     AssistantMessage,
     ImageContent,
@@ -50,6 +54,9 @@ const LOCAL_COMMAND = /^\s*<(local-command-caveat|command-name|command-message|l
 
 /** A Claude Code session file that cannot continue, and why, in words for people. */
 export class ClaudeSessionError extends Error {}
+
+/** Text with the owner's saved secrets' values masked (`Secrets.redact`). */
+export type Hide = (text: string) => string;
 
 /** A Claude Code file's line, as read: nothing in it is known to be there. */
 type ClaudeLine = {
@@ -97,6 +104,10 @@ export type ClaudeKept = {
     toolCalls: number;
     thinking: number;
     images: number;
+    /** Texts in which the values of the owner's saved secrets were masked. */
+    masked: number;
+    /** The model Claude Code worked with, `provider/id`: the session continues with this app's own choice (PP-498). */
+    model?: string;
     /** When what continues starts (the compaction, or the first turn kept), ISO. */
     since?: string;
 };
@@ -108,16 +119,25 @@ export type ClaudeConverted = { id: string; cwd: string; title: string; kept: Cl
 export function describeKept(kept: ClaudeKept): string {
     const since = kept.since === undefined ? "" : ` (${kept.since.slice(0, 10)})`;
     const left = `${kept.left} earlier entr${kept.left === 1 ? "y stays" : "ies stay"} in its file`;
+    const masked = kept.masked > 0 ? ` Values of saved secrets masked in ${kept.masked} text${kept.masked === 1 ? "" : "s"}.` : "";
 
-    return kept.from === "all"
-        ? `From Claude Code: all of it continues, ${kept.messages} messages.`
-        : kept.from === "compaction"
-          ? `From Claude Code: the summary of its last compaction${since} and the ${kept.messages} messages after it continue; ${left}.`
-          : `From Claude Code: its last ${kept.messages} messages${since} continue, after a summary of what came before; ${left}.`;
+    return (
+        (kept.from === "all"
+            ? `From Claude Code: all of it continues, ${kept.messages} messages.`
+            : kept.from === "compaction"
+              ? `From Claude Code: the summary of its last compaction${since} and the ${kept.messages} messages after it continue; ${left}.`
+              : `From Claude Code: its last ${kept.messages} messages${since} continue, after a summary of what came before; ${left}.`) + masked
+    );
 }
 
+/**
+ * What the first lines of a Claude Code session say: its id, the project's folder, a title, and whether a person asked
+ * anything in them (`noRequest`: Claude Code was started and left, or only ran its own commands such as `/model`).
+ */
+export type ClaudeHead = { id: string; cwd: string; title: string; noRequest?: true };
+
 /** A Claude Code session as a list shows it. */
-export type ClaudeListing = { path: string; id: string; cwd: string; title: string; modified: number; size: number };
+export type ClaudeListing = ClaudeHead & { path: string; modified: number; size: number };
 
 /** Whether a file is one of Claude Code's sessions in the home folder `home`: `~/.claude/projects/<slug>/<id>.jsonl`. */
 export function claudeSlug(home: string, path: string): string | undefined {
@@ -175,13 +195,26 @@ function requestOf(line: ClaudeLine): string | undefined {
 const titleFrom = (request: string): string => request.split("\n")[0]!.slice(0, TITLE_LENGTH).trim();
 
 /**
- * What the first lines of a Claude Code session file say, for the list: its id, the project's folder, and its first
- * request as a title. Undefined when they are not Claude Code's.
+ * The title of a session without a request: its project's folder and when it started (UTC), as "agent-crew ·
+ * 2026-09-30 01:29 UTC", so sessions of one folder differ.
  */
-export function claudeHead(lines: readonly string[], slug: string): { id: string; cwd: string; title: string } | undefined {
+export function untitled(cwd: string, slug: string, started: string | undefined): string {
+    const folder = cwd === "" ? slug : basename(cwd) || cwd;
+    const at = started === undefined || Number.isNaN(Date.parse(started)) ? undefined : new Date(started).toISOString();
+
+    return at === undefined ? folder : `${folder} · ${at.slice(0, 10)} ${at.slice(11, 16)} UTC`;
+}
+
+/**
+ * What the first lines of a Claude Code session file say, for the list: its id, the project's folder, and its first
+ * request as a title (secrets' values masked by `hide`), or, with none, its folder and start. Undefined when they are
+ * not Claude Code's.
+ */
+export function claudeHead(lines: readonly string[], slug: string, hide: Hide): ClaudeHead | undefined {
     let id: string | undefined;
     let cwd: string | undefined;
     let title: string | undefined;
+    let started: string | undefined;
 
     for (const line of lines) {
         const entry = parseLine(line) as ClaudeLine | undefined;
@@ -192,13 +225,20 @@ export function claudeHead(lines: readonly string[], slug: string): { id: string
 
         id ??= typeof entry.sessionId === "string" ? entry.sessionId : undefined;
         cwd ??= typeof entry.cwd === "string" ? entry.cwd : undefined;
+        started ??= typeof entry.timestamp === "string" ? entry.timestamp : undefined;
 
         const request = requestOf(entry);
 
-        title ??= request === undefined ? undefined : titleFrom(request);
+        title ??= request === undefined ? undefined : titleFrom(hide(request));
     }
 
-    return id === undefined ? undefined : { id, cwd: cwd === undefined ? "" : projectFolder(cwd, slug), title: title ?? "Claude Code session" };
+    if (id === undefined) {
+        return undefined;
+    }
+
+    const folder = cwd === undefined ? "" : projectFolder(cwd, slug);
+
+    return title === undefined ? { id, cwd: folder, title: untitled(folder, slug, started), noRequest: true } : { id, cwd: folder, title };
 }
 
 /** A file's first `HEAD_LINES` lines, as text. */
@@ -223,9 +263,10 @@ async function headOf(path: string): Promise<string[]> {
 
 /**
  * Claude Code's sessions in the home folder `home` on this phone, newest first, at most `limit`: the `.jsonl` files of
- * each project's folder (subagents' `agent-*.jsonl` left out), each with what its first lines say.
+ * each project's folder (subagents' `agent-*.jsonl` left out), each with what its first lines say (`hide` masks
+ * secrets' values in titles).
  */
-export async function listClaudeHere(home: string, limit: number): Promise<ClaudeListing[]> {
+export async function listClaudeHere(home: string, limit: number, hide: Hide): Promise<ClaudeListing[]> {
     const root = join(home, CLAUDE_PROJECTS);
     const files: { path: string; slug: string; modified: number; size: number }[] = [];
 
@@ -249,10 +290,10 @@ export async function listClaudeHere(home: string, limit: number): Promise<Claud
     const found: ClaudeListing[] = [];
 
     for (const file of files.slice(0, limit)) {
-        const head = claudeHead(await headOf(file.path).catch(() => []), file.slug);
+        const head = claudeHead(await headOf(file.path).catch(() => []), file.slug, hide);
 
         if (head !== undefined) {
-            found.push({ path: file.path, ...head, modified: file.modified, size: file.size });
+            found.push({ ...head, path: file.path, modified: file.modified, size: file.size });
         }
     }
 
@@ -311,8 +352,8 @@ class ClaudeIndex {
     readonly answer = new Map<number, string>();
     /** User entries with tool results. */
     readonly results = new Set<number>();
-    /** People's requests, by entry, shortened. */
-    readonly requests = new Map<number, string>();
+    /** People's requests' entries: read again for what is said of them, masked then (`Masker`). */
+    readonly requests = new Set<number>();
     /** Compaction summaries' entries. */
     readonly summaries = new Set<number>();
     /** Each compaction's kept messages, by its boundary entry. */
@@ -323,7 +364,8 @@ class ClaudeIndex {
     cwd: string | undefined;
     model: string | undefined;
     started: string | undefined;
-    title: string | undefined;
+    /** The first request's entry: the title. */
+    firstRequest: number | undefined;
     thinking = false;
     compactions = 0;
     /** Conversation entries of people and the model in the file. */
@@ -387,11 +429,9 @@ class ClaudeIndex {
                 this.summaries.add(place);
             }
 
-            const request = requestOf(entry);
-
-            if (request !== undefined) {
-                this.requests.set(place, request.slice(0, REQUEST_CHARACTERS));
-                this.title ??= titleFrom(request);
+            if (requestOf(entry) !== undefined) {
+                this.requests.add(place);
+                this.firstRequest ??= place;
             }
         } else if (kind === BOUNDARY) {
             this.compactions += 1;
@@ -428,8 +468,8 @@ type Plan = {
     boundary: number | undefined;
     /** What continues after the summary. */
     messages: number[];
-    /** People's requests left out, when only the last turns continue. */
-    leftOut: string[];
+    /** People's requests left out, when only the last turns continue: their entries. */
+    leftOut: number[];
     left: number;
 };
 
@@ -494,7 +534,7 @@ function planOf(index: ClaudeIndex): Plan {
                   .sort((a, b) => a - b);
     const weigh = (places: readonly number[]) => places.reduce((sum, place) => sum + index.weight[place]!, 0);
     let from: ClaudeKept["from"] = summary === undefined ? "all" : "compaction";
-    let leftOut: string[] = [];
+    let leftOut: number[] = [];
 
     if (weigh(preserved) + weigh(messages) + (summary === undefined ? 0 : index.weight[summary]!) > KEEP_CHARACTERS) {
         // Its last turns that fit, from a request on; at least the last turn.
@@ -517,11 +557,7 @@ function planOf(index: ClaudeIndex): Plan {
         start = Math.max(start, 0);
         leftOut = before
             .slice(0, start)
-            .flatMap((place) => {
-                const request = index.requests.get(place);
-
-                return request === undefined ? [] : [request];
-            })
+            .filter((place) => index.requests.has(place))
             .slice(-LEFT_OUT_REQUESTS);
         messages = before.slice(start);
         preserved = [];
@@ -585,6 +621,48 @@ function partsOf(content: unknown): (TextContent | ImageContent)[] {
 /** A Pi session entry of the converted file. */
 type PiLine = Record<string, unknown> & { type: string };
 
+/** Masks the owner's secrets' values in what is converted, counting the texts it changed. Never keeps a value. */
+class Masker {
+    readonly #hide: Hide;
+    masked = 0;
+
+    constructor(hide: Hide) {
+        this.#hide = hide;
+    }
+
+    text(value: string): string {
+        const hidden = this.#hide(value);
+
+        if (hidden !== value) {
+            this.masked += 1;
+        }
+
+        return hidden;
+    }
+
+    /** Every string in a tool call's arguments, keys too. */
+    deep(value: unknown): unknown {
+        if (typeof value === "string") {
+            return this.text(value);
+        }
+
+        if (Array.isArray(value)) {
+            return value.map((each) => this.deep(each));
+        }
+
+        if (value !== null && typeof value === "object") {
+            return Object.fromEntries(Object.entries(value).map(([key, each]) => [this.text(key), this.deep(each)]));
+        }
+
+        return value;
+    }
+
+    /** Text and images: the texts masked, the images as they are. */
+    parts(parts: (TextContent | ImageContent)[]): (TextContent | ImageContent)[] {
+        return parts.map((part) => (part.type === "text" ? { ...part, text: this.text(part.text) } : part));
+    }
+}
+
 /**
  * Turns Claude Code's entries, given in file order, into Pi's messages: an answer's parts into one assistant message,
  * its tool results after it, a person's text and images as a user message. A tool result whose call is not in the
@@ -592,14 +670,16 @@ type PiLine = Record<string, unknown> & { type: string };
  */
 class Converter {
     readonly #emit: (line: PiLine, timestamp: string) => void;
+    readonly #mask: Masker;
     #answer: { id: string; message: AssistantMessage; calls: Map<string, string>; results: ToolResultMessage[]; timestamp: string } | undefined;
     messages = 0;
     toolCalls = 0;
     thinking = 0;
     images = 0;
 
-    constructor(emit: (line: PiLine, timestamp: string) => void) {
+    constructor(emit: (line: PiLine, timestamp: string) => void, mask: Masker) {
         this.#emit = emit;
+        this.#mask = mask;
     }
 
     #message(message: UserMessage | AssistantMessage | ToolResultMessage, timestamp: string): void {
@@ -663,11 +743,13 @@ class Converter {
 
             for (const block of Array.isArray(content) ? (content as Block[]) : []) {
                 if (block.type === "text" && text(block.text) !== "") {
-                    answer.message.content.push({ type: "text", text: text(block.text) });
+                    answer.message.content.push({ type: "text", text: this.#mask.text(text(block.text)) });
                 } else if (block.type === "thinking") {
-                    const part: ThinkingContent = { type: "thinking", thinking: text(block.thinking) };
+                    const thinking = this.#mask.text(text(block.thinking));
+                    const part: ThinkingContent = { type: "thinking", thinking };
 
-                    if (typeof block.signature === "string" && block.signature !== "") {
+                    // A signature signs the thinking as it was: a masked one has none.
+                    if (typeof block.signature === "string" && block.signature !== "" && thinking === text(block.thinking)) {
                         part.thinkingSignature = block.signature;
                     }
 
@@ -681,7 +763,7 @@ class Converter {
                         type: "toolCall",
                         id: block.id,
                         name: text(block.name),
-                        arguments: (block.input !== null && typeof block.input === "object" ? block.input : {}) as ToolCall["arguments"],
+                        arguments: this.#mask.deep(block.input !== null && typeof block.input === "object" ? block.input : {}) as ToolCall["arguments"],
                     };
 
                     answer.message.content.push(call);
@@ -711,7 +793,7 @@ class Converter {
                 continue;
             }
 
-            const parts = partsOf(block.content);
+            const parts = this.#mask.parts(partsOf(block.content));
 
             this.images += parts.filter((part) => part.type === "image").length;
             this.#answer!.results.push({
@@ -737,7 +819,7 @@ class Converter {
             this.images += said.filter((part) => part.type === "image").length;
         }
 
-        this.#message({ role: "user", content: said, timestamp: at }, timestamp);
+        this.#message({ role: "user", content: typeof said === "string" ? this.#mask.text(said) : this.#mask.parts(said), timestamp: at }, timestamp);
     }
 }
 
@@ -750,12 +832,13 @@ function summaryText(entry: ClaudeLine): string {
 
 /**
  * Convert a Claude Code session file (`source`; its projects folder named `slug`) into a Pi session file, a line at a
- * time through `write`. Answers what it is and what continues.
+ * time through `write`, with the owner's secrets' values masked by `hide`. Answers what it is and what continues.
  */
 export async function convertClaude(
     source: ByteSource,
     slug: string,
     write: (line: string) => Promise<void>,
+    hide: Hide,
 ): Promise<ClaudeConverted> {
     const index = new ClaudeIndex();
 
@@ -787,7 +870,10 @@ export async function convertClaude(
         return entry;
     };
     const cwd = index.cwd === undefined ? "" : projectFolder(index.cwd, slug);
-    const title = index.title ?? "Claude Code session";
+    // Masked whole, then shortened: a value cut in two would not be found.
+    const requestAt = async (place: number) => requestOf(await read(place)) ?? "";
+    const title = index.firstRequest === undefined ? untitled(cwd, slug, index.started) : titleFrom(hide(await requestAt(index.firstRequest)));
+    const mask = new Masker(hide);
     let count = 0;
     let parent: string | null = null;
     const lines: string[] = [];
@@ -818,7 +904,7 @@ export async function convertClaude(
     }
 
     await flushLines();
-    const converter = new Converter(emit);
+    const converter = new Converter(emit, mask);
     const beforeKept = count;
 
     for (const place of plan.preserved) {
@@ -833,11 +919,17 @@ export async function convertClaude(
     let since: string | undefined;
 
     if (plan.summary !== undefined || plan.from === "turns") {
-        const claudeSummary = plan.summary === undefined ? "" : summaryText(await read(plan.summary));
+        const claudeSummary = plan.summary === undefined ? "" : mask.text(summaryText(await read(plan.summary)));
+        const requests: string[] = [];
+
+        for (const place of plan.leftOut) {
+            requests.push(mask.text(await requestAt(place)).replace(/\s+/g, " ").slice(0, REQUEST_CHARACTERS));
+        }
+
         const leftOut =
-            plan.leftOut.length === 0
+            requests.length === 0
                 ? ""
-                : `Earlier in this Claude Code session, left out when it continued in pi-phone, the person asked (the last ${plan.leftOut.length} requests, oldest first):\n${plan.leftOut.map((request) => `- ${request.replace(/\s+/g, " ")}`).join("\n")}`;
+                : `Earlier in this Claude Code session, left out when it continued in pi-phone, the person asked (the last ${requests.length} requests, oldest first):\n${requests.map((request) => `- ${request}`).join("\n")}`;
         const at = plan.summary ?? plan.messages[0];
 
         since = at === undefined ? undefined : index.timestamps.get(at);
@@ -876,6 +968,8 @@ export async function convertClaude(
             toolCalls: converter.toolCalls,
             thinking: converter.thinking,
             images: converter.images,
+            masked: mask.masked,
+            ...(index.model === undefined ? {} : { model: `anthropic/${index.model}` }),
             ...(since === undefined ? {} : { since }),
         },
     };
