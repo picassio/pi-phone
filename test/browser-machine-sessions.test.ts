@@ -18,6 +18,8 @@ const calls: Record<string, [string, Record<string, unknown>]> = {
     "open on sandbox": ["browser_open", { url: "https://example.com/", machine: "sandbox" }],
     "open on the phone": ["browser_open", { url: "https://phone.test/", machine: "phone" }],
     "open on nope": ["browser_open", { url: "https://example.com/", machine: "nope" }],
+    "start a browsing helper": ["subagent", { action: "spawn", name: "browsing-helper", message: "helper opens on sandbox" }],
+    "helper opens on sandbox": ["browser_open", { url: "https://helper.test/", machine: "sandbox" }],
     "attach to chrome": ["browser_attach", { machine: "sandbox", port: 9333, label: "Owner's Chrome" }],
     "attach to own": ["browser_attach", { machine: "sandbox", port: 9444 }],
     "attach by file": ["browser_attach", { machine: "sandbox", devtools_active_port: "~/pw/DevToolsActivePort", label: "Playwright", tabs: "all" }],
@@ -180,6 +182,29 @@ test("a session on the phone browses on a machine, and on the phone again: its o
     assert.equal(app.setBrowserPlace(app.cwdOf(id), id, "sandbox"), "machine:m1");
     assert.equal(app.browserPlaces()[String(id)], "machine:m1");
     app.setBrowserPlace(app.cwdOf(id), id, "phone");
+});
+
+test("a subagent's browser stays on the machine it chose, tabs and all, while its session lives; it goes with an archived session (PP-450)", async () => {
+    const id = await newSession(app);
+
+    await turn(id, "start a browsing helper");
+    await until(() => app.subagents().some((each) => each.name === "browsing-helper" && !each.busy), "the helper, done", 20_000);
+    const helper = Number(app.subagents().find((each) => each.name === "browsing-helper")!.conversationId);
+    const opened = () => [...own.targets.values()].some((each) => each.url === "https://helper.test/");
+
+    assert.equal(app.browserPlaces()[String(helper)], "machine:m1");
+    assert.ok(opened(), "the helper's page is in the machine's Chrome");
+
+    // The sweep of idle and orphaned browsers runs every minute: a subagent is not a session of the list, yet not gone.
+    await app.sweepBrowsers(Date.now());
+    assert.equal(app.browserPlaces()[String(helper)], "machine:m1", "the helper still browses on the machine");
+    assert.equal(app.browserFor(app.cwdOf(helper as never), helper).state().place, "machine:m1");
+    assert.ok(opened(), "its tab is still open");
+
+    await app.commands.updateSession(id as never, owner(app), { archived: true });
+    await app.sweepBrowsers(Date.now());
+    assert.equal(app.browserPlaces()[String(helper)], undefined, "an archived session's subagent lets its choice go");
+    assert.ok(!opened(), "and its tabs");
 });
 
 test("browser_attach to a browser that is not pi-phone's own waits for the owner's card (machine, port, version, profile, tabs); Pi owns only the tabs it opens (in the background) and their windows; close leaves the owner's tabs; detach leaves it running", async () => {

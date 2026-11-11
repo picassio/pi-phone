@@ -1770,10 +1770,12 @@ export class PocketApp {
     /**
      * Close the tabs of sessions' browsers nobody has used for `BROWSER_IDLE_MS` (not while Pi acts, someone watches, or a
      * person took over), and at once those of sessions archived or deleted. Sign-ins stay: they are the place's profile.
+     * A subagent's browser goes with its session: subagents are not in the sessions list, and one counted as gone lost its
+     * place and tabs every minute, so it browsed on the phone again between calls (PP-450).
      */
     async sweepBrowsers(now: number): Promise<void> {
         for (const [key, browser] of this.#browsers) {
-            const session = this.#sessions[key.slice(key.lastIndexOf("#") + 1)];
+            const session = this.#sessions[String(this.rootOf(Number(key.slice(key.lastIndexOf("#") + 1)) as ConversationId))];
             const gone = session === undefined || session.archived === true;
 
             if (gone) {

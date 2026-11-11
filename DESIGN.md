@@ -2266,7 +2266,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
     `browser_open`/`browser_new_tab`'s `machine` or the panel's Browse on (`PUT /api/browser/place`); none kept when it
     is where the session works. `browserFor` takes an attached browser first, then the choice, then the cwd's place.
     The owner's tabs get the map in `hello` (`server.browserPlaces`) and `browser-places` events; `browserPlace()` in
-    `store.js` reads it. Forgotten when a session is archived or deleted.
+    `store.js` reads it. Forgotten when a session is archived or deleted; a subagent's goes with its session's (by
+    `rootOf`: subagents are not in the sessions list, and the minute's sweep took them for gone, PP-450).
   - **Attach** (`browser_attach`, `attachBrowser`; ideas from howaboua's pi-browser, MIT): a port, a DevToolsActivePort
     file read on the machine, or none: the first of the default profiles' files (`DEFAULT_ACTIVE_PORTS`, Chrome,
     Chromium, Edge, Brave on Linux, macOS and Windows), which Chrome's `chrome://inspect/#remote-debugging` opt-in
