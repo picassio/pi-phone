@@ -29,7 +29,8 @@
  * rounded parent that does not clip it (a progress fill in a rounded bar).
  *
  * Since PP-501, a box of display: contents (which has none) is passed over for the nearest ancestor with a box, and an
- * open modal dialog is measured alone, as the page behind it cannot be reached; the report names it (`modal`).
+ * open modal dialog is measured alone, as the page behind it cannot be reached; the report names it (`modal`). Since
+ * PP-433, under text zoom (Android's font scale in a WebView) control heights are measured on the grid as at 100 %.
  */
 
 /** One thing out of place: what it is, and the boxes that show it (x and width, CSS pixels). */
@@ -103,6 +104,11 @@ export type LayoutReport = {
     password?: boolean;
     /** An open modal dialog, by name (PP-501): only it was measured, as the page behind it cannot be reached. */
     modal?: string;
+    /**
+     * The page's text zoom when it is not 1 (PP-433): Android's font scale in a WebView (1.08 at 108 %). Control heights
+     * are then measured on the grid as at 100 %.
+     */
+    textZoom?: number;
 };
 
 /** An expression: whether a password field shows on the page (PP-500), for the layout check and the redlines' measure. */
@@ -460,6 +466,57 @@ ${PAGE_HELPERS}
   // a dialog opened from inside it.
   const modal = document.body ? [...document.querySelectorAll(':modal,[aria-modal=true]')].filter((e) => shows(e, e.getBoundingClientRect())).pop() || null : null;
   const measuredAll = !document.body ? [] : modal ? [modal, ...modal.querySelectorAll('*')] : [...document.body.querySelectorAll('*')];
+  // Android's font scale reaches a WebView as text zoom (PP-433): every px font size and line height computes that much
+  // larger (at 108 %, 14 px is 15.12), after CSS has rounded, so a row as tall as its lines leaves the 4 px grid there
+  // while it holds at 100 %. A probe set to 100 px reads the zoom; 1 in a browser without one.
+  const TEXT_ZOOM = (() => {
+    if (!document.body) return 1;
+    const probe = document.createElement('span');
+    probe.setAttribute('data-pi-text-zoom', '');
+    probe.setAttribute('style', 'position:absolute;visibility:hidden;font-size:100px;line-height:100px');
+    document.body.appendChild(probe);
+    const zoom = Math.round(parseFloat(getComputedStyle(probe).fontSize)) / 100;
+    probe.remove();
+    return zoom;
+  })();
+  // The part of a box's height its lines of text make, which text zoom scales (PP-433). A box of lines (its own words,
+  // with inline elements) gives its content height, unless it is taller than its lines (a min-height or a fixed height:
+  // its height is its own); a line clamp shows its count of lines. A box of boxes gives its children's rows: those side
+  // by side give the tallest's (a 24 px icon beside a 21.6 px line makes the row, with no text part), the rows add up;
+  // a box taller than its children's extent gives none. Pictures, fields and icons give none.
+  const lineRange = document.createRange();
+  const boxKids = (e) => [...e.children].flatMap((c) => css(c).display === 'contents' ? boxKids(c) : [c]).filter((c) => css(c).display !== 'none' && !/absolute|fixed/.test(css(c).position));
+  const textParts = new Map();
+  const textPart = (e) => {
+    let v = textParts.get(e);
+    if (v !== undefined) return v;
+    const s = css(e), r = e.getBoundingClientRect();
+    const content = r.height - px(s.paddingTop) - px(s.paddingBottom) - px(s.borderTopWidth) - px(s.borderBottomWidth);
+    const kids = boxKids(e);
+    const words = [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim() !== '');
+    if (REPLACED.test(e.tagName) || content < 1) v = 0;
+    else if ((words && kids.every((c) => css(c).display.startsWith('inline'))) || (kids.length > 0 && kids.every((c) => css(c).display === 'inline'))) {
+      lineRange.selectNodeContents(e);
+      let lines = 0, bottom = -1e9;
+      for (const q of [...lineRange.getClientRects()].filter((q) => q.width > 0 && q.height > 0).sort((a, b) => a.top - b.top)) {
+        if (q.top >= bottom - 1) { lines++; bottom = q.bottom; } else bottom = Math.max(bottom, q.bottom);
+      }
+      const clamp = parseInt(s.webkitLineClamp, 10);
+      if (clamp > 0) lines = Math.min(lines, clamp);
+      const pitch = px(s.lineHeight);
+      v = pitch > 0 && content > lines * pitch + 1 ? 0 : content;
+    } else {
+      const boxes = kids.map((c) => { const q = c.getBoundingClientRect(), cs = css(c); return { c, t: q.top - px(cs.marginTop), b: q.bottom + px(cs.marginBottom) }; }).sort((a, b) => a.t - b.t);
+      let sum = 0, row = [], end = -1e9;
+      const close = () => { if (row.length === 0) return; const h = Math.max(...row.map((k) => k.b - k.t)); sum += Math.max(...row.filter((k) => k.b - k.t >= h - 0.5).map((k) => textPart(k.c))); row = []; };
+      for (const k of boxes) { if (k.t >= end - 1) close(); row.push(k); end = Math.max(row.length === 1 ? -1e9 : end, k.b); }
+      close();
+      const extent = boxes.length === 0 ? 0 : Math.max(...boxes.map((k) => k.b)) - boxes[0].t;
+      v = boxes.length === 0 || content > extent + 1 ? 0 : sum;
+    }
+    textParts.set(e, v);
+    return v;
+  };
   const add = (issue) => { if (issues.length < 12) issues.push(issue); else more++; };
   const round = (r) => [Math.round(r.left), Math.round(r.width)];
   const groups = new Map();
@@ -673,7 +730,9 @@ ${PAGE_HELPERS}
           const hit = hitBox(e, r);
           if (hit.width < ${TAP_MIN} - 0.01 || hit.height < ${TAP_MIN} - 0.01) group('small-target', sig(e) + '|' + Math.round(hit.width) + 'x' + Math.round(hit.height), () => ({ what: name(e), size: [r1(hit.width), r1(hit.height)] }));
         }
-        offGrid(e, 'control height', r.height);
+        // Under text zoom, as at 100 %: the part its lines make taken back to their size there (PP-433).
+        if (TEXT_ZOOM === 1) offGrid(e, 'control height', r.height);
+        else offGrid(e, 'control height at 100 % text', r1(r.height - textPart(e) * (1 - 1 / TEXT_ZOOM)));
         if (style.pointerEvents !== 'none') {
           const by = coveredBy(e, r.left + r.width / 2, r.top + r.height / 2);
           if (by) group('covered', sig(e) + '|' + sig(by), () => ({ what: name(e), by: name(by), points: 1, of: 1 }));
@@ -926,7 +985,7 @@ ${PAGE_HELPERS}
     else if (Array.isArray(window.__piPageErrors) && window.__piPageErrors.some((x) => /\bdrawElementImage\b/.test(String(x)))) canvasUse = 'a call to drawElementImage';
   }
   const canvas = canvasUse ? { uses: canvasUse, chrome: (/Chrome\/(\d+)/.exec(navigator.userAgent) || [, 'unknown'])[1] } : undefined;
-  return JSON.stringify(Object.assign({ width: W, height: innerHeight, checked: Math.min(checked, 4000), issues, more, found, totals, summary }, modal ? { modal: name(modal) } : {}, shellBox ? { scroller: shellBox } : {}, errors.length ? { errors } : {}, canvas ? { canvas } : {}, ${PASSWORD_SHOWN} ? { password: true } : {}));
+  return JSON.stringify(Object.assign({ width: W, height: innerHeight, checked: Math.min(checked, 4000), issues, more, found, totals, summary }, modal ? { modal: name(modal) } : {}, TEXT_ZOOM !== 1 ? { textZoom: TEXT_ZOOM } : {}, shellBox ? { scroller: shellBox } : {}, errors.length ? { errors } : {}, canvas ? { canvas } : {}, ${PASSWORD_SHOWN} ? { password: true } : {}));
 })()`;
 
 /** Each kind's heading, in the order the words give them. */
@@ -1030,13 +1089,18 @@ function summaryWords(summary: LayoutSummary): string | undefined {
 }
 
 /**
- * What the picture leaves out (PP-440): the rest of the box the page scrolls in, and the errors the page threw; and
- * HTML-in-Canvas the renderer lacks (PP-454).
+ * The text zoom the page was measured under (PP-433); what the picture leaves out (PP-440): the rest of the box the page
+ * scrolls in, and the errors the page threw; and HTML-in-Canvas the renderer lacks (PP-454).
  */
 function pageNotes(report: LayoutReport): string[] {
-    const { scroller, errors = [], canvas } = report;
+    const { scroller, errors = [], canvas, textZoom } = report;
 
     return [
+        ...(textZoom === undefined
+            ? []
+            : [
+                  `Text zoom ${Math.round(textZoom * 100)} % (the system's font size): control heights are measured on the 4 px grid as at 100 %, the part their lines of text make taken back to its size there.`,
+              ]),
         ...(scroller === undefined ? [] : [`The page scrolls inside ${scroller.what}: the picture shows ${scroller.shown} of its ${scroller.full} px, the rest is not in it.`]),
         ...(errors.length === 0 ? [] : [`The page threw: ${errors.join("; ")}`]),
         ...(canvas === undefined
@@ -1149,6 +1213,10 @@ export function parseLayout(text: unknown, width: number): LayoutReport | undefi
 
         if (value.modal !== undefined && typeof value.modal !== "string") {
             delete value.modal;
+        }
+
+        if (value.textZoom !== undefined && !(typeof value.textZoom === "number" && value.textZoom > 0)) {
+            delete value.textZoom;
         }
 
         if (value.width > width + 1 && !value.issues.some((issue) => issue.kind === "page-wider")) {

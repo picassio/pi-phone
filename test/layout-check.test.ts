@@ -145,6 +145,17 @@ const PAGES: Record<string, string> = {
     "/modal": `${head}<div class="col"><p id="behind" style="font-size:10px">Behind the dialog</p><button id="tiny" style="width:24px;height:24px;padding:0">x</button></div><dialog id="add" style="width:300px;padding:16px;border:0"><p id="inside" style="font-size:10px;margin:0">Inside the dialog</p><div style="position:relative;margin-top:16px"><button id="save" style="width:120px;height:48px;padding:0">Save</button><div id="veil" style="position:absolute;left:0;top:0;width:100px;height:48px;background:#eeeeee"></div></div></dialog><script>document.getElementById("add").showModal();</script>`,
     "/aria-modal": `${head}<div class="col"><p id="behind" style="font-size:10px">Behind the sheet</p></div><div id="sheet" role="dialog" aria-modal="true" style="position:fixed;left:0;right:0;bottom:0;padding:16px;background:#ffffff"><p id="inside" style="font-size:10px;margin:0">Inside the sheet</p></div>`,
     "/aria-modal-hidden": `${head}<div class="col"><p id="behind" style="font-size:10px">Behind the sheet</p></div><div role="dialog" aria-modal="true" hidden style="position:fixed;inset:0;background:#ffffff"><p style="font-size:10px">Not open</p></div>`,
+    // Text zoom (PP-433): Android's font scale makes a WebView compute every px font size and line height 8 % larger
+    // (14 px as 15.12, line height 20 as 21.6). Chrome on a computer has no text zoom (CDP's OS text scale does not act
+    // as it), so the page plays it: its sizes as such a WebView computes them, and the check's probe (100 px) as 108.
+    // The Skills & commands row (PP-471: 114.08, 108 at 100 %), a session row of three lines and an icon (72.16, 68),
+    // an icon button and a row with a min-height (40 and 44, no text part), and one off the grid at 100 % too (35.6, 34).
+    "/text-zoom": `${head}<style>[data-pi-text-zoom]{font-size:108px!important;line-height:108px!important} button{display:block;width:300px;margin:0 20px 8px;border:0;font:15.12px/21.6px sans-serif;text-align:left} .small{font-size:12.96px;line-height:17.28px}</style>
+      <button id="lib" style="display:flex;flex-direction:column;gap:4px;padding:12px 16px"><span>ssp-notes</span><span style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:14.04px">${words.repeat(2)}</span><span class="small" style="display:flex;flex-wrap:wrap;gap:4px 12px"><span>1 session</span><span>2 versions</span></span></button>
+      <button id="session" style="padding:8px 12px"><div class="small">~/work/pi-phone</div><div>pi-phone dev</div><div class="small" style="display:flex;align-items:center;gap:4px"><svg width="16" height="16"></svg><span>master</span></div></button>
+      <button id="icon" aria-label="Close" style="width:40px;height:40px;padding:8px"><svg width="24" height="24"></svg></button>
+      <button id="tall" style="min-height:44px;padding:0 12px">One line</button>
+      <button id="off" style="padding:7px 12px">Seven</button>`,
     ...AUTON_PAGES,
 };
 let server: Server;
@@ -379,6 +390,31 @@ test("an element in a display: contents box is measured against the nearest box,
         assert.deepEqual(of(closed, "small-text").map((find) => short(find.what)), ["p#behind"]);
         assert.doesNotMatch(describeLayout(closed), /measured inside/);
         assert.equal(parseLayout(JSON.stringify({ ...report(390), modal: 3 }), 390)?.modal, undefined);
+    } finally {
+        await engine.close();
+    }
+});
+
+test("under text zoom (Android's font scale), control heights are measured on the grid as at 100 %: the part their lines make taken back, and the report says so (PP-433)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+
+        await page.init({ width: 390, height: 844, mobile: true });
+
+        const zoomed = await measured(page, "/text-zoom");
+        const heights = of(zoomed, "off-grid").filter((find) => /height/.test(find.property));
+
+        assert.equal(zoomed.textZoom, 1.08);
+        assert.deepEqual(heights.map((find) => [find.what.replace(/ ".*$/, ""), find.property, find.value]), [["button#off", "control height at 100 % text", 34]]);
+        assert.match(describeLayout(zoomed), /\nText zoom 108 % \(the system's font size\): control heights are measured on the 4 px grid as at 100 %/);
+        // Without text zoom, nothing is said and heights are measured as they are.
+        const plain = await measured(page, "/clean");
+
+        assert.equal(plain.textZoom, undefined);
+        assert.doesNotMatch(describeLayout(plain), /Text zoom/);
+        assert.equal(parseLayout(JSON.stringify({ ...report(390), textZoom: "108%" }), 390)?.textZoom, undefined);
     } finally {
         await engine.close();
     }

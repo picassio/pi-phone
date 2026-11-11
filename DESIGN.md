@@ -317,7 +317,13 @@ so Pi changes them through the settings tools; "the last session" is the one the
   (a session row 52, the title 48, a sheet's list row 44, its separator drawn as an inset shadow, not a border).
   Android's font scale reaches the WebView as text zoom (108 % on the owner's phone, PP-427): it multiplies every px font
   size and line height, so there a row as tall as its lines leaves the grid (a model row 54.88 for 52, 72.16 for 68),
-  which the layout check reports; no CSS rounds after the zoom. The grid holds at 100 %, which the UI tests measure.
+  and no CSS rounds after the zoom. Decided in PP-433 (of three ways: text zoom off in `MainActivity`, which takes the
+  font size away from people who need it; leaving the reports; or this): the app keeps the person's font scale, and the
+  layout check measures control heights as at 100 %. It reads the zoom from a probe (a 100 px font computes as 108),
+  takes back the part of a height that lines of text make (a box of lines gives its content height unless it is taller
+  than its lines; a box of boxes, its rows, the tallest in each; a box taller than its children, none), tests that on
+  the grid ("control height at 100 % text"), and says the zoom in its report. The grid holds at 100 %, which the UI
+  tests measure.
   Blocks as tall as their words (a message, the message box, a task's card) grow by their text's line height. Weights 400 to 600, section labels in sentence case without
   letter spacing, counts as a plain number after the label ("Settled 50"), paddings, margins and gaps on the 4 px grid
   (2 px steps and 1 to 3 px nudges inside small controls), icons on one scale with one stroke (PP-403): 16 px in
