@@ -1415,7 +1415,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
     - **What it saved** (`savingOf`): (before − after) × the cache-write price (`writePrice`: the catalogue's 5-minute
       write, or twice the input price for a session on the 1-hour cache) − what compacting cost: the summary answer's `usage.cost`
       and the answers after compact_self's result (the request its result took; `turnInfo`), all real usage. The after
-      is measured on the compacted view; the summary request's cached read and its write are kept with it (`read`,
+      is the next request's whole prompt, as `before` is: the compacted view's messages plus Pi's sections and tool
+      schemas (`promptTokensOf`, read from the system messages before the compaction drops them; the wake-up writes them
+      again). Without them a 349k compaction said 22k after where the wake-up wrote 91k, and the saving read $0.35 too
+      high (PP-480). The reminder's estimate counts the same prompt. The summary request's cached read and its write are kept with it (`read`,
       `written`), and the server log has the line. The reminder's estimate uses the same prices: a cold wake-up is the
       context at the write price; compacting is two requests reading the context warm, about 1.5k tokens written and 2k
       of summary. Each is kept in the session (`SelfCompactDoc.done`, 50; the room sends

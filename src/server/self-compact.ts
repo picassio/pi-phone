@@ -27,7 +27,7 @@
 import type { AssistantMessage, Message } from "@earendil-works/pi-ai";
 import { type ConversationId, UsageDoc } from "@earendil-works/pi-durable";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { estimateMessageTokens } from "@earendil-works/pi-ai/utils/estimate";
+import { estimateMessageTokens, estimateTextTokens } from "@earendil-works/pi-ai/utils/estimate";
 import type { PocketApp } from "./app.ts";
 import { cacheTiming } from "./cache-retention.ts";
 import type { SelfCompactSettings } from "./config.ts";
@@ -104,6 +104,43 @@ export function waitLines(pending: Pending): string[] {
 
 /** The session's board tasks in progress or in review. */
 export const taskLines = (pending: Pending): string[] => pending.tasks.map((each) => `- ${each.ref} ${clipped(each.title, 100)}: ${each.state === "in_progress" ? "In Progress" : "Review"}`);
+
+/**
+ * The prompt a request sends before its messages, as the context's system messages leave it: their instructions, each
+ * section's newest text, and the tools still offered, each once (PP-480). A compaction drops these messages and the
+ * next request writes them again whole, so they count in what remains after it.
+ */
+export function promptTokensOf(messages: readonly Message[]): number {
+    const texts: string[] = [];
+    const sections = new Map<string, string>();
+    const tools = new Map<string, unknown>();
+
+    for (const message of messages) {
+        if (message.role !== "system") {
+            continue;
+        }
+
+        texts.push(typeof message.content === "string" ? message.content : message.content.map((part) => part.text).join("\n"));
+
+        for (const [name, text] of Object.entries(message.sections ?? {})) {
+            if (text === null) {
+                sections.delete(name);
+            } else {
+                sections.set(name, text);
+            }
+        }
+
+        for (const tool of message.toolsAdded ?? []) {
+            tools.set(tool.name, tool);
+        }
+
+        for (const tool of message.toolsRemoved ?? []) {
+            tools.delete(tool.name);
+        }
+    }
+
+    return estimateTextTokens([...texts, ...sections.values()].join("\n\n")) + (tools.size === 0 ? 0 : estimateTextTokens(JSON.stringify([...tools.values()])));
+}
 
 /** Prices of a model in dollars per million tokens, as its catalogue says. */
 export type Prices = { input: number; output: number; cacheRead: number; cacheWrite: number };
@@ -419,7 +456,7 @@ export class SelfCompact {
 
         // The prompt's part a compaction keeps: Pi's sections and tool schemas.
         const view = await (await this.#app.conversation(id)).context(context);
-        const promptTokens = view.messages.filter((message) => message.role === "system").reduce((sum, message) => sum + estimateMessageTokens(message), 0);
+        const promptTokens = promptTokensOf(view.messages);
 
         return {
             continue: reminderText(pending, { tokens, window, model: answer.model, prices, ttlMs: this.timingOf(id).ttlMs, promptTokens }),
@@ -601,6 +638,8 @@ export class SelfCompact {
 
         try {
             const conversation = await app.conversation(id);
+            // Read before the compaction drops the system messages that hold it.
+            const promptTokens = promptTokensOf((await conversation.context(context)).messages);
             const taskId = await conversation.compact(SELF_COMPACT_MARK, context);
             const outcome = (await app.harness.waitForTask(taskId, context)).state.outcome;
 
@@ -625,7 +664,10 @@ export class SelfCompact {
             await (await app.harness.submission(submissionId, context))?.wait(context);
             const view = await conversation.context(context);
             const entry = view.entries.reduce<number | undefined>((newest, each) => (each.kind === "pi.compaction" && (newest === undefined || Number(each.id) > newest) ? Number(each.id) : newest), undefined);
-            const after = projectStats(undefined, view.entries).contextTokens ?? 0;
+            // The next request's whole prompt: Pi's sections and tool schemas, the summary and the messages kept (PP-480:
+            // the messages alone left out about 69k of a 91k wake-up, and overstated the saving). The same base as the
+            // reminder's estimate and as `before`, the last request's measured prompt.
+            const after = promptTokens + view.messages.reduce((sum, message) => sum + estimateMessageTokens(message), 0);
             const [provider = "", ...rest] = ready.model.split("/");
             const { prices } = this.#model(provider, rest.join("/"));
             const write = writePrice(prices, this.timingOf(id).ttlMs);

@@ -152,6 +152,16 @@ test("compact_self queues a compaction that starts once the turn ends, with the 
     assert.ok(Math.abs(spend.saved - savingOf(done[0]!.before, done[0]!.after, done[0]!.cost, 6.25)) < 1e-9);
     assert.ok(spend.saved > 0, `saved ${spend.saved}`);
     assert.equal(spend.recent[0]!.session, Number(id));
+
+    // "After" is the next request's whole prompt, Pi's sections and tool schemas with it, as the wake-up writes it
+    // (PP-480: the messages alone said 22k where the wake-up wrote 91k). The faux provider counts 4 characters a token,
+    // the estimate 3.5.
+    await say(id, "back");
+    const wake = (await entries(id)).filter((entry) => entry.kind === "pi.assistant").at(-1)!;
+    const woke = (wake.model![0] as { usage: { input: number; cacheRead: number; cacheWrite: number } }).usage;
+    const wrote = woke.input + woke.cacheRead + woke.cacheWrite;
+
+    assert.ok(Math.abs(done[0]!.after - wrote) < 0.2 * wrote, `after ${done[0]!.after}, the wake-up's prompt ${wrote}`);
 });
 
 test("compact_self is refused in a subagent and while the owner turned it off", async () => {
