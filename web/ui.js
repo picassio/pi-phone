@@ -1996,9 +1996,10 @@ const moving = (node) => {
 
 /**
  * While a dropdown is open, follow its button each frame as long as something around it animates (a sheet sliding in),
- * and once more when that ends: `place()` measures it again.
+ * and once more when that ends: `measure()` gives its new place. Only while it is still open: a frame already queued
+ * when a pick closes it runs before this effect's cleanup cancels it, and must not open it again (PP-497).
  */
-function useFollow(open, button, place) {
+function useFollow(open, button, measure, setOpen) {
     useEffect(() => {
         if (!open) {
             return undefined;
@@ -2008,7 +2009,7 @@ function useFollow(open, button, place) {
         const step = () => {
             const still = !moving(button.current);
 
-            place();
+            setOpen((was) => (was === null ? null : (measure() ?? was)));
             frame = still ? 0 : requestAnimationFrame(step);
         };
 
@@ -2044,9 +2045,9 @@ export function Choice({ value, options, onChange, label, disabled, placeholder 
     const menu = useRef(null);
     const chosen = options.find((option) => option.value === value);
     // Under its button, or over it with too little room below; placed as its sheet places fixed elements (PP-374).
-    const place = () => {
+    const measure = () => {
         if (!button.current) {
-            return;
+            return undefined;
         }
 
         const rect = button.current.getBoundingClientRect();
@@ -2056,17 +2057,21 @@ export function Choice({ value, options, onChange, label, disabled, placeholder 
         const above = rect.top - top - 8;
         const down = below >= 200 || below >= above;
 
-        setOpen(
-            placedFrom(button.current, {
-                left: rect.left,
-                width: rect.width,
-                height: Math.min(320, down ? below : above),
-                ...(down ? { top: rect.bottom + 4, down: true } : { bottom: innerHeight - rect.top + 4 }),
-            }),
-        );
+        return placedFrom(button.current, {
+            left: rect.left,
+            width: rect.width,
+            height: Math.min(320, down ? below : above),
+            ...(down ? { top: rect.bottom + 4, down: true } : { bottom: innerHeight - rect.top + 4 }),
+        });
     };
     const show = () => {
-        place();
+        const where = measure();
+
+        if (!where) {
+            return;
+        }
+
+        setOpen(where);
         setActive(Math.max(0, options.findIndex((option) => option.value === value)));
     };
     const close = () => setOpen(null);
@@ -2123,7 +2128,7 @@ export function Choice({ value, options, onChange, label, disabled, placeholder 
     }, [Boolean(open)]);
 
     useEffect(reveal, [active]);
-    useFollow(open, button, place);
+    useFollow(open, button, measure, setOpen);
 
     const onKeyDown = (event) => {
         if (!open) {
@@ -2224,9 +2229,9 @@ export function MultiChoice({ options, onAdd, label, placeholder = t("Add…"), 
         setTicked([]);
         setQuery("");
     };
-    const show = () => {
+    const measure = () => {
         if (!button.current) {
-            return;
+            return undefined;
         }
 
         const rect = button.current.getBoundingClientRect();
@@ -2236,14 +2241,19 @@ export function MultiChoice({ options, onAdd, label, placeholder = t("Add…"), 
         const above = rect.top - top - 8;
         const down = below >= 280 || below >= above;
 
-        setOpen(
-            placedFrom(button.current, {
-                left: rect.left,
-                width: rect.width,
-                height: Math.min(420, down ? below : above),
-                ...(down ? { top: rect.bottom + 4, down: true } : { bottom: innerHeight - rect.top + 4 }),
-            }),
-        );
+        return placedFrom(button.current, {
+            left: rect.left,
+            width: rect.width,
+            height: Math.min(420, down ? below : above),
+            ...(down ? { top: rect.bottom + 4, down: true } : { bottom: innerHeight - rect.top + 4 }),
+        });
+    };
+    const show = () => {
+        const where = measure();
+
+        if (where) {
+            setOpen(where);
+        }
     };
     const toggle = (value) => setTicked((was) => (was.includes(value) ? was.filter((each) => each !== value) : [...was, value]));
     const add = () => {
@@ -2291,7 +2301,7 @@ export function MultiChoice({ options, onAdd, label, placeholder = t("Add…"), 
         };
     }, [Boolean(open)]);
 
-    useFollow(open, button, show);
+    useFollow(open, button, measure, setOpen);
 
     const needle = query.trim().toLowerCase();
     const shown = options.filter((option) => needle === "" || `${option.label} ${option.value} ${option.group ?? ""}`.toLowerCase().includes(needle));

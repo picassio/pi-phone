@@ -76,8 +76,9 @@ const mount = (ms: number) => `
     box.id = "pp374";
     box.style.cssText = "position:fixed;left:16px;right:16px;top:120px;padding:16px;background:#222;z-index:9999;transform:translateY(40px)";
     document.body.append(box);
-    render(html\`<div><\${Choice} label="One" value="a" options=\${[{ value: "a", label: "A" }, { value: "b", label: "B" }]} onChange=\${() => {}} /></div>
-        <div style="margin-top:8px"><\${MultiChoice} label="Some" options=\${[{ value: "x", label: "X" }]} onAdd=\${() => {}} /></div>\`, box);
+    window.pp497 = [];
+    render(html\`<div><\${Choice} label="One" value="a" options=\${[{ value: "a", label: "A" }, { value: "b", label: "B" }]} onChange=\${(value) => window.pp497.push(value)} /></div>
+        <div style="margin-top:8px"><\${MultiChoice} label="Some" options=\${[{ value: "x", label: "X" }]} onAdd=\${(values) => window.pp497.push(...values)} /></div>\`, box);
     ${ms > 0 ? `box.animate([{ transform: "translateY(280px)" }, { transform: "translateY(40px)" }], { duration: ${ms}, easing: "linear" });` : ""}
     return "true";`;
 
@@ -120,4 +121,26 @@ test("a dropdown's list sits under its button inside a transformed box, and foll
     );
     await new Promise((resolve) => setTimeout(resolve, 1200));
     assert.equal(await inPage<number>(off(0)), 0, "under the button once it stopped");
+});
+
+/** Open dropdown `which` while its box slides in, wait `frames` frames, tap `rows` in its list, and say what came of it later. */
+const pickWhileMoving = (which: number, frames: number, rows: string[]) => `
+    const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+    document.querySelectorAll("#pp374 button.choice")[${which}].click();
+    for (let i = 0; i < ${frames}; i++) await frame();
+    for (const row of ${JSON.stringify(rows)}) {
+        document.querySelector("#pp374 .choice-menu " + row).click();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    return JSON.stringify({ open: document.querySelector("#pp374 .choice-menu") !== null, picked: window.pp497 });`;
+
+test("a dropdown picked while its box still moves stays closed (PP-497)", real, async () => {
+    for (const frames of [1, 2, 4]) {
+        await page.evaluate(mount(1500));
+        assert.deepEqual(await inPage(pickWhileMoving(0, frames, [".pop-menu-row:nth-child(2)"])), { open: false, picked: ["b"] }, `Choice, picked ${frames} frames after it opened`);
+
+        await page.evaluate(mount(1500));
+        assert.deepEqual(await inPage(pickWhileMoving(1, frames, [".mc-row", "[data-part=multi-add]"])), { open: false, picked: ["x"] }, `MultiChoice, added ${frames} frames after it opened`);
+    }
 });
