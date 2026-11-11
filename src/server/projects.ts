@@ -919,7 +919,9 @@ export class Projects {
             project,
             task: this.#boardTasks(tasks, links).find((each) => each.id === task.id)!,
             comments: (
-                this.#db.prepare("SELECT * FROM pocket_task_comments WHERE task_id = ? ORDER BY created_at, id").all(task.id) as Row[]
+                // Then the order they were made in: comments of the same millisecond (a comment, then unsharing's) would
+                // otherwise follow their random ids (PP-282).
+                this.#db.prepare("SELECT * FROM pocket_task_comments WHERE task_id = ? ORDER BY created_at, rowid").all(task.id) as Row[]
             ).map((row) => ({
                 id: String(row.id),
                 author: String(row.author),

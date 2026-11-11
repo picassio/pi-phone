@@ -155,6 +155,28 @@ test("blocks are shown, never acted on; links never circle; a blocked task says 
     projects.close();
 });
 
+test("comments made in the same millisecond come back in the order they were made (PP-282)", () => {
+    // A clock that stands still: every comment has the same time.
+    const projects = new Projects(mkdtempSync(join(root, "projects-")), people, () => 1_000);
+
+    projects.create(as(OWNER), { key: "PP", name: "pi-phone" });
+    projects.setMembers(as(OWNER), "PP", [TUAN.id]);
+    const task = projects.createTask(as(OWNER), "PP", { title: "Order", assignee: TUAN.id });
+    const said = Array.from({ length: 12 }, (_, index) => `Comment ${index + 1}.`);
+
+    for (const text of said) {
+        projects.comment(pi("s1"), task.ref, text);
+    }
+
+    // Unsharing writes its own comment, after them.
+    projects.setMembers(as(OWNER), "PP", []);
+    assert.deepEqual(
+        projects.task(as(OWNER), task.ref).comments.map((comment) => comment.text),
+        [...said, "Unassigned: Tuan is no longer on PP."],
+    );
+    projects.close();
+});
+
 test("projects survive a restart, and a session's board mode is kept", () => {
     const dir = mkdtempSync(join(root, "projects-"));
     const first = new Projects(dir, people);
