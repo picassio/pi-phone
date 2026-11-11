@@ -322,8 +322,8 @@ final class Renderer {
                             };
                             // Steps before the shot (PP-423, render-steps.ts): what a person would tap first. A page a
                             // step loaded is measured again for a whole-page picture (PP-500).
-                            Consumer<Boolean> stepped = (loaded) -> {
-                                if (!loaded) {
+                            Consumer<Boolean> stepped = (another) -> {
+                                if (!another) {
                                     measure.run();
                                     return;
                                 }
