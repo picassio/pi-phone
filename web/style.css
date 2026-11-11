@@ -10006,15 +10006,27 @@ pre.diff .del {
     margin-top: 0;
 }
 
+/* As tall as its picture (PP-406): the hairline is drawn over the picture's edge, not around it, so a row's thumbs are
+ * 140 px (it was 142) and a lone one is its picture's height. */
 .thumb {
+    position: relative;
     display: block;
     padding: 0;
-    border: 1px solid var(--hair);
+    border: 0;
     border-radius: var(--r-card);
     overflow: hidden;
     background: var(--card);
     cursor: zoom-in;
     max-width: 100%;
+}
+
+.thumb::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 1px solid var(--hair);
+    border-radius: inherit;
+    pointer-events: none;
 }
 
 .thumb img {

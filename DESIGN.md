@@ -326,7 +326,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
   takes back the part of a height that lines of text make (a box of lines gives its content height unless it is taller
   than its lines; a box of boxes, its rows, the tallest in each; a box taller than its children, none), tests that on
   the grid ("control height at 100 % text"), and says the zoom in its report. The grid holds at 100 %, which the UI
-  tests measure.
+  tests measure. A button laid over a box to make it one tap target (the top bar's `.title-open`, absolute, inset 0)
+  has no lines of its own, so it takes the lines of the box it fills (PP-406: it was reported at 45.6 for 44).
+  Picture thumbnails (PP-406): a row's are 140 px tall, their hairline drawn by `::after` over the picture's edge rather
+  than a border around it (142); a lone one is its picture's height at the picture's shape, which is not a size of the
+  design, so the check does not measure on the grid a control as tall as its one picture with `height: auto` (read
+  with `computedStyleMap()`), unless a max-height holds it.
   Blocks as tall as their words (a message, the message box, a task's card) grow by their text's line height. Weights 400 to 600, section labels in sentence case without
   letter spacing, counts as a plain number after the label ("Settled 50"), paddings, margins and gaps on the 4 px grid
   (2 px steps and 1 to 3 px nudges inside small controls), icons on one scale with one stroke (PP-403): 16 px in

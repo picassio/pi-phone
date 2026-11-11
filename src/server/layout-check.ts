@@ -31,6 +31,9 @@
  * Since PP-501, a box of display: contents (which has none) is passed over for the nearest ancestor with a box, and an
  * open modal dialog is measured alone, as the page behind it cannot be reached; the report names it (`modal`). Since
  * PP-433, under text zoom (Android's font scale in a WebView) control heights are measured on the grid as at 100 %.
+ * Since PP-406, a layer laid over a box to make it one tap target is measured with that box's lines, and a control as
+ * tall as its one picture at the picture's own shape (a lone thumbnail) is not measured on the grid: its height is the
+ * picture's.
  */
 
 /** One thing out of place: what it is, and the boxes that show it (x and width, CSS pixels). */
@@ -494,7 +497,12 @@ ${PAGE_HELPERS}
     const content = r.height - px(s.paddingTop) - px(s.paddingBottom) - px(s.borderTopWidth) - px(s.borderBottomWidth);
     const kids = boxKids(e);
     const words = [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim() !== '');
-    if (REPLACED.test(e.tagName) || content < 1) v = 0;
+    // A layer laid over the box it is placed in, to make all of it one tap target (the top bar's title): no lines of its
+    // own, as tall as that box, whose lines make its height (PP-406).
+    const holder = s.position === 'absolute' && kids.length === 0 && !words ? e.offsetParent : null;
+    const held = holder ? holder.getBoundingClientRect().height - px(css(holder).borderTopWidth) - px(css(holder).borderBottomWidth) : 0;
+    if (holder && Math.abs(r.height - held) < 0.5) v = textPart(holder);
+    else if (REPLACED.test(e.tagName) || content < 1) v = 0;
     else if ((words && kids.every((c) => css(c).display.startsWith('inline'))) || (kids.length > 0 && kids.every((c) => css(c).display === 'inline'))) {
       lineRange.selectNodeContents(e);
       let lines = 0, bottom = -1e9;
@@ -516,6 +524,15 @@ ${PAGE_HELPERS}
     }
     textParts.set(e, v);
     return v;
+  };
+  // A control as tall as its one picture at the picture's own shape (a lone image thumbnail: height auto, under its
+  // max-height): its height is the picture's, not a size of the design, so it is not measured on the grid (PP-406).
+  const pictured = (e, r) => {
+    const kids = boxKids(e), s = css(e);
+    if (kids.length !== 1 || kids[0].tagName !== 'IMG' || [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim() !== '')) return false;
+    const img = kids[0], is = css(img), q = img.getBoundingClientRect();
+    const inner = r.height - px(s.paddingTop) - px(s.paddingBottom) - px(s.borderTopWidth) - px(s.borderBottomWidth);
+    return String(img.computedStyleMap().get('height')) === 'auto' && (is.maxHeight === 'none' || q.height < px(is.maxHeight) - 0.5) && Math.abs(q.height - inner) < 0.5;
   };
   const add = (issue) => { if (issues.length < 12) issues.push(issue); else more++; };
   const round = (r) => [Math.round(r.left), Math.round(r.width)];
@@ -731,7 +748,9 @@ ${PAGE_HELPERS}
           if (hit.width < ${TAP_MIN} - 0.01 || hit.height < ${TAP_MIN} - 0.01) group('small-target', sig(e) + '|' + Math.round(hit.width) + 'x' + Math.round(hit.height), () => ({ what: name(e), size: [r1(hit.width), r1(hit.height)] }));
         }
         // Under text zoom, as at 100 %: the part its lines make taken back to their size there (PP-433).
-        if (TEXT_ZOOM === 1) offGrid(e, 'control height', r.height);
+        if (pictured(e, r)) {
+          // Its height is its picture's.
+        } else if (TEXT_ZOOM === 1) offGrid(e, 'control height', r.height);
         else offGrid(e, 'control height at 100 % text', r1(r.height - textPart(e) * (1 - 1 / TEXT_ZOOM)));
         if (style.pointerEvents !== 'none') {
           const by = coveredBy(e, r.left + r.width / 2, r.top + r.height / 2);

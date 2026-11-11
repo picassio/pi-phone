@@ -74,6 +74,8 @@ const AUTON_PAGES = Object.fromEntries([
     ...THRESHOLDS.map((fixture, i) => [`/thresholds/${i}`, fixturePage(fixture.html)]),
 ]);
 
+/** A picture 300 × 97. */
+const picture = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='97'%3E%3Crect width='300' height='97' fill='%23888888'/%3E%3C/svg%3E`;
 const head = `<!doctype html><meta name="viewport" content="width=device-width"><style>body{margin:0;font:14px sans-serif} .col{width:300px;margin:0 20px}</style>`;
 const words = "Words that wrap in their column, as a reply's do, line after line after line. ";
 const PAGES: Record<string, string> = {
@@ -149,13 +151,22 @@ const PAGES: Record<string, string> = {
     // (14 px as 15.12, line height 20 as 21.6). Chrome on a computer has no text zoom (CDP's OS text scale does not act
     // as it), so the page plays it: its sizes as such a WebView computes them, and the check's probe (100 px) as 108.
     // The Skills & commands row (PP-471: 114.08, 108 at 100 %), a session row of three lines and an icon (72.16, 68),
-    // an icon button and a row with a min-height (40 and 44, no text part), and one off the grid at 100 % too (35.6, 34).
+    // an icon button and a row with a min-height (40 and 44, no text part), one off the grid at 100 % too (35.6, 34), and
+    // the top bar's title, a button laid over its two lines to open the menu (45.6, 44 at 100 %: PP-406).
     "/text-zoom": `${head}<style>[data-pi-text-zoom]{font-size:108px!important;line-height:108px!important} button{display:block;width:300px;margin:0 20px 8px;border:0;font:15.12px/21.6px sans-serif;text-align:left} .small{font-size:12.96px;line-height:17.28px}</style>
       <button id="lib" style="display:flex;flex-direction:column;gap:4px;padding:12px 16px"><span>ssp-notes</span><span style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:14.04px">${words.repeat(2)}</span><span class="small" style="display:flex;flex-wrap:wrap;gap:4px 12px"><span>1 session</span><span>2 versions</span></span></button>
       <button id="session" style="padding:8px 12px"><div class="small">~/work/pi-phone</div><div>pi-phone dev</div><div class="small" style="display:flex;align-items:center;gap:4px"><svg width="16" height="16"></svg><span>master</span></div></button>
       <button id="icon" aria-label="Close" style="width:40px;height:40px;padding:8px"><svg width="24" height="24"></svg></button>
       <button id="tall" style="min-height:44px;padding:0 12px">One line</button>
-      <button id="off" style="padding:7px 12px">Seven</button>`,
+      <button id="off" style="padding:7px 12px">Seven</button>
+      <div id="title" style="position:relative;display:flex;flex-direction:column;width:300px;margin:0 20px 8px"><button id="open" aria-label="Session menu" style="position:absolute;inset:0;width:auto;margin:0"></button><span style="font:15.12px/21.6px sans-serif">pi-phone dev</span><span class="small" style="display:flex;align-items:center;min-height:24px">work</span></div>`,
+    // Pictures in controls (PP-406): a lone one at its own shape, 97 px (its height is the picture's), the same in a
+    // frame of 1 px; one set to 98 px and one held at its max-height of 50, whose heights are the page's.
+    "/pictures": `${head}<style>button{display:block;padding:0;border:0;margin:0 20px 8px;background:none} img{display:block;width:auto}</style>
+      <button id="lone" aria-label="Picture"><img src="${picture}" alt="Picture" style="height:auto"></button>
+      <button id="framed" aria-label="Picture" style="border:1px solid #888888"><img src="${picture}" alt="Picture" style="height:auto"></button>
+      <button id="fixed" aria-label="Picture"><img src="${picture}" alt="Picture" style="height:98px"></button>
+      <button id="clamped" aria-label="Picture"><img src="${picture}" alt="Picture" style="height:auto;max-height:50px"></button>`,
     ...AUTON_PAGES,
 };
 let server: Server;
@@ -415,6 +426,26 @@ test("under text zoom (Android's font scale), control heights are measured on th
         assert.equal(plain.textZoom, undefined);
         assert.doesNotMatch(describeLayout(plain), /Text zoom/);
         assert.equal(parseLayout(JSON.stringify({ ...report(390), textZoom: "108%" }), 390)?.textZoom, undefined);
+    } finally {
+        await engine.close();
+    }
+});
+
+test("a control as tall as its one picture at the picture's own shape is not measured on the grid; one whose height the page sets is (PP-406)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+
+        await page.init({ width: 390, height: 844, mobile: true });
+
+        const pictures = await measured(page, "/pictures");
+
+        assert.equal(await page.evaluate<string>(`JSON.stringify([...document.querySelectorAll("button")].map((b) => Math.round(b.getBoundingClientRect().height * 100) / 100))`), "[97,99,98,50]");
+        assert.deepEqual(
+            of(pictures, "off-grid").map((find) => [find.what.replace(/ ".*$/, ""), find.property, find.value]),
+            [["button#fixed", "control height", 98], ["button#clamped", "control height", 50]],
+        );
     } finally {
         await engine.close();
     }

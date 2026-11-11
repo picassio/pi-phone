@@ -387,7 +387,9 @@ dự án thật.</sub>
   khác, vùng chạm nhỏ hơn 40 px trên điện thoại (tính cả lớp chạm phủ rộng ra ngoài nút nhỏ, và liên kết
   phủ cả thẻ (stretched link) được tính bằng cả thẻ, chữ trong thẻ nằm dưới lớp đó không bị coi là bị đè; trang điện thoại rộng hơn
   màn hình vẫn được tính là trang điện thoại), padding, khoảng cách, bo góc và chiều cao nút lệch lưới 4 px hoặc
-  không tròn điểm ảnh (khi Android phóng cỡ chữ, chiều cao nút được đo như ở 100 %), chữ có độ tương phản dưới chuẩn WCAG AA (cả trên nền gradient, đo đúng chỗ chữ nằm) hoặc nhỏ hơn 12 px, emoji và ký hiệu dùng làm biểu
+  không tròn điểm ảnh (khi Android phóng cỡ chữ, chiều cao nút được đo như ở 100 %, nút phủ lên một tiêu đề được đo
+  theo các dòng chữ của tiêu đề đó; nút cao đúng bằng một ảnh duy nhất giữ tỉ lệ của ảnh thì lấy chiều cao của ảnh, không
+  bị tính là lệch lưới), chữ có độ tương phản dưới chuẩn WCAG AA (cả trên nền gradient, đo đúng chỗ chữ nằm) hoặc nhỏ hơn 12 px, emoji và ký hiệu dùng làm biểu
   tượng, chữ gradient, nhãn viết hoa, giãn chữ âm và dòng quá dài, cùng chín dấu hiệu lấy từ bộ dò của Impeccable (ảnh
   hỏng, nhảy cấp tiêu đề, thẻ lồng trong thẻ, sọc nhấn một bên, bóng phát sáng, chấm nhấp nháy, chữ căn đều trong cột
   hẹp, dòng chữ quá sát và cùng một chữ lặp trong một thẻ; biểu tượng xoay không tính là chấm nhấp nháy), và các luật

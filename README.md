@@ -383,7 +383,8 @@ No Termux, no laptop, no cloud VM.
   control, tap targets under 40 px on a phone (a hit area laid past a small control counts, and a stretched link takes its whole card, whose words under it are
   not covered; a phone page wider than the
   screen still counts as a phone's), padding, gaps, corners and control heights off the 4 px grid or not
-  whole pixels (under Android's font scale, control heights as at 100 %), text under WCAG AA contrast (over a gradient too, measured where the words sit) or under 12 px, emoji and symbols used as icons, gradient text, uppercase
+  whole pixels (under Android's font scale, control heights as at 100 %, a button laid over a title with that title's
+  lines; a control as tall as its one picture at the picture's own shape is the picture's height and passes), text under WCAG AA contrast (over a gradient too, measured where the words sit) or under 12 px, emoji and symbols used as icons, gradient text, uppercase
   labels, tight tracking and long lines, and nine tells adapted from Impeccable's detector (broken images, skipped
   heading levels, cards inside cards, side-tab stripes, glows, pulsing dots, narrow justified text, tight leading and
   the same words repeated in one card; a spinner is no pulsing dot), and the rules auton-ui proved: corners of a
