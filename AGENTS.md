@@ -38,8 +38,16 @@
 - Every UI change shows the layout check's counts before and after (`screenshot` at 390, 1280 and 1920 px of the live app or
   the test page, by kind: cut text, overlaps, contrast, small text, emoji, tap targets) in its report and its ticket;
   follow the `ui-verify` skill (`src/skills/ui-verify/`).
+- Evals (`scripts/prompt-eval.ts` and every script that calls a real model) run only on a Claude subscription account
+  (default `anthropic~han-acc`, `--account` names another), never on OpenRouter: it is too expensive (the owner's
+  rule, PP-476; the scripts refuse it). Before each run, ask the owner, with the request count `--dry-run` prints
+  (`scripts/eval-on-devbox.sh scripts/prompt-eval.ts … --dry-run`). Once they agree, save the account's short-lived
+  OAuth token as the secret `EVAL_ANTHROPIC_TOKEN` with `secret_save` (the owner approves the command on its card), and
+  run `EVAL_ANTHROPIC_TOKEN="$EVAL_ANTHROPIC_TOKEN" scripts/eval-on-devbox.sh scripts/prompt-eval.ts …`: it takes the
+  token to the devbox for that run only and removes it after. `scripts/wiki-eval.ts` runs its words-only way (A), which
+  calls no model.
 - Every commit that changes prompt text (sections, tool descriptions, parameter descriptions, skills' descriptions)
-  runs `node scripts/prompt-eval.ts --compare origin/master` on the devbox (with `OPENROUTER_API_KEY`), and its report
+  runs `scripts/prompt-eval.ts --compare origin/master` on the devbox (as above), and its report
   goes in the ticket: no scenario may drop (PP-452); a drop of a run or two is confirmed or cleared with
   `--only <those> --runs 10`. `test/prompt-budget.test.ts` holds the prompt's size; this holds
   what Pi does with it. A change about a behaviour no scenario covers adds one to `scripts/prompt-eval-scenarios.ts`.

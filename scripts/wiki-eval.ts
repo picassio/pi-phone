@@ -7,10 +7,13 @@
  * Measures: the right page first, the right pages among those given, pages off the point a question, questions with no
  * page left empty, time a message, Jev's cost.
  *
- *   OPENROUTER_API_KEY=… node scripts/wiki-eval.ts [--configs A,B,C,D] [--out report.md]
- *   OPENROUTER_API_KEY=… node scripts/wiki-eval.ts --wiki ~/.pi/wiki --cases cases.json   (a real wiki, read only)
- *   … --as query [--match 0.5] [--candidates 25] [--later 1000] [--start 1500]   (as wiki_query asks, every scope, at most 4 pages,
- *   with its Jev numbers changed: PP-361)
+ *   node scripts/wiki-eval.ts [--out report.md]
+ *   node scripts/wiki-eval.ts --wiki ~/.pi/wiki --cases cases.json   (a real wiki, read only)
+ *   … --as query   (as wiki_query asks, every scope, at most 4 pages: PP-361)
+ *
+ * Only A runs now: the embeddings and Jev of B, C and D are served by OpenRouter alone, and evals never run on
+ * OpenRouter (the owner's rule, PP-476: it is too expensive). `--configs` with B, C or D is refused; A calls no model
+ * and needs no key.
  *
  * Each way runs in a wiki of its own in a temporary home; nothing touches the owner's wiki: `--wiki` copies its folder
  * there first, and `--cases` gives the questions for it (`[{ q, kind, gold: [slug or path], ok?: [...] }]`), searched
@@ -20,7 +23,6 @@
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { JevModels } from "../src/server/jev.ts";
 import { Para } from "../src/server/para.ts";
 
 type Page = { path: string; title: string; body: string };
@@ -98,11 +100,8 @@ const CASES: Case[] = [
     { kind: "no page", q: "Đổi mật khẩu app ở đâu", gold: [] },
 ];
 
-const KEY = process.env.OPENROUTER_API_KEY;
-
-if (KEY === undefined || KEY === "") {
-    throw new Error("OPENROUTER_API_KEY is needed: the embeddings and Jev run on OpenRouter.");
-}
+// Nothing here may reach OpenRouter.
+delete process.env.OPENROUTER_API_KEY;
 
 const argument = (name: string) => {
     const at = process.argv.indexOf(name);
@@ -113,9 +112,11 @@ const WIKI = argument("--wiki");
 const CASES_FILE = argument("--cases");
 /** `--as query`: each question as wiki_query asks it (PP-361), instead of as a message. */
 const AS_QUERY = argument("--as") === "query";
-/** With --as query, wiki_query's Jev numbers to measure (`ParaHost.queryTuning`): --match 0.5 --candidates 25 --later 1000. */
-const number = (name: string) => (argument(name) === undefined ? undefined : Number(argument(name)));
-const TUNING = { match: number("--match"), candidates: number("--candidates"), later: number("--later"), start: number("--start") };
+const tuning = ["--match", "--candidates", "--later", "--start"].filter((name) => argument(name) !== undefined);
+
+if (tuning.length > 0) {
+    throw new Error(`${tuning.join(", ")} tune Jev, which runs on OpenRouter only, and evals never run on OpenRouter (PP-476).`);
+}
 
 if ((WIKI === undefined) !== (CASES_FILE === undefined)) {
     throw new Error("--wiki and --cases go together: a real wiki and the questions for it.");
@@ -137,19 +138,18 @@ const scopes =
           ];
 /** A found page as a question's right pages name it: its path, or its slug when they give slugs. */
 const named = (path: string, gold: string[]) => (gold.some((each) => each.includes("/")) ? path : path.split("/")[1]!);
-const EMBEDDING = "openai/text-embedding-3-small";
-const JEV = "typesafe/jev-1.14";
-const CONFIGS = [
-    { id: "A", name: "Words", embedding: null, jev: null },
-    { id: "B", name: "Words + embeddings", embedding: EMBEDDING, jev: null },
-    { id: "C", name: "Words + Jev", embedding: null, jev: JEV },
-    { id: "D", name: "Words + embeddings + Jev", embedding: EMBEDDING, jev: JEV },
-].filter((each) => (argument("--configs") ?? "A,B,C,D").split(",").includes(each.id));
+const chosen = (argument("--configs") ?? "A").split(",");
+const onOpenRouter = chosen.filter((id) => id !== "A");
+
+if (onOpenRouter.length > 0) {
+    throw new Error(`--configs ${onOpenRouter.join(",")}: embeddings and Jev run on OpenRouter only, and evals never run on OpenRouter (PP-476). Run --configs A.`);
+}
+
+const CONFIGS = [{ id: "A", name: "Words", embedding: null, jev: null }];
 
 type Row = { name: string; hit1: number; recall: number; noise: number; emptyOk: number; ms: number; cost: number; misses: string[] };
 const rows: Row[] = [];
 const detail: string[] = [];
-const jevModels = new JevModels();
 
 for (const config of CONFIGS) {
     const home = mkdtempSync(join(tmpdir(), "wiki-eval-"));
@@ -163,7 +163,7 @@ for (const config of CONFIGS) {
     let jevCost = 0;
     const para = new Para({
         home,
-        apiKey: async (provider) => (provider === "openrouter" ? KEY : undefined),
+        apiKey: async () => undefined,
         models: () => [],
         remote: () => undefined,
         spent: (usage) => {
@@ -173,9 +173,8 @@ for (const config of CONFIGS) {
         },
         log: (message) => console.error(`  log: ${message}`),
         rerankModel: () => config.jev,
-        jevModels: () => jevModels.list(),
+        jevModels: async () => [],
         fetch,
-        queryTuning: Object.fromEntries(Object.entries(TUNING).filter(([, value]) => value !== undefined)),
     });
 
     await para.updateSettings({ embeddingModel: config.embedding });
