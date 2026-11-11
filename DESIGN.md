@@ -891,8 +891,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
     on the phone; writes `<file>.md` beside the file through the env; returns the text, bounded as `fetch_content`'s.
     Not allowed in plan mode, as it writes.
   - **`fetch_content`:** document URLs. HTML still goes to Readability first, for the article rather than the whole page.
-  - **`wiki_ingest`:** a document path on the phone is converted to `<file>.md`, and that file is ingested (pi-para
-    reads files as UTF-8).
+  - **`wiki_ingest`:** a file source is read where the session works (the phone, or its machine: PP-444), relative to
+    its folder, through the session's environment; a document is converted to `<file>.md` beside it. pi-para reads
+    files on the phone's disk only, so it gets the text (`sourceType` text), and the raw copy is saved with
+    `saveRawSource`, its `original_path` the file's place (`<machine>:<path>` on a machine).
 - **Tool-use rules** (prompt sections, each from its module, so off with it): `asking` (`extensions/interview.ts`:
   choices and multi-part questions go through `interview`, a single yes/no stays in chat), `web` (`extensions/web.ts`:
   research with `web_search` and `fetch_content`, local documents with `file_to_markdown`, not curl), and

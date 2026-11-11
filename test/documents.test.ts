@@ -37,6 +37,10 @@ const route: FauxResponseStep = (request) => {
         return fauxAssistantMessage([fauxToolCall("wiki_ingest", { source: join(work, "spec.pdf"), category: "resources", scope: ["work"] })], { stopReason: "toolUse" });
     }
 
+    if (role === "user" && text.endsWith("ingest the note here")) {
+        return fauxAssistantMessage([fauxToolCall("wiki_ingest", { source: "note-here.md", sourceType: "file", category: "resources", scope: ["work"] })], { stopReason: "toolUse" });
+    }
+
     if (role === "user" && text.endsWith("convert text")) {
         return fauxAssistantMessage([fauxToolCall("file_to_markdown", { path: "notes.txt" })], { stopReason: "toolUse" });
     }
@@ -128,4 +132,17 @@ test("wiki_ingest takes a document as its Markdown", async () => {
     assert.doesNotMatch(answer, /%PDF|endobj/, answer.slice(0, 300));
     assert.match(answer, /relay holds sessions|spec\.pdf\.md/, answer.slice(0, 600));
     assert.match(readFileSync(join(work, "spec.pdf.md"), "utf8"), /relay holds sessions/);
+});
+
+test("wiki_ingest reads a relative path from the session's folder (PP-444)", async () => {
+    writeFileSync(join(work, "note-here.md"), "The phone's note: the relay sleeps at night.\n");
+    const id = await newSession(app);
+    const { submissionId } = await app.commands.submit(id, owner(app), { text: "ingest the note here", requestId: crypto.randomUUID() });
+
+    await (await app.harness.submission(submissionId, context))!.wait(context);
+    await app.harness.waitForIdle(context);
+    const answer = (await modelTexts(app, id)).at(-1)!;
+
+    assert.match(answer, new RegExp(`Read ${join(work, "note-here.md")}\\. Raw source saved to: raw/docs/note-here`), answer.slice(0, 400));
+    assert.match(answer, /<source-content>[\s\S]*the relay sleeps at night[\s\S]*<\/source-content>/);
 });

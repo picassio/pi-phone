@@ -20,7 +20,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
-import { root } from "./helpers.ts";
+import { home, root } from "./helpers.ts";
 import { APP_ROOT } from "../src/server/config.ts";
 
 const sshdPath = ["/usr/sbin/sshd", join(process.env.PREFIX ?? "/usr", "bin", "sshd")].find((path) => existsSync(path));
@@ -925,6 +925,34 @@ esac
     } finally {
         process.env.PATH = path;
     }
+});
+
+test("wiki_ingest in a session on a machine reads the file there, from its folder or ~; a document as its Markdown saved beside it there (PP-444)", { skip }, async () => {
+    const project = join(remoteHome, "project");
+
+    writeFileSync(join(project, "note-for-wiki.md"), "# Relay\nThe relay on the box keeps sessions for 15 minutes.\n");
+    writeFileSync(join(project, "budget-for-wiki.csv"), "item,cost\nrelay,42\n");
+    calls["ingest the machine's note"] = ["wiki_ingest", { source: "~/project/note-for-wiki.md", sourceType: "file", category: "resources", scope: ["pp444-test"] }];
+    calls["ingest the machine's sheet"] = ["wiki_ingest", { source: "budget-for-wiki.csv", sourceType: "file", category: "resources", scope: ["pp444-test"] }];
+    calls["ingest a missing file"] = ["wiki_ingest", { source: "not-there.md", sourceType: "file" }];
+    const session = await machineSession(project);
+
+    const note = await session.turn("ingest the machine's note");
+
+    assert.match(note, new RegExp(`Read box:${join(project, "note-for-wiki.md")}\\. Raw source saved to: raw/docs/note-for-wiki`), note.slice(0, 400));
+    assert.match(note, /<source-content>[\s\S]*keeps sessions for 15 minutes[\s\S]*<\/source-content>/);
+    assert.match(
+        readFileSync(join(home, ".pi", "wiki", "raw", "docs", "note-for-wiki.md"), "utf8"),
+        new RegExp(`original_path: "box:${join(project, "note-for-wiki.md")}"[\\s\\S]*keeps sessions for 15 minutes`),
+    );
+
+    const sheet = await session.turn("ingest the machine's sheet");
+
+    assert.match(sheet, /as its Markdown \(markit\), saved as .*budget-for-wiki\.csv\.md/, sheet.slice(0, 400));
+    assert.match(sheet, /relay[\s|]*42/);
+    assert.match(readFileSync(join(project, "budget-for-wiki.csv.md"), "utf8"), /relay/);
+
+    assert.match(await session.turn("ingest a missing file"), /Could not read not-there\.md on box: /);
 });
 
 test("a session goes to Pi on a machine, comes back with what Pi did there, and goes again to the same file", { skip }, async () => {

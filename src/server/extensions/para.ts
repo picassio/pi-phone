@@ -3,8 +3,9 @@
  * wiki_lint, wiki_summarize, wiki_migrate) and its context, scoped to the session's project, in every session's prompt.
  * The wiki is pi-para's, at ~/.pi/wiki, shared with pi-para in pi on other computers (`para.ts`).
  */
+import type { Context } from "@earendil-works/chord";
 import type { Static } from "@earendil-works/pi-schema";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
@@ -27,6 +28,9 @@ import type { JsonValue } from "@earendil-works/chord";
 import { buildWikiToolGuidanceSection, WIKI_TOOL_DESCRIPTIONS, type WikiToolName } from "pi-para/wiki-tool-guidance";
 import { createEditExecute, createReadExecute } from "pi-para/tools/edit-read";
 import { createIngestExecute } from "pi-para/tools/ingest";
+import { detectSourceType } from "pi-para/ingest";
+import { saveRawSource } from "pi-para/raw";
+import { parsePlace } from "../places.ts";
 import { createLintExecute } from "pi-para/tools/lint";
 import { createMigrateExecute } from "pi-para/tools/migrate";
 import { createMoveExecute } from "pi-para/tools/move";
@@ -168,7 +172,7 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
     const tool = <P extends object>(
         name: WikiToolName,
         parameters: P,
-        run: (wiki: Wiki, args: Static<P>) => Promise<ParaResult>,
+        run: (wiki: Wiki, args: Static<P>, session: { cwd: string; context: Context }) => Promise<ParaResult>,
     ) =>
         defineTool({
             name,
@@ -178,7 +182,7 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
                 const cwd = (await api.agent(context)).cwd!;
                 const wiki: Wiki = { ...(await para.open()), scope: await para.scope(cwd), markDirty: () => para.markDirty() };
                 // One wiki call at a time, across every session (`Para.exclusive`): a call reads pages another may be writing.
-                const result = await para.exclusive(() => run(wiki, args as Static<P>));
+                const result = await para.exclusive(() => run(wiki, args as Static<P>, { cwd, context }));
 
                 return {
                     output: result.content,
@@ -189,22 +193,72 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
         });
 
     const scoped = (wiki: Wiki) => () => wiki.scope;
-    // A document (PDF, Word, …) on the phone is ingested as its Markdown, by markit, saved beside it: pi-para reads files
-    // as text.
-    const ingest = async (wiki: Wiki, args: Static<typeof WikiIngestParams>): Promise<ParaResult> => {
-        const source = (args as { source?: unknown }).source;
-        const path = typeof source === "string" && !/^https?:\/\//i.test(source) ? resolve(source.startsWith("~/") ? join(homedir(), source.slice(2)) : source) : undefined;
-        const kind = path === undefined ? undefined : documentKind(path);
+    // A file source is read where the session works (the phone, or its machine: PP-444), from its folder, through the
+    // session's environment; a document (PDF, Word, …) as its Markdown, by markit, saved beside it. pi-para reads files
+    // on the phone's disk, so it gets the text, and the raw copy is saved here with the file's place as its origin.
+    const ingest = async (wiki: Wiki, args: Static<typeof WikiIngestParams>, session: { cwd: string; context: Context }): Promise<ParaResult> => {
+        const { source, sourceType } = args as { source: string; sourceType?: "url" | "file" | "text" };
 
-        if (path === undefined || kind === undefined || !existsSync(path)) {
+        if ((sourceType ?? detectSourceType(source)) !== "file") {
             return createIngestExecute(wiki.wikiDir, wiki.store, scoped(wiki))(args as never);
         }
 
-        const { markdown } = await toMarkdown(readFileSync(path), path);
+        const machineId = parsePlace(session.cwd).machineId;
+        const machine = machineId === undefined ? undefined : host.machines().find((each) => each.id === machineId);
+        const failed = (message: string): ParaResult => ({
+            content: [{ type: "text", text: `Could not read ${source}${machine === undefined ? "" : ` on ${machine.alias}`}: ${message}` }],
+            isError: true,
+        });
 
-        writeFileSync(`${path}.md`, markdown);
+        if (machineId !== undefined && machine === undefined) {
+            return failed("this session's machine is not connected: connect it in Settings › Machines.");
+        }
 
-        return createIngestExecute(wiki.wikiDir, wiki.store, scoped(wiki))({ ...(args as object), source: `${path}.md`, sourceType: "file" } as never);
+        const env = host.envOf(session.cwd);
+        const absolute = await env.absolutePath(source, session.context);
+
+        if (!absolute.ok) {
+            return failed(absolute.error.message);
+        }
+
+        const path = absolute.value;
+        const origin = machine === undefined ? path : `${machine.alias}:${path}`;
+        let content: string;
+        let saved: string | undefined;
+
+        if (documentKind(path) === undefined) {
+            const read = await env.readTextFile(path, session.context);
+
+            if (!read.ok) {
+                return failed(read.error.message);
+            }
+
+            content = read.value;
+        } else {
+            const bytes = await env.readBinaryFile(path, session.context);
+
+            if (!bytes.ok) {
+                return failed(bytes.error.message);
+            }
+
+            content = (await toMarkdown(bytes.value, path)).markdown;
+            saved = `${path}.md`;
+            const written = await env.writeFile(saved, content, session.context);
+
+            if (!written.ok) {
+                return failed(`its Markdown could not be saved as ${saved}: ${written.error.message}`);
+            }
+        }
+
+        const rawPath = await saveRawSource(wiki.wikiDir, { type: "file", content, originalPath: origin });
+        const result = await createIngestExecute(wiki.wikiDir, wiki.store, scoped(wiki))({ ...(args as object), source: content, sourceType: "text" } as never);
+        const read = `Read ${origin}${saved === undefined ? "" : ` as its Markdown (markit), saved as ${saved}`}. Raw source saved to: ${rawPath}`;
+
+        return {
+            ...result,
+            content: [{ type: "text", text: read }, ...(result.content ?? [])],
+            details: { ...(result.details as object), sourceType: "file", source: origin, rawPath },
+        };
     };
     /** Its source fenced as data (`fenceIngestSource`). */
     const fencedIngest = (result: ParaResult): ParaResult => ({
@@ -241,7 +295,7 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
         tool("wiki_move", WikiMoveParams, (wiki, args) =>
             createMoveExecute(wiki.wikiDir, wiki.store, wiki.markDirty)(args as never),
         ),
-        tool("wiki_ingest", WikiIngestParams, async (wiki, args) => fencedIngest(await ingest(wiki, args))),
+        tool("wiki_ingest", WikiIngestParams, async (wiki, args, session) => fencedIngest(await ingest(wiki, args, session))),
         tool("wiki_lint", WikiLintParams, (wiki, args) =>
             createLintExecute(wiki.wikiDir, wiki.store, wiki.markDirty, () => wiki.config.lint)(args as never),
         ),
