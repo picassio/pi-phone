@@ -87,7 +87,7 @@ export default function projects(pocket) {
         inbox: t("Inbox"),
         planning: t("Planning"),
         assigned: t("Assigned"),
-        in_progress: t("In Progress"),
+        in_progress: t("In progress"),
         blocked: t("Blocked"),
         testing: t("Testing"),
         review: t("Review"),

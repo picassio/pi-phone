@@ -299,12 +299,18 @@ so Pi changes them through the settings tools; "the last session" is the one the
   token (PP-399, the owner's rule): words at 4.5:1 or more, hints (counts, times, keys) at 3:1 or more, with every
   palette that comes with the app on the ground, cards, raised segments and selected rows: `--muted` is the body 88 %
   toward the ground (92 % light), `--faint` 66 % (75 % light), a light palette's `--accent` and code colors 78 % and 66 %
-  toward black (its fills keep the palette's accent), and words in a color on its own tint (initials, a board column's
+  toward black (its fills keep the palette's accent), a dark palette's code colors that read under 4.5:1 on code's
+  ground lifted toward white in oklab, a percent at a time, only as far as 4.5:1 takes them (`web/code-ink.js`, set by
+  `themeVars` in the palette layer; miasma, solitude, matte-black and six more had some, PP-406; the rest keep the
+  palette's), section and group titles (`.group-title`, a menu's or the board's headings) as words in `--muted`, not
+  hints in `--faint` (PP-406), and words in a color on its own tint (initials, a board column's
   count) mix `--tint-ink-share` toward `--tint-ink-toward`; `test/theme-contrast.test.ts` computes them for every
   palette. Taps (PP-400): `.button` and a dropdown (`.choice`) are 40 px tall, a small button 40 on touch, a search field (the session list's, the pickers': models, branches, a list's
   choices) 40 on touch (PP-427); a smaller
-  control that keeps its look (a chip, New, the composer's icons, a list's head) takes a 40 px tap through a
-  `::before` layer on `(pointer: coarse)`, kept inside a scrolling row's padding, which would clip it. The grid
+  control that keeps its look (a chip, New, the composer's icons, a list's head, the top bar's branch tag and its
+  24 px usage meter, PP-406) takes a 40 px tap through a `::before` or `::after` layer on `(pointer: coarse)`, kept
+  inside a scrolling row's padding, which would clip it; the subagents bar and a watched CI run are 40 px rows, with
+  8 px status dots on the grid (PP-406). The grid
   (PP-401): padding, gaps, corners and sizes from 12 px up in whole pixels on the 4 px grid, a value halfway between
   two going to the one on the 8 px grid (6 and 10 to 8, 14 and 18 to 16); rem paddings as pixels; corners from the
   `--r-*` tokens (2, 4, 8, 8, 12, 12, 16, 20, 24), never a token plus or minus a pixel; rows' lines in whole pixels

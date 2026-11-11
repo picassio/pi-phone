@@ -127,6 +127,44 @@ test("light palettes: the accent as words, and code's colors, read at 4.5:1", ()
     assert.deepEqual(low, []);
 });
 
+/**
+ * A dark palette's code colors (PP-406): each `--hl-*` in its palette color, as `themeVars` picks it, on code's ground
+ * (`--o-bg-dark`), or lifted by web/code-ink.js where that reads under 4.5:1 (miasma, solitude and matte-black did).
+ */
+test("dark palettes: code's colors read at 4.5:1 on code's ground, and those that read already keep the palette's color", async () => {
+    const { readableCode, SYNTAX } = (await import(join(web, "code-ink.js"))) as { readableCode: (vars: Colors) => Colors; SYNTAX: Colors };
+    const kept: string[] = [];
+    const low = palettes
+        .filter((each) => !each.light)
+        .flatMap(({ id, colors }) => {
+            const vars: Colors = {
+                "--o-bg-dark": colors.dark_background ?? colors.background!,
+                "--o-magenta": colors.magenta ?? "#bb9af7",
+                "--o-green": colors.green ?? "#9ece6a",
+                "--o-orange": colors.orange ?? colors.bright_yellow ?? colors.yellow ?? "#ff9e64",
+                "--o-blue": colors.blue ?? colors.accent!,
+                "--o-yellow": colors.yellow ?? colors.bright_yellow ?? "#e0af68",
+                "--o-cyan": colors.cyan ?? "#7dcfff",
+                "--o-red": colors.red ?? "#f7768e",
+            };
+            const lifted = readableCode(vars);
+            const code = hex(vars["--o-bg-dark"]!);
+
+            for (const [token, source] of Object.entries(SYNTAX)) {
+                if (lifted[token] === undefined) {
+                    kept.push(`${id} ${token}`);
+                } else {
+                    assert.ok(ratio(hex(vars[source]!), code) < 4.5, `${id} ${token} is lifted only when it reads under 4.5:1`);
+                }
+            }
+
+            return Object.entries(SYNTAX).flatMap(([token, source]) => under(id, token, hex(lifted[token] ?? vars[source]!), { code }, 4.5));
+        });
+
+    assert.deepEqual(low, []);
+    assert.ok(kept.length > 100, `most keep their color: ${kept.length}`);
+});
+
 test("words in a color on its tint (initials, a column's count) read at 4.5:1, with every palette", () => {
     const low = palettes.flatMap(({ id, colors, light: isLight }) => {
         const block = isLight ? light : root;

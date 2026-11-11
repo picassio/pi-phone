@@ -257,11 +257,10 @@
     flex: none;
 }
 
+/* A column's name in sentence case, as written, without tracking (PP-406). */
 .pj-col-label {
     color: var(--text);
     font: 600 12px var(--mono);
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
     white-space: nowrap;
 }
 
@@ -1158,9 +1157,7 @@
     padding: 8px 8px 4px;
     font-size: 12px;
     font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--faint);
+    color: var(--muted);
 }
 
 .pt-dot {
@@ -2873,9 +2870,7 @@ i.live {
     padding: 8px 12px 4px;
     font-size: 12px;
     font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--faint);
+    color: var(--muted);
 }
 
 /* Like the other views: the rest of the page, scrolling within itself. */

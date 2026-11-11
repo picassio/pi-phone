@@ -1271,9 +1271,9 @@ kbd {
 }
 
 /*
- * A thumb's height on a touch screen, with its look kept: a layer past the branch takes the tap. The line under the
- * title is a little taller there, so that room stays in the top bar; the layer reaches into the bottom of the title's
- * line above (its descenders), and the rest of the title opens the menu.
+ * A thumb's height on a touch screen, with its look kept: a layer past the branch takes the tap, 40 px tall (PP-406:
+ * it was 39). The line under the title is a little taller there, so that room stays in the top bar; the layer reaches
+ * into the bottom of the title's line above (its descenders), and the rest of the title opens the menu.
  */
 @media (pointer: coarse) {
     .title {
@@ -1286,7 +1286,7 @@ kbd {
     .title-sub > button.title-model::after {
         content: "";
         position: absolute;
-        inset: -10px -8px -9px;
+        inset: -10px -8px;
     }
 }
 
@@ -7741,19 +7741,34 @@ pre.diff .del {
     margin-top: 6px;
 }
 
-/* The top bar's meter: the first window's share, a tap opens all of them under it. */
+/*
+ * The top bar's meter: the first window's share, a tap opens all of them under it. A 24 px pill on the grid (PP-406: its
+ * line height 1.3 made it 25.6); on a touch screen a layer past it takes a 40 px tap.
+ */
 .usage-meter-wrap {
     position: relative;
     flex: none;
 }
 
 .usage-meter {
-    padding: 4px 8px;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    height: 24px;
+    padding: 0 8px;
     border: 1px solid var(--hair-2);
     border-radius: 99px;
-    font: 600 12px/1.3 var(--mono);
+    font: 600 12px/16px var(--mono);
     color: var(--usage, var(--muted));
     white-space: nowrap;
+}
+
+@media (pointer: coarse) {
+    .usage-meter::after {
+        content: "";
+        position: absolute;
+        inset: -9px 0;
+    }
 }
 
 .usage-meter[aria-expanded="true"] {
@@ -8641,11 +8656,12 @@ pre.diff .del {
     color: var(--accent);
 }
 
+/* Words, so --muted at 4.5:1 (PP-406): --faint is for hints. */
 .group-title,
 .label {
     font-size: 12px;
     font-weight: 500;
-    color: var(--faint);
+    color: var(--muted);
     margin: calc(4px * var(--space-y)) 2px calc(6px * var(--space-y));
 }
 
@@ -15816,7 +15832,7 @@ textarea.notes {
 .nav-menu .group-title {
     margin: 0;
     padding: 8px 8px 4px;
-    color: var(--faint);
+    color: var(--muted);
     font-size: 12px;
     font-weight: 500;
     text-transform: none;
@@ -16916,7 +16932,7 @@ textarea.notes {
 .agents-summary {
     flex: 1;
     min-width: 0;
-    min-height: 36px;
+    min-height: 40px;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -16936,8 +16952,8 @@ textarea.notes {
 }
 
 .agents-dot {
-    width: 7px;
-    height: 7px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: var(--ok);
 }
@@ -19743,7 +19759,7 @@ pre.gallery-code {
 .ci-run {
     flex: 1;
     min-width: 0;
-    min-height: 36px;
+    min-height: 40px;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -19760,8 +19776,8 @@ pre.gallery-code {
 
 .ci-dot {
     flex: none;
-    width: 7px;
-    height: 7px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: var(--accent);
     animation: pulse 1.4s infinite;

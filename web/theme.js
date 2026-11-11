@@ -3,6 +3,7 @@
 // density, and the sidebar's shape. Saved per browser. index.html applies the last look before the first paint from
 // `pocket.themeCache`, the theme's stylesheets included, so a reload never flashes another look.
 import { THEMES } from "./themes.js";
+import { readableCode } from "./code-ink.js";
 import { onSafeModeEnd, safeMode } from "./safe-mode.js";
 import { api, store } from "./store.js";
 
@@ -401,7 +402,10 @@ export function folderPaletteIds() {
         );
 }
 
-/** CSS variables for a palette. Everything else in style.css mixes from these. */
+/**
+ * CSS variables for a palette. Everything else in style.css mixes from these; a dark palette also gives the code colours
+ * it lifts to read on code's ground (`code-ink.js`, PP-406), which the palette layer sets over style.css's.
+ */
 export function themeVars(palette) {
     const c = palette.colors;
     const pick = (...keys) =>
@@ -411,8 +415,7 @@ export function themeVars(palette) {
     const bg = pick("background") ?? "#1a1b26";
     const fg = pick("foreground") ?? "#a9b1d6";
     const accent = pick("accent", "blue") ?? fg;
-
-    return {
+    const vars = {
         "--o-bg": bg,
         "--o-bg-dark": pick("dark_background") ?? bg,
         "--o-bg-darker": pick("darker_background", "dark_background") ?? bg,
@@ -431,6 +434,8 @@ export function themeVars(palette) {
         "--o-blue": pick("blue", "accent") ?? accent,
         "--o-magenta": pick("magenta") ?? "#bb9af7",
     };
+
+    return modeOf(palette) === "dark" ? { ...vars, ...readableCode(vars) } : vars;
 }
 
 /** Variables as an inline style. */
