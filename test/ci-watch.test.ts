@@ -22,7 +22,7 @@ import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { CiWatchesDoc } from "../src/server/docs.ts";
-import { timing } from "../src/server/extensions/ci-watch.ts";
+import { githubRepo, timing } from "../src/server/extensions/ci-watch.ts";
 
 /** A `gh` that answers from files: `status` says whether run 101 is still going or failed. */
 const fake = join(root, "fake-gh");
@@ -35,8 +35,6 @@ function fakeGh(): void {
         join(fake, "gh"),
         `#!/bin/sh
 case "$*" in
-  "repo view"*)
-    case "$PWD" in */project*) echo o/r ;; *) echo "no git remotes found" >&2; exit 1 ;; esac ;;
   "run list"*) echo "$*" > '${join(fake, "listed")}'; echo '[{"databaseId":101,"workflowName":"CI","number":7,"headBranch":"main","url":"https://github.com/o/r/actions/runs/101","status":"in_progress"}]' ;;
   *"--log-failed"*) printf 'test\\tnpm test\\tError: boom\\n' ;;
   "run view 101"*)
@@ -196,7 +194,16 @@ test("the bar's Stop ends a watch through the API", async () => {
     }
 });
 
-test("path names the repository's folder: its repo and HEAD; a folder outside one says so", async () => {
+test("a remote's address as gh's -R takes it; other addresses are not GitHub's", () => {
+    assert.equal(githubRepo("https://github.com/o/r.git"), "o/r");
+    assert.equal(githubRepo("https://github.com/o/r"), "o/r");
+    assert.equal(githubRepo("git@github.com:o/r.git"), "o/r");
+    assert.equal(githubRepo("ssh://git@github.com/o/r.git"), "o/r");
+    assert.equal(githubRepo("https://token@ghe.example.com/team/app.git"), "ghe.example.com/team/app");
+    assert.equal(githubRepo("/srv/git/r.git"), undefined);
+});
+
+test("path names the repository's folder: HEAD and its remote origin's owner/name, read with git; a folder outside one says so", async () => {
     writeFileSync(status, "in_progress");
     const project = join(work, "project");
     const git = (...args: string[]) =>
@@ -205,18 +212,19 @@ test("path names the repository's folder: its repo and HEAD; a folder outside on
     mkdirSync(project, { recursive: true });
     git("init", "-q");
     git("commit", "-q", "--allow-empty", "-m", "one");
+    git("remote", "add", "origin", "git@github.com:o/r.git");
     const head = git("rev-parse", "HEAD");
     const id = await newSession(app);
 
     await say(app, id, "watch here");
     assert.ok(
-        (await modelTexts(app, id)).some((each) => each.includes("is not in a GitHub repository") && each.includes("Pass path")),
+        (await modelTexts(app, id)).some((each) => each.includes("has no remote origin") && each.includes("Pass path")),
     );
     assert.equal(Object.keys(await watches(id)).length, 0);
 
     await say(app, id, "watch the project");
     assert.deepEqual(Object.keys(await watches(id)), ["o/r#101"]);
-    assert.match(readFileSync(join(fake, "listed"), "utf8"), new RegExp(`--commit ${head}`));
+    assert.match(readFileSync(join(fake, "listed"), "utf8"), new RegExp(`-R o/r --commit ${head}`));
     await say(app, id, "stop watching");
 });
 

@@ -790,7 +790,8 @@ dự án thật.</sub>
   cũ với cùng dữ liệu. Từ đó, một drop-in có schema công cụ dùng `Type` của TypeBox sẽ bị từ chối: nhờ Pi viết lại
   bằng pi-schema (Extension builder làm việc này).
 - **CI trong vòng lặp.** Công cụ `watch_ci` của agent theo dõi các lượt chạy GitHub Actions chạy nền và báo khi chúng
-  xong, nên nó push, kết thúc lượt của mình, và được đánh thức bởi kết quả.
+  xong, nên nó push, kết thúc lượt của mình, và được đánh thức bởi kết quả. Trong một phiên trên máy, nó tìm repo và
+  HEAD của repo ngay trên máy đó.
 - **Tiếng Anh, tiếng Trung hoặc tiếng Việt.** Giao diện › Ngôn ngữ: *Tự động* theo điện thoại hoặc trình duyệt, hoặc
   chọn English, 简体中文 (tiếng Trung giản thể) hay Tiếng Việt. Lựa chọn được giữ theo bạn, nên mọi thiết bị của bạn đều
   theo, và Pi, khi biết ngôn ngữ ứng dụng của bạn, sẽ trả lời bằng ngôn ngữ đó cho đến khi bạn viết bằng ngôn ngữ khác.

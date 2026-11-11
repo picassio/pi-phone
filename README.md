@@ -775,7 +775,8 @@ No Termux, no laptop, no cloud VM.
   whose tool schemas use TypeBox's `Type` is refused from then on: ask Pi to rewrite it with pi-schema (the Extension
   builder does it).
 - **CI in the loop.** The agent's `watch_ci` tool watches GitHub Actions runs in the background and reports when
-  they finish, so it pushes, ends its turn, and is woken by the result.
+  they finish, so it pushes, ends its turn, and is woken by the result. In a session on a machine it finds the
+  repository and its HEAD there.
 - **In English, Chinese or Vietnamese.** Appearance › Language: *Auto* follows the phone or browser, or pick English,
   简体中文 (Simplified Chinese) or Tiếng Việt (Vietnamese). The choice is kept with you, so every device of yours follows
   it, and Pi, told your app's language, answers in it until you write in another language. Pi also writes to the

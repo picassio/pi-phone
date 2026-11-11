@@ -866,6 +866,67 @@ test("a photo added to an interview in a session on a machine is copied there: P
     }
 });
 
+/** A session on the machine's `folder`, on the scripted model; and a turn in it that waits until Pi is done. */
+async function machineSession(folder: string) {
+    const { id } = await app.commands.createSession(owner(app), { cwd: `machine:${machineId}:${folder}` });
+
+    await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+
+    return {
+        id,
+        turn: async (text: string) => {
+            const { submissionId } = await app.commands.submit(id, owner(app), { text, requestId: crypto.randomUUID() });
+
+            await (await app.harness.submission(submissionId, context))!.wait(context);
+            await app.harness.waitForIdle(context);
+
+            return (await modelTexts(app, id)).at(-1)!;
+        },
+    };
+}
+
+test("watch_ci in a session on a machine: the repository's HEAD and origin are read there, the runs asked with the phone's gh (PP-443)", { skip }, async () => {
+    const project = join(remoteHome, "ci-project");
+    const git = (...args: string[]) => execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], { cwd: project, encoding: "utf8" }).trim();
+
+    mkdirSync(project, { recursive: true });
+    git("init", "-q");
+    git("commit", "-q", "--allow-empty", "-m", "one");
+    git("remote", "add", "origin", "https://github.com/o/ci-r.git");
+    const head = git("rev-parse", "HEAD");
+    // The phone's gh, standing in: it lists one run of the commit, still going.
+    const fake = join(root, "fake-gh-443");
+    const listed = join(fake, "listed");
+    const path = process.env.PATH;
+
+    mkdirSync(fake, { recursive: true });
+    writeFileSync(
+        join(fake, "gh"),
+        `#!/bin/sh
+case "$*" in
+  "run list"*) echo "$*" > '${listed}'; echo '[{"databaseId":443,"workflowName":"CI","number":4,"headBranch":"main","url":"https://github.com/o/ci-r/actions/runs/443","status":"in_progress"}]' ;;
+  "run view 443"*) echo '{"status":"in_progress","conclusion":"","url":"https://github.com/o/ci-r/actions/runs/443","displayTitle":"one","workflowName":"CI","headBranch":"main","headSha":"${head}","number":4,"jobs":[]}' ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
+`,
+    );
+    chmodSync(join(fake, "gh"), 0o755);
+    process.env.PATH = `${fake}:${path}`;
+    calls["watch the machine's CI"] = ["watch_ci", { action: "start" }];
+    calls["stop the machine's CI"] = ["watch_ci", { action: "stop" }];
+
+    try {
+        const session = await machineSession(project);
+        const said = await session.turn("watch the machine's CI");
+
+        assert.match(said, /Watching CI #4 on main/, said);
+        assert.equal(readFileSync(listed, "utf8").trim().split(" ").slice(0, 6).join(" "), `run list -R o/ci-r --commit ${head}`);
+        assert.match(await session.turn("stop the machine's CI"), /Stopped watching: CI #4 on main/);
+    } finally {
+        process.env.PATH = path;
+    }
+});
+
 test("a session goes to Pi on a machine, comes back with what Pi did there, and goes again to the same file", { skip }, async () => {
     const { SessionManager } = await import("@earendil-works/pi-coding-agent");
     const project = join(remoteHome, "project");

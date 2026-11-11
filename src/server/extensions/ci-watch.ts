@@ -9,7 +9,6 @@
  * survives restarts and updates: the wait and the report are durable, and the report goes once (its request id).
  */
 import { execFile } from "node:child_process";
-import { isAbsolute, resolve } from "node:path";
 import { promisify } from "node:util";
 import type { Context } from "@earendil-works/chord";
 import { obj, opt, str, union } from "@earendil-works/pi-schema";
@@ -85,13 +84,9 @@ type GhListed = {
     status: string;
 };
 
-async function gh(args: string[], cwd?: string): Promise<string> {
+async function gh(args: string[]): Promise<string> {
     try {
-        const { stdout } = await run("gh", args, {
-            timeout: 60_000,
-            maxBuffer: 32 * 1024 * 1024,
-            ...(cwd === undefined ? {} : { cwd }),
-        });
+        const { stdout } = await run("gh", args, { timeout: 60_000, maxBuffer: 32 * 1024 * 1024 });
 
         return stdout;
     } catch (error) {
@@ -301,6 +296,24 @@ function parseRun(text: string, repo: string | undefined): { repo: string | unde
 
 const reply = (text: string) => ({ output: [{ type: "text" as const, text }] });
 
+/**
+ * A remote's address as gh's `-R` takes it: `owner/name` on github.com, `host/owner/name` on another GitHub host; for
+ * `https://`, `ssh://` and `git@host:owner/name` addresses. Undefined for anything else (a path, a bundle).
+ */
+export function githubRepo(url: string): string | undefined {
+    const found =
+        /^(?:https?|ssh|git):\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(url) ??
+        /^(?:[^@/]+@)?([^/:]+):([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(url);
+
+    if (found === null) {
+        return undefined;
+    }
+
+    const [, host, owner, name] = found;
+
+    return host === "github.com" ? `${owner}/${name}` : `${host}/${owner}/${name}`;
+}
+
 export default function createCiWatch(host: PocketHost) {
     const Watch = createWatchTask(host);
 
@@ -368,26 +381,54 @@ export default function createCiWatch(host: PocketHost) {
                 );
             }
 
-            const working = (await api.agent(context)).cwd ?? host.dataDir;
-            const cwd = args.path === undefined ? working : isAbsolute(args.path) ? args.path : resolve(working, args.path);
-            const repoOf = async () => {
-                try {
-                    return (await gh(["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"], cwd)).trim();
-                } catch (error) {
-                    throw new Error(
-                        `${cwd} is not in a GitHub repository (${(error as Error).message}). Pass path (the repository's folder) or repo.`,
-                        { cause: error },
-                    );
+            // The repository is where the session works (the phone, or its machine: PP-443), so git runs there, through
+            // the session's environment; the runs are GitHub's, asked with the app's gh by owner/name.
+            const env = host.envOf((await api.agent(context)).cwd ?? host.dataDir);
+            const folder = await env.absolutePath(args.path ?? ".", context);
+
+            if (!folder.ok) {
+                throw new Error(`${args.path ?? "The working folder"}: ${folder.error.message}`);
+            }
+
+            const cwd = folder.value;
+            const git = async (...command: string[]): Promise<{ code: number; out: string; err: string }> => {
+                let out = "";
+                let err = "";
+                const result = await env.exec(
+                    ["git", "-C", cwd, ...command],
+                    { timeout: 30, onOutput: (text, _context, info) => (info.stream === "stdout" ? (out += text) : (err += text)) },
+                    context,
+                );
+
+                if (!result.ok) {
+                    throw new Error(`git did not run in ${cwd}: ${result.error.message}`);
                 }
+
+                return { code: result.value.exitCode, out: out.trim(), err: err.trim() };
             };
             const headOf = async () => {
-                try {
-                    return (await run("git", ["rev-parse", "HEAD"], { cwd })).stdout.trim();
-                } catch (error) {
-                    throw new Error(`${cwd} is not in a git repository. Pass path (the repository's folder) or commit.`, {
-                        cause: error,
-                    });
+                const head = await git("rev-parse", "HEAD");
+
+                if (head.code !== 0) {
+                    throw new Error(`${cwd} is not in a git repository with a commit (${head.err}). Pass path (the repository's folder) or commit.`);
                 }
+
+                return head.out;
+            };
+            const repoOf = async () => {
+                const origin = await git("remote", "get-url", "origin");
+
+                if (origin.code !== 0) {
+                    throw new Error(`${cwd} has no remote origin (${origin.err}). Pass path (the repository's folder) or repo.`);
+                }
+
+                const repo = githubRepo(origin.out);
+
+                if (repo === undefined) {
+                    throw new Error(`The remote origin of ${cwd} (${origin.out}) is not a GitHub repository. Pass repo.`);
+                }
+
+                return repo;
             };
             let repo = args.repo;
             let runs: Run[];
