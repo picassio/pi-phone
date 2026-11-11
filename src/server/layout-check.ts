@@ -29,7 +29,9 @@
  * rounded parent that does not clip it (a progress fill in a rounded bar).
  *
  * Since PP-501, a box of display: contents (which has none) is passed over for the nearest ancestor with a box, and an
- * open modal dialog is measured alone, as the page behind it cannot be reached; the report names it (`modal`). Since
+ * open modal dialog is measured alone, as the page behind it cannot be reached; the report names it (`modal`). A modal
+ * is a <dialog> opened with showModal(), a dialog marked aria-modal, or a dialog whose page around it is shut: the
+ * other children of body hidden (aria-hidden, as Radix and react-aria do) or inert (Headless UI). Since
  * PP-433, under text zoom (Android's font scale in a WebView) control heights are measured on the grid as at 100 %.
  * Since PP-406, a layer laid over a box to make it one tap target is measured with that box's lines, and a control as
  * tall as its one picture at the picture's own shape (a lone thumbnail) is not measured on the grid: its height is the
@@ -464,10 +466,22 @@ export const layoutCheck = (width?: number) => String.raw`(() => {
   let checked = 0, more = 0;
 ${PAGE_HELPERS}
   const clipsX = (e) => css(e).display !== 'contents' && css(e).overflowX !== 'visible';
-  // An open modal dialog (PP-501): a <dialog> opened with showModal(), or a dialog marked aria-modal, that shows. The
-  // page behind it cannot be reached, so only the dialog is measured: the last one in the page's order, which holds
-  // a dialog opened from inside it.
-  const modal = document.body ? [...document.querySelectorAll(':modal,[aria-modal=true]')].filter((e) => shows(e, e.getBoundingClientRect())).pop() || null : null;
+  // An open modal dialog (PP-501): a <dialog> opened with showModal(), a dialog marked aria-modal, or a dialog whose
+  // page around it is shut (sealed), that shows. The page behind it cannot be reached, so only the dialog is
+  // measured: the last one in the page's order, which holds a dialog opened from inside it.
+  // Shut: Radix marks no dialog aria-modal; it hides the other children of body with aria-hidden=true, as react-aria
+  // does, and Headless UI makes them inert. Each other child of body is hidden or inert, or shows no words and no
+  // control (the dimmed overlay Radix leaves). A dialog with the page around it reachable (data-state=open alone) is
+  // no modal.
+  const shut = (e) => e.getAttribute('aria-hidden') === 'true' || e.hasAttribute('inert');
+  const sealed = (dialog) => {
+    let top = dialog;
+    while (top.parentElement && top.parentElement !== document.body) top = top.parentElement;
+    if (top.parentElement !== document.body) return false;
+    const others = [...document.body.children].filter((e) => e !== top && !/^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT|LINK|META)$/.test(e.tagName));
+    return others.some(shut) && others.every((e) => shut(e) || (!/\S/.test(e.textContent || '') && !e.matches(CONTROL) && !e.querySelector(CONTROL)));
+  };
+  const modal = document.body ? [...document.querySelectorAll(':modal,[aria-modal=true],[role=dialog],[role=alertdialog]')].filter((e) => (e.matches(':modal,[aria-modal=true]') || sealed(e)) && shows(e, e.getBoundingClientRect())).pop() || null : null;
   const measuredAll = !document.body ? [] : modal ? [modal, ...modal.querySelectorAll('*')] : [...document.body.querySelectorAll('*')];
   // Android's font scale reaches a WebView as text zoom (PP-433): every px font size and line height computes that much
   // larger (at 108 %, 14 px is 15.12), after CSS has rounded, so a row as tall as its lines leaves the 4 px grid there

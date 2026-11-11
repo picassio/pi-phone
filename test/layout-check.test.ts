@@ -147,6 +147,15 @@ const PAGES: Record<string, string> = {
     "/modal": `${head}<div class="col"><p id="behind" style="font-size:10px">Behind the dialog</p><button id="tiny" style="width:24px;height:24px;padding:0">x</button></div><dialog id="add" style="width:300px;padding:16px;border:0"><p id="inside" style="font-size:10px;margin:0">Inside the dialog</p><div style="position:relative;margin-top:16px"><button id="save" style="width:120px;height:48px;padding:0">Save</button><div id="veil" style="position:absolute;left:0;top:0;width:100px;height:48px;background:#eeeeee"></div></div></dialog><script>document.getElementById("add").showModal();</script>`,
     "/aria-modal": `${head}<div class="col"><p id="behind" style="font-size:10px">Behind the sheet</p></div><div id="sheet" role="dialog" aria-modal="true" style="position:fixed;left:0;right:0;bottom:0;padding:16px;background:#ffffff"><p id="inside" style="font-size:10px;margin:0">Inside the sheet</p></div>`,
     "/aria-modal-hidden": `${head}<div class="col"><p id="behind" style="font-size:10px">Behind the sheet</p></div><div role="dialog" aria-modal="true" hidden style="position:fixed;inset:0;background:#ffffff"><p style="font-size:10px">Not open</p></div>`,
+    // Modal dialogs no aria-modal or :modal names (PP-501, live on Build #490): the page around them is shut instead.
+    // Radix's, as visa-dashboard's case page has it (its body's children, measured there): focus guards and the page
+    // aria-hidden with data-aria-hidden, a dimmed overlay with no words, the dialog under body. Headless UI's, in its
+    // portal root, the page inert. react-aria's alert dialog in an underlay in its portal, the page inert. Then Radix's
+    // markup with the page reachable (a dialog that is open, data-state=open, but not modal): the page is measured.
+    "/radix": `${head}<span aria-hidden="true" data-aria-hidden="true" data-radix-focus-guard tabindex="0" style="position:fixed"></span><div data-state="open" style="position:fixed;inset:0;background:rgba(0,0,0,0.5)"></div><div aria-hidden="true" data-aria-hidden="true" class="col"><p id="behind" style="font-size:10px">Behind the dialog</p></div><div role="dialog" id="radix-r1" data-state="open" tabindex="-1" style="position:fixed;left:20px;top:200px;width:300px;padding:16px;background:#ffffff"><p id="inside" style="font-size:10px;margin:0">Inside the dialog</p></div><span aria-hidden="true" data-aria-hidden="true" data-radix-focus-guard tabindex="0" style="position:fixed"></span>`,
+    "/headless": `${head}<div id="app" inert class="col"><p id="behind" style="font-size:10px">Behind the dialog</p></div><div id="headlessui-portal-root"><div><div style="position:fixed;inset:0;background:rgba(0,0,0,0.3)"></div><div role="dialog" id="hui" style="position:fixed;left:20px;top:200px;width:300px;padding:16px;background:#ffffff"><p id="inside" style="font-size:10px;margin:0">Inside the dialog</p></div></div></div>`,
+    "/react-aria": `${head}<div id="root" inert class="col"><p id="behind" style="font-size:10px">Behind the dialog</p></div><div data-react-aria-top-layer="true"><div style="position:fixed;inset:0;background:rgba(0,0,0,0.3)"><div role="alertdialog" id="ra" style="position:fixed;left:20px;top:200px;width:300px;padding:16px;background:#ffffff"><p id="inside" style="font-size:10px;margin:0">Inside the dialog</p></div></div></div>`,
+    "/radix-open-page": `${head}<div class="col"><p id="behind" style="font-size:10px">Beside the dialog</p></div><div role="dialog" data-state="open" style="position:fixed;left:20px;top:200px;width:300px;padding:16px;background:#ffffff"><p id="inside" style="font-size:10px;margin:0">Inside the dialog</p></div>`,
     // Text zoom (PP-433): Android's font scale makes a WebView compute every px font size and line height 8 % larger
     // (14 px as 15.12, line height 20 as 21.6). Chrome on a computer has no text zoom (CDP's OS text scale does not act
     // as it), so the page plays it: its sizes as such a WebView computes them, and the check's probe (100 px) as 108.
@@ -401,6 +410,36 @@ test("an element in a display: contents box is measured against the nearest box,
         assert.deepEqual(of(closed, "small-text").map((find) => short(find.what)), ["p#behind"]);
         assert.doesNotMatch(describeLayout(closed), /measured inside/);
         assert.equal(parseLayout(JSON.stringify({ ...report(390), modal: 3 }), 390)?.modal, undefined);
+    } finally {
+        await engine.close();
+    }
+});
+
+test("a dialog whose page around it is shut is a modal too: Radix's (aria-hidden), Headless UI's and react-aria's (inert); one with the page reachable is not (PP-501)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+        const short = (what: string) => what.replace(/ ".*$/, "");
+
+        await page.init({ width: 390, height: 844, mobile: true });
+
+        for (const [path, dialog] of [
+            ["/radix", "div#radix-r1"],
+            ["/headless", "div#hui"],
+            ["/react-aria", "div#ra"],
+        ] as const) {
+            const measure = await measured(page, path);
+
+            assert.equal(short(measure.modal ?? ""), dialog, `${path}: ${measure.modal}`);
+            assert.deepEqual(of(measure, "small-text").map((find) => short(find.what)), ["p#inside"], path);
+            assert.match(describeLayout(measure), new RegExp(`measured inside the open dialog ${dialog} `), path);
+        }
+
+        const open = await measured(page, "/radix-open-page");
+
+        assert.equal(open.modal, undefined);
+        assert.deepEqual(of(open, "small-text").map((find) => short(find.what)), ["p#behind"], "the page beside it is measured");
     } finally {
         await engine.close();
     }
