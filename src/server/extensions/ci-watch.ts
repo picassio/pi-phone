@@ -5,12 +5,15 @@
  * failed steps and the end of their log (fenced: it is data from GitHub). The message starts Pi's next turn.
  *
  * A watch ends when its run finishes, after `MAX_WATCH_MS`, when `gh` fails `MAX_FAILURES` looks in a row (it says so),
- * or when it is stopped (`watch_ci` stop removes it from `CiWatchesDoc`; its task sees that at its next look). It
- * survives restarts and updates: the wait and the report are durable, and the report goes once (its request id).
+ * or when it is stopped (`stopWatches`: `watch_ci` stop and the bar's Stop remove it from `CiWatchesDoc`, and its task
+ * sees that at its next look). A report already sent waits in the queue while Pi works (a run that had finished when it
+ * was watched reports at once, PP-503), so the stop withdraws it in the same commit. It survives restarts and updates:
+ * the wait and the report are durable, and the report goes once (its request id).
  */
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { Context } from "@earendil-works/chord";
+import { type ConversationId, InboxDoc, type SubmissionId, type Tx } from "@earendil-works/pi-durable";
 import { obj, opt, str, union } from "@earendil-works/pi-schema";
 import { literal } from "../tool-schema.ts";
 import {
@@ -101,6 +104,48 @@ async function gh(args: string[]): Promise<string> {
 }
 
 const key = (repo: string, runId: number) => `${repo}#${runId}`;
+/** A report's request id: one per send, so a send made before a restart is found again, not made twice. */
+const requestOf = (taskId: number, attempt: number) => `ci-watch:${String(taskId)}${attempt === 0 ? "" : `:${attempt}`}`;
+
+/**
+ * Stop the watches `match` picks, in the caller's commit: they leave `CiWatchesDoc`, and a report of theirs that waits
+ * in the queue is withdrawn (settled unanswered and out of the inbox, as `Harness.abortSubmission` does), so nothing
+ * comes of a stopped watch. Their tasks see they are gone and end. Answers copies of the stopped watches.
+ */
+export async function stopWatches(tx: Tx, conversationId: ConversationId, match: (watch: CiWatch) => boolean): Promise<CiWatch[]> {
+    const doc = await tx.doc(CiWatchesDoc, conversationId);
+    const inbox = await tx.doc(InboxDoc, conversationId);
+    // A copy: the document's own object cannot be read once the commit has settled.
+    const gone = Object.values(doc.items).filter(match).map((watch) => ({ ...watch }));
+    const queued: SubmissionId[] = [];
+
+    // Every read before the first write.
+    for (const watch of gone) {
+        for (let attempt = 0; attempt < MAX_SENDS; attempt++) {
+            const record = await tx.submissionByRequest(conversationId, requestOf(watch.taskId, attempt));
+
+            if (record?.status === "queued") {
+                queued.push(record.id);
+            }
+        }
+    }
+
+    for (const watch of gone) {
+        delete doc.items[key(watch.repo, watch.runId)];
+    }
+
+    for (const id of queued) {
+        tx.settleSubmission(id, { status: "unanswered", reason: "aborted" });
+        const index = inbox.items.findIndex((item) => item.id === id);
+
+        if (index >= 0) {
+            inbox.items.splice(index, 1);
+        }
+    }
+
+    return gone;
+}
+
 const finished = { status: "terminal", outcome: { status: "completed", result: null } } as const;
 const mark = (conclusion: string) =>
     conclusion === "success" ? "✓" : conclusion === "skipped" ? "skipped" : conclusion || "?";
@@ -237,13 +282,7 @@ function createWatchTask(host: PocketHost) {
                     return forget(runtime, input, context);
                 }
 
-                // Its own request id per send: a send made before a restart is found again, not made twice.
-                const sent = await sendFollowUp(
-                    runtime,
-                    state.text,
-                    `ci-watch:${String(runtime.taskId)}${attempt === 0 ? "" : `:${attempt}`}`,
-                    context,
-                );
+                const sent = await sendFollowUp(runtime, state.text, requestOf(Number(runtime.taskId), attempt), context);
 
                 // Withdrawn ones are sent again.
                 if (sent === "withdrawn") {
@@ -356,23 +395,17 @@ export default function createCiWatch(host: PocketHost) {
 
             if (args.action === "stop") {
                 const target = args.run === undefined ? undefined : parseRun(args.run, args.repo);
-                const stopped = await api.commit(async (tx) => {
-                    const doc = await tx.doc(CiWatchesDoc, api.conversationId);
-                    const gone: CiWatch[] = [];
-
-                    for (const [id, watch] of Object.entries(doc.items)) {
-                        if (
-                            target === undefined ||
-                            (watch.runId === target.runId && (target.repo === undefined || watch.repo === target.repo))
-                        ) {
-                            // A copy: the document's own object cannot be read once the commit has settled.
-                            gone.push({ ...watch });
-                            delete doc.items[id];
-                        }
-                    }
-
-                    return gone;
-                }, context);
+                const stopped = await api.commit(
+                    (tx) =>
+                        stopWatches(
+                            tx,
+                            api.conversationId,
+                            (watch) =>
+                                target === undefined ||
+                                (watch.runId === target.runId && (target.repo === undefined || watch.repo === target.repo)),
+                        ),
+                    context,
+                );
 
                 return reply(
                     stopped.length === 0

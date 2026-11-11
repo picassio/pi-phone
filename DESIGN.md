@@ -154,7 +154,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
   phone or its machine, PP-443); a durable background task per run looks every 30 s with the app's `gh` and sends
   the conversation one `[ci-watch]` message when it finishes (conclusion, jobs, failed steps and the end of their log,
   fenced). Ends with its run, after 2 hours, after 6 failed looks in a row (it says so), or when stopped (the tool, or
-  Stop in the bar above the message box). Survives restarts.
+  Stop in the bar above the message box). A stop also withdraws a report still queued behind Pi's run, in the same
+  commit (`stopWatches`): a run already finished when watched reports at once, so before PP-503 a stop in that turn
+  still let it through. Survives restarts.
 - **SSH keys** (`src/server/ssh-keys.ts`, `ssh-agent.ts`, `web/sheets/ssh-keys.js`): the app's keys for machines,
   one per purpose, never as private key files.
   - **Storage:** private keys are in the app's own database (`app.sqlite`, table `pocket_ssh_keys`, `app-database.ts`;

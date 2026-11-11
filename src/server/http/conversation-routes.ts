@@ -8,7 +8,7 @@ import type { Attachment, SubmitRequest } from "../commands.ts";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { ContextPart } from "../context-policy.ts";
 import type { SubagentPart } from "../subagent-defaults.ts";
-import { CiWatchesDoc } from "../docs.ts";
+import { stopWatches } from "../extensions/ci-watch.ts";
 import { describe } from "../errors.ts";
 import { HttpError } from "../errors.ts";
 import type { CommandRequest } from "../extension-commands.ts";
@@ -290,7 +290,8 @@ export async function conversationRoutes(
         return json(response, 200, { ok: true });
     }
 
-    // Stop watching a GitHub Actions run (`extensions/ci-watch.ts`): its task sees it gone at its next look.
+    // Stop watching a GitHub Actions run (`extensions/ci-watch.ts`): its task sees it gone at its next look, and a report
+    // of it still in the queue is withdrawn.
     if (third === "ci-watch" && fourth === "stop" && method === "POST") {
         app.requireSteer(user);
         const body = await readJson<{ repo?: unknown; runId?: unknown }>(request);
@@ -299,9 +300,13 @@ export async function conversationRoutes(
             throw new HttpError(400, "repo and runId are required");
         }
 
-        await app.harness.commit(async (tx) => {
-            delete (await tx.doc(CiWatchesDoc, id)).items[`${body.repo as string}#${body.runId as number}`];
-        }, BACKGROUND_CONTEXT);
+        const repo = body.repo;
+        const runId = body.runId;
+
+        await app.harness.commit(
+            (tx) => stopWatches(tx, id, (watch) => watch.repo === repo && watch.runId === runId),
+            BACKGROUND_CONTEXT,
+        );
 
         return json(response, 200, { ok: true });
     }

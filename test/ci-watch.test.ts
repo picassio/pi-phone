@@ -21,6 +21,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
+import { InboxDoc } from "@earendil-works/pi-durable";
 import { CiWatchesDoc } from "../src/server/docs.ts";
 import { githubRepo, timing } from "../src/server/extensions/ci-watch.ts";
 
@@ -55,6 +56,22 @@ const call = (name: string, args: Parameters<typeof fauxToolCall>[1]) =>
 
 const route: FauxResponseStep = (request) => {
     const { role, text } = lastText(request as never);
+    const asked = lastText({ messages: (request as { messages: { role: string; content: unknown }[] }).messages.filter((each) => each.role === "user") });
+
+    // One turn: watch a run that has already finished, work a while (its report is queued behind the turn), stop.
+    if (asked.text === "watch the finished run, then stop") {
+        if (role === "user") {
+            return call("watch_ci", { action: "start", run: "o/r#101" });
+        }
+
+        if (text.startsWith("Watching CI #7")) {
+            return call("bash", { command: "sleep 2" });
+        }
+
+        if (!text.startsWith("Stopped watching") && !text.startsWith("No such run")) {
+            return call("watch_ci", { action: "stop", run: "o/r#101" });
+        }
+    }
 
     if (role === "user" && text === "watch the push") {
         return call("watch_ci", { action: "start", repo: "o/r", commit: "abcdef1234" });
@@ -145,6 +162,59 @@ test("a stopped watch tells nothing", async () => {
     writeFileSync(status, "failed");
     await new Promise((resolve) => setTimeout(resolve, 400));
     assert.equal((await modelTexts(app, id)).some((each) => each.includes("[ci-watch] CI #7")), false);
+});
+
+test("a run already finished when watched, stopped in the same turn, tells nothing: stop withdraws its queued report", async () => {
+    writeFileSync(status, "failed");
+    const id = await newSession(app);
+
+    await say(app, id, "watch the finished run, then stop");
+    assert.ok((await modelTexts(app, id)).some((each) => each.includes("Stopped watching: CI #7 on main.")));
+    assert.equal(Object.keys(await watches(id)).length, 0);
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    assert.equal((await modelTexts(app, id)).some((each) => each.includes("[ci-watch] CI #7")), false);
+});
+
+test("the bar's Stop withdraws a report queued behind a run", async () => {
+    writeFileSync(status, "in_progress");
+    const { createServer } = await import("node:http");
+    const { createHandler } = await import("../src/server/http.ts");
+    const server = createServer(createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }));
+
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+
+    try {
+        const id = await newSession(app);
+
+        await say(app, id, "watch the push");
+        const { submissionId } = await app.commands.submit(id, owner(app), { text: "work slowly", requestId: crypto.randomUUID() });
+
+        await until(() => app.isBusy(id), "the slow run");
+        writeFileSync(status, "failed");
+        await until(
+            async () => ((await app.harness.snapshot(InboxDoc, id, context))?.items ?? []).some((each) => each.mode === "followUp"),
+            "the report, queued behind the run",
+        );
+        const port = (server.address() as { port: number }).port;
+        const response = await fetch(`http://127.0.0.1:${port}/api/c/${String(id)}/ci-watch/stop`, {
+            method: "POST",
+            headers: {
+                authorization: `Bearer ${app.config.ownerToken}`,
+                "x-pocket": "1",
+                "content-type": "application/json",
+            },
+            body: JSON.stringify({ repo: "o/r", runId: 101 }),
+        });
+
+        assert.equal(response.status, 200);
+        await (await app.harness.submission(submissionId, context))!.wait(context);
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        assert.equal((await modelTexts(app, id)).some((each) => each.includes("[ci-watch] CI #7")), false);
+    } finally {
+        server.closeAllConnections();
+        server.close();
+    }
 });
 
 test("a watch survives a restart, and reports after it", async () => {
