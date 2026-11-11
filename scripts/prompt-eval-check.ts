@@ -1,7 +1,8 @@
 /**
  * How prompt-eval (PP-452, `scripts/prompt-eval.ts`) judges a model's reply to a scenario, without the network: which
  * calls it answers with a stand-in result (lead-ins: reading a skill, the wiki, the secrets' list), which call it checks,
- * and whether that call (or the plain answer) is what the scenario expects.
+ * and whether that call (or the plain answer) is what the scenario expects. A scenario that expects one of those calls
+ * (the wiki scenarios, PP-463: did Pi consult the wiki before acting?) checks it instead of standing it in.
  */
 
 /** One tool call of a reply. */
@@ -67,6 +68,16 @@ export const DEFAULT_STUBS: Stubs = {
     secrets_list:
         "DEEPSEEK_API_KEY: DeepSeek API key (no approval needed)\nOPENAI_API_KEY: OpenAI API key (no approval needed)\nNPM_TOKEN: npm publish token (no approval needed)",
 };
+
+/**
+ * The stand-ins of a scenario's runs: the defaults, less those of a tool the scenario expects (there that call is the one
+ * to check, PP-463), then the scenario's own, which it names on purpose and keeps.
+ */
+export function stubsFor(scenario: Pick<Scenario, "expect" | "stubs">): Stubs {
+    const defaults = Object.fromEntries(Object.entries(DEFAULT_STUBS).filter(([tool]) => !scenario.expect.tool.includes(tool)));
+
+    return { ...defaults, ...scenario.stubs };
+}
 
 /**
  * The stand-in result of a lead-in call, or undefined when the call is the one to check. A `read` is a lead-in for a

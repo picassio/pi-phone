@@ -5,7 +5,8 @@
  * (`prompt-eval-scenarios.ts`), sends it to a real Anthropic model on a subscription account, and checks the first tool
  * call (or the answer) the model gives (`prompt-eval-check.ts`). No tool runs: read-only lead-ins the prompt asks for
  * first (a skill's file, the wiki, the secrets' list) get a stand-in result and the model is asked again, at most 3
- * times; the next call is the one checked.
+ * times (a scenario's `rounds`); the next call is the one checked. The wiki scenarios (PP-463) check the wiki call
+ * that is a lead-in elsewhere: did Pi consult the wiki before acting?
  *
  *   EVAL_ANTHROPIC_TOKEN=… node scripts/prompt-eval.ts [--compare <git ref>] [--model <anthropic id>] [--runs 3]
  *       [--only core | id,id] [--jobs 4] [--account anthropic~han-acc] [--dry-run] [--out report.md]
@@ -22,7 +23,7 @@
  * exit 1; runs the provider kept failing (left out of the passes) exit 2. Real model, real quota: not in CI. Run it on
  * the devbox (the machine variant needs /usr/sbin/sshd).
  */
-import { DEFAULT_STUBS, judge, type Offered, type Outcome, nextStep, dropped, type Scenario, type Tally, type Trace, type Call } from "./prompt-eval-check.ts";
+import { judge, type Offered, type Outcome, nextStep, dropped, type Scenario, stubsFor, type Tally, type Trace, type Call } from "./prompt-eval-check.ts";
 import { SCENARIOS } from "./prompt-eval-scenarios.ts";
 import { execFileSync, spawnSync } from "node:child_process";
 import { copyFileSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -295,7 +296,7 @@ async function ask(messages: Message[]): Promise<AssistantMessage> {
 /** One run: ask, answer lead-ins, stop at the call to check. */
 async function runOnce(captured: Captured, scenario: Scenario): Promise<Run> {
     const messages = [...requestFor(captured, scenario).messages];
-    const stubs = { ...DEFAULT_STUBS, ...scenario.stubs };
+    const stubs = stubsFor(scenario);
     const leadIns: Call[] = [];
     const rounds = scenario.rounds ?? MAX_LEAD_INS;
     let text = "";

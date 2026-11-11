@@ -15,6 +15,7 @@ import {
     nextStep,
     type Offered,
     step,
+    stubsFor,
 } from "../scripts/prompt-eval-check.ts";
 import { SCENARIOS } from "../scripts/prompt-eval-scenarios.ts";
 
@@ -140,9 +141,61 @@ test("at least 30 scenarios, unique, covering what recent prompt changes touched
 
     const tools = new Set(SCENARIOS.flatMap((each) => each.expect.tool));
 
-    for (const tool of ["screenshot", "secret_save", "bash", "secret_request", "browser_run", "codemode", "interview", "answer", "skill_save", "command_save", "library_pin", "library_list", "library_undo"]) {
+    for (const tool of ["screenshot", "secret_save", "bash", "secret_request", "browser_run", "codemode", "interview", "answer", "skill_save", "command_save", "library_pin", "library_list", "library_undo", "wiki_query"]) {
         assert.ok(tools.has(tool), tool);
     }
 
     assert.ok(SCENARIOS.filter((each) => each.core === true).length >= 10);
+});
+
+test("the wiki scenarios check the wiki's call, which is no lead-in there; a look around first still is, and a trivial fix must not query (PP-463)", () => {
+    const wiki = SCENARIOS.filter((each) => each.expect.tool.includes("wiki_query"));
+
+    assert.ok(wiki.length >= 5, `${wiki.length} wiki scenarios`);
+    assert.ok(wiki.some((each) => each.variant === "machine"));
+
+    for (const scenario of wiki) {
+        const stubs = stubsFor(scenario);
+
+        // The defaults stood the wiki in for every scenario: its call was never the one checked.
+        assert.notEqual(leadIn(call("wiki_query", { query: "sqlite busy" }), files, { ...DEFAULT_STUBS, ...scenario.stubs }), undefined);
+        assert.equal(leadIn(call("wiki_query", { query: "sqlite busy" }), files, stubs), undefined, scenario.id);
+        assert.equal(leadIn(call("wiki_read", { path: "resources/x" }), files, stubs), undefined, scenario.id);
+        assert.ok((scenario.rounds ?? 3) >= 5, `${scenario.id}: room for a look around first`);
+
+        // Three looks (a listing, the history, a file), then the wiki: the wiki's call is checked, and passes.
+        const looks = [call("bash", { command: "ls ~/work/pi-phone" }), call("bash", { command: "git log --oneline -5" }), call("read", { path: "/home/u/work/pi-phone/src/server/db.ts" })];
+
+        for (const look of looks) {
+            assert.notEqual(leadIn(look, files, stubs), undefined, `${scenario.id}: ${JSON.stringify(look.arguments)} is stood in`);
+        }
+
+        const next = nextStep({ calls: [...looks, call("wiki_query", { query: "database is locked" })], text: "" }, files, stubs);
+
+        assert.ok(!next.more);
+        assert.equal(next.call?.name, "wiki_query");
+        assert.equal(judge(scenario.expect, { leadIns: next.leadIns, call: next.call, text: "" }, none).pass, true, scenario.id);
+        // Acting first fails; a codemode script passes when it calls the wiki.
+        assert.equal(judge(scenario.expect, { leadIns: looks, call: call("edit", { path: "src/server/db.ts" }), text: "" }, none).pass, false);
+        assert.equal(judge(scenario.expect, { leadIns: [], call: call("codemode", { code: 'return await tools.wiki_query({ query: "tunnel" })' }), text: "" }, none).pass, true);
+        assert.equal(judge(scenario.expect, { leadIns: [], call: call("codemode", { code: 'return await tools.bash({ command: "ls" })' }), text: "" }, none).pass, false);
+    }
+
+    // Elsewhere the stand-ins are as they were: the defaults, then the scenario's own.
+    for (const scenario of SCENARIOS.filter((each) => !each.expect.tool.some((tool) => tool in DEFAULT_STUBS))) {
+        assert.deepEqual(stubsFor(scenario), { ...DEFAULT_STUBS, ...scenario.stubs }, scenario.id);
+    }
+
+    const typo = SCENARIOS.find((each) => each.id === "wiki-no-typo")!;
+    const read = call("read", { path: "/home/u/work/pi-phone/README.md" });
+    const fix = call("edit", { path: "/home/u/work/pi-phone/README.md" });
+
+    assert.equal(judge(typo.expect, { leadIns: [read], call: fix, text: "" }, none).pass, true);
+    assert.match(judge(typo.expect, { leadIns: [call("wiki_query", { query: "README" }), read], call: fix, text: "" }, none).why, /called wiki_query .*which it must not/);
+});
+
+test("ui-menu-open and ui-typed leave room for Opus's four rounds of looks first (bash, bash, bash, read)", () => {
+    for (const id of ["ui-menu-open", "ui-typed"]) {
+        assert.ok((SCENARIOS.find((each) => each.id === id)!.rounds ?? 3) >= 5, id);
+    }
 });

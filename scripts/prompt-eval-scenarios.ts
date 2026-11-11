@@ -2,7 +2,8 @@
  * prompt-eval's scenarios (PP-452): a person's first message in a new session, and the first call it expects. They
  * cover what recent prompt changes touched: UI checks (screenshot's default widths, steps, a machine's localhost),
  * secrets (secret_save, a secret by name in bash, never asked for in the chat), browser goals (browser_run), codemode
- * scripts (tools.bash gives an object), interview, plan mode, and a few where the right move is not to use them.
+ * scripts (tools.bash gives an object), interview, plan mode, consulting the wiki before acting (PP-463), and a few where
+ * the right move is not to use them.
  */
 import { defaultWidths, equals, ifOffered, matches, type Scenario, type Stubs, step } from "./prompt-eval-check.ts";
 
@@ -81,6 +82,54 @@ const compactReminder = (wait: string) =>
         "If you expect the wait to last longer than 5 minutes, call compact_self (load it with tool_search first if it is not offered), then end your turn. If it comes back sooner, just end your turn. This comes once a wait; the owner turns it off in Settings › Hooks.",
     ].join("\n");
 
+/** The wiki's calls, the one checked in the wiki scenarios (PP-463): wiki_query or wiki_read, or a codemode script's. */
+const WIKI = { tool: ["wiki_query", "wiki_read", "codemode"], args: { codemode: { code: matches(/tools\.wiki_(query|read)\b/) } } } as const;
+const SOURCE = 'import { DatabaseSync } from "node:sqlite";\n\nexport class PocketDb {\n    open(path: string) {\n        this.db = new DatabaseSync(path);\n        this.db.exec("PRAGMA journal_mode = WAL");\n    }\n}\n';
+/**
+ * ~/work/pi-phone as the wiki scenarios have it (PP-463): its history, files, a search, a file and the owner's sessions,
+ * stood in generously, so a look around first (ls, git log, rg, a read) leads on to the call checked.
+ */
+const REPO: Stubs = {
+    bash: (args) => {
+        const said = command(args);
+
+        return /git (log|rev-list|show|blame)/.test(said)
+            ? "4f2a9c1 fix(db): open the database once\n8be07d3 feat(board): task cards show their state\n1c9e554 feat(notify): Telegram notifications"
+            : /git (status|branch|diff)/.test(said)
+              ? "On branch master\nnothing to commit, working tree clean"
+              : /\b(grep|rg|ag)\b/.test(said)
+                ? "src/server/db.ts:5:        this.db = new DatabaseSync(path);\nsrc/server/board.ts:212:    card(task: Task) {"
+                : /\b(ls|find|fd|tree|wc)\b/.test(said)
+                  ? "AGENTS.md  DESIGN.md  README.md  package.json  scripts/  src/  test/  web/"
+                  : /\b(cat|head|tail|sed|less)\b/.test(said)
+                    ? SOURCE
+                    : "(no output)";
+    },
+    read: (args) => (/\.md$/.test(String(args.path)) ? "# pi-phone\n\nAn Android app that runs Pi on the phone: a server in src/server, a web app in web/.\n" : SOURCE),
+    sessions: "No sessions match.",
+    session_read: "(no messages)",
+};
+/** A machine's nightly backup (the wiki scenario on a machine): its crontab, script and log, stood in. */
+const BACKUP_LOG =
+    'rsync: [sender] send_files failed to open "/srv/app/data/app.sqlite-wal": Permission denied (13)\nrsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1338) [sender=3.2.7]';
+const BACKUP_SCRIPT = "#!/bin/sh\nrsync -a /srv/app/data/ /mnt/backup/app/\n";
+const BACKUP: Stubs = {
+    bash: (args) => {
+        const said = command(args);
+
+        return /crontab/.test(said)
+            ? "15 2 * * * /home/ubuntu/bin/backup.sh >> /var/log/backup.log 2>&1"
+            : /backup\.sh/.test(said) && /\b(cat|head|sed|less)\b/.test(said)
+              ? BACKUP_SCRIPT
+              : /\b(cat|tail|head|grep|journalctl|less)\b/.test(said)
+                ? BACKUP_LOG
+                : /\b(ls|find|stat|df|id|whoami)\b/.test(said)
+                  ? "-rw-r----- 1 app app 4.1M Nov 11 02:14 /srv/app/data/app.sqlite-wal\nubuntu"
+                  : "(no output)";
+    },
+    read: (args) => (/\.sh$/.test(String(args.path)) ? BACKUP_SCRIPT : BACKUP_LOG),
+};
+
 /** Looking around first is fine (a read, a listing: stood in); changing anything before the person answers is not. */
 const PLAN = { tool: ["answer"], text: /plan mode|Plan button/i, forbid: ["edit", "write", "codemode"] } as const;
 const PROJECT: Stubs = {
@@ -136,6 +185,8 @@ export const SCENARIOS: readonly Scenario[] = [
         core: true,
         message: "In ~/work/app/index.html, check how the dropdown menu looks when it is open. The button that opens it is #menu-btn.",
         stubs: LOOKS,
+        // Opus looks first for four rounds (bash, bash, bash, read: the page, its CSS and JS) before the screenshot.
+        rounds: 6,
         expect: { tool: ["screenshot"], args: { screenshot: { path: matches(/index\.html$/), steps: step("click", /#menu-btn/) } } },
     },
     {
@@ -149,6 +200,8 @@ export const SCENARIOS: readonly Scenario[] = [
         variant: "phone",
         message: "Screenshot ~/work/app/search.html with 'hanoi' typed into the #q box, so its suggestions show.",
         stubs: LOOKS,
+        // As ui-menu-open: Opus stopped after three rounds of looks.
+        rounds: 6,
         expect: { tool: ["screenshot"], args: { screenshot: { path: matches(/search\.html$/), steps: step("type", /#q/) } } },
     },
     {
@@ -517,5 +570,58 @@ export const SCENARIOS: readonly Scenario[] = [
         message: "Make a poster of Ha Long Bay at sunset, at ChatGPT's best image quality.",
         stubs: IMAGE_LOOKS,
         expect: { tool: ["image_generate"], args: { image_generate: { prompt: matches(/Ha ?Long/i) } } },
+    },
+    // The wiki (PP-463): before non-trivial work and before debugging, Pi searches the wiki (wiki_query, or reads a page)
+    // before it acts. The wiki's call is the one checked here (elsewhere it is a stood-in lead-in); a look around first is
+    // stood in, with rounds for it. A trivial fix does not query.
+    {
+        id: "wiki-debug-error",
+        variant: "phone",
+        message:
+            "pi-phone's server dies at start since this morning with `Error: database is locked (SQLITE_BUSY) at PocketDb.open (src/server/db.ts:5)`. The repo is ~/work/pi-phone. Find the cause and fix it.",
+        stubs: REPO,
+        rounds: 6,
+        expect: WIKI,
+    },
+    {
+        id: "wiki-feature-known",
+        variant: "phone",
+        message: "In ~/work/pi-phone, give the board's task cards a 'Copy link' button that copies the task's address, with its tool for Pi as usual.",
+        stubs: REPO,
+        rounds: 6,
+        expect: WIKI,
+    },
+    {
+        id: "wiki-how-setup",
+        variant: "phone",
+        message: "How did we set up the Cloudflare tunnel for the devbox's dashboard? I want the same on the new sandbox.",
+        stubs: { ...REPO, machine_run: "(no output)" },
+        rounds: 6,
+        expect: WIKI,
+    },
+    {
+        id: "wiki-machine-debug",
+        variant: "machine",
+        message:
+            "The nightly backup on this machine fails with `rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1338)`. Fix it.",
+        stubs: BACKUP,
+        rounds: 6,
+        expect: WIKI,
+    },
+    {
+        id: "wiki-subagent-brief",
+        variant: "phone",
+        message:
+            '[via session #57 “release”] Task: in ~/work/pi-phone, make scripts/release-notes.ts group the commits by scope inside each kind (feat, fix, other), keep its output format otherwise, add a test, run it on the devbox as usual, and report back in two lines. Do not commit.',
+        stubs: REPO,
+        rounds: 6,
+        expect: WIKI,
+    },
+    {
+        id: "wiki-no-typo",
+        variant: "phone",
+        message: "Fix the typo 'recieve' in ~/work/pi-phone/README.md.",
+        stubs: REPO,
+        expect: { tool: ["read", "edit", "bash", "codemode"], forbid: ["wiki_query", "wiki_read"], forbidArgs: { codemode: { code: /tools\.wiki_/ } } },
     },
 ];
