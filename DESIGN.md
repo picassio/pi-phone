@@ -1879,7 +1879,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
   `session_stop`, `approvals` (deny only). They act as the calling session's requester with that person's rights;
   a session never messages or stops itself; messages carry `[via session #N "title"]`; an hourly limit on sends and starts
   per session (the owner's `sessionSendLimit` in config.json, 30 by default or none; a session's own `sendLimit`
-  first; the session menu's Other sessions sheet); what is read is fenced as data. No panel, no follows, no repository watches.
+  first; the session menu's Other sessions sheet); what is read is fenced as data. Why a run failed is read there
+  too (PP-499): the model's context leaves failed answers out, so `session_read` and `session_wait` take the newest
+  answer's `errorMessage` from the entries when it failed and no message from people came after it. No panel, no follows, no repository watches.
   In the list, a session whose linked sessions (`linkedFrom`, at any depth) are at work (a run, a limit wait, working
   subagents) shows the working square with "Its linked sessions are working" (PP-337, from pi-pocket 0.28.0;
   `linkedAtWork` in `web/sessions.js`): it waits for their reports. pi-phone has no Priority tab to move it to Working.

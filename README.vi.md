@@ -187,7 +187,8 @@ dự án thật.</sub>
   dòng thời gian (24 giờ hoặc 8 ngày tới, mỗi phiên một làn, mỗi lần gửi một dấu), kèm đếm ngược, lặp lại, người đặt, Hủy,
   và tin đang giữ thì nói lý do và rằng đến giờ nó sẽ bị hủy trừ khi điều đó thay đổi trước. Thời gian chạy từng giây.
 - **Phiên khác.** Pi có thể liệt kê, đọc, mở, nhắn tin, chờ và dừng các phiên khác của ứng dụng, với tư cách người mà
-  nó làm việc cho. Nó cũng có thể gỡ kẹt một phiên, mỗi lần sau khi bạn đồng ý trên một thẻ: rẽ nhánh phiên đó ngay
+  nó làm việc cho. Khi lượt chạy của một phiên thất bại, những gì Pi đọc ở đó cho biết vì sao (lỗi của nhà cung cấp,
+  chẳng hạn hạn mức tuần đã dùng hết). Nó cũng có thể gỡ kẹt một phiên, mỗi lần sau khi bạn đồng ý trên một thẻ: rẽ nhánh phiên đó ngay
   trước tin nhắn làm nó dừng (`session_fork`), mở ngữ cảnh mới ở đó (`session_new_context`), hoặc nén nó
   (`session_compact`). Không bao giờ với phiên của chính nó, trừ khi rẽ nhánh: Pi có thể tách nhánh công việc của mình
   và giao việc cho nhánh đó. Một phiên Pi mở được liên kết với phiên đã mở nó: nó hiện bên dưới phiên đó trong danh

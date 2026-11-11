@@ -181,7 +181,8 @@ No Termux, no laptop, no cloud VM.
   out), with a countdown, its repeat, who set it, Cancel, and a held one saying why and that it is cancelled at its time
   unless that changes first. Times move each second.
 - **Other sessions.** Pi can list, read, start, message, wait for, and stop the app's other sessions, as the person it
-  works for. It can also get a stuck session going again, each time after you say yes on a card: fork it before the
+  works for. When a session's run failed, what Pi reads there says why (the provider's error, such as a spent weekly
+  limit). It can also get a stuck session going again, each time after you say yes on a card: fork it before the
   message that stopped it (`session_fork`), start a new context there (`session_new_context`), or compact it
   (`session_compact`). Never its own session, except a fork: Pi can branch off its own work and hand the fork its
   task. A session Pi starts is linked to the one that started it: it shows under that one in the list (a pill with

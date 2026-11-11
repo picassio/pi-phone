@@ -10,7 +10,7 @@
  * starts leave a session in an hour, so two sessions messaging each other cannot spend without end. What a tool reads
  * from another session is data, fenced as such (`fence.ts`).
  */
-import type { ConversationId } from "@earendil-works/pi-durable";
+import type { ConversationId, Cursor } from "@earendil-works/pi-durable";
 import type { Message } from "@earendil-works/pi-ai";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { PocketApp } from "./app.ts";
@@ -232,15 +232,49 @@ export class SessionControl implements SessionsApi {
         return `#${line.id} ${quoted(line.title)} · ${line.state} · ${line.folder}${line.model === undefined ? "" : ` · ${line.model}`}`;
     }
 
-    /** The end of a session's conversation as its model has it, fenced as data. */
+    /**
+     * Why its latest run failed (PP-499): the error of the newest answer, when that answer failed and no message from
+     * people came after it. The model's context leaves failed answers out, so only the entries have it.
+     */
+    async #failure(target: ConversationId): Promise<string | undefined> {
+        const conversation = await this.#app.conversation(target);
+        let cursor: Cursor | undefined;
+
+        do {
+            const page = await conversation.entries({}, 64, cursor, context);
+
+            for (const entry of page.items) {
+                if (entry.kind === "pi.user") {
+                    return undefined;
+                }
+
+                if (entry.kind === "pi.assistant") {
+                    const message = entry.model?.[0] as { stopReason?: unknown; errorMessage?: unknown } | undefined;
+
+                    return message?.stopReason === "error" && typeof message.errorMessage === "string"
+                        ? `pi (its run failed): ${clip(message.errorMessage, 2000)}`
+                        : undefined;
+                }
+            }
+
+            cursor = page.next;
+        } while (cursor !== undefined);
+
+        return undefined;
+    }
+
+    /** The end of a session's conversation as its model has it, and why its latest run failed, fenced as data. */
     async read(caller: ConversationId, id: number, count = 30): Promise<string> {
         const { target } = this.#target(caller, id, false);
         const view = await (await this.#app.harness.conversation(target, context))!.context(context);
-        const lines = view.messages
-            .filter((message) => message.role !== "system")
-            .slice(-Math.max(1, Math.min(200, count)))
-            .map(messageLine)
-            .filter((line) => line !== "");
+        const failure = await this.#failure(target);
+        const lines = [
+            ...view.messages
+                .filter((message) => message.role !== "system")
+                .slice(-Math.max(1, Math.min(200, count)))
+                .map(messageLine),
+            ...(failure === undefined ? [] : [failure]),
+        ].filter((line) => line !== "");
         const waiting = this.#app.approvals
             .all()
             .filter((request) => this.#app.rootOf(request.conversationId) === target)
@@ -481,7 +515,7 @@ export class SessionControl implements SessionsApi {
 
     /**
      * Wait until the session's run ends (or, when none starts within a few seconds, that it is idle), up to `timeoutMs`;
-     * answers its state then and its last answer.
+     * answers its state then and its last answer, or why its run failed.
      */
     async wait(caller: ConversationId, id: number, timeoutMs: number, signal: AbortSignal): Promise<string> {
         const { target } = this.#target(caller, id, false);
@@ -502,12 +536,13 @@ export class SessionControl implements SessionsApi {
 
         signal.throwIfAborted();
         const view = await (await this.#app.harness.conversation(target, context))!.context(context);
-        const answer = view.messages.findLast((message) => message.role === "assistant");
+        const last = view.messages.findLast((message) => message.role === "assistant");
+        const answer = (await this.#failure(target)) ?? (last === undefined ? undefined : messageLine(last));
 
         return [
             ended ? "Its run ended." : `Still working after ${Math.round((Date.now() - since) / 1000)} s.`,
             this.status(caller, id),
-            ...(answer === undefined ? [] : [READ_OPEN, defang(messageLine(answer)), READ_CLOSE]),
+            ...(answer === undefined ? [] : [READ_OPEN, defang(answer), READ_CLOSE]),
         ].join("\n");
     }
 

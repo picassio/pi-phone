@@ -13,6 +13,11 @@ let stuck = 0;
 const route: FauxResponseStep = (request) => {
     const { role, text } = lastText(request as never);
 
+    // A provider that refuses the run (PP-499): not an error that is retried.
+    if (role === "user" && text.endsWith("fail now")) {
+        return fauxAssistantMessage([], { stopReason: "error", errorMessage: "Invalid request: the account's weekly limit is spent" });
+    }
+
     if (role === "user" && text.endsWith("list the sessions")) {
         return fauxAssistantMessage([fauxToolCall("sessions", {})], { stopReason: "toolUse" });
     }
@@ -90,6 +95,31 @@ test("a session starts another, messages it, waits for it, reads it, and stops i
     await control.stop(caller, id);
     assert.match(control.status(caller, id), /idle/);
     await assert.rejects(control.read(caller, 999_999), /no session #999999/);
+});
+
+test("session_read and session_wait show why a session's run failed, fenced as data, until a run answers (PP-499)", async () => {
+    const caller = await session("the reader");
+    const target = await session("first task");
+    const control = app.sessionControl;
+    const failure = /<session-transcript>[^]*pi \(its run failed\): Invalid request: the account's weekly limit is spent[^]*<\/session-transcript>/;
+
+    await control.send(caller, Number(target), "fail now", false, crypto.randomUUID());
+    const waited = await control.wait(caller, Number(target), 20_000, new AbortController().signal);
+
+    assert.match(waited, /Its run ended/);
+    assert.match(waited, / · failed · /);
+    assert.match(waited, failure);
+    assert.doesNotMatch(waited, /echo: first task/, "not the answer before the failure");
+
+    const read = await control.read(caller, Number(target));
+
+    assert.match(read, failure);
+    assert.match(read, /fail now[^]*its run failed/, "after the message that failed");
+
+    // A run that answers: the failure is history, not why the session stands still.
+    await control.send(caller, Number(target), "try again", false, crypto.randomUUID());
+    await control.wait(caller, Number(target), 20_000, new AbortController().signal);
+    assert.doesNotMatch(await control.read(caller, Number(target)), /its run failed/);
 });
 
 /** Ask Pi in `caller`, answer the card it raises (`allow`), and answer what it said then. */
