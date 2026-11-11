@@ -140,6 +140,75 @@ export class BrowserSizes {
 }
 
 /**
+ * The sites each session's browser showed (PP-500, PP-504), by `<place>#<session>`: their origins, kept in a JSON file. A
+ * screenshot of such a site renders with that place's sign-in (`signedInRender`). Kept across the browser's tabs closing
+ * (the idle sweep, browser_close) and a server restart (an app update: the session's browser came back with one blank
+ * tab, and its screenshots rendered without the sign-in), as the sign-ins themselves stay in the place's profile.
+ */
+export class BrowserSites {
+    readonly #file: string | undefined;
+    #sites: Record<string, string[]>;
+
+    /** `file`: where to keep them, or undefined to keep them in memory only (tests). */
+    constructor(file: string | undefined) {
+        this.#file = file;
+        this.#sites = {};
+
+        if (file !== undefined) {
+            try {
+                const kept = JSON.parse(readFileSync(file, "utf8")) as unknown;
+
+                if (kept !== null && typeof kept === "object") {
+                    this.#sites = Object.fromEntries(
+                        Object.entries(kept).flatMap(([key, origins]) =>
+                            Array.isArray(origins) ? [[key, origins.filter((origin): origin is string => typeof origin === "string")]] : [],
+                        ),
+                    ) as Record<string, string[]>;
+                }
+            } catch {
+                // None kept yet.
+            }
+        }
+    }
+
+    /** Whether the browser `key` showed a page of `origin`. */
+    has(key: string, origin: string): boolean {
+        return this.#sites[key]?.includes(origin) === true;
+    }
+
+    /** Keep that the browser `key` showed a page at `url` (a web page's; others, such as about:blank, are no site). */
+    saw(key: string, url: string): void {
+        if (!/^https?:/i.test(url) || !URL.canParse(url)) {
+            return;
+        }
+
+        const origin = new URL(url).origin;
+
+        if (!this.has(key, origin)) {
+            this.#sites = { ...this.#sites, [key]: [...(this.#sites[key] ?? []), origin] };
+            this.#save();
+        }
+    }
+
+    /** Forget a browser's sites (its session archived or deleted). */
+    forget(key: string): void {
+        if (this.#sites[key] !== undefined) {
+            const sites = { ...this.#sites };
+
+            delete sites[key];
+            this.#sites = sites;
+            this.#save();
+        }
+    }
+
+    #save(): void {
+        if (this.#file !== undefined) {
+            writeFileSync(this.#file, JSON.stringify(this.#sites));
+        }
+    }
+}
+
+/**
  * Where each session browses when it chose (PP-274): `phone` or `machine:<id>`, by session, kept in a JSON file. A
  * session that did not choose browses where it works (the phone, or its machine). A browser Pi attached to is not kept:
  * it lasts while the server runs.

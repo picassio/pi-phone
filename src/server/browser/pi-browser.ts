@@ -794,6 +794,11 @@ export type PiBrowserOptions = {
     /** The size it starts at (PP-18: the one the session picked before), and where a new one is kept. */
     size?: BrowserSize;
     sized?(size: BrowserSize): void;
+    /**
+     * A tab showed a page at `url` (PP-500, PP-504): the app keeps its site (`BrowserSites`), whose screenshots then
+     * render with the place's sign-in, after the tabs closed or the server restarted too.
+     */
+    saw?(url: string): void;
     /** The state changed: tabs that show the panel get it. */
     changed(state: BrowserState): void;
     /** A frame for those watching. */
@@ -914,23 +919,9 @@ export class PiBrowser {
         return this.#state.place;
     }
 
-    /**
-     * Whether one of its tabs shows or showed a page of `origin` while it lives (PP-500: a site the session signed in to
-     * here). Its tabs closing (the app's idle sweep after `BROWSER_IDLE_MS`, browser_close) leave the sign-ins in the
-     * place's profile, so such a site still renders signed in (PP-501: a session that worked 30 minutes without its
-     * browser had its screenshots rendered without the sign-in, and its steps found nothing).
-     */
-    showsOrigin(origin: string): boolean {
-        return this.#origins.has(origin) || this.#tabs.some((tab) => URL.canParse(tab.url) && new URL(tab.url).origin === origin);
-    }
-
-    /** The sites its tabs showed (`showsOrigin`). */
-    readonly #origins = new Set<string>();
-
+    /** A tab showed `url`: as it is taken in, navigates, or is read (the app keeps its site, `PiBrowserOptions.saw`). */
     #saw(url: string): void {
-        if (/^https?:/i.test(url) && URL.canParse(url)) {
-            this.#origins.add(new URL(url).origin);
-        }
+        this.#options.saw?.(url);
     }
 
     state(): BrowserState {
@@ -1461,6 +1452,7 @@ export class PiBrowser {
         tab.elements = elementsOf(observed);
         tab.url = observed.url;
         tab.title = observed.title;
+        this.#saw(tab.url);
         this.#set({});
 
         // A short value the person typed on a card shows: no page for Pi (PP-228).
@@ -2285,6 +2277,7 @@ export class PiBrowser {
             tab.elements = elementsOf(result.observed);
             tab.url = result.observed.url;
             tab.title = result.observed.title;
+            this.#saw(tab.url);
             this.#set({});
 
             return { result, page: shortCardValueShowing(page.cardFills(), result.observed) ? SHORT_VALUE_NOTE : describe(result.observed, tab.elements) };
@@ -2785,6 +2778,7 @@ export class PiBrowser {
 
         fresh.url = await fresh.page.evaluate<string>("location.href").catch(() => tab.url);
         fresh.title = await fresh.page.evaluate<string>("document.title").catch(() => tab.title);
+        this.#saw(fresh.url);
 
         tab.page.cdp.close();
         await engine.closeTab(tab.id);

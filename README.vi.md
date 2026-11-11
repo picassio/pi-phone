@@ -381,7 +381,7 @@ dự án thật.</sub>
   máy chủ) được chụp và đo redline ở trạng thái đã đăng nhập: trang được vẽ với phiên đăng nhập của trình duyệt đó, khuất
   khỏi tầm nhìn (một tab riêng trên máy, đóng lại sau đó; trình vẽ ngầm của điện thoại với cookie của trình duyệt của Pi),
   ở mọi độ rộng kèm kiểm tra bố cục, và các tab của phiên giữ nguyên; vẫn vậy sau khi các tab đó tự đóng vì không dùng (30
-  phút), vì phiên đăng nhập vẫn còn. Một trang chụp khi chưa đăng nhập mà có ô mật khẩu
+  phút) và sau khi máy chủ khởi động lại (một lần cập nhật ứng dụng), vì phiên đăng nhập vẫn còn. Một trang chụp khi chưa đăng nhập mà có ô mật khẩu
   thì câu trả lời nói rõ điều đó, và cách để thấy nó khi đã đăng nhập.
 - **Ảnh chụp có số đo.** Mỗi độ rộng của `screenshot` đi kèm một lượt kiểm tra bố cục mà trang chạy trước khi vẽ: thứ
   gì tràn khỏi khung hoặc khung cha, và trang có rộng hơn màn hình không, kèm kích thước. Nó còn tìm những thứ khiến

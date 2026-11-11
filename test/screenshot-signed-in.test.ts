@@ -4,7 +4,7 @@
 // steps type a saved secret into a password field (a sign-in form sent, the steps going on on the next page), and its
 // value is in no answer, log or page read; a phone app too old to render with Pi's browser's profile is refused. On a
 // machine (PP-501): the session's tab is the same, read in the page, after a screenshot with steps, and a site signed in
-// to renders signed in after the idle sweep closed the session's tabs.
+// to renders signed in after the idle sweep closed the session's tabs, and after a server restart (PP-504).
 import { type App, cleanUp, context, lastText, modelTexts, newSession, openApp, owner, root, scriptedModel } from "./helpers.ts";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
@@ -392,6 +392,63 @@ test("a screenshot with steps leaves the session's tab on a machine as it was, a
         assert.match(later, /measured inside the open dialog div#appt/, later);
     } finally {
         await renderer.stop();
+        await running;
+        await app.close();
+        await machine.run(stopScript());
+    }
+});
+
+test("a site signed in to on a machine still renders signed in after a server restart, the session's browser back with one blank tab (PP-504)", { skip }, async () => {
+    const machine = localMachine();
+    const logs: string[] = [];
+    const dataDir = join(root, "shot-machine-restart");
+    const options = {
+        browserMachines: { list: () => [{ id: "m1", name: "box", connected: true, platform: "linux" }], access: () => machine.access },
+        log: (line: string) => logs.push(line),
+    };
+    const site = `http://127.0.0.1:${port}`;
+    const button = 'button[aria-label="Thêm lịch hẹn"]';
+
+    CALLS["shoot the case after the restart"] = ["screenshot", { url: `${site}/case`, widths: [390], steps: [{ wait: button }, { click: button }, { wait: "[role=dialog]" }] }];
+
+    let app = await openApp(scriptedModel(route), dataDir, undefined, options);
+    let renderer: ChromeRenderer | undefined;
+    let running: Promise<void> | undefined;
+
+    try {
+        apiDelay = 300;
+
+        const id = await newSession(app);
+        const session = Number(id);
+
+        app.setBrowserPlace(app.cwdOf(id), session, "box");
+
+        const first = app.browserFor(app.cwdOf(id), session);
+
+        await first.open(session, `${site}/signin`);
+        assert.match(await first.wait(session, { text: "Case HS-0089" }), /Case HS-0089/);
+        // Live on Build #492: the idle sweep closed the session's tabs, then an app update restarted the server on the same
+        // data; the session's next browser call opened a blank tab.
+        await app.sweepBrowsers(Date.now() + BROWSER_IDLE_MS + 60_000);
+        assert.equal(first.state().tabs.length, 0, "the idle sweep closed the session's tabs");
+        await app.close();
+
+        app = await openApp(scriptedModel(route), dataDir, undefined, options);
+        app.serverPort = 8798;
+        renderer = new ChromeRenderer(app.screenshots, { binary: chrome!, flags: ["--no-sandbox"], base: "http://127.0.0.1:8798", token: () => "owner-token", log: (line) => logs.push(line) });
+        running = renderer.run();
+        await renderer.ready();
+
+        const reopened = app.browserFor(app.cwdOf(id), session);
+
+        assert.equal(JSON.stringify(await reopened.evaluate(session, "location.href", false)), JSON.stringify({ json: JSON.stringify("about:blank") }));
+
+        const shot = await turn(app, id, "shoot the case after the restart");
+
+        assert.match(shot, /rendered with the sign-in of Pi's browser on box \(out of sight: its tabs stay as they are\) after 3 steps/, shot);
+        assert.match(shot, /measured inside the open dialog div#appt/, shot);
+    } finally {
+        await renderer?.stop();
         await running;
         await app.close();
         await machine.run(stopScript());

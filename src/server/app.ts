@@ -154,7 +154,7 @@ import { renderRequest, type RenderOptions, Screenshots, type Shot } from "./scr
 import { renderInTabs } from "./tab-render.ts";
 import { FilePages } from "./file-pages.ts";
 import { CHROME_FEATURES_MAX, MACHINE_BROWSER_MODES, type MachineAccess, type MachineBrowserMode, MachineEngine, parseChromeFeatures } from "./browser/machine-engine.ts";
-import { BrowserPlaces, BrowserSizes, renderTabs, SessionEngine, TabOwners } from "./browser/session-engine.ts";
+import { BrowserPlaces, BrowserSites, BrowserSizes, renderTabs, SessionEngine, TabOwners } from "./browser/session-engine.ts";
 import { activePortScript, AttachedEngine, type BrowserEndpoint, connectBrowser, inspectScript, isOwnProfile, processKnown, profileFromInspect } from "./browser/attached-engine.ts";
 import { checkPolicy, EXTENSIONS as POLICY_EXTENSIONS, PolicyStore } from "./policy.ts";
 import { installImageGuard } from "./image-guard.ts";
@@ -570,6 +570,8 @@ export class PocketApp {
     readonly #tabOwners: TabOwners;
     /** The size each session's browser lays pages out at (PP-18). */
     readonly #browserSizes: BrowserSizes;
+    /** The sites each session's browser showed (PP-504), whose screenshots render with its sign-in. */
+    readonly #browserSites: BrowserSites;
     /** Where each session browses when it chose (PP-274): the phone, or a machine. */
     readonly #browserPlaces: BrowserPlaces;
     /** Browsers Pi attached to (`browser_attach`, PP-274), by session: one each, while the server runs. */
@@ -1051,6 +1053,7 @@ export class PocketApp {
         });
         this.#tabOwners = new TabOwners(join(options.dataDir, "browser-tabs.json"));
         this.#browserSizes = new BrowserSizes(join(options.dataDir, "browser-sizes.json"));
+        this.#browserSites = new BrowserSites(join(options.dataDir, "browser-sites.json"));
         this.#browserPlaces = new BrowserPlaces(join(options.dataDir, "browser-places.json"));
         this.#browserMachinesOption = options.browserMachines;
         const jevFetch = options.jev?.fetch ?? fetch;
@@ -1780,6 +1783,7 @@ export class PocketApp {
 
             if (gone) {
                 this.#browserSizes.set(key, undefined);
+                this.#browserSites.forget(key);
 
                 // Its choice of place goes, and a browser it attached to is let go (it runs on).
                 const id = Number(key.slice(key.lastIndexOf("#") + 1));
@@ -3850,6 +3854,7 @@ export class PocketApp {
             ...(attached === undefined ? {} : { attached }),
             size: this.#browserSizes.of(`${place}#${session}`),
             sized: (size) => this.#browserSizes.set(`${place}#${session}`, size),
+            saw: (url) => this.#browserSites.saw(`${place}#${session}`, url),
             popups: () => this.config.browserPopups,
             permissions: () => this.config.browserPermissions,
             saveDownload: (name, bytes) => this.#saveDownload(session, name, bytes),
@@ -3999,16 +4004,16 @@ export class PocketApp {
 
     /**
      * A render of `url` with the sign-ins of the session's Pi browser (PP-500), when one of its tabs there shows or showed
-     * that site (`host.signedInRender`; PP-501: the idle sweep closing its tabs leaves the sign-ins in the profile). The phone's renders in Pi's browser's WebView profile (`Renderer.java`); a Chrome's
+     * that site (`host.signedInRender`), kept in `browser-sites.json` (PP-504): its tabs closing (the idle sweep) or a
+     * server restart leave the sign-ins in the profile. The phone's renders in Pi's browser's WebView profile (`Renderer.java`); a Chrome's
      * (a machine's, or the server edition's) in a tab of its own there, which no session owns while it lives
      * (`renderTabs`), so the session's tabs stay as they are. A browser with a window someone may use, or one Pi
      * attached to, is not rendered in out of sight: an error says so.
      */
     signedInRender(cwd: string, session: number, url: string): { where: string; render(options: RenderOptions): Promise<Shot[]> } | { error: string } | undefined {
         const place = this.browserPlaceOf(cwd, session);
-        const browser = this.#browsers.get(`${place}#${session}`);
 
-        if (browser === undefined || !URL.canParse(url) || !browser.showsOrigin(new URL(url).origin)) {
+        if (!URL.canParse(url) || !this.#browserSites.has(`${place}#${session}`, new URL(url).origin)) {
             return undefined;
         }
 

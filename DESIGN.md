@@ -1304,11 +1304,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
     their count: an app from before them answers none, and the server refuses its pictures (they would show the page
     closed) saying to update the app. The request waits 90 s plus 20 s a width when it has steps.
   - **Behind a sign-in** (PP-500; reported from #214022, which could not shoot visa-dashboard's signed-in screens: the
-    renderer had the app's sign-in only). A `url` whose origin one of the session's tabs in Pi's browser shows or showed
-    while that browser lives (`PiBrowser.showsOrigin`: the tabs in memory, and the origins they showed, kept when the idle
-    sweep or browser_close closes them, as the sign-ins stay in the place's profile; after a restart `browser_open` brings
-    them back) renders with that
-    browser's sign-in (`App.signedInRender`), for work the owner asked for (Pi's browser is the owner's): on the phone,
+    renderer had the app's sign-in only). A `url` whose origin one of the session's tabs in Pi's browser showed (a tab
+    taken in, navigating, or read: `PiBrowserOptions.saw`) is a site signed in to there. The origins are kept by
+    `<place>#<session>` in `browser-sites.json` (`BrowserSites`, PP-504), through the idle sweep or browser_close
+    closing the tabs and a server restart, as the sign-ins stay in the place's profile (live on Build #492: after an app
+    update the session's browser came back with one blank tab, and its screenshots rendered without the sign-in); a
+    session archived or deleted forgets them. Such a url renders with that browser's sign-in (`App.signedInRender`), for work the owner asked for (Pi's browser is the owner's): on the phone,
     `Renderer.java` makes its WebView in Pi's browser's profile (`profile: "pi-browser"` in the request, set before
     anything else on the view, no owner token) and each shot answers `profile`; an app that does not is refused, saying
     to update it (`parseShot`, as for steps). In a Chrome (a machine's, the server edition's) it renders in a tab of its
