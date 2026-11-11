@@ -136,8 +136,13 @@ test("a stopped watch tells nothing", async () => {
 
     await say(app, id, "watch the push");
     assert.equal(Object.keys(await watches(id)).length, 1);
+    // Again: the run already watched is named, not watched twice.
+    await say(app, id, "watch the push");
+    assert.equal(Object.keys(await watches(id)).length, 1);
+    assert.equal((await modelTexts(app, id)).filter((each) => each.includes("Watching CI #7 on main")).length, 2);
     await say(app, id, "stop watching");
     assert.equal(Object.keys(await watches(id)).length, 0);
+    assert.ok((await modelTexts(app, id)).some((each) => each.includes("Stopped watching: CI #7 on main.")), "stop names what it stopped");
 
     writeFileSync(status, "failed");
     await new Promise((resolve) => setTimeout(resolve, 400));

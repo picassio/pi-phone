@@ -352,7 +352,8 @@ export default function createCiWatch(host: PocketHost) {
                             target === undefined ||
                             (watch.runId === target.runId && (target.repo === undefined || watch.repo === target.repo))
                         ) {
-                            gone.push(watch);
+                            // A copy: the document's own object cannot be read once the commit has settled.
+                            gone.push({ ...watch });
                             delete doc.items[id];
                         }
                     }
@@ -460,7 +461,7 @@ export default function createCiWatch(host: PocketHost) {
                     const existing = doc.items[id];
 
                     if (existing !== undefined) {
-                        out.push(existing);
+                        out.push({ ...existing });
                         continue;
                     }
 
