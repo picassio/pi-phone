@@ -559,7 +559,15 @@ so Pi changes them through the settings tools; "the last session" is the one the
   asked from the menu) with entries past its watermark (`ParaCaptureDoc`) gets those messages, serialized by pi-para,
   under pi-para's capture prompt, sent to the archived "Wiki capture" session, reset first. That session selects only
   `pocket-para-capture` (the wiki tools and `CAPTURE_SYSTEM_PROMPT`), which the default selection leaves out; it runs on
-  pi-para's `models.capture`, or the app's default model for "auto". The watermark moves when the capture is sent.
+  pi-para's `models.capture`, or the app's default model for "auto". The watermark moves when the capture's run
+  answers, not when it is sent (PP-408: a capture whose model was at its weekly limit counted as done, and only an
+  archived session said it failed). While it runs, `sending` (the entry it reaches, its submission) is kept in
+  `ParaCaptureDoc`, so a restart still settles it, and the session's `at` is now, so the idle look does not send it
+  again. A run that fails keeps the watermark, stores `failed` (session, time, the model's error), and tells the owner
+  (`ownerNotice`, naming Wiki settings); the Wiki page shows it with a Wiki settings button until a capture answers.
+  The same messages go with the session's next capture: the idle look's after it is active again, or the menu's. A
+  new attempt is a new request id (the failed one's would answer with the failure). The idle look captures one session
+  at a time, waiting for each run (`settled`): they share the capture session, reset for each.
   Wiki settings (a sheet from the Wiki page and the launcher) are the only way people change pi-para's config: the app
   writes `config.jsonc` with pi-para's own `saveParaConfig`, keeping what it does not show. They hold the capture model
   (picked with the app's model picker, PP-409: `pocket.pickModel`, every account's models with their plan figures, an

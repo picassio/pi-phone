@@ -530,7 +530,10 @@ dự án thật.</sub>
   tra và Giữ/Hoàn tác/Khôi phục; chỉ gõ `/make` thì nó ở lại trong ô kèm một ví dụ. Chủ sở hữu thấy lệnh này khi Trình
   tạo tiện ích đang bật.
 - **Một wiki PARA** ([pi-para](https://github.com/picassio/pi-para)): Pi tra cứu và viết vào đó khi làm việc, với tìm
-  kiếm của qmd, theo dõi các câu hỏi mở cho đến khi được trả lời, và ghi nhận các phiên rảnh vào đó. Khi đã
+  kiếm của qmd, theo dõi các câu hỏi mở cho đến khi được trả lời, và ghi nhận các phiên rảnh vào đó. Một lần ghi
+  nhận thất bại (ví dụ mô hình của nó hết hạn mức) được báo cho bạn kèm lỗi của mô hình, và trang Wiki hiện nó cùng
+  nút tới Cài đặt wiki; không có gì được tính là đã ghi nhận, nên lần ghi nhận tiếp theo của phiên gửi lại đúng các tin
+  nhắn đó. Khi đã
   đăng nhập OpenRouter, **Jev xếp hạng kết quả tìm** (Menu › Wiki › Xếp hạng bằng Jev): nó đọc từng trang tìm được
   (theo từ khóa, theo nghĩa, và các trang có các từ của tin nhắn, kể cả âm tiết tiếng Việt) và giữ những trang giúp ích
   cho tin nhắn của bạn hoặc `wiki_query` của Pi, tốt nhất trước; khoảng 0,5 giây và $0.0001 mỗi lần tìm, tính vào Chi

@@ -523,7 +523,9 @@ No Termux, no laptop, no cloud VM.
   checks and Keep/Undo/Restore; `/make` alone stays in the box with an example. Offered to the owner while the
   Extension builder is on.
 - **A PARA wiki** ([pi-para](https://github.com/picassio/pi-para)): Pi consults and writes it as it works, with qmd's
-  search, tracks its open questions until they are answered, and captures idle sessions into it. With OpenRouter signed
+  search, tracks its open questions until they are answered, and captures idle sessions into it. A capture that fails
+  (its model at a limit, say) is told to you with the model's error, and the Wiki page shows it with a way to Wiki
+  settings; nothing counts as captured, so the same messages go with the session's next capture. With OpenRouter signed
   in, **Jev ranks the search** (Menu › Wiki › Rank with Jev): it reads each page the search found (by keyword, by
   meaning, and pages holding the message's words, Vietnamese syllables too) and keeps those that help with your message
   or Pi's `wiki_query`, best first; about 0.5 s and $0.0001 a search, counted in Spend. Off, the search keeps its own

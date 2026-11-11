@@ -37,6 +37,19 @@
     color: var(--err);
 }
 
+/* A capture that failed (PP-408): why, and the way to the capture model. */
+.wiki-capture-failed {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 8px 0 12px;
+}
+
+.wiki-capture-failed .wiki-problem {
+    margin: 0;
+}
+
 .wiki-category {
     margin-top: 6px;
 }

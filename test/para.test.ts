@@ -1,6 +1,6 @@
 // The PARA wiki: pi-para's own tools and context on pi-phone's runtime. Pi writes a page, finds it with qmd's search
 // (node:sqlite, no native addon), reads it, and the next prompt carries the wiki's context for the session's project.
-import { type App, cleanUp, context, home, lastText, modelTexts, openApp, owner, scriptedModel, work } from "./helpers.ts";
+import { type App, cleanUp, context, home, lastText, modelTexts, openApp, owner, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -18,6 +18,8 @@ let userParts: string[] = [];
 let captureText = "";
 /** The tools the capture session was offered, the last time it asked. */
 let captureTools: string[] = [];
+/** The capture model refuses the account: a capture of "the release checklist" fails. */
+let refused = true;
 const page = {
     category: "resources",
     slug: "terminal-reattach",
@@ -51,6 +53,12 @@ const route: FauxResponseStep = (request) => {
             [fauxToolCall("wiki_write", { pages: [{ ...page, mode: "replace", body: "## Only the new section\n" }] })],
             { stopReason: "toolUse" },
         );
+    }
+
+    // A capture model the account cannot use, until `refused` is false: refused, not retried (PP-408). Not a limit: the
+    // app holds a provider at its limit back itself (`limits.ts`).
+    if (role === "user" && text.includes("<session-conversation>") && text.includes("the release checklist") && refused) {
+        return fauxAssistantMessage([], { stopReason: "error", errorMessage: "Invalid request: this model is not available on your plan" });
     }
 
     if (role === "user" && text.includes("<session-conversation>")) {
@@ -262,6 +270,7 @@ test("an idle session is captured into the wiki by the capture session, once, wi
     assert.match(readFileSync(join(home, ".pi", "wiki", "resources", "captured-fact.md"), "utf8"), /deploy key is at/);
     assert.deepEqual(captureTools.filter((name) => !name.startsWith("wiki_")), [], captureTools.join(", "));
     assert.ok(captureTools.includes("wiki_query"));
+    await app.paraCapture.settled();
 
     const meta = app.sessionMeta(capture)!;
 
@@ -270,6 +279,43 @@ test("an idle session is captured into the wiki by the capture session, once, wi
     assert.deepEqual(await app.paraCapture.capture(id), { sent: false, why: "nothing new since the last capture" });
     assert.match(JSON.stringify(await app.paraCapture.status()), /"model":"faux\/faux-1"/);
     assert.deepEqual(await app.paraCapture.capture(capture), { sent: false, why: "only sessions are captured" });
+});
+
+test("a capture whose run fails moves nothing: the owner is told why, and the messages go again with the next capture (PP-408)", async () => {
+    const { id } = await app.commands.createSession(owner(app), { cwd: work });
+    const notices: string[] = [];
+    const ownerNotice = app.ownerNotice.bind(app);
+
+    app.ownerNotice = (level, message) => {
+        notices.push(message);
+        ownerNotice(level, message);
+    };
+    await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+    await turn(id, "the release checklist lives in docs/release.md");
+    await app.setDefaultModel(owner(app), { provider: "faux", modelId: "faux-1" });
+
+    assert.equal((await app.paraCapture.capture(id)).sent, true);
+    await app.harness.waitForIdle(context);
+    await until(async () => notices.length > 0, "the owner told the capture failed", 5_000);
+
+    // Told, with the model's own error and where the capture model is chosen; and the Wiki page says so too.
+    assert.equal(notices.length, 1, notices.join(" | "));
+    assert.match(notices[0]!, new RegExp(`^Wiki capture of session #${String(id)} failed: model_error: .*not available on your plan.*Wiki settings`));
+    const failed = (await app.paraCapture.status()).failed;
+
+    assert.equal(failed?.session, Number(id));
+    assert.match(failed?.why ?? "", /not available on your plan/);
+
+    // Nothing was marked captured: the same messages go again, and this time the capture answers.
+    refused = false;
+    captureText = "";
+    assert.equal((await app.paraCapture.capture(id)).sent, true);
+    await app.paraCapture.settled();
+    assert.match(captureText, /the release checklist lives in docs\/release\.md/);
+    assert.equal((await app.paraCapture.status()).failed, null, "a capture that answered clears the failure");
+    assert.equal((await app.paraCapture.status()).last?.session, Number(id));
+    assert.deepEqual(await app.paraCapture.capture(id), { sent: false, why: "nothing new since the last capture" });
+    app.ownerNotice = ownerNotice;
 });
 
 test("open questions: the prompt lists them and names the session, a write that may answer one says so, and a capture sees them all", async () => {

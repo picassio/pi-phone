@@ -2594,6 +2594,7 @@
     "Sessions idle for {minutes} min are captured, on {model}.": "Phiên rảnh {minutes} phút sẽ được ghi nhận, bằng {model}.",
     "Last: session #{session}, {when} ago.": "Gần nhất: phiên #{session}, {when} trước.",
     "Open the capture session": "Mở phiên ghi nhận",
+    "The capture of session #{session} failed {when} ago: {why}. It goes again with the session's next capture.": "Lần ghi nhận phiên #{session} thất bại {when} trước: {why}. Lần ghi nhận tiếp theo của phiên sẽ gửi lại.",
     "Nothing here yet.": "Chưa có gì ở đây.",
     "Lately": "Gần đây",
     "Keyword matches; finding by meaning…": "Khớp từ khóa; đang tìm theo ngữ nghĩa…",

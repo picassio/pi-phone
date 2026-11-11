@@ -4,8 +4,9 @@
  * messages since its last capture, is captured: its new messages, as pi-para serializes them, under pi-para's own capture
  * prompt, go to the "Wiki capture" session, which runs on the capture model with pi-para's capture instructions and the
  * wiki tools only (`pocket-para-capture`), searching before it writes. Each session's watermark (the last entry captured)
- * means nothing is captured twice; it moves when the message is sent, not when the capture ends, so a capture that fails
- * is not sent again without end.
+ * means nothing is captured twice; it moves when the capture's run answers. A run that fails moves nothing (PP-408): the
+ * owner is told why (a notice, and the Wiki page), and the same messages go again with the session's next capture, which
+ * comes once the session has been active again (or from its menu), so a failing capture is not sent again without end.
  *
  * The capture session is a session of its own, archived so the list stays the owner's: they can open it, see what was
  * captured and why, and talk to it. Its spend is the owner's. It runs on pi-para's `models.capture`, or the app's default
@@ -13,7 +14,7 @@
  */
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { Message } from "@earendil-works/pi-ai";
-import { AgentDoc, type ConversationId, defineDoc } from "@earendil-works/pi-durable";
+import { AgentDoc, type ConversationId, defineDoc, type SubmissionId } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
 import { SessionsDoc, rebased } from "./docs.ts";
 import { describe } from "./errors.ts";
@@ -33,8 +34,14 @@ const MAX_DIGEST = 60_000;
 /** Where each session's capture stands, and the capture session. */
 export const ParaCaptureDoc = defineDoc<{
     conversation?: number;
-    sessions: Record<string, { entry: number; at: number }>;
+    /**
+     * Per session: the last entry captured, when it was last looked at, and the capture under way (`sending`: the entry
+     * it reaches and its submission in the capture session), kept so a restart still settles it.
+     */
+    sessions: Record<string, { entry: number; at: number; sending?: { entry: number; submission: number } }>;
     last?: { session: number; at: number };
+    /** The newest capture whose run failed, and why. */
+    failed?: { session: number; at: number; why: string };
 }>({
     kind: "phone.para-capture",
     version: 1,
@@ -49,6 +56,8 @@ export class ParaCapture {
     readonly #app: PocketApp;
     #timer: NodeJS.Timeout | undefined;
     #looking = false;
+    /** The captures under way, by session: each settles when its run ends. */
+    readonly #settling = new Map<string, Promise<void>>();
 
     constructor(app: PocketApp) {
         this.#app = app;
@@ -57,6 +66,22 @@ export class ParaCapture {
     start(): void {
         this.#timer = setInterval(() => void this.look(), LOOK_MS);
         this.#timer.unref();
+        // Captures sent before a restart: their runs go on, and settle here.
+        void this.#state().then(
+            (state) => {
+                for (const [key, each] of Object.entries(state.sessions)) {
+                    if (each.sending !== undefined) {
+                        this.#settle(Number(key) as unknown as ConversationId, each.sending.submission as SubmissionId);
+                    }
+                }
+            },
+            (error: unknown) => this.#app.log(`wiki capture: the captures under way were not read: ${describe(error)}`),
+        );
+    }
+
+    /** Resolves once every capture under way has ended (each moved its session's watermark, or told why it failed). */
+    async settled(): Promise<void> {
+        await Promise.all(this.#settling.values());
     }
 
     stop(): void {
@@ -115,6 +140,8 @@ export class ParaCapture {
                 await this.capture(id).catch((error: unknown) =>
                     this.#app.log(`wiki capture of session ${key} failed: ${describe(error)}`),
                 );
+                // One at a time: they share the capture session, whose context each one starts afresh.
+                await this.settled();
             }
         } finally {
             this.#looking = false;
@@ -140,6 +167,11 @@ export class ParaCapture {
         }
 
         const state = await this.#state();
+
+        if (state.sessions[String(id)]?.sending !== undefined) {
+            return { sent: false, why: "a capture of this session is under way" };
+        }
+
         const since = state.sessions[String(id)]?.entry ?? 0;
         const view = await (await app.harness.conversation(id, context))!.context(context);
         const messages: Message[] = [];
@@ -184,15 +216,78 @@ export class ParaCapture {
 
         // A fresh context for each capture: the capture session's earlier ones would only cost tokens.
         await (await app.harness.conversation(capture, context))!.reset(undefined, context);
-        await app.commands.submit(
+        const { submissionId } = await app.commands.submit(
             capture,
             owner,
-            { text, requestId: `wiki-capture:${String(id)}:${String(last)}` },
+            // A capture sent again after a failure is a new request: the same id would answer with the failed one. The
+            // same attempt keeps its id, so one sent again after a restart before it was noted is not sent twice.
+            { text, requestId: `wiki-capture:${String(id)}:${String(last)}:${String(state.sessions[String(id)]?.at ?? 0)}` },
             `wiki capture of session #${String(id)}`,
         );
-        await this.#mark(id, last, true);
+
+        // Looked at now, so the idle look does not send it again while it runs; the watermark waits for the answer.
+        await this.#app.harness.commit(async (tx) => {
+            const state = await tx.doc(ParaCaptureDoc);
+
+            state.sessions[String(id)] = { entry: since, at: Date.now(), sending: { entry: last, submission: Number(submissionId) } };
+        }, context);
+        this.#settle(id, submissionId);
 
         return { sent: true, conversation: Number(capture) };
+    }
+
+    /**
+     * When the capture's run ends: answered, the watermark moves to what it captured; not, it stays, the failure is kept
+     * for the Wiki page, and the owner is told why, with where to change the capture model.
+     */
+    #settle(id: ConversationId, submissionId: SubmissionId): void {
+        const app = this.#app;
+        const key = String(id);
+
+        if (this.#settling.has(key)) {
+            return;
+        }
+
+        const settling = (async () => {
+            const submission = await app.harness.submission(submissionId, context);
+
+            if (submission === undefined) {
+                throw new Error(`its submission ${String(submissionId)} is not in the capture session`);
+            }
+
+            const settled = await submission.wait(context);
+            const why =
+                settled.status === "done"
+                    ? undefined
+                    : `${settled.reason ?? "no answer"}${settled.detail === undefined ? "" : `: ${typeof settled.detail === "string" ? settled.detail : JSON.stringify(settled.detail)}`}`.slice(0, 400);
+
+            await app.harness.commit(async (tx) => {
+                const state = await tx.doc(ParaCaptureDoc);
+                const each = state.sessions[key];
+
+                if (each?.sending?.submission !== Number(submissionId)) {
+                    return;
+                }
+
+                const now = Date.now();
+
+                if (why === undefined) {
+                    state.sessions[key] = { entry: each.sending.entry, at: now };
+                    state.last = { session: Number(id), at: now };
+                } else {
+                    state.sessions[key] = { entry: each.entry, at: now };
+                    state.failed = { session: Number(id), at: now, why };
+                }
+            }, context);
+
+            if (why !== undefined) {
+                app.ownerNotice("error", `Wiki capture of session #${key} failed: ${why}. It goes again with the session's next capture; the capture model is in Wiki settings.`);
+            }
+        })()
+            .catch((error: unknown) => app.log(`wiki capture of session ${key}: ${describe(error)}`))
+            .finally(() => this.#settling.delete(key));
+
+        this.#settling.set(key, settling);
     }
 
     /** The capture session: made once, on the capture model, with the capture extension alone. */
@@ -229,15 +324,11 @@ export class ParaCapture {
         return (await this.#app.harness.snapshot(ParaCaptureDoc, context)) ?? { sessions: {} };
     }
 
-    async #mark(id: ConversationId, entry: number, sent = false): Promise<void> {
+    async #mark(id: ConversationId, entry: number): Promise<void> {
         await this.#app.harness.commit(async (tx) => {
             const state = await tx.doc(ParaCaptureDoc);
 
             state.sessions[String(id)] = { entry, at: Date.now() };
-
-            if (sent) {
-                state.last = { session: Number(id), at: Date.now() };
-            }
         }, context);
     }
 
@@ -261,6 +352,8 @@ export class ParaCapture {
             model: model.ok ? `${model.model.provider}/${model.model.modelId}` : null,
             why: model.ok ? null : model.why,
             last: state.last ?? null,
+            // Only when no capture answered since: one that did means the model works again.
+            failed: state.failed !== undefined && (state.last === undefined || state.failed.at > state.last.at) ? state.failed : null,
             conversation: state.conversation ?? null,
         };
     }

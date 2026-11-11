@@ -232,6 +232,19 @@ export default function wiki(pocket) {
                     ${capture.conversation !== null && html` <a href=${`s/${capture.conversation}`}>${t("Open the capture session")}</a>`}
                 </p>`
             }
+            ${
+                capture?.failed &&
+                html`<div class="wiki-capture-failed" data-part="wiki-capture-failed">
+                    <p class="wiki-problem">
+                        ${t("The capture of session #{session} failed {when} ago: {why}. It goes again with the session's next capture.", {
+                            session: capture.failed.session,
+                            when: ago(new Date(capture.failed.at).toISOString()),
+                            why: capture.failed.why,
+                        })}
+                    </p>
+                    <button type="button" class="button" onClick=${() => pocket.openSheet("settings")}>${t("Wiki settings")}</button>
+                </div>`
+            }
             ${CATEGORIES.map((key) => {
                 const [label, hint] = categoryText[key];
                 const pages = tree.categories[key] ?? [];

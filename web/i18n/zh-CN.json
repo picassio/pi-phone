@@ -2494,6 +2494,7 @@
     "Sessions idle for {minutes} min are captured, on {model}.": "空闲 {minutes} 分钟的会话会被采集，使用 {model}。",
     "Last: session #{session}, {when} ago.": "上次：会话 #{session}，{when}前。",
     "Open the capture session": "打开采集会话",
+    "The capture of session #{session} failed {when} ago: {why}. It goes again with the session's next capture.": "会话 #{session} 的采集在{when}前失败：{why}。该会话下次采集时会重新发送。",
     "Nothing here yet.": "这里还没有内容。",
     "Lately": "最近",
     "Keyword matches; finding by meaning…": "关键词匹配结果；正在按语义查找…",
