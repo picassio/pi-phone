@@ -188,7 +188,8 @@ final class Progress {
                 .setShowWhen(false)
                 .setContentIntent(openSession(rows.length() > 0 ? rows.getJSONObject(0).getInt("conversationId") : -1, 1999));
 
-        if (rows.length() > 0) {
+        // Two or more sessions: the board of rows. One or none: the standard template, title and text (PP-505).
+        if (ProgressLayout.customBoard(rows.length())) {
             builder.setStyle(new Notification.DecoratedCustomViewStyle()).setCustomBigContentView(big);
         }
 

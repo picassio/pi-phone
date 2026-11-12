@@ -35,7 +35,8 @@ dự án thật.</sub>
   điện thoại). Một yêu cầu duyệt trên ô sẽ nêu tên subagent đang hỏi. Phiên riêng của một subagent ghi mô hình của nó trên
   thanh trên cùng, cạnh “subagent của …” (trên điện thoại ô nhập ẩn nó khi Pi đang làm); chạm vào để mở bảng mô hình.
 - **Pi đang làm gì, xem từ bất kỳ ứng dụng nào.** Thông báo pi luôn hiện giờ là bảng tiến độ: tiêu đề đếm số phiên đang
-  chạy, đang chờ bạn và đã xong trong giờ qua; mở rộng ra, mỗi phiên một dòng với việc đang làm ("đang sửa …", "đang chạy
+  chạy, đang chờ bạn và đã xong trong giờ qua; khi có một phiên, nội dung thông báo là việc phiên đó đang làm; từ hai
+  phiên trở lên, mở rộng ra, mỗi phiên một dòng với việc đang làm ("đang sửa …", "đang chạy
   npm test"), chạm để mở phiên đó, và nút Duyệt cho thẻ đơn giản. Bật bảng nổi (Điện thoại này › Bảng nổi trên ứng dụng
   khác; Android hỏi một lần để cho pi hiển thị trên ứng dụng khác): logo pi trong một bong bóng trên mọi ứng dụng, vòng
   quay khi Pi làm việc, số đếm và huy hiệu khi có việc chờ bạn; chạm để mở bảng. Chạm hai lần (hoặc nút Giọng nói trên bảng)

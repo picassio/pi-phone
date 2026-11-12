@@ -31,7 +31,8 @@ No Termux, no laptop, no cloud VM.
   phone). An approval on a tile names the subagent that asks. A subagent's own session names its model in the top bar,
   beside "subagent of …" (on a phone the message box hides it while Pi works); a tap opens the model sheet.
 - **What Pi does, from any app.** The always-on pi notification is a progress board: its title counts the sessions at
-  work, waiting for you, and done in the last hour; expanded, a row per session with what it does now ("editing …",
+  work, waiting for you, and done in the last hour; its text, with one session, what it does now; expanded, from two
+  sessions on, a row per session with what it does now ("editing …",
   "running npm test"), each opening its session, and Approve for a simple card. Turn on the floating board (This phone ›
   Floating board over other apps; Android asks once to let pi display over other apps): the pi logo in a bubble over any
   app, a ring turning while Pi works, a count, and a badge when something waits; tap it for the board. Double-tap it

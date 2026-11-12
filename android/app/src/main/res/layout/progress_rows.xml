@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The progress board in the pi notification, expanded (Progress.java, PP-283): a row per session at work or waiting for
-     the owner, up to five, each opening its session; Progress shows the ones it has and fills them in. -->
+     the owner, up to five, each opening its session; Progress shows the ones it has and fills them in. At least 72dp tall
+     (PP-505): HyperOS refuses a foreground service's notification whose custom view inflates shorter
+     (BadForegroundServiceNotificationException, "inflated notification does not meet minimum height requirement"). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:minHeight="72dp"
     android:orientation="vertical">
 
     <LinearLayout

@@ -643,7 +643,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
   A new version only when what it says (times aside) changes; `GET /api/phone/progress?after=` long-polls it, read
   again every 1.5 s, with `config.progressBoard` (notification on, bubble off, hideIdle on). PiService's `Progress`
   thread shows it, at most every 2 s, in the always-on notification (id 1, its quiet channel): title and first row
-  collapsed, `DecoratedCustomViewStyle` rows (`progress_rows.xml`) each opening its session, Approve for a simple card
+  collapsed, `DecoratedCustomViewStyle` rows (`progress_rows.xml`, at least 72dp) each opening its session only from two
+  sessions on, the standard template for one or none (`ProgressLayout`, PP-505: HyperOS killed the service with
+  BadForegroundServiceNotificationException when the one-row custom view inflated under its minimum height; a JUnit
+  test, CI's `testDebugUnitTest`), Approve for a simple card
   (`ACTION_APPROVE` to PiService, `POST /api/approvals/<id>`). With the bubble on and `Settings.canDrawOverlays`,
   `ProgressBubble` adds a `TYPE_APPLICATION_OVERLAY` circle (pi's mark `pi_mark.xml`, a turning ring while Pi works, the
   count, an amber badge), dragged to the nearest side; a tap opens `/?board=1` in a WebView window (bridge `PiBoard`:

@@ -134,7 +134,7 @@ jobs:
           PI_PHONE_KEYSTORE: ${{ runner.temp }}/pi-phone.jks
           PI_PHONE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           PI_PHONE_VERSION_CODE: ${{ github.run_number }}
-        run: bash ./gradlew --no-daemon assembleDebug
+        run: bash ./gradlew --no-daemon testDebugUnitTest assembleDebug
       - name: Release files
         run: |
           assets=android/app/src/main/assets
