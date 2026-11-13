@@ -78,7 +78,9 @@ dự án thật.</sub>
   và bash, chạy cả khi Pi đang làm, mỗi lần một cái, tối đa 20 phút, và không thêm gì vào ngữ cảnh của phiên. Hai dòng
   phía trên ô nhập cho thấy bước của nó (thanh sáu ô), các công cụ mới nhất với ✓ hoặc ✗, thời gian và nút Dừng; Esc
   dừng nó trên máy tính, và chạm vào hai dòng đó mở trợ lý để xem nó đọc. Câu trả lời không có bản viết lại sẽ báo như
-  vậy, và thông báo mở toàn bộ câu trả lời của trợ lý. Từ
+  vậy, và thông báo mở toàn bộ câu trả lời của trợ lý. Với Pi, tin nhắn cho subagent bắt đầu bằng `/better` được kiểm
+  tra trước với repository bằng phần kiểm tra brief của pi-better: subagent nhận brief đã sửa, hoặc không khởi động.
+  Prompt của Pi không nhắc tới điều này; hãy ghi ở nơi Pi đọc hướng dẫn (AGENTS.md, một skill). Từ
   [pi-better](https://github.com/nicobailon/pi-better) của Nico Bailon.
 - **Bình luận trong Review, và Từ lần review trước.** Trong Thay đổi, chạm số dòng (phía mới hoặc cũ) mở ô bình luận
   ngay dưới dòng, và nút ghi chú của tệp bình luận cho cả tệp. Gửi review đặt chúng vào ô nhập làm phản hồi cho Pi

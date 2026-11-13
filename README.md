@@ -74,8 +74,10 @@ No Termux, no laptop, no cloud VM.
   may only use read, grep, find, ls and bash, works while Pi does, one at a time, for 20 minutes at most, and adds
   nothing to the session's context. Two rows above the message box show its step (a six-cell meter), its newest tools
   with ✓ or ✗, the time and Stop; Esc stops it on a desktop, and a tap on the rows opens the helper to watch it read.
-  A reply without a rewrite says so, and its notice opens the helper's whole reply. From
-  [pi-better](https://github.com/nicobailon/pi-better) by Nico Bailon.
+  A reply without a rewrite says so, and its notice opens the helper's whole reply. For Pi, a subagent's message that
+  starts with `/better` is checked first, against the repository, with pi-better's brief check: the subagent gets the
+  fixed brief, or does not start. Pi's prompt does not mention this; say it where Pi reads instructions (AGENTS.md, a
+  skill). From [pi-better](https://github.com/nicobailon/pi-better) by Nico Bailon.
 - **Comments in Review, and Since last review.** In Changes, a tap on a line number (new or old side) opens a comment
   box under the line, and a file's note button comments on the whole file. Send review puts them in the message box as
   feedback for Pi ("Please address the following review feedback: 1. path:line (current) …"), unsent, and checkpoints

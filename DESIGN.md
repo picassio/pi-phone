@@ -253,6 +253,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
     the box of the person who asked, above their draft, once per browser (`pocket.betterApplied`). A failure is a
     notice; one without a rewrite opens the helper, whose transcript holds the whole reply. Esc on a desktop stops the
     helper first (`stopBetterOnEscape`), then Pi as before.
+  - **Subagent briefs.** A `subagent` spawn or send whose message starts with `/better` runs the same task with
+    `kind: "brief"` (brief.md, `buildBriefTask`), owned by the tool call, which waits: the subagent gets the checked
+    brief, or the call fails and the subagent never starts. Nothing in Pi's prompt says so (no prompt change).
   - **Left out.** `/better-boomerang` (the chat answers as a hidden turn, then rewinds): pi-phone has no tree to rewind
     to; Pi Durable could only hide the turn with omit edits, which keep it in the transcript and the session's
     history, and a busy session would have to wait. The fork already gives what boomerang is for: open the helper and

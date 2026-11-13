@@ -1,7 +1,8 @@
 // /better (PP-506, pi-better): a read-only helper, a fork of the session, answers on the session's model with the
 // session's own opening (so the provider's cache serves it), refuses tools other than read, grep, find, ls and bash,
 // works while Pi does, one at a time, stops on Stop, and leaves the session's context as it was. Its rewrite comes from
-// the reply's last <improved-prompt> block; a reply without one says so.
+// the reply's last <improved-prompt> block; a reply without one says so. A subagent's brief marked /better is checked
+// first, and the subagent gets the checked brief.
 import { type App, cleanUp, context, lastText, newSession, openApp, owner, root, say, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
@@ -246,4 +247,13 @@ test("it works while Pi works: the copy ends before the call under way, and the 
     await until(() => !app.isBusy(id), "Pi done", 20_000);
     assert.doesNotMatch(await contextText(id), /Prompt to deepen/);
     assert.match(await contextText(id), /worked/);
+});
+
+test("a subagent's message marked /better is checked first: the subagent gets the checked brief", async () => {
+    const id = await newSession(app);
+
+    await say(app, id, "hello");
+    await app.commands.submit(id, owner(app), { text: "delegate", requestId: `delegate-${id}` });
+    await until(async () => (await contextText(id)).includes("got: Checked: Fix the parser in src/a.ts in the file."), "the subagent's report", 20_000);
+    assert.match(JSON.stringify(helperRequests.at(-1)), /The brief below is for a subagent that starts with none of this conversation/);
 });

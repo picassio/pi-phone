@@ -33,6 +33,7 @@ import {
     type SubmissionId,
     type SubmissionRecord,
     type TaskRuntime,
+    type ToolExecutionApi,
     type Tx,
 } from "@earendil-works/pi-durable";
 import { type PendingReport, REPORT_PREFIX, SubagentsDoc } from "../docs.ts";
@@ -43,6 +44,7 @@ import { levelAtMost, sameModel, THINKING_LEVELS } from "../models.ts";
 import { requestFor } from "../requests.ts";
 import { diffLines, githubReview, parseReviewResult, prepareReview, quote, type ReviewTarget, reviewGuidelines, reviewPrompt } from "../review.ts";
 import { whyUnanswered } from "../subagent-runs.ts";
+import { BetterTask, BRIEF_MARK } from "../better.ts";
 
 // Exclude Agent Teams by name even while it is off; enabling it later must not give nested agents delegation.
 const AgentTeams = defineExtension({ name: "pocket-agent-teams" });
@@ -748,6 +750,37 @@ async function chosenModel(
     return { ref };
 }
 
+/**
+ * A subagent's message marked `/better` (PP-506), as pi-better checks pi-subagents' briefs: a read-only helper (a copy
+ * of this session, `better.ts`) reads the brief as the subagent would, checks it against the repository with brief.md,
+ * and fixes only what would trip the subagent up. The subagent gets the checked brief, or nothing: a failure, a Stop or
+ * the 20-minute limit keeps it from starting.
+ */
+async function checkedBrief(message: string, api: ToolExecutionApi, context: Context): Promise<string> {
+    const brief = message.replace(BRIEF_MARK, "").trim();
+
+    if (brief === "") {
+        throw new Error("A /better subagent brief needs the brief after /better.");
+    }
+
+    // The call's own: stopping the call stops the check.
+    const task = await api.createTask(BetterTask, { kind: "brief", brief }, { ownership: { kind: "task", taskId: api.taskId } }, context);
+    const outcome = (await api.waitForTask(task, context)).state.outcome;
+
+    if (outcome.status === "aborted") {
+        throw new Error("/better was cancelled, so the subagent didn't start.");
+    }
+
+    const why =
+        outcome.status !== "completed" ? ("error" in outcome && outcome.error !== undefined ? outcome.error.message : outcome.status) : outcome.result.ok ? undefined : outcome.result.detail;
+
+    if (outcome.status !== "completed" || !outcome.result.ok) {
+        throw new Error(`/better couldn't check this subagent brief, so the subagent didn't start: ${why ?? "no reason given"}`);
+    }
+
+    return outcome.result.improved;
+}
+
 /** Where a level stands among the thinking levels, lowest first. */
 const rank = (level: ModelThinkingLevel) => THINKING_LEVELS.indexOf(level);
 
@@ -855,6 +888,9 @@ export default function createSubagents(host: PocketHost) {
             if (message === undefined || message.trim() === "") {
                 return reply(`${action} needs a message.`);
             }
+
+            // A message that starts with /better (PP-506): pi-better's check of a brief, against the repository, first.
+            const sent = BRIEF_MARK.test(message) ? await checkedBrief(message, api, context) : message;
 
             const parent = await api.agent(context);
             // The subagents' model and thinking the owner set (PP-281): this session's own, or every session's.
@@ -1023,12 +1059,12 @@ export default function createSubagents(host: PocketHost) {
                 }
 
                 // For the subagents bar: what it works on now, and since when.
-                record.asked = message.trim().slice(0, 300);
+                record.asked = sent.trim().slice(0, 300);
                 record.askedAt = Date.now();
                 const input = {
                     name,
                     conversationId,
-                    message,
+                    message: sent,
                     followUp: action === "send" && followUp === true,
                     ...(requestedBy === undefined ? {} : { requestedBy }),
                 };
