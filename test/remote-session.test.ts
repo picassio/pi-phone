@@ -9,6 +9,7 @@ import {
     openApp,
     owner,
     scriptedModel,
+    until,
     work,
 } from "./helpers.ts";
 import assert from "node:assert/strict";
@@ -22,6 +23,7 @@ import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { home, root } from "./helpers.ts";
 import { APP_ROOT } from "../src/server/config.ts";
+import { BetterDoc } from "../src/server/better.ts";
 
 const sshdPath = ["/usr/sbin/sshd", join(process.env.PREFIX ?? "/usr", "bin", "sshd")].find((path) => existsSync(path));
 const skip = sshdPath === undefined ? "no sshd on this machine" : false;
@@ -52,6 +54,13 @@ const route: FauxResponseStep = (request) => {
     }
 
     const { role, text } = lastText(request as never);
+
+    // /better's helper (PP-506) looks where it runs, then puts what it saw in its rewrite.
+    if (JSON.stringify(messages).includes("## Prompt to deepen")) {
+        return role === "toolResult"
+            ? fauxAssistantMessage([fauxText(`(1) Look.\n<improved-prompt>\nRead in ${text.trim()}\n</improved-prompt>`)])
+            : fauxAssistantMessage([fauxToolCall("bash", { command: "pwd; echo marker-$HOME" })], { stopReason: "toolUse" });
+    }
 
     // The last message may be a system one (a section that changed, such as the secrets'): the ask is the last non-system one.
     const asked = lastText({ messages: messages.filter((message) => message.role !== "system") } as never);
@@ -182,6 +191,24 @@ test("a session on a machine runs its tools there, and the prompt says where", {
     assert.match(preamble, /the wiki \(the phone's, one for all sessions\), secrets/);
     assert.doesNotMatch(preamble, /Termux/);
     void home;
+});
+
+test("/better's helper in a session on a machine reads there, as the session does (PP-506)", { skip }, async () => {
+    const project = join(remoteHome, "project");
+    const { id } = await app.commands.createSession(owner(app), { cwd: `machine:${machineId}:${project}` });
+
+    await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: "off" });
+    const { submissionId } = await app.commands.submit(id, owner(app), { text: "hello there", requestId: crypto.randomUUID() });
+
+    await (await app.harness.submission(submissionId, context))!.wait(context);
+    await app.better.start(id, owner(app), "where do you read");
+    await until(async () => (await app.harness.snapshot(BetterDoc, id, context))?.last !== undefined, "the helper's result", 30_000);
+    const last = (await app.harness.snapshot(BetterDoc, id, context))!.last!;
+
+    assert.equal(last.ok, true, JSON.stringify(last));
+    // The machine's folder and home, through the machine's daemon: not the phone's.
+    assert.match(last.ok ? last.improved : "", new RegExp(`Read in ${project}\\s+marker-${remoteHome}`));
+    assert.equal(app.cwdOf(last.helper as never), `machine:${machineId}:${project}`);
 });
 
 test("pi-phone's own skills in a session on a machine: copied there once, listed at their place, read there (PP-441)", { skip }, async () => {

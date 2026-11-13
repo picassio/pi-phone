@@ -209,6 +209,8 @@ import { type ExtensionInfo, ExtensionLoader, prepareDropInFolder, Refused } fro
 import { type DropInPackage, removeModule, replacedBy, writePackage } from "./drop-in-install.ts";
 import { MADE_PREFIX } from "./made-drop-ins.ts";
 import { ResendTask } from "./resend.ts";
+import { BetterHelperDoc, BetterTask, helperToolHook } from "./better.ts";
+import { BetterRuns } from "./better-runs.ts";
 import { type Client, reportingOf, Room, ROOM_DOCS, subagentView } from "./room.ts";
 import { Schedules } from "./schedules.ts";
 import { Goals } from "./goals.ts";
@@ -628,6 +630,8 @@ export class PocketApp {
     readonly keptPages = new KeptPages(this);
     readonly sessionGroups = new SessionGroups(this);
     readonly autoCompact = new AutoCompact(this);
+    /** `/better`'s read-only helpers (PP-506, `better.ts`): started, stopped, and followed for the rows above the box. */
+    readonly better = new BetterRuns(this);
     /** compact_self, the compact reminder, and compacting before the cache expires (PP-473, `self-compact.ts`). */
     readonly selfCompact = new SelfCompact(this);
     /** The app's `gh` and `git` signed in to GitHub (`github-login.ts`). */
@@ -1308,8 +1312,11 @@ export class PocketApp {
                     this.shell.task,
                     this.commands.followTask,
                     this.extensionCommands.task,
+                    BetterTask,
                 ],
                 hooks: [
+                    // `/better`'s helper reads and rewrites: its other tools are refused (PP-506).
+                    helperToolHook,
                     // A tool that failed on a database ("database is locked") goes to the server's log too (PP-382): only the
                     // model and the transcript saw it before.
                     hook(ToolTask, {
@@ -1613,6 +1620,11 @@ export class PocketApp {
 
                 return parent === undefined ? undefined : Number(parent);
             },
+            betterSessionOf: (conversationId) => {
+                const session = this.better.sessionOf(conversationId as unknown as ConversationId);
+
+                return session === undefined ? undefined : Number(session);
+            },
             web: this.web,
             images: this.images,
             videos: this.videos,
@@ -1862,6 +1874,7 @@ export class PocketApp {
                 }
 
                 this.#noteSubagents(id, await this.harness.snapshot(SubagentsDoc, id, context));
+                this.#noteHelper(id, await this.harness.snapshot(BetterHelperDoc, id, context));
             }
 
             cursor = page.next;
@@ -1923,7 +1936,8 @@ export class PocketApp {
 
                 // A summary Pi wrote for compact_self compacts it now (PP-473); otherwise its context past the session's
                 // auto-compact percentage (PP-78) does.
-                if (change.value.status === "done") {
+                // Not a `/better` helper's (PP-506): it ends with its answer, and compacting it would cost for nothing.
+                if (change.value.status === "done" && this.better.sessionOf(change.value.conversationId) === undefined) {
                     const ended = change.value.conversationId;
                     const ref = this.#agents.get(ended)?.model;
                     const window = ref === undefined ? undefined : this.models.getModel(ref.provider, ref.modelId)?.contextWindow;
@@ -1998,6 +2012,15 @@ export class PocketApp {
         // A retired document reads as none (Pi Durable 1.5 tags a change; before, a retirement's value was null).
         const value = change.kind === "change" ? change.value : null;
         let sessionsChanged = false;
+
+        // A `/better` helper (PP-506): made in this commit, or at work, which its session's rows above the box follow.
+        if (id !== undefined) {
+            if (kind === BetterHelperDoc.definition.kind) {
+                this.#noteHelper(id, value as { parent?: number; at?: number } | null);
+            }
+
+            this.better.changed(id);
+        }
 
         if (kind === "pi.live" && id !== undefined) {
             const busy = (value as LiveState | null)?.run !== undefined;
@@ -3653,6 +3676,22 @@ export class PocketApp {
         this.#lastChat.set(key, { at: last.at, userId: last.userId });
 
         return true;
+    }
+
+    /** A `/better` helper is its session's, as a subagent is: its spend, secrets and who it works for (PP-506). */
+    #noteHelper(id: ConversationId, doc: { parent?: number; at?: number } | null | undefined): void {
+        if (doc?.parent !== undefined) {
+            this.#parents.set(id, doc.parent as ConversationId);
+            this.better.noteHelper(id, doc);
+
+            // A fork's agent is copied, which commits no change of it: its folder (a machine's, say) is read here.
+            if (!this.#agents.has(id)) {
+                void this.harness.snapshot(AgentDoc, id, context).then(
+                    (agent) => agent !== undefined && !this.#agents.has(id) && this.#agents.set(id, agent as AgentState),
+                    (error: unknown) => this.log(`/better helper ${String(id)}: ${describe(error)}`),
+                );
+            }
+        }
     }
 
     #noteSubagents(id: ConversationId, doc: SubagentsValue | null | undefined): void {

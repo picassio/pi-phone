@@ -1,0 +1,11 @@
+pi-better
+Copyright (c) 2026 Nico Bailon, MIT License (LICENSE beside this file).
+https://github.com/nicobailon/pi-better, version 0.2.0, commit 509967c7dda0f8c68a927917b19adf4bd83853b8 (2026-11-12).
+
+helper.md and brief.md are pi-better's, as written upstream. helper.md is built on the "Depth" prompt from Felix
+Rieseberg's "How to be more ambitious: A tutorial for humans with models"
+(https://felixrieseberg.com/how-to-be-more-ambitious-a-tutorial-for-humans-with-models/#depth).
+
+pi-phone's /better (src/server/better.ts) sends them to a read-only copy of the session, as pi-better's /better does
+with a `pi -p` process; the task's framing around them (the prompt to deepen, the <improved-prompt> block to end
+with) follows pi-better's better.ts.

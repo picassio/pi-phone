@@ -48,6 +48,7 @@ import {
     type Turns,
     TurnsDoc,
 } from "./docs.ts";
+import { BetterDoc, type BetterResult, type BetterRun } from "./better.ts";
 import { COMMAND_ENTRY, SHELL_ENTRY } from "./entry-format.ts";
 import { describe } from "./errors.ts";
 import { agentInfo } from "./models.ts";
@@ -88,6 +89,7 @@ export const ROOM_DOCS = new Set(
         GuideDoc,
         CiWatchesDoc,
         SelfCompactDoc,
+        BetterDoc,
     ].map((doc) => doc.definition.kind),
 );
 /** A typing indicator lasts this long unless the browser renews it. */
@@ -379,6 +381,8 @@ export class Room {
     selfCompactions: SelfCompaction[] = [];
     /** A self-compaction under way: its summary asked for or written, not placed yet (PP-477: the transcript's quiet row). */
     selfCompacting = false;
+    /** `/better` here (PP-506): its run under way, and its last result. */
+    better: { run?: BetterRun; last?: BetterResult } = {};
     /** Who is typing where, by user id. Memory only: it means nothing after a restart. */
     readonly #typing = new Map<string, { where: TypingPlace; timer: NodeJS.Timeout }>();
     parent: { id: ConversationId; title: string } | undefined;
@@ -462,14 +466,16 @@ export class Room {
 
         this.selfCompactions = [...(selfCompact?.done ?? [])];
         this.selfCompacting = selfCompact?.asked !== undefined || selfCompact?.ready !== undefined;
+        this.better = { ...((await harness.snapshot(BetterDoc, this.id, context)) ?? {}) };
 
         if (owner !== undefined) {
             const siblings =
                 (await harness.snapshot(SubagentsDoc, owner.conversationId, context))?.agents ?? {};
 
-            this.subagentName = Object.entries(siblings).find(
-                ([, record]) => record.conversationId === this.id,
-            )?.[0];
+            // A `/better` helper (PP-506) is named for its command.
+            this.subagentName =
+                Object.entries(siblings).find(([, record]) => record.conversationId === this.id)?.[0] ??
+                (this.#app.better.sessionOf(this.id) === undefined ? undefined : "/better");
             this.parent = {
                 id: owner.conversationId,
                 title: await this.#app.conversationTitle(owner.conversationId),
@@ -538,6 +544,8 @@ export class Room {
         } else if (kind === SelfCompactDoc.definition.kind) {
             this.selfCompactions = [...((value?.done as SelfCompaction[] | undefined) ?? [])];
             this.selfCompacting = value?.asked !== undefined || value?.ready !== undefined;
+        } else if (kind === BetterDoc.definition.kind) {
+            this.better = { ...((value as Room["better"] | null) ?? {}) };
         }
 
         if (kind === AuthorsDoc.definition.kind) {
@@ -745,6 +753,8 @@ export class Room {
             // The transcript's line on each self-compaction (PP-473): by the compaction entry it placed.
             selfCompactions: this.selfCompactions.map(({ entry, reason, before, after, cost, saving }) => ({ entry, reason, before, after, cost, saving })),
             selfCompacting: this.selfCompacting,
+            // `/better`'s run with its progress, and its last result (PP-506): the rows above the box, and the box.
+            better: this.#app.better.view(this.id, this.better),
             // The branch is read from the repository each time, so one Pi or a person switched to shows on the next update.
             branch: this.#readHead(),
         };

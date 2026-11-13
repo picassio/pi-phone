@@ -153,6 +153,9 @@ async function describeTask(
             return { label: "compacting the context" };
         case "pocket.subagent-reporter":
             return { label: "waiting for a subagent's answer" };
+        // PP-506: the helper's own run shows on its own, as a subagent's does.
+        case "pocket.better":
+            return { label: "deepening a prompt (/better)" };
         case "pocket.follow-failure":
             return { label: "waiting for a failed subagent to answer a message" };
 

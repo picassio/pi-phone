@@ -600,6 +600,25 @@ export async function conversationRoutes(
         return json(response, 200, { text: filled });
     }
 
+    // `/better <prompt>` (PP-506): a read-only helper deepens it in the background; its rewrite comes to the message box.
+    if (third === "better" && fourth === undefined && method === "POST") {
+        const { text } = await readJson<{ text?: unknown }>(request);
+
+        if (typeof text !== "string") {
+            throw new HttpError(400, "text is the prompt to deepen, or nothing for the task in progress.");
+        }
+
+        await app.better.start(id, user, text);
+
+        return json(response, 200, { ok: true });
+    }
+
+    if (third === "better" && fourth === "stop" && method === "POST") {
+        await app.better.stop(id, user);
+
+        return json(response, 200, { ok: true });
+    }
+
     // Prompt templates and skills, for the message box's slash commands.
     if (third === "prompts" && method === "GET") {
         const templates = app.promptTemplates(id).map(({ name, description, argumentHint, library }) => ({

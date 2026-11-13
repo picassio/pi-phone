@@ -427,8 +427,10 @@ export default function createPara(host: PocketHost, web: ExtensionWeb) {
                     // What of the wiki goes into the prompt (PP-276): the index changes with every write in any session,
                     // and each change was sent again, 21k characters at a time.
                     const mode = host.contextPolicy(input.conversationId).wiki;
-                    // Questions it asks or resolves name this session (pi-para's `questions.ts` format).
-                    const you = `This is pi-phone session #${String(input.conversationId)}: write it in the wiki's open questions you ask or resolve, as (YYYY-MM-DD, #${String(input.conversationId)}).`;
+                    // Questions it asks or resolves name this session (pi-para's `questions.ts` format); a `/better` helper's,
+                    // its session's, so its prompt is the session's (PP-506).
+                    const session = host.betterSessionOf(input.conversationId) ?? input.conversationId;
+                    const you = `This is pi-phone session #${String(session)}: write it in the wiki's open questions you ask or resolve, as (YYYY-MM-DD, #${String(session)}).`;
 
                     if (mode === "frozen") {
                         const kept = shownText(input.shown, "wiki");

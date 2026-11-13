@@ -694,6 +694,11 @@ export interface PocketHost {
     rootOf(conversationId: number): number;
     /** The conversation that spawned a subagent's; undefined for any other conversation. */
     parentOf(conversationId: number): number | undefined;
+    /**
+     * The session a `/better` helper reads for (PP-506), undefined for any other conversation: a helper's sections say what
+     * its session's say, so its request starts as the session's does.
+     */
+    betterSessionOf(conversationId: number): number | undefined;
     /** Image generation (`image-gen.ts`, PP-275): its providers and models, as Settings › Images has them. */
     readonly images: ImageGen;
     /** Videos through OpenRouter (PP-297): the models that watch them, and asking one. */

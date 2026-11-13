@@ -819,5 +819,10 @@
     "Not compacted: the summary turn gave no summary.": "未压缩：摘要轮次没有给出摘要。",
     "Not compacted: a message came first.": "未压缩：有消息先到达。",
     "The prompt cache is short (5 minutes), long (1 hour), or inherit.": "提示缓存可设为 short（5 分钟）、long（1 小时）或 inherit。",
-    "The prompt cache is short (5 minutes) or long (1 hour).": "提示缓存可设为 short（5 分钟）或 long（1 小时）。"
+    "The prompt cache is short (5 minutes) or long (1 hour).": "提示缓存可设为 short（5 分钟）或 long（1 小时）。",
+    "/better runs in a session, not in a subagent or a helper.": "/better 在会话中运行，不在子代理或助手中运行。",
+    "/better is already running here: stop it above the message box, or wait for it.": "/better 已在此运行：在消息框上方停止它，或等它完成。",
+    "/better has no task to deepen yet: give it a prompt, such as /better make the error messages clearer.": "/better 还没有可深化的任务：请给它一个提示，例如 /better make the error messages clearer。",
+    "No /better is running here.": "此处没有正在运行的 /better。",
+    "text is the prompt to deepen, or nothing for the task in progress.": "text 是要深化的提示，留空则针对进行中的任务。"
 }
