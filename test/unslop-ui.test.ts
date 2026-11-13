@@ -36,6 +36,16 @@ let page: BrowserPage;
 let base = "";
 let slow = false;
 
+/**
+ * Load `path` in the page. A load the page before cancels (a history step it still had to take: back.js takes a closed
+ * layer's entry off a moment later) fails here, rather than as a row that never shows (PP-507).
+ */
+async function go(path: string): Promise<void> {
+    const loaded = await page.navigate(`${base}${path}`);
+
+    assert.equal(loaded.error, undefined, `${path} loaded`);
+}
+
 async function inPage<T>(script: string): Promise<T> {
     return JSON.parse(await page.evaluate(script)) as T;
 }
@@ -92,10 +102,18 @@ before(async () => {
     Object.assign(app.places, { health: async () => ({ [devbox]: { ok: true, at: Date.now() } }) });
     const handler = createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} });
 
-    // With `slow` on, the plan limits and the OpenAI-compatible providers answer a second late, as on a phone.
-    server = createServer((request, response) =>
-        slow && /\/api\/(usage-limits|custom-providers)/.test(request.url ?? "") ? setTimeout(() => handler(request, response), 1200) : handler(request, response),
-    );
+    // With `slow` on, the page comes a moment late and the plan limits and the OpenAI-compatible providers a second
+    // late, as on a phone.
+    server = createServer((request, response) => {
+        const url = request.url ?? "";
+        const late = !slow ? 0 : /\/api\/(usage-limits|custom-providers)/.test(url) ? 1200 : /^\/(\?|$)/.test(url) ? 300 : 0;
+
+        if (late === 0) {
+            handler(request, response);
+        } else {
+            setTimeout(() => handler(request, response), late);
+        }
+    });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     browsers = new Browsers({ dataDir: mkdtempSync(join(root, "unslop-ui-browser-")), load: async () => undefined, save: () => {} });
@@ -115,7 +133,7 @@ after(() =>
 );
 
 test("states are a word and a dot, never ✓ or ⚠: Machines, Providers, Wiki (PP-330)", real, async () => {
-    await page.navigate(`${base}/?sheet=machines`);
+    await go("/?sheet=machines");
     await see(`return JSON.stringify(document.querySelector(".sheet")?.innerText.includes("han-devbox") === true)`, "the machine");
 
     const machines = await sheet();
@@ -124,7 +142,7 @@ test("states are a word and a dot, never ✓ or ⚠: Machines, Providers, Wiki (
     assert.doesNotMatch(machines.text, /[✓⚠]/);
     await shot("unslop-machines-390.jpg");
 
-    await page.navigate(`${base}/?sheet=providers`);
+    await go("/?sheet=providers");
     await see(`return JSON.stringify(document.querySelector('.sheet [data-part="state-tag"]') !== null)`, "a provider's state");
 
     const providers = await sheet();
@@ -133,7 +151,7 @@ test("states are a word and a dot, never ✓ or ⚠: Machines, Providers, Wiki (
     assert.doesNotMatch(providers.text, /[✓⚠]/);
     await shot("unslop-providers-390.jpg");
 
-    await page.navigate(`${base}/?sheet=para:settings`);
+    await go("/?sheet=para:settings");
     await see(`return JSON.stringify(document.querySelector('[data-part="wiki-rerank"] [data-part="state-tag"]') !== null)`, "Rank with Jev's state");
 
     const wiki = await sheet();
@@ -144,7 +162,7 @@ test("states are a word and a dot, never ✓ or ⚠: Machines, Providers, Wiki (
 });
 
 test("Machines: three main buttons, the rest quiet, Forget host key and Remove last in red on a line of their own (PP-331)", real, async () => {
-    await page.navigate(`${base}/?sheet=machines`);
+    await go("/?sheet=machines");
     await see(`return JSON.stringify(document.querySelector('[data-part="machine-danger"]') !== null)`, "the machine's actions");
 
     const groups = await inPage<{ kind: string; buttons: string[] }[]>(
@@ -180,7 +198,7 @@ test("Spend: one number format, the device's grouping and short large counts, it
         app.spend.wikiUsed({ model: "openai/text-embedding-3-small", tokens: 0, cost: 0 });
     }
 
-    await page.navigate(`${base}/?sheet=spend`);
+    await go("/?sheet=spend");
     await see(`return JSON.stringify(document.querySelector(".spend-sub") !== null)`, "the wiki's spend");
 
     const shown = await inPage<{ total: string; sub: string; cut: boolean }>(
@@ -196,7 +214,7 @@ test("Spend: one number format, the device's grouping and short large counts, it
 
 test("flat marks: no hue gradients; an idle session already read shows no mark (PP-334)", real, async () => {
     await newSession(app);
-    await page.navigate(`${base}/`);
+    await go("/");
     await see(`return JSON.stringify(document.querySelectorAll(".session-status").length >= 1)`, "the session");
 
     const marks = await inPage<{ seen: number; seenSvgs: number; gradients: string[] }>(
@@ -217,7 +235,7 @@ test("flat marks: no hue gradients; an idle session already read shows no mark (
 });
 
 test("Wiki settings: Capture model is the app's model picker, Embedding model and Open questions the app's dropdowns, no system select (PP-335, PP-409)", real, async () => {
-    await page.navigate(`${base}/?sheet=para:settings`);
+    await go("/?sheet=para:settings");
     await see(`return JSON.stringify(document.querySelector('[data-part="wiki-capture-model"] .choice') !== null)`, "the capture model's field");
 
     const shown = await inPage<{ selects: number; capture: string }>(
@@ -231,15 +249,17 @@ test("Wiki settings: Capture model is the app's model picker, Embedding model an
     await shot("unslop-wiki-capture-390.jpg");
     await page.evaluate(`document.querySelectorAll('.model-menu .pop-menu-row')[1].click(); return "true";`);
     await until(async () => (await app.para.settings()).captureModel !== "auto", "the pick kept");
-    // Wiki settings comes back with it: the flow is over before the next test loads another page.
+    // Wiki settings comes back with it, and the menu's history entry is off again: back.js takes it off a moment after
+    // the menu closes, and that step would cancel a load the next test had started by then (PP-507).
     await see(`return JSON.stringify(document.querySelector(".model-menu") === null && !document.querySelector('[data-part="wiki-capture-model"] .choice-text')?.textContent.includes("The default model"))`, "Wiki settings back with the pick");
+    await see(`return JSON.stringify(history.state?.pocket?.layers === 1)`, "the menu's history entry taken off");
 });
 
 test("Providers: the list stays where it first shows while the plan limits and the OpenAI-compatible providers come in (PP-336)", real, async () => {
     slow = true;
 
     try {
-        await page.navigate(`${base}/?sheet=providers`);
+        await go("/?sheet=providers");
 
         // Where the first provider row is the moment it can be tapped, and a while later.
         const firstRow = `const row = [...document.querySelectorAll(".sheet .sheet-list .provider")].find((each) => !each.closest(".custom-providers") && each.getClientRects().length > 0);
