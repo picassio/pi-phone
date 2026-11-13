@@ -1337,7 +1337,8 @@ export default function createProjects(host: PocketHost, web: ExtensionWeb) {
         tools,
         sections: [
             section("projects", async (input) => {
-                const id = String(input.conversationId);
+                // A `/better` helper's is its session's, so its request starts as the session's, which is cached (PP-508).
+                const id = String(host.betterSessionOf(input.conversationId) ?? input.conversationId);
                 const led = projects.projectLedBy(id);
 
                 if (led !== undefined) {

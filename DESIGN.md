@@ -236,11 +236,16 @@ so Pi changes them through the settings tools; "the last session" is the one the
     positional), then the session's last answer and the task, so it starts with exactly the opening the provider
     cached; its tools are the session's, built by `HarnessOptions.env` from its folder, so on a machine it reads there;
     retries, the limit gate and spend work as for any run. `test/better.test.ts` checks the first request starts with
-    the session's last request, message for message, with nothing between it and the task.
+    the session's last request, message for message, with nothing between it and the task; and, as pi-ai's Anthropic
+    provider sends both (a stub `fetch` catches the bodies), that the helper's body up to the session's last message is
+    the session's byte for byte: model, thinking, system blocks, tools, and each cache marker's ttl (PP-508).
   - **The same prompt.** Sections render for the helper as for its session: the app treats a helper as its session's
-    (`#parents`, so `rootOf`, `requesterOf`, spend, secrets and hidden values follow), and the wiki section names the
-    session (`host.betterSessionOf`), not the helper. Any section that still differed would be one system entry after
-    the task, past the cached part.
+    (`#parents`, so `rootOf`, `requesterOf`, spend, secrets, hidden values and the cache's retention follow), and the
+    sections that read the conversation's own state read the session's (`host.betterSessionOf`): the wiki's (it names
+    the session), the board's (PP-508: the helper's said "as in session #N, which this subagent works for") and
+    Getting started's. Any section that differs changes the request's system blocks, which come before the messages:
+    Anthropic then reads nothing from the cache and writes the whole context again (live, #993's first /better wrote
+    305,705 tokens, $1.53).
   - **Read only.** pocket-core's `helperToolHook` (`beforeTool`) refuses in a helper every tool but read, grep, find, ls
     and bash, naming those the helper has. The tool list itself stays the session's, as pi-better keeps it, since
     narrowing it would change the opening. bash may still write; helper.md tells it not to, as upstream.

@@ -150,7 +150,8 @@ export default function createOnboarding(host: PocketHost) {
         tools: [guide, showScreen],
         sections: [
             section("getting-started", (input) => {
-                const person = guideOf(input.conversationId);
+                // A `/better` helper's is its session's, as its request starts as the session's (PP-508).
+                const person = guideOf(host.betterSessionOf(input.conversationId) ?? input.conversationId);
 
                 if (person === undefined) {
                     return undefined;

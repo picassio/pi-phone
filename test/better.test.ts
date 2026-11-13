@@ -8,28 +8,35 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import type { FauxResponseStep } from "@earendil-works/pi-ai";
+import type { FauxResponseStep, Model, SimpleStreamOptions } from "@earendil-works/pi-ai";
+import { streamSimple as anthropicStream } from "@earendil-works/pi-ai/api/anthropic-messages";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { AgentDoc, type ConversationId, ProviderDoc } from "@earendil-works/pi-durable";
 import { BetterDoc, BetterError, type BetterResult, buildHelperTask, closedCutoff, helperToolBlock, parseMarkedPrompt } from "../src/server/better.ts";
 import { HttpError } from "../src/server/errors.ts";
+import { Projects } from "../src/server/projects.ts";
 
 type Request = { messages: { role: string; content: unknown; toolCallId?: string }[] };
+/** A request as the model got it: its context (system prompt, tools, messages) and its options (session id, cache). */
+type Sent = { context: unknown; options: SimpleStreamOptions | undefined };
 
 /** Every request the session's helpers sent, and every other request, in order. */
 const helperRequests: Request["messages"][] = [];
 const sessionRequests: Request["messages"][] = [];
+const helperSent: Sent[] = [];
+const sessionSent: Sent[] = [];
 const block = (prompt: string) => `(1) A pro would measure.\n(2) The logs.\n(3) A profiler.\n(4) A benchmark.\n\n<improved-prompt>\n${prompt}\n</improved-prompt>`;
 
 /** What the helper was asked to deepen: the text after "## Prompt to deepen". */
 const asked = (request: Request) => /## (?:Prompt to deepen|Brief to check)\\n\\n(.*?)\\n\\n## Return/.exec(JSON.stringify(request.messages))?.[1] ?? "";
 
-const route: FauxResponseStep = (request) => {
+const route: FauxResponseStep = (request, options) => {
     const all = JSON.stringify((request as unknown as Request).messages);
     const { role, text } = lastText(request as never);
 
     if (all.includes("## Prompt to deepen") || all.includes("## Brief to check")) {
         helperRequests.push((request as unknown as Request).messages);
+        helperSent.push({ context: request, options });
         const prompt = asked(request as unknown as Request);
 
         if (prompt === "write it" && role !== "toolResult") {
@@ -65,6 +72,7 @@ const route: FauxResponseStep = (request) => {
     }
 
     sessionRequests.push((request as unknown as Request).messages);
+    sessionSent.push({ context: request, options });
 
     if (role === "user" && text === "work a while") {
         return fauxAssistantMessage([fauxToolCall("bash", { command: "sleep 4" })], { stopReason: "toolUse" });
@@ -256,4 +264,122 @@ test("a subagent's message marked /better is checked first: the subagent gets th
     await app.commands.submit(id, owner(app), { text: "delegate", requestId: `delegate-${id}` });
     await until(async () => (await contextText(id)).includes("got: Checked: Fix the parser in src/a.ts in the file."), "the subagent's report", 20_000);
     assert.match(JSON.stringify(helperRequests.at(-1)), /The brief below is for a subagent that starts with none of this conversation/);
+});
+
+type Block = { cache_control?: unknown };
+type AnthropicBody = { system?: Block[]; tools?: Block[]; messages: { role: string; content: string | Block[] }[] } & Record<string, unknown>;
+
+/** A request as pi-ai's Anthropic provider sends it: the body its fetch gets, which a stub catches and refuses. */
+async function anthropicBody(sent: Sent): Promise<AnthropicBody> {
+    const model = {
+        ...{ id: "claude-opus-5-5", name: "Claude Opus 5.5", api: "anthropic-messages", provider: "anthropic", baseUrl: "http://127.0.0.1:9" },
+        ...{ reasoning: true, input: ["text"], cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 }, contextWindow: 1_000_000, maxTokens: 32_000 },
+    } as Model<"anthropic-messages">;
+    let body: string | undefined;
+    // Its options as they were, but for the run's signal and callbacks, which ended with it.
+    const options = Object.fromEntries(Object.entries(sent.options ?? {}).filter(([, value]) => typeof value !== "function" && !(value instanceof AbortSignal)));
+    const stream = anthropicStream(model, sent.context as never, {
+        ...(options as SimpleStreamOptions),
+        apiKey: "test-key",
+        fetch: async (_url, init) => {
+            body = String(init?.body);
+
+            return new Response(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "no network in tests" } }), { status: 400 });
+        },
+    });
+
+    const result = await stream.result();
+
+    assert.notEqual(body, undefined, `the provider sent the request: ${String(result.errorMessage)}`);
+
+    return JSON.parse(body!) as AnthropicBody;
+}
+
+/** Where two texts first differ, with what is around it in each. */
+function firstDifference(helper: string, session: string): string {
+    let at = 0;
+
+    while (at < helper.length && helper[at] === session[at]) {
+        at++;
+    }
+
+    return `first difference at byte ${at}:\nhelper:  …${helper.slice(Math.max(0, at - 120), at + 160)}\nsession: …${session.slice(Math.max(0, at - 120), at + 160)}`;
+}
+
+/**
+ * A message's blocks without their cache markers, which move to the newest message each request, and the markers. A
+ * text as a string is the one text block Anthropic reads it as: pi-ai sends the newest message's as a block, to mark it.
+ */
+function unmarked(body: AnthropicBody): { body: AnthropicBody; markers: unknown[] } {
+    const markers: unknown[] = [];
+    const messages = body.messages.map((message) => ({
+        ...message,
+        content: (typeof message.content === "string" ? [{ type: "text", text: message.content } as Block] : message.content).map(({ cache_control, ...block }) => {
+            if (cache_control !== undefined) {
+                markers.push(cache_control);
+            }
+
+            return block;
+        }),
+    }));
+
+    for (const block of [...(body.system ?? []), ...(body.tools ?? [])]) {
+        if (block.cache_control !== undefined) {
+            markers.push(block.cache_control);
+        }
+    }
+
+    return { body: { ...body, messages }, markers };
+}
+
+test("the helper's first request, as sent to Anthropic, is the session's last up to its last message: system, tools, markers and their ttl", async () => {
+    const me = owner(app);
+
+    // As the owner's sessions are: on a board (its section names the session), with the 1-hour cache; and the owner's
+    // Getting started session, whose section is found by the session too.
+    await app.setExtensionEnabled(me, "projects.ts", true);
+    await until(() => app.loader.extensionNames().includes("pocket-projects"), "the projects extension");
+    const id = await newSession(app);
+    const boards = new Projects(app.dataDir, () => app.config.users.map((user) => ({ id: user.id, name: user.name, role: user.role })));
+    const actor = { kind: "person" as const, person: { id: me.id, name: me.name, role: me.role } };
+
+    try {
+        boards.create(actor, { key: "BT", name: "Better" });
+        boards.setBoardMode(actor, String(id), true, "BT");
+    } finally {
+        boards.close();
+    }
+
+    await app.setSessionCacheRetention(id, me, "long");
+    app.config.updateUser(me.id, { guide: String(id) });
+    let last: Sent;
+    let from: number;
+
+    try {
+        await say(app, id, "hello");
+        const sessionId = (await app.harness.snapshot(ProviderDoc, id, context))?.sessionId;
+
+        assert.notEqual(sessionId, undefined);
+        last = sessionSent.filter((sent) => sent.options?.sessionId === sessionId).at(-1)!;
+        from = helperSent.length;
+        assert.match(JSON.stringify(last.context), /Board mode is on in this session, with project BT/);
+        assert.match(JSON.stringify(last.context), /Getting started session/);
+        assert.equal((await better(id, "make it faster")).ok, true);
+    } finally {
+        app.config.updateUser(me.id, { guide: undefined });
+    }
+
+    const session = unmarked(await anthropicBody(last));
+    const helper = unmarked(await anthropicBody(helperSent[from]!));
+    const count = session.body.messages.length;
+
+    // Everything but the messages after the session's, byte for byte: model, thinking, metadata, system, tools.
+    const opening = { ...helper.body, messages: helper.body.messages.slice(0, count) };
+
+    assert.deepEqual(opening, session.body, firstDifference(JSON.stringify(opening), JSON.stringify(session.body)));
+    assert.equal(helper.body.messages.length, count + 2, "the answer the session had, then the task");
+    // The same cache, an hour long, in each marker.
+    assert.ok(session.markers.length > 0);
+    assert.deepEqual(new Set(helper.markers.map((marker) => JSON.stringify(marker))), new Set([JSON.stringify({ type: "ephemeral", ttl: "1h" })]));
+    assert.deepEqual(new Set(session.markers.map((marker) => JSON.stringify(marker))), new Set([JSON.stringify({ type: "ephemeral", ttl: "1h" })]));
 });
