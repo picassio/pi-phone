@@ -208,6 +208,57 @@ so Pi changes them through the settings tools; "the last session" is the one the
   Pi expanded (`expandReviewCommand`): the command as typed, then a `<review-request>` the transcript hides. `/review`
   alone opens the sheet (`GET /api/c/:id/review-targets`: `gh pr list`, the last commits, whether there are guidelines;
   branches from `.../branches`). Tests: `test/review.test.ts`, `test/review-ui.test.ts`.
+- **`/better`** (`src/server/better.ts`, `src/server/better-runs.ts`, `web/better.js`; PP-506, a port of Nico Bailon's
+  [pi-better](https://github.com/nicobailon/pi-better) 0.2.0, MIT, built on Felix Rieseberg's "Depth" prompt):
+  `/better [prompt]` is one of the message box's own commands (`web/commands.js`, `BUILT_IN_COMMANDS`), for every
+  session on the phone or a machine; it calls `POST /api/c/:id/better` and sends nothing to Pi.
+  - **The helper is a fork of the session, owned by a durable task.** `pocket.better` (in `pocket-core`, so no module
+    can be off for it) is a background task of the session: `fork` reads the session's context and forks it
+    (`tx.forkConversation`, task-owned) at `closedCutoff`, the newest entry after which every tool call has its
+    result (Pi at work has an answer whose calls still run); before the first message it creates a task-owned
+    conversation, which starts as a copy of the session's agent. The same commit copies the session's provider
+    identity (`ProviderDoc.sessionId`, OpenAI's `prompt_cache_key`) and marks the helper (`BetterHelperDoc`: its
+    session, its cutoff). `ask` submits helper.md, the prompt and pi-better's "## Return" (`buildHelperTask`, under a
+    request id the task's, so a restart finds the same submission), waits for the answer (20 minutes, then the helper's
+    run is aborted), reads the last answer with text among the helper's own entries, and parses the last
+    `<improved-prompt>` block whose tag opens a line (`parseMarkedPrompt`). The result goes into the session's
+    `BetterDoc` (`last`: the prompt or the reason, by the task id and for the person who asked), which the view shows
+    (`better`) and the model never sees; `run` holds the one under way (a second start is refused: one at a time).
+    Stop is `abortTask`: the helper is the task's, so its run stops with it, and the abort handler writes "cancelled".
+  - **Why a fork, and not the alternatives.** (1) pi-better's own way, a `pi -p --fork` process, needs Pi's CLI and
+    its session file where the session works; pi-phone's sessions live in Pi Durable, and a machine session's tools
+    run through pi-env, not a local `pi`. (2) A subagent (the `subagent` tool, as `/review` does) starts with a fresh
+    context, its own instructions and a shorter tool list: a different opening, so nothing comes from the cache, and
+    no copy of the chat. (3) A one-off request beside the session (`side-model.ts`) has no tools, so it could not read
+    the code. (4) A loop of our own that sends the session's messages and runs tools by hand would duplicate Pi
+    Durable's generation (retries, limits, compaction, tool tasks, machines). A fork is Pi Durable's own: the helper's
+    first request is the session's transcript up to the cutoff, with the same system entries and tool loadout (they are
+    positional), then the session's last answer and the task, so it starts with exactly the opening the provider
+    cached; its tools are the session's, built by `HarnessOptions.env` from its folder, so on a machine it reads there;
+    retries, the limit gate and spend work as for any run. `test/better.test.ts` checks the first request starts with
+    the session's last request, message for message, with nothing between it and the task.
+  - **The same prompt.** Sections render for the helper as for its session: the app treats a helper as its session's
+    (`#parents`, so `rootOf`, `requesterOf`, spend, secrets and hidden values follow), and the wiki section names the
+    session (`host.betterSessionOf`), not the helper. Any section that still differed would be one system entry after
+    the task, past the cached part.
+  - **Read only.** pocket-core's `helperToolHook` (`beforeTool`) refuses in a helper every tool but read, grep, find, ls
+    and bash, naming those the helper has. The tool list itself stays the session's, as pi-better keeps it, since
+    narrowing it would change the opening. bash may still write; helper.md tells it not to, as upstream.
+  - **Never in the session's context.** The session gets no entry; a helper is not compacted (`afterRun` skips it).
+  - **Progress.** `BetterRuns` follows each helper's commits (300 ms at most), reads its own entries (after the cutoff)
+    and its streaming answer (`LiveDoc.generation.message`): the step ("(1)" to "(4)" at a line's start, then the
+    `<improved-prompt>` line), the tools with their results, newest last (`helperProgress`, `toolLabel` as
+    pi-better's), and the session's view gets them. `web/better.js` draws the two rows in the dock (a six-cell meter,
+    the step, the time, Stop; the newest whole tool chips, a count), the short forms on a phone, and puts the result in
+    the box of the person who asked, above their draft, once per browser (`pocket.betterApplied`). A failure is a
+    notice; one without a rewrite opens the helper, whose transcript holds the whole reply. Esc on a desktop stops the
+    helper first (`stopBetterOnEscape`), then Pi as before.
+  - **Left out.** `/better-boomerang` (the chat answers as a hidden turn, then rewinds): pi-phone has no tree to rewind
+    to; Pi Durable could only hide the turn with omit edits, which keep it in the transcript and the session's
+    history, and a busy session would have to wait. The fork already gives what boomerang is for: open the helper and
+    watch it work, with the session untouched. pi-better's `better` setting (another model for the helper) is left out
+    too: the helper runs on the session's model, which the cache needs, and models are the person's to choose.
+  - Tests: `test/better.test.ts`, `test/better-ui.test.ts`, the machine case in `test/remote-session.test.ts`.
 - **The library of skills and commands** (`src/server/library.ts`, PP-466 under epic PP-464; the owner's decisions of
   2026-11-09): the owner's own skills and slash commands, kept in the app and seen only where pinned.
   - **Storage:** the current files at `<data>/library/skills/<name>/` (an Agent Skills folder) and

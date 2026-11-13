@@ -7,6 +7,7 @@ import { machineNameOf, splitPlace } from "./place.js";
 import { canGoBack, goBack, replaceAddress, startHistory, useBack } from "./back.js";
 import { PeopleButton, PeoplePanel } from "./chat.js";
 import { Composer, openingByAlt, shortModel } from "./composer.js";
+import { stopBetterOnEscape } from "./better.js";
 import { useChanges } from "./diff.js";
 import {
     FilesButton,
@@ -792,6 +793,13 @@ addEventListener("keydown", (event) => {
     }
 
     if (event.key === "Escape" && !event.defaultPrevented) {
+        // While /better's helper works, the first Esc stops it (PP-506); the next ones stop Pi as before.
+        if (stopBetterOnEscape()) {
+            event.preventDefault();
+
+            return;
+        }
+
         stopOnSecondEscape();
     }
 

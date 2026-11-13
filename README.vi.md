@@ -69,6 +69,17 @@ dự án thật.</sub>
   mở. Kết quả là một thẻ: Sửa những lỗi này đặt tin nhắn sửa vào ô nhập, chưa gửi; Đăng lên GitHub đăng review của pull
   request với bình luận theo dòng ("Request changes" khi có P0 hoặc P1, nếu không thì "Comment") sau khi bạn cho phép
   qua một thẻ.
+- **Prompt sâu hơn: `/better`.** Đặt `/better` trước một prompt (hoặc chỉ `/better`, cho tác vụ đang làm) và một trợ
+  lý chỉ đọc trả lời các câu hỏi "Depth" của Felix Rieseberg về nó bằng mã và tệp thật của bạn: dân chuyên sẽ làm gì
+  mà bạn chưa yêu cầu, tư liệu gốc nhất, phương pháp và công cụ, và điều gì chứng minh kết quả là đúng. Rồi nó viết lại
+  prompt để yêu cầu đúng điều đó, và bản viết lại nằm trong ô nhập, phía trên những gì bạn gõ trong lúc chờ, chưa gửi.
+  Trợ lý là một bản sao của phiên (cùng mô hình và mức suy nghĩ, cùng công cụ và system prompt, nên bộ nhớ đệm prompt
+  của nhà cung cấp dùng lại được), chạy nơi phiên làm việc (cả trên máy của phiên), chỉ được dùng read, grep, find, ls
+  và bash, chạy cả khi Pi đang làm, mỗi lần một cái, tối đa 20 phút, và không thêm gì vào ngữ cảnh của phiên. Hai dòng
+  phía trên ô nhập cho thấy bước của nó (thanh sáu ô), các công cụ mới nhất với ✓ hoặc ✗, thời gian và nút Dừng; Esc
+  dừng nó trên máy tính, và chạm vào hai dòng đó mở trợ lý để xem nó đọc. Câu trả lời không có bản viết lại sẽ báo như
+  vậy, và thông báo mở toàn bộ câu trả lời của trợ lý. Từ
+  [pi-better](https://github.com/nicobailon/pi-better) của Nico Bailon.
 - **Bình luận trong Review, và Từ lần review trước.** Trong Thay đổi, chạm số dòng (phía mới hoặc cũ) mở ô bình luận
   ngay dưới dòng, và nút ghi chú của tệp bình luận cho cả tệp. Gửi review đặt chúng vào ô nhập làm phản hồi cho Pi
   ("Please address the following review feedback: 1. path:line (current) …"), chưa gửi, và lưu mốc của thư mục: "Từ lần
@@ -1099,6 +1110,10 @@ pi-phone phần lớn là công sức của người khác, được ghép lại
   `third_party/jakubkrehel-skills/`.
 - **[pi-review](https://github.com/earendil-works/pi-review)** của Earendil (MIT): bộ tiêu chí review của nó, giữ nguyên, trong
   `third_party/pi-review/`, mà subagent của `/review` làm theo.
+- **[pi-better](https://github.com/nicobailon/pi-better)** của Nico Bailon (MIT): `/better`, được port, với `helper.md` và
+  `brief.md` giữ nguyên trong `third_party/pi-better/`. helper.md dựa trên prompt "Depth" trong bài "How to be more
+  ambitious: A tutorial for humans with models" của
+  [Felix Rieseberg](https://felixrieseberg.com/how-to-be-more-ambitious-a-tutorial-for-humans-with-models/#depth).
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)** của Lauren Tan ([@poteto](https://github.com/poteto),
   MIT): skill `statechart` trong `third_party/pstack-statechart/`, với bốn mô hình tiệm trà sữa của
   **[statechart-art](https://github.com/kevintngo/statechart-art)** của Kevin T. Ngo (MIT) làm ví dụ.

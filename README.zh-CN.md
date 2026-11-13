@@ -48,6 +48,14 @@
   的问题、结论、需要人工确认的事项）和项目的 `REVIEW_GUIDELINES.md`。只输入 `/review` 会打开一个列出未关闭拉取请求的面板。结果是一张
   卡片：“修复这些”把修复消息放进输入框，不发送；“发布到 GitHub”在你通过卡片允许后，把拉取请求的审查连同逐行评论发到 GitHub
   （有 P0 或 P1 时为 “Request changes”，否则为 “Comment”）。
+- **更深入的提示：`/better`。** 在提示前加上 `/better`（或只输入 `/better`，针对进行中的任务），一个只读助手会用你真实的代码和文件
+  回答 Felix Rieseberg 的 “Depth” 问题：顶尖专业人士会做哪些你没要求的事、最原始的材料、具体的方法和工具、以及什么能证明结果正确。
+  然后它把提示改写成正好要求这些，改写结果放进你的消息框，位于你等待期间输入的内容上方，不会发送。助手是会话的一个副本（同样的模型和
+  思考级别、同样的工具和系统提示，因此服务商的提示缓存可以复用），在会话工作的地方运行（包括会话所在的机器），只能使用 read、grep、
+  find、ls 和 bash，在 Pi 工作时也能运行，一次一个，最长 20 分钟，并且不会给会话的上下文增加任何内容。消息框上方的两行显示它的步骤
+  （六格进度条）、带 ✓ 或 ✗ 的最新工具、用时和“停止”；在桌面上按 Esc 可停止它，点按这两行可打开助手查看它的阅读过程。没有改写结果的
+  回复会说明这一点，通知可打开助手的完整回复。来自 Nico Bailon 的
+  [pi-better](https://github.com/nicobailon/pi-better)。
 - **Review 中的评论与“自上次审查”。** 在“改动”中点一下行号（新旧两侧均可）会在该行下方打开评论框，文件的备注按钮可评论整个文件。
   “发送审查”把评论作为给 Pi 的反馈放进输入框（“Please address the following review feedback: 1. path:line (current) …”），不发送，
   并为文件夹保存检查点：之后“自上次审查”只显示检查点之后的改动，“对比 HEAD”则把此后未改动的文件标为已审查。评论和检查点随会话保存，
@@ -746,6 +754,7 @@ pi-phone 大部分是别人的成果，只是为手机把它们组合在了一�
 - **[Impeccable](https://github.com/pbakaus/impeccable)**，作者 Paul Bakaus（Apache 2.0）：其检测器中的九条规则，在截图的布局检查里重新实现；其 craft floor 中的三条，改写后放入 unslop 的注释；许可证和清单位于 `third_party/impeccable/`。
 - **[jakubkrehel/skills](https://github.com/jakubkrehel/skills)**，作者 Jakub Krehel（MIT）：auton-ui 验证过的 better-ui 和 better-typography 检查（同心圆角、等宽数字、静态 CSS 迹象），与 unslop 的色条和渐变迹象一起在截图的布局检查里重新实现；许可证和清单位于 `third_party/jakubkrehel-skills/`。
 - **[pi-review](https://github.com/earendil-works/pi-review)**，作者 Earendil（MIT）：它的审查准则，原样保存在 `third_party/pi-review/`，`/review` 的子代理按它审查。
+- **[pi-better](https://github.com/nicobailon/pi-better)**，作者 Nico Bailon（MIT）：移植为 `/better`，其 `helper.md` 和 `brief.md` 原样保存在 `third_party/pi-better/`。helper.md 基于 [Felix Rieseberg](https://felixrieseberg.com/how-to-be-more-ambitious-a-tutorial-for-humans-with-models/#depth) 的 “How to be more ambitious: A tutorial for humans with models” 中的 “Depth” 提示。
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)**，作者 Lauren Tan（[@poteto](https://github.com/poteto)，
   MIT）：位于 `third_party/pstack-statechart/` 的 `statechart` 技能，以 Kevin T. Ngo 的
   **[statechart-art](https://github.com/kevintngo/statechart-art)**（MIT）中的四个奶茶店模型为示例。

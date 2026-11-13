@@ -65,6 +65,17 @@ No Termux, no laptop, no cloud VM.
   should check) and the project's `REVIEW_GUIDELINES.md`. `/review` alone opens a sheet with the open pull requests. The
   report is a card: Fix these puts the fix message in the message box, unsent; Post to GitHub posts a pull request's
   review with line comments ("Request changes" for a P0 or P1, else "Comment") after you allow it on a card.
+- **A deeper prompt: `/better`.** Put `/better` in front of a prompt (or `/better` alone, for the task in progress)
+  and a read-only helper answers Felix Rieseberg's "Depth" questions about it with your real code and files: what a
+  top professional would do that you did not ask, the rawest material, the methods and tools, and what would prove it
+  right. Then it rewrites the prompt to ask for exactly that, and the rewrite lands in your message box, above anything
+  you typed meanwhile, unsent. The helper is a copy of the session (on its model and thinking level, with its tools
+  and system prompt, so the provider's prompt cache serves it), runs where the session works (on its machine too),
+  may only use read, grep, find, ls and bash, works while Pi does, one at a time, for 20 minutes at most, and adds
+  nothing to the session's context. Two rows above the message box show its step (a six-cell meter), its newest tools
+  with ✓ or ✗, the time and Stop; Esc stops it on a desktop, and a tap on the rows opens the helper to watch it read.
+  A reply without a rewrite says so, and its notice opens the helper's whole reply. From
+  [pi-better](https://github.com/nicobailon/pi-better) by Nico Bailon.
 - **Comments in Review, and Since last review.** In Changes, a tap on a line number (new or old side) opens a comment
   box under the line, and a file's note button comments on the whole file. Send review puts them in the message box as
   feedback for Pi ("Please address the following review feedback: 1. path:line (current) …"), unsent, and checkpoints
@@ -1078,6 +1089,10 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
   the screenshot layout check with unslop's stripe and gradient signs; licence and list in `third_party/jakubkrehel-skills/`.
 - **[pi-review](https://github.com/earendil-works/pi-review)** by Earendil (MIT): its review rubric, as written, in
   `third_party/pi-review/`, which `/review`'s subagent follows.
+- **[pi-better](https://github.com/nicobailon/pi-better)** by Nico Bailon (MIT): `/better`, ported, with its
+  `helper.md` and `brief.md` as written in `third_party/pi-better/`. helper.md is built on the "Depth" prompt from
+  [Felix Rieseberg's](https://felixrieseberg.com/how-to-be-more-ambitious-a-tutorial-for-humans-with-models/#depth)
+  "How to be more ambitious: A tutorial for humans with models".
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)** by Lauren Tan ([@poteto](https://github.com/poteto),
   MIT): the `statechart` skill in `third_party/pstack-statechart/`, with the four boba models of
   **[statechart-art](https://github.com/kevintngo/statechart-art)** by Kevin T. Ngo (MIT) as its examples.

@@ -14,6 +14,7 @@ import {
 } from "./theme.js";
 import { t } from "./i18n.js";
 import { trustAvailable } from "./trust.js";
+import { startBetter } from "./better.js";
 import { copyText, formatTokens, formatWhen, modelLabel, replyText, shortPath } from "./ui.js";
 
 const agent = () => store.state.view.agent;
@@ -394,6 +395,17 @@ const COMMANDS = [
         toPi: true,
         available: pageAvailable,
         run: (arg) => (arg === "" ? openSheet({ type: "pages" }) : toPi(`/page ${arg}`)),
+    },
+    {
+        // PP-506 (pi-better): a read-only helper deepens the prompt, or with nothing after it the task in progress, in the
+        // background; its rewrite comes to the message box (`better.js`). Nothing goes to Pi.
+        name: "better",
+        args: "[prompt]",
+        get description() {
+            return t("Deepen a prompt, or the task in progress: a read-only helper puts the rewrite in your message box");
+        },
+        available: isSession,
+        run: (arg) => startBetter(arg),
     },
     {
         name: "branch",

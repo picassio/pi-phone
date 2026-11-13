@@ -31,6 +31,7 @@ import {
 import { useDock } from "./dock.js";
 import { ExtensionDocks } from "./extension-ui.js";
 import { SubagentsBar } from "./subagents.js";
+import { BetterBar, useBetterResult } from "./better.js";
 import { isRemotePlace } from "./place.js";
 import { TrustBar } from "./trust.js";
 import { prefs } from "./theme.js";
@@ -654,6 +655,17 @@ export function Composer() {
         // A command is not a message to Pi: no "typing to Pi" for it.
         typing(value.trim() === "" || value.startsWith("/") ? null : "pi");
     };
+
+    // `/better`'s rewrite (PP-506): above what was typed meanwhile, with the caret after it.
+    useBetterResult(
+        () => drafts.get(conversationId),
+        update,
+        (at) =>
+            requestAnimationFrame(() => {
+                box.current?.focus();
+                box.current?.setSelectionRange(at, at);
+            }),
+    );
 
     // Ctrl+R: what was sent before that has the words in the box.
     const recalled = searching ? searchHistory(text, historyScope) : [];
@@ -1370,6 +1382,7 @@ export function Composer() {
             <${UsageWarning} />
             <${PiBar} />
             <${CiWatchBar} />
+            <${BetterBar} />
             <${SubagentsBar} />
             <${TrustBar} />
             <${ExtensionDocks} />

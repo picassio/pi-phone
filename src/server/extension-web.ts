@@ -91,6 +91,7 @@ export const BUILT_IN_COMMANDS: ReadonlySet<string> = new Set([
     "review",
     "make",
     "page",
+    "better",
     "branch",
     "pip",
     "peek",

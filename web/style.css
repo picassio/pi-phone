@@ -19841,6 +19841,192 @@ pre.gallery-code {
     }
 }
 
+/* ─── /better (pi-phone, PP-506) ─────────────────────────────── */
+
+/*
+ * `/better`'s helper at work (`better.js`), above the message box in a card like the CI bar: a six-cell meter (the
+ * current cell pulses), the step, the time and Stop; then the newest tools, ✓ or ✗, newest at the right, and a count.
+ */
+.better-bar {
+    background: var(--card);
+    border: 1px solid var(--hair);
+    border-radius: var(--r-card);
+    margin-bottom: 8px;
+    font-size: 13px;
+    overflow: hidden;
+}
+
+.better-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-right: 4px;
+}
+
+.better-open {
+    flex: 1;
+    min-width: 0;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 4px 0 12px;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.better-open:disabled {
+    cursor: default;
+}
+
+.better-meter {
+    flex: none;
+    display: inline-flex;
+    gap: 4px;
+}
+
+.better-cell {
+    width: 8px;
+    height: 12px;
+    border-radius: 2px;
+    border: 1px solid var(--accent);
+    opacity: 0.4;
+}
+
+.better-cell.done {
+    background: var(--accent);
+    opacity: 1;
+}
+
+.better-cell.now {
+    background: var(--accent);
+    opacity: 1;
+    animation: pulse 1.4s infinite;
+}
+
+.better-step {
+    flex: 1;
+    min-width: 0;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.better-of {
+    color: var(--muted);
+    font-weight: 400;
+}
+
+.better-time {
+    flex: none;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.better-stop {
+    flex: none;
+    min-width: 44px;
+    min-height: 40px;
+    padding: 0 8px;
+}
+
+.better-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    padding: 0 12px 4px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+/*
+ * Newest at the right, whole chips only: they come newest first and lay out from the right; one that does not fit
+ * wraps onto a second line, which the row's height hides.
+ */
+.better-trail {
+    flex: 1;
+    min-width: 0;
+    height: 20px;
+    display: flex;
+    flex-flow: row-reverse wrap;
+    align-items: center;
+    column-gap: 12px;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.better-short {
+    display: none;
+}
+
+@media (max-width: 480px) {
+    .better-long {
+        display: none;
+    }
+
+    .better-short {
+        display: inline;
+    }
+}
+
+.better-none {
+    flex: 1;
+}
+
+.better-tool {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 20px;
+    max-width: min(240px, 100%);
+    font-family: var(--mono);
+}
+
+.better-tool.is-ok svg {
+    color: var(--ok);
+}
+
+.better-tool.is-failed svg {
+    color: var(--err);
+}
+
+.better-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.better-dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    margin: 0 4px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 1.4s infinite;
+}
+
+.better-count {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root:not([data-motion="full"]) .better-cell.now,
+    :root:not([data-motion="full"]) .better-dot {
+        animation: none;
+    }
+}
+
 /* ─── SSH keys (pi-phone) ────────────────────────────────────── */
 
 .ssh-key .provider-actions {
