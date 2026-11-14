@@ -36,7 +36,7 @@ import {
     type ToolExecutionApi,
     type Tx,
 } from "@earendil-works/pi-durable";
-import { type ColdCompacted, type PendingReport, REPORT_PREFIX, SubagentsDoc } from "../docs.ts";
+import { type ColdCompacted, type PendingReport, REPORT_PREFIX, SelfCompactDoc, SubagentsDoc } from "../docs.ts";
 import { describe } from "../errors.ts";
 import type { PocketHost } from "../host.ts";
 import type { ResolvedSubagentDefaults } from "../subagent-defaults.ts";
@@ -45,7 +45,7 @@ import { requestFor } from "../requests.ts";
 import { diffLines, githubReview, parseReviewResult, prepareReview, quote, type ReviewTarget, reviewGuidelines, reviewPrompt } from "../review.ts";
 import { whyUnanswered } from "../subagent-runs.ts";
 import { BetterTask, BRIEF_MARK } from "../better.ts";
-import type { ColdOutcome, ColdPlan, SubagentFigures } from "../cold-subagent.ts";
+import type { ColdOutcome, ColdPlan, FinishPlan, SubagentFigures } from "../cold-subagent.ts";
 
 // Exclude Agent Teams by name even while it is off; enabling it later must not give nested agents delegation.
 const AgentTeams = defineExtension({ name: "pocket-agent-teams" });
@@ -80,7 +80,9 @@ const Anchor = defineTask<null, { phase: "done" }, null>({
 
 /**
  * `requestedBy`: whom the parent worked for when it sent the message, whose work the subagent's then is. `cold`: the
- * subagent's cache went cold, and it compacts before the message (PP-511, `cold-subagent.ts`).
+ * subagent's cache went cold, and it compacts before the message (PP-511, `cold-subagent.ts`). `askedAt`: when the
+ * message was sent (`SubagentRecord.askedAt`): a later one is newer work, and the subagent does not compact after this
+ * one (PP-513). Reporters from before it have none, and do not.
  */
 type ReporterInput = {
     name: string;
@@ -89,13 +91,56 @@ type ReporterInput = {
     followUp: boolean;
     requestedBy?: string;
     cold?: ColdPlan;
+    askedAt?: number;
 };
-type ReporterState = { phase: "compact" } | { phase: "deliver" } | { phase: "report"; report?: string };
+type ReporterState =
+    | { phase: "compact" }
+    | { phase: "deliver" }
+    | { phase: "report"; report?: string; answered?: true }
+    | { phase: "finish" }
+    | { phase: "summarize"; plan: FinishPlan };
+
+/** Terminal, done. */
+const COMPLETED = { status: "terminal", outcome: { status: "completed", result: null } } as const;
+
+/**
+ * Wait while `name` compacts itself after work another reporter delivered (PP-513, `SubagentRecord.finishing`): work
+ * sent meanwhile goes once it is done. A watch that ends (a restart) ends the phase, which runs again.
+ */
+async function afterFinishing(runtime: TaskRuntime<ReporterInput, ReporterState, null, object>, name: string, self: number, context: Context): Promise<void> {
+    const finishing = (value: { agents: Record<string, { finishing?: { reporter: number } }> } | null | undefined) => {
+        const reporter = value?.agents[name]?.finishing?.reporter;
+
+        return reporter !== undefined && reporter !== self;
+    };
+    const watch = await runtime.watchDoc(SubagentsDoc, runtime.conversationId, context);
+
+    if (watch === undefined || !finishing(watch.value)) {
+        await watch?.stop();
+
+        return;
+    }
+
+    try {
+        await new Promise<void>((resolve, reject) => {
+            watch.start(async (call) => {
+                if (call.kind === "value" && !finishing(call.value)) {
+                    resolve();
+                }
+            });
+            void watch.closed.then(() => reject(new Error("The subagents' watch ended")), reject);
+        });
+    } finally {
+        await watch.stop();
+    }
+}
 
 /**
  * Delivers one message to a subagent, waits for the answer, and reports it to the parent, through `Courier`. A subagent
  * whose cache went cold compacts first ("compact"): the phase is checkpointed before the message goes, so a restart
- * neither compacts twice (`ColdSubagents.compact` finds the compaction under way or placed) nor delivers twice.
+ * neither compacts twice (`ColdSubagents.compact` finds the compaction under way or placed) nor delivers twice. Once
+ * the report is on its way, a subagent with a context worth compacting compacts while its cache is warm ("finish",
+ * then "summarize"; PP-513): work sent meanwhile waits in its reporter (`afterFinishing`), and goes after it, once.
  */
 function reporterFor(Courier: CourierTask, host: Pick<PocketHost, "notice" | "coldSubagents">) {
     return defineTask<ReporterInput, ReporterState, null>({
@@ -106,6 +151,8 @@ function reporterFor(Courier: CourierTask, host: Pick<PocketHost, "notice" | "co
             compact: async (reporter, runtime, context) => {
                 const { name, conversationId, cold } = reporter.input;
                 let outcome: ColdOutcome | { error: string } | undefined;
+
+                await afterFinishing(runtime, name, Number(reporter.id), context);
 
                 if (cold !== undefined) {
                     try {
@@ -149,6 +196,9 @@ function reporterFor(Courier: CourierTask, host: Pick<PocketHost, "notice" | "co
             },
             deliver: async (reporter, runtime, context) => {
                 const { name, conversationId, message, followUp, requestedBy } = reporter.input;
+
+                // Not into a subagent's own compaction after earlier work (PP-513): after it.
+                await afterFinishing(runtime, name, Number(reporter.id), context);
                 const subagent = (await runtime.conversation(conversationId, context))!;
                 const request = {
                     type: "input",
@@ -212,8 +262,8 @@ function reporterFor(Courier: CourierTask, host: Pick<PocketHost, "notice" | "co
                 const ranOn = ran === undefined ? "" : `${ran.provider}/${ran.modelId}: `;
 
                 await runtime.commit(async (tx) => {
-                    const next = (report?: string) =>
-                        ({ status: "running", checkpoint: { phase: "report", report } }) as const;
+                    const next = (report?: string, answered?: true) =>
+                        ({ status: "running", checkpoint: { phase: "report", report, ...(answered === undefined ? {} : { answered }) } }) as const;
 
                     const agent = (await tx.doc(SubagentsDoc, runtime.conversationId)).agents[name];
 
@@ -252,6 +302,7 @@ function reporterFor(Courier: CourierTask, host: Pick<PocketHost, "notice" | "co
 
                     return next(
                         `${REPORT_PREFIX}${name} answered, no reply needed] ${textOf(answer)}`,
+                        true,
                     );
                 }, context);
 
@@ -305,11 +356,95 @@ function reporterFor(Courier: CourierTask, host: Pick<PocketHost, "notice" | "co
                         }
                     }
 
-                    return { status: "terminal", outcome: { status: "completed", result: null } };
+                    // Answered: the report is on its way, and the subagent may compact now, while its cache is warm.
+                    return reporter.state.checkpoint.answered === true && reporter.input.askedAt !== undefined
+                        ? { status: "running", checkpoint: { phase: "finish" } }
+                        : COMPLETED;
                 }, context),
+            // Whether the subagent compacts after its work (PP-513, `ColdSubagents.finished`): only while it is idle, with
+            // nothing queued, no newer work sent, and no compaction of its own under way. Marked in one commit with those
+            // checks, so work sent after it waits (`afterFinishing`), and work sent before it keeps it from compacting.
+            finish: async (reporter, runtime, context) => {
+                const { name, conversationId, askedAt } = reporter.input;
+                const plan = await host.coldSubagents.finished(conversationId);
+
+                await runtime.commit(async (tx) => {
+                    // Reads first: a commit reads the tables only before it writes one.
+                    const state = await tx.doc(SubagentsDoc, runtime.conversationId);
+                    const live = await tx.doc(LiveDoc, conversationId);
+                    const inbox = await tx.doc(InboxDoc, conversationId);
+                    const own = await tx.doc(SelfCompactDoc, conversationId);
+                    const agent = state.agents[name];
+                    const idle = live.run === undefined && live.compactions === undefined && inbox.items.length === 0;
+
+                    // A reviewer (the review tool) ends with its review: compacting it would cost for nothing.
+                    if (
+                        plan === undefined ||
+                        agent === undefined ||
+                        agent.review !== undefined ||
+                        agent.askedAt !== askedAt ||
+                        agent.finishing !== undefined ||
+                        !idle ||
+                        own.asked !== undefined ||
+                        own.ready !== undefined
+                    ) {
+                        return COMPLETED;
+                    }
+
+                    agent.finishing = { reporter: Number(reporter.id), at: Date.now() };
+                    own.asked = { reason: "finish", at: Date.now() };
+
+                    return { status: "running", checkpoint: { phase: "summarize", plan } };
+                }, context);
+            },
+            summarize: async (reporter, runtime, context) => {
+                const { name, conversationId, requestedBy } = reporter.input;
+                const { plan } = reporter.state.checkpoint as Extract<ReporterState, { phase: "summarize" }>;
+                // As the work went: whom the parent worked for pays for the summary turn too.
+                const requestId =
+                    requestedBy === undefined ? `subagent-finish:${reporter.id}` : requestFor(requestedBy, `subagent-finish-${reporter.id}`);
+
+                // What it came to is recorded with the compaction (the subagent's line, Spend) and in the server's log.
+                try {
+                    await host.coldSubagents.finish(conversationId, plan, requestId, context);
+                } catch (error) {
+                    // Stopped, or cut off by a restart: the task's to handle, and the phase runs again.
+                    if (runtime.signal.aborted || context.abortSignal?.aborted === true) {
+                        throw error;
+                    }
+
+                    // The work it was given is done and reported: it stays as it is, and says why.
+                    host.notice("warning", `Subagent ${name} was not compacted after its work: ${describe(error)}`, conversationId);
+                }
+
+                await runtime.commit(async (tx) => {
+                    const agent = (await tx.doc(SubagentsDoc, runtime.conversationId)).agents[name];
+
+                    if (agent?.finishing?.reporter === Number(reporter.id)) {
+                        delete agent.finishing;
+                    }
+
+                    return COMPLETED;
+                }, context);
+            },
         },
-        abort: (_reporter, runtime, context) =>
-            runtime.commit(() => ({ status: "terminal", outcome: { status: "aborted" } }), context),
+        // Stopped: work that waits for its compaction goes, and the subagent's summary turn is no longer wanted.
+        abort: (reporter, runtime, context) =>
+            runtime.commit(async (tx) => {
+                const agent = (await tx.doc(SubagentsDoc, runtime.conversationId)).agents[reporter.input.name];
+                const finishing = agent?.finishing?.reporter === Number(reporter.id);
+                const own = finishing ? await tx.doc(SelfCompactDoc, reporter.input.conversationId) : undefined;
+
+                if (finishing) {
+                    delete agent!.finishing;
+                }
+
+                if (own?.asked?.reason === "finish") {
+                    delete own.asked;
+                }
+
+                return { status: "terminal", outcome: { status: "aborted" } };
+            }, context),
     });
 }
 
@@ -996,7 +1131,10 @@ export default function createSubagents(host: PocketHost) {
                     // Its context and cache (PP-511): what the next work costs it.
                     const figures = await host.coldSubagents.figures(found.conversationId);
 
-                    lines.push(`${each}: ${figures.busy ? "working" : "idle"}${figuresLine(figures, Date.now())}`);
+                    // Compacting itself after its work (PP-513): work sent now goes once that is done.
+                    const doing = found.finishing !== undefined ? "compacting after its work" : figures.busy ? "working" : "idle";
+
+                    lines.push(`${each}: ${doing}${figuresLine(figures, Date.now())}`);
                 }
 
                 return reply(lines.length === 0 ? "No subagents." : lines.join("\n"));
@@ -1208,15 +1346,19 @@ export default function createSubagents(host: PocketHost) {
                     followUp: action === "send" && followUp === true,
                     ...(requestedBy === undefined ? {} : { requestedBy }),
                     ...(cold === undefined ? {} : { cold }),
+                    askedAt: record.askedAt,
                 };
 
                 state.reporters[api.taskId] = await tx.createTask(Reporter, input, BACKGROUND);
                 reporter = Number(state.reporters[api.taskId]);
 
                 if (action === "send") {
+                    // Compacting itself after its last work (PP-513): the message waits for that, then goes.
+                    const waits = record.finishing === undefined ? "" : ` It gets the message once it has compacted its context after its last work.`;
+
                     return lowered === undefined
-                        ? `Sent to ${name}.`
-                        : `Sent to ${name}, thinking at ${lowered} now: no higher than this session's.`;
+                        ? `Sent to ${name}.${waits}`
+                        : `Sent to ${name}, thinking at ${lowered} now: no higher than this session's.${waits}`;
                 }
 
                 const runs = model ?? parent.model;

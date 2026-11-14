@@ -224,6 +224,11 @@ export type SubagentRecord = {
      * it failed, or that it had nothing old enough to compact. The send waits for it, and says it.
      */
     compacted?: ColdCompacted;
+    /**
+     * It is compacting itself after its work (PP-513, `cold-subagent.ts`), by the reporter that delivered that work: its
+     * summary turn, then the compaction. Work sent meanwhile waits for it to end, then goes.
+     */
+    finishing?: { reporter: number; at: number };
 };
 
 /** What became of compacting a subagent before work (PP-511): done, nothing to compact, or failed. */
@@ -584,8 +589,11 @@ export const ReviewLoopDoc = defineDoc<ReviewLoopState>({
     initial: () => ({ comments: [] }),
 });
 
-/** Why a session compacted itself (PP-473): Pi chose to (`compact_self`), or its cache was about to expire. */
-export type SelfCompactReason = "pi" | "expiry";
+/**
+ * Why a session compacted itself (PP-473): Pi chose to (`compact_self`), or its cache was about to expire; or a subagent
+ * finished its work with a context worth compacting while its cache was warm (PP-513).
+ */
+export type SelfCompactReason = "pi" | "expiry" | "finish";
 
 /** Why a compaction was recorded: a self-compaction's reason, or a subagent compacted before work (PP-511). */
 export type SelfCompactionReason = SelfCompactReason | "cold";

@@ -23,6 +23,9 @@
  *   or 1 hour at twice the input price.
  * - Each self-compaction is recorded (`SelfCompaction`): its cost (the summary turn), the context before and after, and
  *   what it saved (`savingOf`), in the session (the transcript's line) and in Spend.
+ * - A subagent that finished its work (PP-513, `cold-subagent.ts`): the reporter that delivered the work asks it for the
+ *   summary (`summaryRequest("finish")`) once its report is on its way, and compacts it; this module's `onYield` keeps
+ *   the answer as `ready`, as for compact_self, and `afterRun` leaves that compaction to the reporter.
  */
 import type { AssistantMessage, Message } from "@earendil-works/pi-ai";
 import { type ConversationId, UsageDoc } from "@earendil-works/pi-durable";
@@ -162,10 +165,33 @@ export const writePrice = (prices: Prices, ttlMs: number): number => (ttlMs > 30
 const dollars = (amount: number) => `$${amount.toFixed(amount < 0.1 ? 3 : 2)}`;
 const thousands = (tokens: number) => `${Math.round(tokens / 1000)}k`;
 
+/**
+ * What a subagent's summary after its work keeps in particular (PP-513): what the agent it works for may ask it next.
+ */
+const FINISH_FOCUS =
+    "what the agent you work for may ask you next: what it asked, the report you gave it (in short: it has the report itself), the files, branches and commits you made or read, with exact paths, names and hashes, and the points left open.";
+
 /** The summary request: Pi's answer to it is the summary (the format is Pi's and Pi Durable's compaction format). */
 export function summaryRequest(reason: SelfCompactReason, pending: Pending, focus: string | undefined): string {
     const waits = waitLines(pending);
     const tasks = taskLines(pending);
+
+    if (reason === "finish") {
+        return [
+            `${SUMMARY_PREFIX}Your work is done, and your report went to the agent you work for. The app compacts your context once you answer this, while its prompt cache is warm, so new work later costs less. Write the summary that will take the place of the conversation so far, as your whole answer, with no tool calls. If more work comes, you continue from it, with the most recent messages kept as they are.`,
+            "",
+            "Use this format, each section short; keep exact file paths, ids, commands and error messages:",
+            "## Task (what you were asked, and the rules it came with)",
+            "## Report (what you reported, in short)",
+            "## Files, branches and commits",
+            "## Key Decisions",
+            "## Open points",
+            "## Critical Context",
+            "",
+            `Keep in particular ${FINISH_FOCUS}`,
+            ...(waits.length === 0 ? [] : ["", "Still under way:", waits.join("\n")]),
+        ].join("\n");
+    }
 
     return [
         `${SUMMARY_PREFIX}${reason === "pi" ? "You called compact_self." : "This session's prompt cache is about to expire while it waits."} The app compacts this session's context once you answer this. Write the summary that will take the place of the conversation so far, as your whole answer, with no tool calls. You continue from it later, with the most recent messages kept as they are.`,
@@ -294,7 +320,7 @@ export class SelfCompact {
             throw new HttpError(403, "Only the owner can do that");
         }
 
-        if (part === "tool" || part === "beforeExpiry" || part === "coldSubagent") {
+        if (part === "tool" || part === "beforeExpiry" || part === "coldSubagent" || part === "finishedSubagent") {
             if (typeof value !== "boolean") {
                 throw new HttpError(
                     400,
@@ -302,7 +328,9 @@ export class SelfCompact {
                         ? "compact_self is on (true) or off (false)."
                         : part === "beforeExpiry"
                           ? "Compacting before the cache expires is on (true) or off (false)."
-                          : "Compacting a subagent whose cache went cold before new work is on (true) or off (false).",
+                          : part === "coldSubagent"
+                            ? "Compacting a subagent whose cache went cold before new work is on (true) or off (false)."
+                            : "Compacting a subagent that finished its work while its cache is warm is on (true) or off (false).",
                 );
             }
 
@@ -316,7 +344,7 @@ export class SelfCompact {
 
             this.#app.config.setSelfCompact("remindAt", percent);
         } else {
-            throw new HttpError(400, "Self-compaction's settings are tool, remindAt, beforeExpiry and coldSubagent.");
+            throw new HttpError(400, "Self-compaction's settings are tool, remindAt, beforeExpiry, coldSubagent and finishedSubagent.");
         }
 
         if (!this.settings().beforeExpiry || !this.settings().tool) {
@@ -356,23 +384,28 @@ export class SelfCompact {
         }, context);
     }
 
-    /** What `id` waits on and its board tasks in progress, read from the app's state. */
+    /**
+     * What `id` waits on and its board tasks in progress, read from the app's state. A subagent's are its own only: the
+     * sessions linked from its session and that session's board tasks are its parent's. A subagent compacting itself
+     * after its work (PP-513) is no wait: it has answered.
+     */
     async pending(id: ConversationId): Promise<Pending> {
         const app = this.#app;
         const harness = app.harness;
         const root = app.rootOf(id);
+        const own = app.parentOf(id) === undefined;
         const agents = (await harness.snapshot(SubagentsDoc, id, context))?.agents ?? {};
         const subagents = Object.entries(agents)
-            .filter(([, record]) => app.isBusy(record.conversationId) || (record.askedAt !== undefined && (record.answeredAt ?? 0) < record.askedAt))
+            .filter(([, record]) => (record.finishing === undefined && app.isBusy(record.conversationId)) || (record.askedAt !== undefined && (record.answeredAt ?? 0) < record.askedAt))
             .map(([name, record]) => ({ name, asked: record.asked ?? "", ...(record.askedAt === undefined ? {} : { since: record.askedAt }) }));
-        const sessions = Object.entries(app.sessionCatalogue())
+        const sessions = Object.entries(own ? app.sessionCatalogue() : {})
             .filter(([key, meta]) => meta.linkedFrom?.id === Number(root) && meta.archived !== true && app.isBusy(Number(key) as ConversationId))
             .map(([key, meta]) => ({ id: Number(key), title: meta.title ?? "New session", state: "working" }));
         const ci = Object.values((await harness.snapshot(CiWatchesDoc, id, context))?.items ?? {}).map((watch) => ({ label: watch.label, url: watch.url, since: watch.startedAt }));
         const schedules = Object.values((await harness.snapshot(ScheduleDoc, id, context))?.items ?? {})
             .sort((a, b) => a.next - b.next)
             .map((each) => ({ id: each.id, text: each.text, next: each.next, repeats: each.every !== undefined }));
-        const tasks = app.boardTasksOf(String(root), OPEN_STATES).map((task) => ({ ref: task.ref, title: task.title, state: task.state }));
+        const tasks = own ? app.boardTasksOf(String(root), OPEN_STATES).map((task) => ({ ref: task.ref, title: task.title, state: task.state })) : [];
 
         return { subagents, sessions, ci, schedules, tasks };
     }
@@ -557,6 +590,11 @@ export class SelfCompact {
         this.#timers.delete(id);
 
         if (ready !== undefined) {
+            // A subagent's after its work: the reporter that asked for it compacts it (PP-513, `cold-subagent.ts`).
+            if (ready.reason === "finish") {
+                return true;
+            }
+
             if (!this.#compacting.has(id)) {
                 void this.#compact(id, ready);
             }
@@ -747,7 +785,12 @@ export async function recordCompaction(app: PocketApp, id: ConversationId, recor
     }
 }
 
-const REASONS = { pi: "Pi chose to while waiting", expiry: "the prompt cache was about to expire", cold: "the subagent's prompt cache had gone cold before new work" } as const;
+const REASONS = {
+    pi: "Pi chose to while waiting",
+    expiry: "the prompt cache was about to expire",
+    cold: "the subagent's prompt cache had gone cold before new work",
+    finish: "the subagent had finished its work, its prompt cache still warm",
+} as const;
 
 /** The line a self-compaction leaves, in English (the transcript has its own, in the person's language). */
 export function compactedLine(record: SelfCompaction): string {

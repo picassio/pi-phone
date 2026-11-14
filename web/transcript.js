@@ -2918,7 +2918,9 @@ function selfCompactedLine(record) {
             ? t("Pi chose to while waiting")
             : record.reason === "cold"
               ? t("its prompt cache had gone cold before new work")
-              : t("the prompt cache was about to expire");
+              : record.reason === "finish"
+                ? t("it had finished its work, its prompt cache still warm")
+                : t("the prompt cache was about to expire");
 
     return t("Compacted: {reason}, {before} → {after} tokens, {cost}, saved about {saving}", {
         reason,

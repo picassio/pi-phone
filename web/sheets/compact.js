@@ -138,7 +138,8 @@ const REMIND_AT = [20, 30, 40, 50, 60, 70, 80];
  * While a session waits (PP-473, src/server/self-compact.ts), for every session: whether Pi may compact its own
  * session (compact_self), from what share of the context the compact reminder speaks up, whether a waiting session
  * compacts by itself just before its prompt cache expires, and whether a subagent whose cache went cold compacts before
- * new work (PP-511). The owner's.
+ * new work (PP-511), and whether a subagent that finished its work compacts right away, while its cache is warm
+ * (PP-513). The owner's.
  */
 function WhileWaiting({ settings }) {
     const set = (part, value) => attempt(() => api("settings", { selfCompact: { part, value } }));
@@ -168,6 +169,7 @@ function WhileWaiting({ settings }) {
             </div>
             ${toggle("beforeExpiry", t("Compact before the prompt cache expires"), t("A session idle while it waits, its context past that share, compacts itself just before its prompt cache expires. A report that comes first cancels it. Off by default."), settings.beforeExpiry)}
             ${toggle("coldSubagent", t("Compact a cold subagent before new work"), t("Work sent to a subagent idle longer than its prompt cache lasts compacts it first, when the work would cost more on its whole context: written again, then read by each request its runs make. On by default."), settings.coldSubagent)}
+            ${toggle("finishedSubagent", t("Compact a subagent when it finishes its work"), t("Once its report is on its way, a subagent with a large context writes its own summary from its warm prompt cache and compacts, when its next work would cost more on its whole context, read by each request its runs make. Work sent meanwhile waits for it. On by default."), settings.finishedSubagent)}
         </div>
     </div>`;
 }

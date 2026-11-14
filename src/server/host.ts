@@ -771,8 +771,11 @@ export interface PocketHost {
     readonly goals: Pick<Goals, "get" | "run" | "record" | "mayContinue">;
     /** Self-compaction (PP-473): compact_self queues one; the generation's and the compaction's hooks run it. */
     readonly selfCompact: Pick<SelfCompact, "queue" | "refused" | "onYield" | "apply" | "summaryFor">;
-    /** Subagents' context and cache (PP-511): their figures for status, and compacting a cold one before new work. */
-    readonly coldSubagents: Pick<ColdSubagents, "figures" | "check" | "compact">;
+    /**
+     * Subagents' context and cache (PP-511): their figures for status, and compacting a cold one before new work; and one
+     * that finished its work, while its cache is warm (PP-513).
+     */
+    readonly coldSubagents: Pick<ColdSubagents, "figures" | "check" | "compact" | "finished" | "finish">;
     /**
      * Text from elsewhere made safe for Pi to read (`fence.ts`): `quoted` gives one line, cut to `max`, without
      * invisible characters or any tag, in quotes it cannot close; `defang` keeps the lines, but no closing tag survives,

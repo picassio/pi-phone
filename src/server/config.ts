@@ -26,11 +26,13 @@ export const APP_ROOT = fileURLToPath(new URL("../..", import.meta.url));
  * Self-compaction (PP-473, `self-compact.ts`), for every session: whether Pi may call compact_self (`tool`), the share of
  * the model's window from which the compact reminder speaks up (`remindAt`, a percentage), and whether a waiting session
  * compacts by itself just before its prompt cache expires (`beforeExpiry`), and whether a subagent idle past its prompt
- * cache compacts before new work when that costs less than writing its context again (`coldSubagent`, PP-511).
+ * cache compacts before new work when that costs less than writing its context again (`coldSubagent`, PP-511), and
+ * whether a subagent that finished its work compacts right away, while its cache is warm, when that costs less than
+ * keeping its context for the next work (`finishedSubagent`, PP-513).
  */
-export type SelfCompactSettings = { tool: boolean; remindAt: number; beforeExpiry: boolean; coldSubagent: boolean };
+export type SelfCompactSettings = { tool: boolean; remindAt: number; beforeExpiry: boolean; coldSubagent: boolean; finishedSubagent: boolean };
 
-export const SELF_COMPACT_DEFAULTS: SelfCompactSettings = { tool: true, remindAt: 40, beforeExpiry: false, coldSubagent: true };
+export const SELF_COMPACT_DEFAULTS: SelfCompactSettings = { tool: true, remindAt: 40, beforeExpiry: false, coldSubagent: true, finishedSubagent: true };
 
 /** Where Pi Pocket keeps its database, users, uploads, and logs. */
 export function dataDir(): string {

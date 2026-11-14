@@ -1499,7 +1499,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
     `beforeExpiry` off; Pi's `sessions.compactSelf`, `sessions.compactRemindAt`, `sessions.compactBeforeExpiry`):
     - **`compact_self`** (`focus?`; deferred: the base prompt is at 84,926 of the 84,940 budget, and the tool would add
       462; native tool additions keep the cached prefix, so loading it costs no cache) sets `SelfCompactDoc.queued`.
-      Refused in a subagent: its final answer is its report to its parent, which the summary turn would replace. The
+      Refused in a subagent: its final answer is its report to its parent, which the summary turn would replace (a
+      subagent compacts after its report instead, PP-513 below). The
       generation's `onYield` (first decision wins; kept in the generation's memo so a restart applies it again) answers
       a queued one with a continuation, `[via compact-self] …` (`summaryRequest`): Pi Durable's format (Goal,
       Constraints & Preferences with the owner's rules, Progress, Key Decisions, Waiting on, Next Steps, Critical
@@ -1614,6 +1615,63 @@ so Pi changes them through the settings tools; "the last session" is the one the
     lifetime) or cold. One clause in the tool's description ("a cold, large one compacts first"), paid for by dropping
     its repeat of the guide's "those that arrive together come in one": the budget went from 84,934 to 84,928.
     `test/subagent-cold.test.ts`; the prompt-eval scenario `subagent-cold-send`.
+  - **A subagent compacts when it finishes its work, while its cache is warm** (PP-513, story PP-472; the owner,
+    2026-11-14: "Khi agent xong việc, chủ động self compact"; `cold-subagent.ts`, the reporter's `finish` and
+    `summarize` phases in `extensions/subagents.ts`). A large context costs on every request, warm or cold; PP-511
+    compacts only when the cache already went cold, at a cold rewrite's price. Compacting at the end of the work reads
+    the context once from the warm cache, needs no timer (which Android's Doze could miss), and leaves the subagent small
+    whenever its next work comes.
+    - **When:** the reporter that delivered the work, once its report is in the outbox (the courier has it, so the report
+      is never delayed), goes on to `finish` when the work was answered: `ColdSubagents.finished` decides with
+      `config.selfCompact.finishedSubagent` on (the default; Menu › Compact context › "Compact a subagent when it
+      finishes its work", Pi's `sessions.compactFinishedSubagent`; its own switch, as it runs at another time, for
+      another reason, than PP-511's), the context measured and at least 50k, and `warmCosts` over the subagent's own n
+      (`requestsPerRun`, `requestsOf`, as PP-511). Then one commit checks that it is still idle (`LiveDoc.run`, no
+      compaction under way), its inbox empty, no newer work sent (`SubagentRecord.askedAt` equals the reporter's
+      `askedAt`), no summary turn of its own asked or ready, and that it is no reviewer (the `review` tool's end with
+      their review); and marks `SubagentRecord.finishing` (the reporter) and `SelfCompactDoc.asked` (reason `finish`).
+    - **The rule** (warm prices both ways; a next run after the cache went cold would pay more for the context kept, so
+      it leans toward keeping): kept, n × C × read; compacted, C × read (the summary turn) + 3k × output + C' × write
+      + (n − 1) × C' × read, with C' = P + 20k + 3k. A run of one request never pays: the summary turn reads it once
+      already. Opus 5.5 at the catalogue's prices ($4 in, $20 out, $0.20 read, $5 write), P 35k, 5-minute cache:
+
+      | C | n | kept | compacted | saving |
+      | --- | --- | --- | --- | --- |
+      | 600k | 10 | $1.20 | $0.57 | $0.63 (kept and cold: $4.08) |
+      | 600k | 4 | $0.48 | $0.50 | −$0.02, kept |
+      | 150k | 10 | $0.30 | $0.48 | −$0.18, kept |
+      | 150k | 30 | $0.90 | $0.72 | $0.18 |
+
+      It pays from about 252k at n = 10, 150k at n = 20, 118k at n = 30, 103k at n = 40; at 600k from n = 5.
+    - **The summary** is the subagent's own, as compact_self's (PP-473): `summary` submits `summaryRequest("finish")`
+      as an input under the reporter's request id (`whenBusy: "reject"`: a person's message that runs now wins).
+      **Why a new input and not `onYield`'s continuation:** a continuation in the work's run would make the summary
+      that run's answer, which the reporter reports, and the report would wait for it. A new input after the run is a
+      new run whose request is the previous request's messages, then its answer, then the request: Pi Durable renders
+      the same system messages (a changed section is appended as a new system message, never rewritten in place) and
+      the same tools, so the prefix is byte for byte the previous request's and reads the warm cache.
+      `test/subagent-finish.test.ts` holds it on the faux provider's requests (the messages start with the previous
+      request's, tools equal) and on pi-ai's Anthropic payload of both, caught in `onPayload` with a fetch that never
+      goes out (`system` and `tools` equal, the previous `messages` first once the moving `cache_control` marks are
+      taken out); the faux cache reads at least the whole previous prompt and writes only the work's answer and the
+      request. The format asks for the task, the report in short, files, branches and commits, decisions and open
+      points: what the main session may ask next. `SelfCompact.onYield` keeps the answer as `ready` (reason `finish`),
+      and `afterRun` leaves that compaction to the reporter, which compacts with `SELF_COMPACT_MARK` (the same
+      `beforeCompact`: no model is asked; the app's sections are the subagent's own, `pending` leaving its parent's
+      linked sessions and board tasks out). A subagent compacting after its work is no wait of its parent's.
+    - **Work sent meanwhile** waits in its own reporter (`afterFinishing`, a watch on `SubagentRecord.finishing`) at the
+      start of `compact` and `deliver`, and goes once it is cleared, under its own request id, so once. The send says
+      "Sent to X. It gets the message once it has compacted its context after its last work."; `subagent status` says
+      "compacting after its work". PP-511's check skips a subagent that compacts itself (its summary turn asked or
+      ready, or a compaction under way); it stays the safety net for a subagent that was small, or not compacted.
+    - **Restart-safe:** `finish` runs again from its checkpoint; the summary request's id makes it go once, and a
+      compaction placed since the plan's mark is taken as done (recorded once by its entry), one under way waited for.
+      A failure clears the summary turn's state and says so in the subagent (the work is done and reported); the
+      reporter clears `finishing` in its last commit, and its `abort` clears it too, so no work waits forever.
+    - **Recorded** (`recordCompaction`, reason `finish`): the transcript's "Compacted: it had finished its work, its
+      prompt cache still warm, …" line and Spend's group, with `warmSaving`: the next run on the context kept against
+      the summary turn's real cost and the next run on what is left, at warm prices. `requestsPerRun` leaves summary
+      turns out of the runs it averages.
 - **Server edition** (`--platform server`, PP-20; the owner's decision of 2026-10-20, board epic PP-19): the same server in
   Docker (`Dockerfile`, `deploy/`), behind Caddy. `main.ts` runs as `phone` unless told `--platform server` (the image sets `PI_PHONE_PLATFORM=server`). On a
   server, Pi's browser is a `ChromeEngine` with its profile kept in `~/.pi/mobile/browser`, screenshots come from

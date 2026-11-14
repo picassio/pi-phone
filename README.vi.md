@@ -114,8 +114,8 @@ dự án thật.</sub>
   hơn). Hook **Nhắc nén khi chờ** báo Pi, mỗi lần chờ một lần, Pi đang chờ gì và mỗi cách tốn bao nhiêu khi ngữ cảnh
   vượt một tỉ lệ của cửa sổ (mặc định 40%), và Pi quyết định. **Nén trước khi bộ nhớ đệm prompt hết hạn** (mặc định
   tắt) làm việc đó không cần hỏi: phiên đang chờ mà rảnh 4,5 phút sẽ tự nén, trừ khi có báo cáo đến trước. Cả ba ở
-  Menu › Nén ngữ cảnh (Pi: `sessions.compactSelf`, `sessions.compactRemindAt`, `sessions.compactBeforeExpiry`). Không
-  áp dụng cho subagent: câu trả lời cuối của subagent là báo cáo của nó.
+  Menu › Nén ngữ cảnh (Pi: `sessions.compactSelf`, `sessions.compactRemindAt`, `sessions.compactBeforeExpiry`).
+  Subagent không gọi compact_self: câu trả lời cuối của nó là báo cáo (nó nén sau báo cáo, xem bên dưới).
 - **Bộ nhớ đệm nguội của subagent được kiểm tra trước việc mới.** Khi Pi giao việc cho một subagent đã rảnh lâu hơn thời
   gian sống của bộ nhớ đệm prompt, và việc mới trên nguyên ngữ cảnh tốn hơn khi đã nén (request đầu ghi lại ngữ cảnh và
   mỗi request sau đọc lại nó, số request bằng trung bình các lượt gần đây của chính subagent đó; so với bộ tóm tắt đọc phần
@@ -125,6 +125,15 @@ dự án thật.</sub>
   hoặc nhỏ thì nhận việc như cũ. `subagent status` hiện ngữ cảnh của từng subagent, tỉ lệ của cửa sổ, câu trả lời cuối,
   và bộ nhớ đệm còn ấm hay đã nguội. Mặc định bật: Menu › Nén ngữ cảnh › **Nén subagent đã nguội trước việc mới**
   (Pi: `sessions.compactColdSubagent`).
+- **Subagent tự nén khi xong việc, lúc bộ nhớ đệm còn ấm.** Khi báo cáo của subagent đã trên đường tới Pi, một
+  subagent có ngữ cảnh lớn tự viết bản tóm tắt rồi được nén, nếu việc tiếp theo trên nguyên ngữ cảnh tốn hơn khi
+  đã nén (mỗi request của lượt đều đọc lại ngữ cảnh, số request bằng trung bình các lượt gần đây của chính nó; so
+  với request tóm tắt, bản tóm tắt, rồi ghi và đọc ngữ cảnh nhỏ hơn; không bao giờ dưới 50k token). Request tóm tắt
+  mở đầu đúng bằng những gì request trước đã gửi, nên đọc từ bộ nhớ đệm prompt còn ấm thay vì trả tiền lại cho cả
+  ngữ cảnh. Báo cáo Pi nhận được giữ nguyên và không bao giờ phải chờ việc này. Việc giao trong lúc đó chờ nén xong
+  rồi đi, đúng một lần; `subagent status` ghi "compacting after its work". Bản ghi của subagent hiện dòng "Đã nén", và
+  **Chi tiêu** liệt kê lần nén cùng số tiết kiệm. Mặc định bật: Menu › Nén ngữ cảnh › **Nén subagent khi nó xong việc**
+  (Pi: `sessions.compactFinishedSubagent`).
 - **Bộ nhớ đệm prompt 1 giờ, khi bạn cần.** Mặc định bộ nhớ đệm prompt của Claude giữ 5 phút. Với phiên chờ lâu hơn
   (chờ subagent, lượt chạy CI, lịch hẹn), chọn 1 giờ trong Menu › Nén ngữ cảnh, cho phiên này hoặc mọi phiên: thức
   dậy trong vòng một giờ sẽ đọc lại bộ nhớ đệm thay vì ghi lại toàn bộ ngữ cảnh, còn mỗi lần ghi bộ nhớ đệm tốn 2 lần giá

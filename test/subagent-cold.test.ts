@@ -10,9 +10,9 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { type ConversationId, type EntryRecord, LiveDoc } from "@earendil-works/pi-durable";
 import { fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
-import { coldCosts, paysToCompact, requestsOf, requestsPerRun } from "../src/server/cold-subagent.ts";
+import { coldCosts, paysToCompact, requestsOf, requestsPerRun, warmCosts, warmSaving } from "../src/server/cold-subagent.ts";
 import { SelfCompactDoc, SubagentsDoc } from "../src/server/docs.ts";
-import { savingOf, writePrice } from "../src/server/self-compact.ts";
+import { SUMMARY_PREFIX, savingOf, writePrice } from "../src/server/self-compact.ts";
 
 /** About 10,000 tokens an answer, as the faux provider counts (4 characters a token). */
 const LONG = "word ".repeat(8_000);
@@ -91,8 +91,20 @@ function model() {
 
 let app: App;
 
+/**
+ * The app on `data`, without compacting a subagent after its work (PP-513, test/subagent-finish.test.ts): these tests
+ * hold the compaction before new work, on contexts that one would have made small already.
+ */
+async function opened(data: string): Promise<App> {
+    const made = await openApp(model() as never, data);
+
+    made.config.setSelfCompact("finishedSubagent", false);
+
+    return made;
+}
+
 before(async () => {
-    app = await openApp(model() as never, join(root, "cold-data"));
+    app = await opened(join(root, "cold-data"));
 });
 
 after(async () => {
@@ -209,6 +221,35 @@ test("the requests a run makes: the average over the newest five finished runs, 
 
     assert.equal(await requestsPerRun(pages(newestFirst)), (2 + 4 + 1 + 1 + 1) / 5);
     assert.equal(await requestsPerRun(pages([user(1)])), undefined);
+
+    // A summary turn after the work (PP-513) is no run: its answer is not counted, and the run before it is.
+    const asked = (id: number, text: string) => ({ id, kind: "pi.user", model: [{ role: "user", content: [{ type: "text", text }] }] }) as unknown as EntryRecord;
+    const summarized = [assistant(9), asked(8, `${SUMMARY_PREFIX}Your work is done`), assistant(7), result(6), assistant(5), result(4), assistant(3), user(2)];
+
+    assert.equal(await requestsPerRun(pages(summarized)), 3);
+});
+
+test("after its work, at warm prices (PP-513): the next run reading the context kept, against the summary turn and the smaller context", () => {
+    // Opus 5.5's catalogue prices, a 35k prompt, a 5-minute cache: C' = 35k + 20k + 3k = 58k.
+    const opus = { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 };
+    const write = writePrice(opus, 300_000);
+    const near = (actual: number, expected: number, what: string) => assert.ok(Math.abs(actual - expected) < 1e-9, `${what}: ${actual}, not ${expected}`);
+    const at600 = warmCosts(600_000, 35_000, opus, write, 10);
+
+    // Kept: 10 reads of 600k. Compacted: the summary turn reads 600k and writes 3k; then 58k written once and read 9 times.
+    near(at600.keep, 1.2, "600k kept");
+    near(at600.compact, 0.12 + 0.06 + 0.29 + 9 * 0.0116, "600k compacted");
+    near(at600.after, 58_000, "what is left");
+    assert.ok(paysToCompact(600_000, at600));
+    // 150k: ten requests leave it ($0.30 against $0.48); thirty compact it ($0.90 against $0.72).
+    assert.equal(paysToCompact(150_000, warmCosts(150_000, 35_000, opus, write, 10)), false);
+    assert.ok(paysToCompact(150_000, warmCosts(150_000, 35_000, opus, write, 30)));
+    // One request never pays: the summary turn reads the whole context once already.
+    assert.equal(paysToCompact(600_000, warmCosts(600_000, 35_000, opus, write, 1)), false);
+    // Under the floor, whatever the requests.
+    assert.equal(paysToCompact(45_000, warmCosts(45_000, 5_000, { ...opus, cacheRead: 4 }, write, 40)), false);
+    // The saving recorded from real figures is the rule's when they are the rule's: the summary turn cost its read and output.
+    near(warmSaving(600_000, 58_000, 0.12 + 0.06, opus, write, 10), at600.saving, "saving");
 });
 
 test("a subagent whose runs make about 30 requests compacts at 120k, where the first request alone would not; one whose runs make 1 or 2 does not", async () => {
@@ -342,7 +383,7 @@ test("status shows each subagent's context, share of the window, last answer, an
 
 test("a restart in the middle of the compaction compacts once and delivers once", async () => {
     const data = join(root, "cold-restart");
-    let first: App | undefined = await openApp(model() as never, data);
+    let first: App | undefined = await opened(data);
 
     try {
         const { id, sub } = await filled("again", 4, first);
@@ -360,7 +401,7 @@ test("a restart in the middle of the compaction compacts once and delivers once"
         slowSummary = 1_500;
         // One app per data folder in the process: the shared one steps aside meanwhile.
         await app.close();
-        app = await openApp(model() as never, data);
+        app = await opened(data);
         await until(async () => (await reports(id, "again")) === 5 && !app.isBusy(id) && !app.isBusy(sub), "the report after the restart", 90_000);
 
         assert.equal(summaries, 1, "one summary after the restart: the compaction cut off, not another");
@@ -373,6 +414,6 @@ test("a restart in the middle of the compaction compacts once and delivers once"
         slowSummary = 0;
         await first?.close();
         await app.close().catch(() => {});
-        app = await openApp(model() as never, join(root, "cold-data"));
+        app = await opened(join(root, "cold-data"));
     }
 });

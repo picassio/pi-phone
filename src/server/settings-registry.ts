@@ -458,6 +458,16 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             choices: () => ["on", "off"],
             apply: (user, value) => app.setSelfCompact(user, "coldSubagent", onOff(value)),
         },
+        {
+            id: "sessions.compactFinishedSubagent",
+            area: "sessions",
+            title: "Compact a subagent when it finishes its work, while its prompt cache is warm",
+            help: "For every session: on (the default) or off. On: once a subagent's report is on its way, it writes its own summary from its warm cache and compacts, when its next run would cost more on its whole context (read by each request its runs make) than compacted. Work sent meanwhile waits for it. Menu › Compact context.",
+            owner: true,
+            read: () => (app.config.selfCompact.finishedSubagent ? "on" : "off"),
+            choices: () => ["on", "off"],
+            apply: (user, value) => app.setSelfCompact(user, "finishedSubagent", onOff(value)),
+        },
         // ─── The prompt cache's lifetime (PP-475) ───
         {
             id: "sessions.cacheRetention",

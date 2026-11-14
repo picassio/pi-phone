@@ -111,8 +111,8 @@ No Termux, no laptop, no cloud VM.
   wait, what it waits on and what each way costs once its context passes a share of the window (40% by default), and
   Pi decides. **Compact before the prompt cache expires** (off by default) does it without asking: a waiting session
   idle 4.5 minutes compacts itself, unless a report comes first. All three are in Menu › Compact context (Pi:
-  `sessions.compactSelf`, `sessions.compactRemindAt`, `sessions.compactBeforeExpiry`). Not in subagents: a subagent's
-  final answer is its report.
+  `sessions.compactSelf`, `sessions.compactRemindAt`, `sessions.compactBeforeExpiry`). A subagent does not call
+  compact_self: its final answer is its report (it compacts after it, below).
 - **A subagent's cold cache is checked before new work.** When Pi sends work to a subagent idle longer than its prompt
   cache lasts, and the new work would cost more on its whole context than compacted (its first request writes the
   context again and each later one reads it, as many requests as the subagent's own recent runs made; against the
@@ -123,6 +123,15 @@ No Termux, no laptop, no cloud VM.
   lists it with what it saved. A warm or small subagent is sent the work as it is. `subagent status` shows each
   subagent's context, its share of the window, its last answer, and whether its cache is warm or cold. On by default:
   Menu › Compact context › **Compact a cold subagent before new work** (Pi: `sessions.compactColdSubagent`).
+- **A subagent compacts when it finishes its work, while its cache is warm.** Once a subagent's report is on its way
+  to Pi, a subagent with a large context writes its own summary and is compacted, when its next work would cost more
+  on its whole context than compacted (each request of a run reads the context, as many requests as its own recent
+  runs made; against the summary request, the summary, and the smaller context written and read; never under 50k
+  tokens). The summary request starts with exactly what its last request sent, so it reads the warm prompt cache
+  instead of paying for the whole context again. The report Pi gets is unchanged and never waits for this. Work sent
+  meanwhile waits until it is done, then goes, once; `subagent status` says "compacting after its work". Its
+  transcript shows the "Compacted" line, and **Spend** lists it with what it saved. On by default: Menu › Compact
+  context › **Compact a subagent when it finishes its work** (Pi: `sessions.compactFinishedSubagent`).
 - **A 1-hour prompt cache, when you want it.** Claude's prompt cache lasts 5 minutes by default. For a session that
   waits longer (on subagents, CI runs, schedules), pick 1 hour in Menu › Compact context, for this session or every
   session: a wake-up within the hour reads the cache instead of writing the whole context again, and each cache write

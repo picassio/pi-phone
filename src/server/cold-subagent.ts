@@ -16,14 +16,39 @@
  *   self-compaction does), awaited, and restart-safe: a compaction under way is waited for, and one placed after the
  *   check is taken as done, so a restart compacts once. It is recorded as a self-compaction of the subagent's
  *   (`recordCompaction`, reason `cold`): the subagent's transcript line, and Spend's cost and saving.
+ *
+ * A subagent that finished its work compacts right away, while its cache is warm (PP-513; the owner, 2026-11-14), so it
+ * is small before the cache can go cold at all:
+ * - `finished`: once the reporter that delivered the work has handed its report on, whether to compact now: the setting
+ *   is on (`finishedSubagent`, Menu › Compact context, on by default), its context is measured and at least
+ *   `COLD_FLOOR_TOKENS`, and its next run costs more on the context kept than compacted at warm prices (`warmCosts`),
+ *   with the requests its runs make (`requestsPerRun`).
+ * - `finish`: the subagent writes its own summary (self-compaction's summary turn, `summaryRequest("finish")`): a
+ *   request with the prefix of its last one, which reads the warm cache, where Pi Durable's summarizer would send the
+ *   context again uncached. Then the app compacts with it (`SELF_COMPACT_MARK`), and records it (reason `finish`).
+ *   Restart-safe: the summary request goes under the reporter's request id, a compaction under way is waited for, and
+ *   one placed since the check is taken as done.
  */
 import type { Context } from "@earendil-works/chord/context";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { estimateMessageTokens } from "@earendil-works/pi-ai/utils/estimate";
-import { type ConversationId, type Cursor, type EntryRecord, LiveDoc, type UsageState, UsageDoc } from "@earendil-works/pi-durable";
+import { ConversationBusy, type ConversationId, type Cursor, type EntryRecord, LiveDoc, type UsageState, UsageDoc } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
+import { SelfCompactDoc } from "./docs.ts";
 import { projectStats, usageCost } from "./projection.ts";
-import { catalogued, KEEP_RECENT_TOKENS, type Prices, promptTokensOf, recordCompaction, savingOf, writePrice } from "./self-compact.ts";
+import {
+    catalogued,
+    compactedLine,
+    KEEP_RECENT_TOKENS,
+    type Prices,
+    promptTokensOf,
+    recordCompaction,
+    SELF_COMPACT_MARK,
+    SUMMARY_PREFIX,
+    savingOf,
+    summaryRequest,
+    writePrice,
+} from "./self-compact.ts";
 
 const context = BACKGROUND_CONTEXT;
 
@@ -61,6 +86,15 @@ export type ColdPlan = { tokens: number; idleMs: number; promptTokens: number; m
 /** What compacting came to. */
 export type ColdOutcome = { after: number; cost: number; saving: number } | { nothing: true };
 
+/**
+ * What `finished` decided (PP-513), kept in the reporter's checkpoint: the context, Pi's prompt in it, its newest entry
+ * (a compaction after it is this one), the requests a run is taken to make, and the saving the rule expects.
+ */
+export type FinishPlan = { tokens: number; promptTokens: number; mark: number; requests: number; saving: number };
+
+/** What compacting after the work came to: done, nothing (a message came first, or nothing old enough), or failed. */
+export type FinishOutcome = { after: number; cost: number; saving: number } | { nothing: true } | { error: string };
+
 /** The requests a run is taken to make when the subagent has no finished run to go by, and the range taken. */
 export const DEFAULT_REQUESTS = 10;
 export const MIN_REQUESTS = 1;
@@ -94,6 +128,41 @@ export function coldCosts(
     return { keep, compact, after, saving: keep - compact };
 }
 
+/**
+ * The cost rule for a subagent that just finished its work, its cache warm (PP-513), in dollars, for a next run of
+ * `requests` requests:
+ * - `keep`: each request reads the context C from the cache: n × C × read.
+ * - `compact`: the summary turn reads C from the warm cache and writes the summary (3k at the output price); then the
+ *   next run's first request writes C' = Pi's prompt + 20k + 3k, and each later one reads it: C × read + 3k × output +
+ *   C' × write + (n − 1) × C' × read.
+ * At warm prices both ways: a next run after the cache went cold would pay more for the context kept, so the rule leans
+ * toward keeping it. `saving` is keep − compact.
+ */
+export function warmCosts(
+    tokens: number,
+    promptTokens: number,
+    prices: Prices,
+    write: number,
+    requests: number,
+): { keep: number; compact: number; after: number; saving: number } {
+    const after = Math.min(tokens, promptTokens + KEEP_RECENT_TOKENS + SUMMARY_TOKENS);
+    const keep = (requests * tokens * prices.cacheRead) / 1_000_000;
+    const compact = (tokens * prices.cacheRead + SUMMARY_TOKENS * prices.output + after * write + Math.max(0, requests - 1) * after * prices.cacheRead) / 1_000_000;
+
+    return { keep, compact, after, saving: keep - compact };
+}
+
+/**
+ * What compacting after the work saved, from what it came to (PP-513): the next run on the context kept, against the
+ * summary turn's real cost and the next run on the compacted one, at warm prices, as `warmCosts` reckons them.
+ */
+export function warmSaving(before: number, after: number, cost: number, prices: Prices, write: number, requests: number): number {
+    const keep = requests * before * prices.cacheRead;
+    const compacted = after * write + Math.max(0, requests - 1) * after * prices.cacheRead;
+
+    return (keep - compacted) / 1_000_000 - cost;
+}
+
 /** Whether compacting pays: past the floor, and the work costs more on the context kept than compacted. */
 export const paysToCompact = (tokens: number, costs: { keep: number; compact: number }): boolean => tokens >= COLD_FLOOR_TOKENS && costs.keep > costs.compact;
 
@@ -122,6 +191,9 @@ export async function requestsPerRun(entries: (cursor: unknown) => Promise<{ ite
 
             if (entry.kind === "pi.assistant") {
                 answers++;
+            } else if (entry.kind === "pi.user" && userText(entry).startsWith(SUMMARY_PREFIX)) {
+                // A summary turn (PP-513, PP-473) is no run of work: its answer is not counted.
+                answers = 0;
             } else if (entry.kind === "pi.user" && answers > 0) {
                 runs.push(answers);
                 answers = 0;
@@ -149,6 +221,17 @@ function writtenOf(usage: UsageState | undefined): number {
 
 const isCompaction = (entry: EntryRecord, mark: number) => entry.kind === "pi.compaction" && Number(entry.id) > mark;
 
+/** A user entry's text: its message's, or its text parts joined. */
+function userText(entry: EntryRecord): string {
+    const content = (entry.model?.[0] as { content?: unknown } | undefined)?.content;
+
+    if (typeof content === "string") {
+        return content;
+    }
+
+    return Array.isArray(content) ? (content as { type?: string; text?: string }[]).map((part) => (part.type === "text" ? (part.text ?? "") : "")).join("") : "";
+}
+
 export class ColdSubagents {
     readonly #app: PocketApp;
 
@@ -159,6 +242,19 @@ export class ColdSubagents {
     /** The owner's switch (Menu › Compact context): on by default. */
     on(): boolean {
         return this.#app.config.selfCompact.coldSubagent;
+    }
+
+    /** The owner's switch for compacting after the work (PP-513, Menu › Compact context): on by default. */
+    finishOn(): boolean {
+        return this.#app.config.selfCompact.finishedSubagent;
+    }
+
+    /** Whether `id` is compacting itself now: its summary turn asked for or written, or a compaction under way. */
+    async #compacting(id: ConversationId): Promise<boolean> {
+        const own = await this.#app.harness.snapshot(SelfCompactDoc, id, context);
+        const live = await this.#app.harness.snapshot(LiveDoc, id, context);
+
+        return own?.asked !== undefined || own?.ready !== undefined || live?.compactions !== undefined;
     }
 
     async figures(id: ConversationId): Promise<SubagentFigures> {
@@ -193,7 +289,7 @@ export class ColdSubagents {
         const figures = await this.figures(id);
         const { busy, tokens, estimated, prices, lastAt, ttlMs, promptTokens } = figures;
 
-        if (!this.on() || busy || tokens === undefined || estimated || prices === undefined || lastAt === undefined) {
+        if (!this.on() || busy || tokens === undefined || estimated || prices === undefined || lastAt === undefined || (await this.#compacting(id))) {
             return { figures };
         }
 
@@ -222,25 +318,7 @@ export class ColdSubagents {
         const app = this.#app;
         const conversation = await app.conversation(id);
         const placed = async () => (await conversation.context(at)).entries.find((entry) => isCompaction(entry, plan.mark));
-        let entry = await placed();
-
-        if (entry === undefined) {
-            const running = (await app.harness.snapshot(LiveDoc, id, at))?.compactions?.find((each) => each.trigger === "manual");
-            const taskId = running?.taskId ?? (await conversation.compact(undefined, at));
-            const outcome = (await app.harness.waitForTask(taskId, at)).state.outcome;
-
-            if (outcome.status !== "completed") {
-                const why = "error" in outcome ? outcome.error?.message : undefined;
-
-                throw new Error(`the compaction ${outcome.status}${why === undefined ? "" : `: ${why}`}`);
-            }
-
-            if (outcome.result.submissionId !== undefined) {
-                await (await app.harness.submission(outcome.result.submissionId, at))?.wait(at);
-            }
-
-            entry = await placed();
-        }
+        const entry = (await placed()) ?? (await this.#compactNow(id, undefined, placed, at));
 
         if (entry === undefined) {
             return { nothing: true };
@@ -281,5 +359,157 @@ export class ColdSubagents {
         );
 
         return { after, cost, saving };
+    }
+
+    /**
+     * Compact `id` with `instructions` and wait until it is placed: a compaction under way is waited for instead of
+     * starting another. What it placed (`placed`), or undefined when there was nothing old enough. Throws when it fails.
+     */
+    async #compactNow(id: ConversationId, instructions: string | undefined, placed: () => Promise<EntryRecord | undefined>, at: Context): Promise<EntryRecord | undefined> {
+        const app = this.#app;
+        const running = (await app.harness.snapshot(LiveDoc, id, at))?.compactions?.find((each) => each.trigger === "manual");
+        const taskId = running?.taskId ?? (await (await app.conversation(id)).compact(instructions, at));
+        const outcome = (await app.harness.waitForTask(taskId, at)).state.outcome;
+
+        if (outcome.status !== "completed") {
+            const why = "error" in outcome ? outcome.error?.message : undefined;
+
+            throw new Error(`the compaction ${outcome.status}${why === undefined ? "" : `: ${why}`}`);
+        }
+
+        if (outcome.result.submissionId !== undefined) {
+            await (await app.harness.submission(outcome.result.submissionId, at))?.wait(at);
+        }
+
+        return placed();
+    }
+
+    /**
+     * Whether `id`, which just finished its work and handed its report on, compacts now (PP-513): a plan, or undefined to
+     * leave it as it is. The reporter checks in its commit that it is still idle, with nothing queued and no newer work.
+     */
+    async finished(id: ConversationId): Promise<FinishPlan | undefined> {
+        if (!this.finishOn()) {
+            return undefined;
+        }
+
+        const figures = await this.figures(id);
+        const { tokens, estimated, prices, ttlMs, promptTokens } = figures;
+
+        if (tokens === undefined || estimated || prices === undefined || tokens < COLD_FLOOR_TOKENS) {
+            return undefined;
+        }
+
+        const conversation = await this.#app.conversation(id);
+        const requests = requestsOf(await requestsPerRun((cursor) => conversation.entries({ order: "descending" }, 100, cursor as Cursor | undefined, context)));
+        const costs = warmCosts(tokens, promptTokens, prices, writePrice(prices, ttlMs), requests);
+
+        return paysToCompact(tokens, costs) ? { tokens, promptTokens, mark: figures.mark, requests, saving: costs.saving } : undefined;
+    }
+
+    /**
+     * Compact `id` after its work, as `plan` decided (PP-513): it writes its own summary in a summary turn, sent under
+     * `requestId` (`SelfCompactDoc.asked`, set by the reporter, says it is wanted), then the app compacts with it and
+     * records it. Run again after a restart, it sends nothing twice (the request id), waits for the compaction under way,
+     * or takes the one placed since the check, so it compacts once. Throws when the compaction fails.
+     */
+    async finish(id: ConversationId, plan: FinishPlan, requestId: string, at: Context): Promise<FinishOutcome> {
+        const app = this.#app;
+        const conversation = await app.conversation(id);
+        const placed = async () => (await conversation.context(at)).entries.find((entry) => isCompaction(entry, plan.mark));
+        const own = async () => app.harness.snapshot(SelfCompactDoc, id, at);
+        // Its summary turn's state, once it came to nothing: nothing else may take it for one of its own.
+        const clear = () =>
+            app.harness.commit(async (tx) => {
+                const doc = await tx.doc(SelfCompactDoc, id);
+
+                if (doc.asked?.reason === "finish") {
+                    delete doc.asked;
+                }
+
+                if (doc.ready?.reason === "finish") {
+                    delete doc.ready;
+                }
+            }, at);
+
+        try {
+            let entry = await placed();
+            let ready = (await own())?.ready;
+
+            if (entry === undefined && ready === undefined) {
+                // A message to the subagent that came first ends its summary turn (`SelfCompact.onYield`): nothing to do.
+                if ((await own())?.asked?.reason !== "finish") {
+                    return { nothing: true };
+                }
+
+                const content = summaryRequest("finish", await app.selfCompact.pending(id), undefined);
+                // A person's message to it that came first and runs now: it stays as it is.
+                const submission = await conversation.submit({ type: "input", content, whenBusy: "reject", requestId }, at).catch((error: unknown) => {
+                    if (error instanceof ConversationBusy) {
+                        return undefined;
+                    }
+
+                    throw error;
+                });
+
+                if (submission === undefined) {
+                    await clear();
+
+                    return { nothing: true };
+                }
+
+                await submission.wait(at);
+                ready = (await own())?.ready;
+            }
+
+            if (entry === undefined && ready?.reason === "finish") {
+                entry = await this.#compactNow(id, SELF_COMPACT_MARK, placed, at);
+            }
+
+            if (entry === undefined) {
+                await clear();
+
+                return { nothing: true };
+            }
+
+            if (ready === undefined) {
+                // Recorded before a restart: what it came to.
+                const done = (await own())?.done.find((each) => each.entry === Number(entry.id));
+
+                return done === undefined ? { nothing: true } : { after: done.after, cost: done.cost, saving: done.saving };
+            }
+
+            const view = await conversation.context(at);
+            // The next request's whole prompt (PP-480): Pi's prompt, read before the compaction, then what the view keeps.
+            const after = plan.promptTokens + view.messages.reduce((sum, message) => sum + estimateMessageTokens(message), 0);
+            const [provider = "", ...rest] = ready.model.split("/");
+            const { prices } = catalogued(app, provider, rest.join("/"));
+            const saving = warmSaving(ready.before, after, ready.cost, prices, writePrice(prices, app.selfCompact.timingOf(id).ttlMs), plan.requests);
+            const record = {
+                session: Number(app.rootOf(id)),
+                entry: Number(entry.id),
+                at: Date.now(),
+                reason: "finish" as const,
+                before: ready.before,
+                after,
+                cost: ready.cost,
+                saving,
+                read: ready.read,
+                written: ready.written,
+                model: ready.model,
+            };
+
+            await recordCompaction(app, id, record, at);
+            app.log(`subagent ${String(id)} after its work: ${compactedLine(record)}`);
+
+            return { after, cost: ready.cost, saving };
+        } catch (error) {
+            // Stopped, or cut off by a restart: the reporter runs this again, and the state is still wanted.
+            if (at.abortSignal?.aborted !== true) {
+                await clear();
+            }
+
+            throw error;
+        }
     }
 }
