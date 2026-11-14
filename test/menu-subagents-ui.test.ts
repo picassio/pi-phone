@@ -121,9 +121,11 @@ test("fourteen subagents: the one at work has its row, the idle fold into one th
     await page.navigate(`${base}/s/${id}`);
     await see(`return JSON.stringify(document.querySelector(".composer textarea") !== null)`, "the session");
     await app.commands.submit(id, owner(app), { text: "spread out", requestId: `spread-${id}` });
+    // Idle once answered: a subagent just spawned is not busy yet either, and since Pi 1.5.1 its run may start a moment
+    // after its record is there.
     await see(
         `const agents = (await import("/store.js")).store.state.view.subagents ?? [];
-        return JSON.stringify(agents.length === 14 && agents.filter((each) => !each.busy).length === 13 && agents.some((each) => each.busy))`,
+        return JSON.stringify(agents.length === 14 && agents.filter((each) => !each.busy && each.answeredAt !== undefined).length === 13 && agents.some((each) => each.busy))`,
         "thirteen idle, one at work",
         30_000,
     );
