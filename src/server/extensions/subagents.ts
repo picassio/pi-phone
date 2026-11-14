@@ -897,8 +897,11 @@ async function compactedBy(api: ToolExecutionApi, name: string, reporter: number
     }
 }
 
-/** What the send says of the compaction before it (PP-511), or why the message did not go. */
-function compactedText(name: string, compacted: ColdCompacted): string {
+/**
+ * What the send says of the compaction before it (PP-511), or why the message did not go; done, with the saving the
+ * rule expected (`plan`) over the requests a run of the subagent's makes.
+ */
+function compactedText(name: string, compacted: ColdCompacted, plan: ColdPlan): string {
     const idle = `${span(compacted.idleMs)} since its last answer`;
 
     if ("error" in compacted) {
@@ -909,7 +912,10 @@ function compactedText(name: string, compacted: ColdCompacted): string {
         return `${name}'s cache had gone cold (${idle}), but it had nothing old enough to compact.`;
     }
 
-    return `Compacted ${name} first: ${thousands(compacted.before)} → ${thousands(compacted.after)} tokens; its cache had gone cold (${idle}).`;
+    const requests = Math.round(plan.requests);
+    const saved = `$${plan.saving.toFixed(plan.saving < 0.1 ? 3 : 2)}`;
+
+    return `Compacted ${name} first: ${thousands(compacted.before)} → ${thousands(compacted.after)} tokens; its cache had gone cold (${idle}); about ${saved} saved over ~${requests} request${requests === 1 ? "" : "s"}.`;
 }
 
 export default function createSubagents(host: PocketHost) {
@@ -1243,7 +1249,9 @@ export default function createSubagents(host: PocketHost) {
             if (cold !== undefined && reporter !== undefined) {
                 const compacted = await compactedBy(api, name, reporter, context);
 
-                return reply("error" in compacted ? compactedText(name, compacted) : `${compactedText(name, compacted)} ${result}`, current?.conversationId);
+                const said = compactedText(name, compacted, cold);
+
+                return reply("error" in compacted ? said : `${said} ${result}`, current?.conversationId);
             }
 
             return reply(result, current?.conversationId);

@@ -452,7 +452,7 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             id: "sessions.compactColdSubagent",
             area: "sessions",
             title: "Compact a subagent whose prompt cache went cold before new work",
-            help: "For every session: on (the default) or off. On: work sent to a subagent idle longer than its prompt cache lasts, with a context that would cost more to write again than to compact, compacts it first. Menu › Compact context.",
+            help: "For every session: on (the default) or off. On: work sent to a subagent idle longer than its prompt cache lasts compacts it first, when the work would cost more on its whole context (written again, then read by each request its runs make) than compacted. Menu › Compact context.",
             owner: true,
             read: () => (app.config.selfCompact.coldSubagent ? "on" : "off"),
             choices: () => ["on", "off"],

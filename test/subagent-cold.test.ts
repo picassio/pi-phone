@@ -1,32 +1,44 @@
 // A subagent whose prompt cache went cold, compacted before new work (PP-511, src/server/cold-subagent.ts): a send to
 // a cold, large subagent compacts it first, waits for it, and says so, and the work's first request is small; a warm
 // one, a small one, or one with the setting off is left as it is; a restart in the middle compacts once and delivers
-// once; status shows each subagent's context, share of the window, last answer, and cache.
+// once; status shows each subagent's context, share of the window, last answer, and cache. The rule counts the work's
+// later requests too, as many as the subagent's own runs made: many tip a context the first request alone would leave
+// as it is, and few do not.
 import { type App, cleanUp, context, lastText, newSession, openApp, owner, root, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { type ConversationId, type EntryRecord, LiveDoc } from "@earendil-works/pi-durable";
 import { fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
-import { coldCosts, paysToCompact } from "../src/server/cold-subagent.ts";
+import { coldCosts, paysToCompact, requestsOf, requestsPerRun } from "../src/server/cold-subagent.ts";
 import { SelfCompactDoc, SubagentsDoc } from "../src/server/docs.ts";
 import { savingOf, writePrice } from "../src/server/self-compact.ts";
 
 /** About 10,000 tokens an answer, as the faux provider counts (4 characters a token). */
 const LONG = "word ".repeat(8_000);
+/** About 22,000 tokens: a run's last answer in the tests of the requests a run makes. */
+const LONGER = "word ".repeat(17_600);
+/** The tool calls a "loop" run makes before its answer: 30 requests a run. */
+const LOOP_CALLS = 29;
 /** Summaries the next compaction waits for, so a test can stop the app in the middle of one. */
 let slowSummary = 0;
 let summaries = 0;
 
 /**
- * A cache write dear against the input and the output (6.25 to 1 and 5), so compacting pays from a context the tests
- * fill quickly (Opus's own prices are the cost rule's test); and a wide window, so Pi Durable's own compaction stays
- * away. A subagent answers "fill" at length and anything else briefly; the parent calls the subagent tool as it is told.
+ * faux-1: a cache write dear against the input and the output (6.25 to 1 and 5), so compacting pays from a context the
+ * tests fill quickly. faux-2: Opus 5.5's prices with twice its output price ($4 input, $40 output, $0.20 read, $5
+ * write), so at about 120k the first request alone leaves the context as it is by a clear margin, and the requests
+ * after it decide. Both with a wide window, so Pi Durable's own compaction stays away. A subagent answers "fill" at
+ * length; "loop" with 29 tool calls, then about 20k tokens; "two" with one call, then 20k; "one" with 20k at once; and
+ * anything else briefly. The parent calls the subagent tool as it is told.
  */
 function model() {
     const faux = fauxProvider({
         tokensPerSecond: 1_000_000,
-        models: [{ id: "faux-1", contextWindow: 1_000_000, cost: { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 6.25 } }],
+        models: [
+            { id: "faux-1", contextWindow: 1_000_000, cost: { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 6.25 } },
+            { id: "faux-2", contextWindow: 1_000_000, cost: { input: 4, output: 40, cacheRead: 0.2, cacheWrite: 5 } },
+        ],
     });
 
     faux.setResponses(
@@ -48,7 +60,18 @@ function model() {
             const text = said.replace(/^\[from: [^\]]+\] /, "");
 
             if (/You are the subagent \\"/.test(all)) {
-                return fauxAssistantMessage([fauxText(text === "fill" ? LONG : `did ${text}`)]);
+                // What this run was asked: the turn's user message, before its tool rounds.
+                const turn = request.messages.filter((message) => message.role !== "system");
+                const start = turn.findLastIndex((message) => message.role === "user");
+                const asked = lastText({ messages: turn.slice(0, start + 1) }).text.replace(/^\[from: [^\]]+\] /, "");
+                const calls = turn.slice(start + 1).filter((message) => message.role === "toolResult").length;
+                const callsWanted = asked === "loop" ? LOOP_CALLS : asked === "two" ? 1 : 0;
+
+                if (calls < callsWanted) {
+                    return fauxAssistantMessage([fauxToolCall("bash", { command: "true" })], { stopReason: "toolUse" });
+                }
+
+                return fauxAssistantMessage([fauxText(asked === "fill" ? LONG : ["loop", "two", "one"].includes(asked) ? LONGER : `did ${asked}`)]);
             }
 
             const asked = /^(spawn|send|status) (\S+)(?: (.+))?$/.exec(text);
@@ -112,6 +135,22 @@ async function tell(id: ConversationId, text: string, name: string, reported: nu
     );
 }
 
+/**
+ * A parent on faux-2 with a subagent `name` whose runs were `runs` (each "loop", "two" or "one"): its context about
+ * 20k tokens a run past Pi's prompt.
+ */
+async function ran(name: string, runs: readonly string[]): Promise<{ id: ConversationId; sub: ConversationId }> {
+    const id = await newSession(app);
+
+    await app.commands.configure(id, owner(app), { model: { provider: "faux", modelId: "faux-2" }, thinkingLevel: "off" });
+
+    for (const [index, run] of runs.entries()) {
+        await tell(id, `${index === 0 ? "spawn" : "send"} ${name} ${run}`, name, index + 1);
+    }
+
+    return { id, sub: await subagentOf(id, name) };
+}
+
 /** A parent with a subagent `name` whose context holds `fills` long answers. */
 async function filled(name: string, fills: number, on = app): Promise<{ id: ConversationId; sub: ConversationId }> {
     const id = await newSession(on);
@@ -125,19 +164,89 @@ async function filled(name: string, fills: number, on = app): Promise<{ id: Conv
     return { id, sub: await subagentOf(id, name, on) };
 }
 
-test("the cost rule: a cold rewrite of the context against the summarizer, the summary, and what is left to write", () => {
-    // Opus 5.5's prices (PP-474), a 35k prompt: at 180k a cold rewrite costs more than compacting; at 60k it does not.
+test("the cost rule: the context kept, written once and read by each later request, against compacting it first", () => {
+    // Opus 5.5's prices (PP-474), a 35k prompt, a 5-minute cache.
     const opus = { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 };
-    const at180 = coldCosts(180_000, 35_000, opus, writePrice(opus, 300_000));
+    const write = writePrice(opus, 300_000);
+    const at180 = coldCosts(180_000, 35_000, opus, write, 10);
 
-    assert.ok(Math.abs(at180.cold - 0.9) < 1e-9, `cold ${at180.cold}`);
-    assert.ok(paysToCompact(180_000, at180), `compact ${at180.compact}`);
-    assert.equal(paysToCompact(60_000, coldCosts(60_000, 35_000, opus, 5)), false);
-    // Under the floor, whatever the prices: a write ten times the input would pay at 45k.
+    // Kept: $0.90 to write, then 9 reads of 180k at $0.20/M. Compacted: $0.50 + $0.06 + 58k written and read 9 times.
+    assert.ok(Math.abs(at180.keep - (0.9 + 9 * 0.036)) < 1e-9, `keep ${at180.keep}`);
+    assert.ok(Math.abs(at180.compact - (0.5 + 0.06 + 0.29 + 9 * 0.0116)) < 1e-9, `compact ${at180.compact}`);
+    assert.ok(Math.abs(at180.saving - (at180.keep - at180.compact)) < 1e-9);
+    assert.ok(paysToCompact(180_000, at180));
+    // At 120k: the first request alone (the rule before) leaves it; a subagent whose runs make 30 requests compacts.
+    assert.equal(paysToCompact(120_000, coldCosts(120_000, 35_000, opus, write, 1)), false);
+    assert.ok(paysToCompact(120_000, coldCosts(120_000, 35_000, opus, write, 30)));
+    assert.equal(paysToCompact(60_000, coldCosts(60_000, 35_000, opus, write, 10)), false);
+    // Under the floor, whatever the prices and the requests: a write ten times the input would pay at 45k.
     const dear = { ...opus, cacheWrite: 40 };
 
-    assert.ok(coldCosts(45_000, 5_000, dear, 40).cold > coldCosts(45_000, 5_000, dear, 40).compact);
-    assert.equal(paysToCompact(45_000, coldCosts(45_000, 5_000, dear, 40)), false);
+    assert.ok(coldCosts(45_000, 5_000, dear, 40, 40).saving > 0);
+    assert.equal(paysToCompact(45_000, coldCosts(45_000, 5_000, dear, 40, 40)), false);
+    // The requests a run is taken to make: its own average, else 10, kept in 1–40.
+    assert.deepEqual([requestsOf(undefined), requestsOf(0.5), requestsOf(1.6), requestsOf(55)], [10, 1, 1.6, 40]);
+});
+
+test("the requests a run makes: the average over the newest five finished runs, each from its message to the next", async () => {
+    // Each request its own generation task (Pi Durable hands the run over at each tool round): the task is no run.
+    const assistant = (id: number) => ({ id, kind: "pi.assistant", byTaskId: id }) as unknown as EntryRecord;
+    const user = (id: number) => ({ id, kind: "pi.user" }) as unknown as EntryRecord;
+    const result = (id: number) => ({ id, kind: "pi.tool-result" }) as unknown as EntryRecord;
+    // Newest first, in pages of 3: runs of 2, 4 (two messages placed together, the older with no answer of its own),
+    // 1, 1 and 1 answers; then an older run of 9, left out.
+    const newestFirst = [
+        assistant(40), result(39), assistant(38), user(37),
+        assistant(36), result(35), assistant(34), result(33), assistant(32), result(31), assistant(30), user(29), user(28),
+        assistant(27), user(26), assistant(25), user(24), assistant(23), user(22),
+        ...[21, 20, 19, 18, 17, 16, 15, 14, 13].map(assistant), user(12),
+    ];
+    const pages = (items: readonly EntryRecord[]) => async (cursor: unknown) => {
+        const from = typeof cursor === "number" ? cursor : 0;
+
+        return { items: items.slice(from, from + 3), ...(from + 3 < items.length ? { next: from + 3 } : {}) };
+    };
+
+    assert.equal(await requestsPerRun(pages(newestFirst)), (2 + 4 + 1 + 1 + 1) / 5);
+    assert.equal(await requestsPerRun(pages([user(1)])), undefined);
+});
+
+test("a subagent whose runs make about 30 requests compacts at 120k, where the first request alone would not; one whose runs make 1 or 2 does not", async () => {
+    const many = await ran("many", ["loop", "loop", "loop", "loop"]);
+    const few = await ran("few", ["two", "one", "two", "one"]);
+    const prices = { input: 4, output: 40, cacheRead: 0.2, cacheWrite: 5 };
+
+    app.selfCompact.timing = { ttlMs: 300, leadMs: 100 };
+
+    try {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+
+        for (const [name, { sub }, requests] of [["many", many, 30], ["few", few, 1.5]] as const) {
+            const figures = await app.coldSubagents.figures(sub);
+            const tokens = figures.tokens!;
+
+            // Both near the threshold, about 120k: the rule before (the first request alone) leaves both as they are.
+            assert.ok(tokens > 100_000 && tokens < 140_000, `${name}: ${tokens} tokens`);
+            assert.equal(paysToCompact(tokens, coldCosts(tokens, figures.promptTokens, prices, 5, 1)), false, `${name}: the rule before`);
+            assert.equal(
+                paysToCompact(tokens, coldCosts(tokens, figures.promptTokens, prices, 5, requests)),
+                name === "many",
+                `${name}: the rule with ${requests} requests a run`,
+            );
+        }
+
+        // 30 requests a run: compacted first, with the saving over them.
+        await tell(many.id, "send many work", "many", 5);
+        assert.equal((await compactions(many.sub)).length, 1, "many: compacted");
+        assert.match((await results(many.id)).at(-1)!, /^Compacted many first: \d+k → \d+k tokens; its cache had gone cold \(\d+ s since its last answer\); about \$\d+\.\d+ saved over ~30 requests\. Sent to many\.$/);
+
+        // 1 or 2 a run: sent as it is.
+        await tell(few.id, "send few work", "few", 5);
+        assert.equal((await compactions(few.sub)).length, 0, "few: not compacted");
+        assert.equal((await results(few.id)).at(-1), "Sent to few.");
+    } finally {
+        app.selfCompact.timing = undefined;
+    }
 });
 
 test("a cold, large subagent compacts before the message, and says so; a warm one, or with the setting off, is left as it is", async () => {
@@ -175,7 +284,8 @@ test("a cold, large subagent compacts before the message, and says so; a warm on
 
         const said = (await results(id)).at(-1)!;
 
-        assert.match(said, /^Compacted big first: \d+k → \d+k tokens; its cache had gone cold \(\d+ s since its last answer\)\. Sent to big\.$/);
+        // Its runs made one request each: the saving is the first request's.
+        assert.match(said, /^Compacted big first: \d+k → \d+k tokens; its cache had gone cold \(\d+ s since its last answer\); about \$\d+\.\d+ saved over ~1 request\. Sent to big\.$/);
 
         // Recorded as the subagent's compaction, with its cost and saving, in its transcript and in Spend.
         const done = (await app.harness.snapshot(SelfCompactDoc, sub, context))!.done;

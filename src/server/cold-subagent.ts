@@ -8,7 +8,9 @@
  *   lasts: `subagent status` shows them.
  * - `check`: before `subagent send` delivers, whether to compact first: the setting is on (`coldSubagent`, Menu ›
  *   Compact context, on by default), the subagent is idle, it last answered longer ago than its cache lasts, its context
- *   is at least `COLD_FLOOR_TOKENS`, and writing that context again costs more than compacting it (`coldCosts`).
+ *   is at least `COLD_FLOOR_TOKENS`, and the new work costs more on the context as it is than compacted (`coldCosts`):
+ *   its first request writes the context, and each later one reads it from the cache, as many as the subagent's own
+ *   runs made (`requestsPerRun`).
  * - `compact`: the compaction, from the reporter that delivers the work (`extensions/subagents.ts`), before it submits:
  *   Pi Durable's own (`conversation.compact()`; the cache is cold, so there is no warm prefix to summarize on, as
  *   self-compaction does), awaited, and restart-safe: a compaction under way is waited for, and one placed after the
@@ -18,7 +20,7 @@
 import type { Context } from "@earendil-works/chord/context";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { estimateMessageTokens } from "@earendil-works/pi-ai/utils/estimate";
-import { type ConversationId, type EntryRecord, LiveDoc, type UsageState, UsageDoc } from "@earendil-works/pi-durable";
+import { type ConversationId, type Cursor, type EntryRecord, LiveDoc, type UsageState, UsageDoc } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
 import { projectStats, usageCost } from "./projection.ts";
 import { catalogued, KEEP_RECENT_TOKENS, type Prices, promptTokensOf, recordCompaction, savingOf, writePrice } from "./self-compact.ts";
@@ -50,31 +52,95 @@ export type SubagentFigures = {
     written: number;
 };
 
-/** What `check` decided to compact: the figures the reporter needs, kept in its input. */
-export type ColdPlan = { tokens: number; idleMs: number; promptTokens: number; mark: number; spent: number; written: number };
+/**
+ * What `check` decided to compact: the figures the reporter needs, kept in its input, and what the send says: the
+ * requests a run is expected to make, and the saving the rule expects over them.
+ */
+export type ColdPlan = { tokens: number; idleMs: number; promptTokens: number; mark: number; spent: number; written: number; requests: number; saving: number };
 
 /** What compacting came to. */
 export type ColdOutcome = { after: number; cost: number; saving: number } | { nothing: true };
 
+/** The requests a run is taken to make when the subagent has no finished run to go by, and the range taken. */
+export const DEFAULT_REQUESTS = 10;
+export const MIN_REQUESTS = 1;
+export const MAX_REQUESTS = 40;
+/** The newest finished runs the average is taken over, and the entries read back for them at most. */
+const RUNS = 5;
+const RUN_ENTRIES = 2_000;
+
 /**
- * The cost rule, in dollars: `cold`, the first request of new work writing the whole context again; `compact`, Pi
- * Durable's summarizer reading the part it summarizes (uncached, at the input price), writing the summary, and the
- * first request writing what is left (Pi's prompt, the recent messages, the summary). Later requests of the run read
- * less too; that saving is not counted, so the rule leans toward leaving a subagent as it is.
+ * The cost rule, in dollars, for new work of `requests` requests (PP-511; the owner's rule of 2026-11-14):
+ * - `keep`: the context C as it is. The first request writes it again (the cache is cold), and each later one reads it
+ *   from the cache: C × write + (n − 1) × C × cache read.
+ * - `compact`: Pi Durable's summarizer reading the part it summarizes (C − Pi's prompt − the 20k kept, uncached, at the
+ *   input price) and writing the summary (3k at the output price); then the first request writes what is left, C' =
+ *   Pi's prompt + 20k + 3k, and each later one reads it: C' × write + (n − 1) × C' × cache read.
+ * The context grows as the run goes, alike both ways, so that part is left out. `saving` is keep − compact.
  */
-export function coldCosts(tokens: number, promptTokens: number, prices: Prices, write: number): { cold: number; compact: number; after: number } {
+export function coldCosts(
+    tokens: number,
+    promptTokens: number,
+    prices: Prices,
+    write: number,
+    requests: number,
+): { keep: number; compact: number; after: number; saving: number } {
     const after = Math.min(tokens, promptTokens + KEEP_RECENT_TOKENS + SUMMARY_TOKENS);
     const summarized = Math.max(0, tokens - promptTokens - KEEP_RECENT_TOKENS);
+    const later = Math.max(0, requests - 1) * prices.cacheRead;
+    const keep = (tokens * write + tokens * later) / 1_000_000;
+    const compact = (summarized * prices.input + SUMMARY_TOKENS * prices.output + after * write + after * later) / 1_000_000;
 
-    return {
-        cold: (tokens * write) / 1_000_000,
-        compact: (summarized * prices.input + SUMMARY_TOKENS * prices.output + after * write) / 1_000_000,
-        after,
-    };
+    return { keep, compact, after, saving: keep - compact };
 }
 
-/** Whether compacting pays: past the floor, and cheaper than writing the context again. */
-export const paysToCompact = (tokens: number, costs: { cold: number; compact: number }): boolean => tokens >= COLD_FLOOR_TOKENS && costs.cold > costs.compact;
+/** Whether compacting pays: past the floor, and the work costs more on the context kept than compacted. */
+export const paysToCompact = (tokens: number, costs: { keep: number; compact: number }): boolean => tokens >= COLD_FLOOR_TOKENS && costs.keep > costs.compact;
+
+/** The requests a run is taken to make: the subagent's own average, else `DEFAULT_REQUESTS`, kept in 1–40. */
+export const requestsOf = (average: number | undefined): number => Math.min(MAX_REQUESTS, Math.max(MIN_REQUESTS, average ?? DEFAULT_REQUESTS));
+
+/**
+ * How many requests the subagent's runs made, on average, over its newest `RUNS` finished ones: the assistant answers
+ * after each message it was given (`entries`, newest first), up to the next. By the message, not by the task that
+ * appended them: Pi Durable hands a run to a new generation task at each tool round, so each request has its own. A
+ * message with no answer of its own (two placed together) counts with the one after it. A message steered into a run
+ * starts a new count there, which splits that run in two: rare for a subagent, and it errs toward fewer requests.
+ * Undefined when there is none. It reads back `RUN_ENTRIES` entries at most; a run cut by that limit is left out.
+ */
+export async function requestsPerRun(entries: (cursor: unknown) => Promise<{ items: readonly EntryRecord[]; next?: unknown }>): Promise<number | undefined> {
+    const runs: number[] = [];
+    let answers = 0;
+    let cursor: unknown;
+    let read = 0;
+
+    scan: while (runs.length < RUNS && read < RUN_ENTRIES) {
+        const page = await entries(cursor);
+
+        for (const entry of page.items) {
+            read++;
+
+            if (entry.kind === "pi.assistant") {
+                answers++;
+            } else if (entry.kind === "pi.user" && answers > 0) {
+                runs.push(answers);
+                answers = 0;
+            }
+
+            if (runs.length === RUNS || read >= RUN_ENTRIES) {
+                break scan;
+            }
+        }
+
+        if (page.next === undefined) {
+            break;
+        }
+
+        cursor = page.next;
+    }
+
+    return runs.length === 0 ? undefined : runs.reduce((sum, count) => sum + count, 0) / runs.length;
+}
 
 /** The usage's tokens written (input and cache writes) by its models. */
 function writtenOf(usage: UsageState | undefined): number {
@@ -133,11 +199,19 @@ export class ColdSubagents {
 
         const idleMs = Date.now() - lastAt;
 
-        if (idleMs < ttlMs || !paysToCompact(tokens, coldCosts(tokens, promptTokens, prices, writePrice(prices, ttlMs)))) {
+        if (idleMs < ttlMs || tokens < COLD_FLOOR_TOKENS) {
             return { figures };
         }
 
-        return { figures, plan: { tokens, idleMs, promptTokens, mark: figures.mark, spent: figures.spent, written: figures.written } };
+        const conversation = await this.#app.conversation(id);
+        const requests = requestsOf(await requestsPerRun((cursor) => conversation.entries({ order: "descending" }, 100, cursor as Cursor | undefined, context)));
+        const costs = coldCosts(tokens, promptTokens, prices, writePrice(prices, ttlMs), requests);
+
+        if (!paysToCompact(tokens, costs)) {
+            return { figures };
+        }
+
+        return { figures, plan: { tokens, idleMs, promptTokens, mark: figures.mark, spent: figures.spent, written: figures.written, requests, saving: costs.saving } };
     }
 
     /**

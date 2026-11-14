@@ -3866,7 +3866,7 @@
     "the prompt cache was about to expire": "提示缓存即将过期",
     "its prompt cache had gone cold before new work": "它的提示缓存在新工作前已失效",
     "Compact a cold subagent before new work": "在新工作前压缩缓存已失效的子代理",
-    "Work sent to a subagent idle longer than its prompt cache lasts compacts it first, when writing its whole context again would cost more. On by default.": "发给空闲时间超过其提示缓存时长的子代理的工作，会先压缩它（当重新写入整个上下文更贵时）。默认开启。",
+    "Work sent to a subagent idle longer than its prompt cache lasts compacts it first, when the work would cost more on its whole context: written again, then read by each request its runs make. On by default.": "发给空闲时间超过其提示缓存时长的子代理的工作，在整个上下文上更贵时会先压缩它：上下文要重新写入，再被每次运行的每个请求读取。默认开启。",
     "Compacted: {reason}, {before} → {after} tokens, {cost}, saved about {saving}": "已压缩：{reason}，{before} → {after} 个 token，{cost}，约节省 {saving}",
     "Compacting this session…": "正在压缩此会话…",
     "Not compacted": "未压缩",

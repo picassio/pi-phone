@@ -167,7 +167,7 @@ function WhileWaiting({ settings }) {
                 </div>
             </div>
             ${toggle("beforeExpiry", t("Compact before the prompt cache expires"), t("A session idle while it waits, its context past that share, compacts itself just before its prompt cache expires. A report that comes first cancels it. Off by default."), settings.beforeExpiry)}
-            ${toggle("coldSubagent", t("Compact a cold subagent before new work"), t("Work sent to a subagent idle longer than its prompt cache lasts compacts it first, when writing its whole context again would cost more. On by default."), settings.coldSubagent)}
+            ${toggle("coldSubagent", t("Compact a cold subagent before new work"), t("Work sent to a subagent idle longer than its prompt cache lasts compacts it first, when the work would cost more on its whole context: written again, then read by each request its runs make. On by default."), settings.coldSubagent)}
         </div>
     </div>`;
 }

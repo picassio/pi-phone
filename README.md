@@ -114,10 +114,12 @@ No Termux, no laptop, no cloud VM.
   `sessions.compactSelf`, `sessions.compactRemindAt`, `sessions.compactBeforeExpiry`). Not in subagents: a subagent's
   final answer is its report.
 - **A subagent's cold cache is checked before new work.** When Pi sends work to a subagent idle longer than its prompt
-  cache lasts, and writing its whole context again would cost more than compacting it (the summarizer reading the old
-  part, the summary, and the smaller context written; never under 50k tokens), the subagent compacts first and the
-  message goes once that is done. Pi's tool result says so ("Compacted researcher first: 182k → 58k tokens; its cache
-  had gone cold (23 min since its last answer)"), the subagent's transcript shows the "Compacted" line, and **Spend**
+  cache lasts, and the new work would cost more on its whole context than compacted (its first request writes the
+  context again and each later one reads it, as many requests as the subagent's own recent runs made; against the
+  summarizer reading the old part, the summary, and the smaller context written and read; never under 50k tokens), the
+  subagent compacts first and the message goes once that is done. Pi's tool result says so ("Compacted researcher
+  first: 182k → 58k tokens; its cache had gone cold (23 min since its last answer); about $0.76 saved over ~30
+  requests"), the subagent's transcript shows the "Compacted" line, and **Spend**
   lists it with what it saved. A warm or small subagent is sent the work as it is. `subagent status` shows each
   subagent's context, its share of the window, its last answer, and whether its cache is warm or cold. On by default:
   Menu › Compact context › **Compact a cold subagent before new work** (Pi: `sessions.compactColdSubagent`).

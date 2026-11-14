@@ -117,10 +117,11 @@ dự án thật.</sub>
   Menu › Nén ngữ cảnh (Pi: `sessions.compactSelf`, `sessions.compactRemindAt`, `sessions.compactBeforeExpiry`). Không
   áp dụng cho subagent: câu trả lời cuối của subagent là báo cáo của nó.
 - **Bộ nhớ đệm nguội của subagent được kiểm tra trước việc mới.** Khi Pi giao việc cho một subagent đã rảnh lâu hơn thời
-  gian sống của bộ nhớ đệm prompt, và ghi lại cả ngữ cảnh của nó tốn hơn nén (bộ tóm tắt đọc phần cũ, bản tóm tắt, và
-  ghi ngữ cảnh nhỏ hơn; không bao giờ dưới 50k token), subagent được nén trước và tin nhắn chỉ đi khi nén xong. Kết quả
-  công cụ của Pi nói rõ ("Compacted researcher first: 182k → 58k tokens; its cache had gone cold (23 min since its last
-  answer)"), bản ghi của subagent hiện dòng "Đã nén", và **Chi tiêu** liệt kê lần nén cùng số tiết kiệm. Subagent còn ấm
+  gian sống của bộ nhớ đệm prompt, và việc mới trên nguyên ngữ cảnh tốn hơn khi đã nén (request đầu ghi lại ngữ cảnh và
+  mỗi request sau đọc lại nó, số request bằng trung bình các lượt gần đây của chính subagent đó; so với bộ tóm tắt đọc phần
+  cũ, bản tóm tắt, rồi ghi và đọc ngữ cảnh nhỏ hơn; không bao giờ dưới 50k token), subagent được nén trước và tin nhắn
+  chỉ đi khi nén xong. Kết quả công cụ của Pi nói rõ ("Compacted researcher first: 182k → 58k tokens; its cache had gone
+  cold (23 min since its last answer); about $0.76 saved over ~30 requests"), bản ghi của subagent hiện dòng "Đã nén", và **Chi tiêu** liệt kê lần nén cùng số tiết kiệm. Subagent còn ấm
   hoặc nhỏ thì nhận việc như cũ. `subagent status` hiện ngữ cảnh của từng subagent, tỉ lệ của cửa sổ, câu trả lời cuối,
   và bộ nhớ đệm còn ấm hay đã nguội. Mặc định bật: Menu › Nén ngữ cảnh › **Nén subagent đã nguội trước việc mới**
   (Pi: `sessions.compactColdSubagent`).

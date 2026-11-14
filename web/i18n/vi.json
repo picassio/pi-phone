@@ -3846,7 +3846,7 @@
     "the prompt cache was about to expire": "bộ nhớ đệm prompt sắp hết hạn",
     "its prompt cache had gone cold before new work": "bộ nhớ đệm prompt của nó đã nguội trước việc mới",
     "Compact a cold subagent before new work": "Nén subagent đã nguội trước việc mới",
-    "Work sent to a subagent idle longer than its prompt cache lasts compacts it first, when writing its whole context again would cost more. On by default.": "Việc giao cho một subagent đã rảnh lâu hơn thời gian sống của bộ nhớ đệm prompt sẽ nén nó trước, khi ghi lại cả ngữ cảnh tốn hơn. Mặc định bật.",
+    "Work sent to a subagent idle longer than its prompt cache lasts compacts it first, when the work would cost more on its whole context: written again, then read by each request its runs make. On by default.": "Việc giao cho một subagent đã rảnh lâu hơn thời gian sống của bộ nhớ đệm prompt sẽ nén nó trước, khi làm việc trên nguyên ngữ cảnh tốn hơn: ghi lại một lần, rồi mỗi request của lượt đều đọc lại. Mặc định bật.",
     "Compacted: {reason}, {before} → {after} tokens, {cost}, saved about {saving}": "Đã nén: {reason}, {before} → {after} token, {cost}, tiết kiệm khoảng {saving}",
     "Compacting this session…": "Đang nén phiên này…",
     "Not compacted": "Chưa nén",

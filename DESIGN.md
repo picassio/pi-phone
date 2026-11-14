@@ -1572,16 +1572,33 @@ so Pi changes them through the settings tools; "the last session" is the one the
     subagent first (`ColdSubagents.check`): with `config.selfCompact.coldSubagent` on (the default; Menu › Compact
     context, Pi's `sessions.compactColdSubagent`), the subagent idle (`LiveDoc.run`), its last answer's `timestamp`
     older than its cache's lifetime (`SelfCompact.timingOf`: it follows its session's), its context measured (not an
-    estimate after a compaction), at least 50k tokens, and the cost rule (`coldCosts`): a cold rewrite, the context at
-    the write price (`writePrice`), against compacting: Pi Durable's summarizer reading the part it summarizes
-    (context less Pi's prompt and the 20k kept) uncached at the input price, 3k of summary at the output price, and
-    what is left (prompt, 20k, summary) at the write price. Pi Durable's summarizer, not self-compaction's warm-prefix
-    summary: the cache is cold, so there is no warm prefix to read, and a subagent's summary turn would take its
-    report's place. The rule leaves out the smaller reads of the run's later requests, and the summarizer's real input
-    is smaller (tool results cut to 2,000 characters, no thinking), so it leans toward sending as it is. Opus 5.5 ($4
-    input, $5 write, $20 output), a 35k prompt: at 180k, $0.90 cold against $0.85 compacting (58k left); with the
-    1-hour cache ($8 write), $1.44 against $1.02. The send puts the figures (`ColdPlan`: tokens, idle time, prompt,
-    the newest entry, what it spent and wrote so far) in the reporter's input, whose first phase is then `compact`,
+    estimate after a compaction), at least 50k tokens, and the cost rule (`coldCosts`) over the new work's n requests.
+    Kept: the first request writes the context C again (`writePrice`), and each later one reads it from the cache:
+    C × write + (n − 1) × C × read. Compacted: Pi Durable's summarizer reads the part it summarizes (C less Pi's
+    prompt P and the 20k kept) uncached at the input price and writes 3k of summary at the output price; then the first
+    request writes C' = P + 20k + 3k and each later one reads it: C' × write + (n − 1) × C' × read. It compacts
+    when kept costs more. n (the owner's rule, 2026-11-14) is the subagent's own: the assistant answers after each
+    message it was given, up to the next, averaged over its newest 5 finished runs (`requestsPerRun`; by the message,
+    as Pi Durable hands a run to a new generation task at each tool round, so the task that appended an answer is no
+    run); 10 without any, kept in 1–40 (`requestsOf`). The context's growth during the run is alike both ways and
+    left out; the summarizer's real input is smaller (tool results cut to 2,000 characters, no thinking), so the rule
+    leans toward sending as it is. Pi Durable's summarizer, not self-compaction's warm-prefix summary: the cache is
+    cold, so there is no warm prefix to read, and a subagent's summary turn would take its report's place.
+
+    | Opus 5.5 ($4 in, $5 write, $0.20 read, $20 out), 5-minute cache | C | n | kept | compacted | saving |
+    | --- | --- | --- | --- | --- | --- |
+    | P 35k (C' 58k) | 120k | 1 | $0.60 | $0.61 | −$0.01, sent as it is |
+    | P 35k | 120k | 30 | $1.30 | $0.95 | $0.35 |
+    | P 35k | 180k | 1 | $0.90 | $0.85 | $0.05 |
+    | P 35k | 180k | 10 | $1.22 | $0.95 | $0.27 |
+    | P 35k | 180k | 30 | $1.94 | $1.19 | $0.76 |
+    | P 69k (C' 92k) | 180k | 10 | $1.22 | $1.05 | $0.17 |
+    | P 69k | 180k | 30 | $1.94 | $1.42 | $0.53 |
+
+    It pays from about 131k at n = 1 with P 35k, 84k at n = 10, 69k at n = 30 (P 69k: 165k, 118k, 103k). With the
+    1-hour cache ($8 write) at 180k and P 35k: $1.76 against $1.13 at n = 10. The send puts the figures (`ColdPlan`:
+    tokens, idle time, prompt, the newest entry, what it spent and wrote so far, n and the saving the rule expects)
+    in the reporter's input, whose first phase is then `compact`,
     before `deliver`: `ColdSubagents.compact` waits for a compaction already under way (a manual one in
     `LiveDoc.compactions`), or takes a compaction entry placed after the check as done, before it starts one
     (`conversation.compact()`), so a reporter run again after a restart compacts once; the message is submitted only
@@ -1590,7 +1607,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
     what the subagent spent since the check (it was idle), the after is the prompt plus the compacted view's messages,
     the saving `savingOf`. The reporter writes the outcome to `SubagentRecord.compacted` (by its task id), which the
     send waits for (a watch) and words: "Compacted X first: 182k → 58k tokens; its cache had gone cold (23 min since
-    its last answer). Sent to X." A failed compaction is not followed by the message (no uncompacted fallback): the
+    its last answer); about $0.76 saved over ~30 requests. Sent to X." (the rule's estimate; Spend records what the
+    compaction cost and the cold write it saved, as before). A failed compaction is not followed by the message (no uncompacted fallback): the
     send says so, and the reporter reports the subagent failed. `subagent status` shows each subagent's context, its
     share of the model's window, the time since its last answer, and whether its cache is warm (working, or within its
     lifetime) or cold. One clause in the tool's description ("a cold, large one compacts first"), paid for by dropping
