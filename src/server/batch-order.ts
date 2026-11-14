@@ -10,7 +10,8 @@
  * each other. A nested call (code mode's `executeTool`) is not in the round's slots: its script awaits it in its own
  * order.
  */
-import type { Context, JsonValue } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
+import type { JsonValue } from "@earendil-works/chord/json";
 import { LiveDoc, type ToolExecutionApi, type ToolRegistration } from "@earendil-works/pi-durable";
 
 /** The file and shell tools, which run in the batch's order with each other. */

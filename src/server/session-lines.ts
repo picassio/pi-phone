@@ -4,7 +4,7 @@
  * `ByteSource`, read in chunks by position: one on this phone, or one on a machine read over its connection (pi-env's
  * `openBinaryReader`), so a machine's file is read where it is.
  */
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import { open } from "node:fs/promises";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 

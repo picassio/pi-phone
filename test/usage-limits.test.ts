@@ -87,7 +87,7 @@ test("an account's figures are asked with its own sign-in, kept a minute, and to
     let now = 1_000_000;
     const limits = new UsageLimits({
         models: () => models,
-        claudeVersion: () => "2.1.280",
+        claudeVersion: () => "2.1.322",
         publish: (usage) => told.push(usage),
         now: () => now,
         fetch: (async (url: string, init: { headers: Record<string, string> }) => {
@@ -106,7 +106,7 @@ test("an account's figures are asked with its own sign-in, kept a minute, and to
     assert.equal(asked[0]!.url, "https://api.anthropic.com/api/oauth/usage");
     assert.equal(asked[0]!.headers.authorization, "Bearer work-token", "the account's own sign-in");
     assert.equal(asked[0]!.headers["anthropic-beta"], "oauth-2025-04-20");
-    assert.equal(asked[0]!.headers["user-agent"], "claude-code/2.1.280");
+    assert.equal(asked[0]!.headers["user-agent"], "claude-code/2.1.322");
     assert.equal(told.length, 1, "every tab is told");
 
     await limits.get("anthropic~work");

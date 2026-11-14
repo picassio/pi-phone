@@ -12,6 +12,7 @@ import type { ConversationId } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
 import { HttpError } from "./errors.ts";
+import { isBelowClaudeCodeVersion } from "./phone-settings.ts";
 import { MAX_COMPACT_AT, MIN_COMPACT_AT } from "./auto-compact.ts";
 import { CACHE_RETENTIONS } from "./cache-retention.ts";
 import { makeBackup } from "./backup.ts";
@@ -1159,12 +1160,16 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             id: "phone.claudeCodeVersion",
             area: "phone",
             title: "Claude Code version the billing patch sends",
-            help: "A version like 2.1.280.",
+            help: "A version like 2.1.322, not older.",
             owner: true,
             read: () => app.phoneSettings.current().claudeCodeBilling.version,
             apply: (_user, value) => {
                 if (!/^\d+\.\d+\.\d+$/.test(value.trim())) {
-                    throw new HttpError(400, "A version is three numbers, like 2.1.280.");
+                    throw new HttpError(400, "A version is three numbers, like 2.1.322.");
+                }
+
+                if (isBelowClaudeCodeVersion(value.trim())) {
+                    throw new HttpError(400, "Anthropic refuses newer models to Claude Code versions older than 2.1.322.");
                 }
 
                 app.phoneSettings.update({ version: value.trim() });

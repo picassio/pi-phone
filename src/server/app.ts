@@ -176,7 +176,7 @@ import type { Tailnet } from "./tailnet.ts";
 import { WebSearch } from "./web/access.ts";
 import { InterviewHelpers } from "./interview-helpers.ts";
 import { checkDraft, type Interview, InterviewsDoc } from "./interviews.ts";
-import type { JsonValue } from "@earendil-works/chord";
+import type { JsonValue } from "@earendil-works/chord/json";
 import { ANSWER_KEY, MAX_ANSWER_STATE_BYTES, MAX_ANSWER_STATES, OpenUiStateDoc } from "./openui.ts";
 import { type ApprovalRequest, Approvals, type PocketHost, type WebAccess } from "./host.ts";
 import { waitForLock } from "./lock.ts";

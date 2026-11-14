@@ -8,7 +8,7 @@
  * and after a restart it finds an answer given while it was away.
  */
 import { rebased } from "./docs.ts";
-import type { JsonValue } from "@earendil-works/chord";
+import type { JsonValue } from "@earendil-works/chord/json";
 import { defineDoc } from "@earendil-works/pi-durable";
 
 export type ContentBlock = {

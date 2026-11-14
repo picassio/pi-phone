@@ -14,7 +14,7 @@
  * This keeps values out of transcripts by accident and by default: it is no boundary against a command that transforms
  * a value on purpose.
  */
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import type { ExecutionEnv, ShellExecOptions, ShellOutputInfo } from "@earendil-works/pi-durable/env";
 

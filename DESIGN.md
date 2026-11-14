@@ -8,8 +8,11 @@ Built from two upstreams, cut down to what this app needs:
 - https://github.com/badlogic/pi-termux-mobile: the Android shell (plain Gradle, Java, no NDK), the embedded
   Termux runtime, and the APK workflow.
 - https://github.com/TannerMidd/pi-pocket (MIT): the server and the web UI, written against pi-durable 1.1.0; we run
-  it on the pi packages 1.5.0 (pi-durable, pi-ai, pi-coding-agent, pi-codemode, chord, pi-schema), which
-  `@earendil-works/pi-env` needs for remote machines. 1.5.0 (PP-378, as pi-pocket 0.28.0 did): pi-ai no longer exports
+  it on the pi packages 1.5.2 (pi-durable, pi-ai, pi-coding-agent, pi-codemode, chord, pi-schema), which
+  `@earendil-works/pi-env` needs for remote machines. 1.5.2 (PP-510, as pi-pocket 85ed5da3 did): pi-ai reports Claude
+  Code 2.1.322, as Anthropic refuses newer models below 2.1.290; chord's `Context` and `JsonValue` come from
+  `@earendil-works/chord/context` and `/json`; pi-ai continues an Anthropic conversation as a message thread, so a call
+  the billing patch changes is sent whole (`disableContinuation`, as pi-pocket e8d2b314). 1.5.0 (PP-378, as pi-pocket 0.28.0 did): pi-ai no longer exports
   TypeBox, so every tool schema is built with pi-schema's builders (`obj(..., { open: true })` keeps each tool's JSON
   Schema as TypeBox wrote it; `tool-schema.ts` has `literal` and `record`, the two kinds pi-schema writes otherwise),
   and drop-ins too, with no TypeBox shim (the owner's decision of 2026-11-03: one way; see Drop-in extensions);
@@ -145,7 +148,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
   Anthropic OAuth payloads so Pro/Max quota is billed. Installed through `PocketApp`'s `configureModels`, which
   wraps `ModelRuntime.streamSimple` to add `onPayload`. Gated on the OAuth identity block, so API-key and other
   providers are untouched. Toggle and Claude Code version in `~/.pi-pocket/phone.json`
-  (`{"claudeCodeBilling":{"enabled":true,"version":"2.1.280"}}`), re-read on change.
+  (`{"claudeCodeBilling":{"enabled":true,"version":"2.1.322"}}`), re-read on change. The version is never older than
+  the one pi-ai's user-agent reports (`CLAUDE_CODE_VERSION`, raised with each Pi update that raises pi-ai's): an older
+  stored one is raised when read, and the team server raises an older phone's the same way (PP-510). A billed Anthropic
+  call is sent whole, never as a thread continuation, which would leave out the billing header.
 - **GitHub sign-in** (`src/server/github-login.ts`, `web/sheets/github.js`): GitHub's device flow with `gh`'s own
   OAuth app; the token goes to `gh auth login --with-token`, then `gh auth setup-git`. The agent's `git` and `gh`
   use it for private repositories; it lives in the app's home folder, where the agent can read it.

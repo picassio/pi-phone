@@ -4,7 +4,7 @@
  * idle and waits behind a run that is going. Its request id makes a send made before a restart found again, not made
  * twice.
  */
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import { LiveDoc, type TaskRuntime } from "@earendil-works/pi-durable";
 
 const SEND_CHECK_MS = 2_000;

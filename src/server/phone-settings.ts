@@ -13,9 +13,48 @@ export interface PhoneSettings {
     };
 }
 
+/**
+ * The Claude Code version the billing patch sends unless set newer: the one pi-ai's Anthropic transport reports in its
+ * `claude-cli/<version>` user-agent (`test/claude-billing.test.ts` checks that the two match). Anthropic refuses newer
+ * models to older versions (400 `claude_code_version_too_old`), so raise it with each Pi update that raises pi-ai's.
+ */
+export const CLAUDE_CODE_VERSION = "2.1.322";
+
 export const DEFAULT_SETTINGS: PhoneSettings = {
-    claudeCodeBilling: { enabled: true, version: "2.1.280" },
+    claudeCodeBilling: { enabled: true, version: CLAUDE_CODE_VERSION },
 };
+
+function versionParts(version: string): readonly number[] | undefined {
+    return /^\d+\.\d+\.\d+$/.test(version) ? version.split(".").map(Number) : undefined;
+}
+
+/** Whether an x.y.z version is older than `CLAUDE_CODE_VERSION`; a version of another form is not compared. */
+export function isBelowClaudeCodeVersion(version: string): boolean {
+    const parts = versionParts(version);
+    const floor = versionParts(CLAUDE_CODE_VERSION);
+
+    if (parts === undefined || floor === undefined) {
+        return false;
+    }
+
+    for (const [index, part] of parts.entries()) {
+        const least = floor[index] ?? 0;
+
+        if (part !== least) {
+            return part < least;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * A stored or sent version older than `CLAUDE_CODE_VERSION` is raised to it: an older phone's `phone.json` (2.1.280
+ * before Pi 1.5.2) would have every newer model refused, and a newer one set on purpose stays.
+ */
+export function raiseClaudeCodeVersion(version: string): string {
+    return isBelowClaudeCodeVersion(version) ? CLAUDE_CODE_VERSION : version;
+}
 
 export const PHONE_SETTINGS_FILE = "phone.json";
 
@@ -60,7 +99,7 @@ export function parsePhoneSettings(text: string): PhoneSettings {
             throw new Error('setting "claudeCodeBilling.version" must be a string');
         }
 
-        claudeCodeBilling = { enabled, version };
+        claudeCodeBilling = { enabled, version: raiseClaudeCodeVersion(version) };
     }
 
     return { claudeCodeBilling };

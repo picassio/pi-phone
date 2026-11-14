@@ -2,7 +2,7 @@
  * Self-compaction (PP-473, `self-compact.ts`): the compact_self tool, the generation's `onYield` (the summary turn, and
  * the hook "Remind to compact while waiting"), and the compaction's `beforeCompact` that supplies the summary Pi wrote.
  */
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import { obj, opt, str } from "@earendil-works/pi-schema";
 import { CompactionTask, type Cursor, defineExtension, defineTool, GenerationTask, type HookApi, hook } from "@earendil-works/pi-durable";
 import { GOAL_PREFIX } from "../goals.ts";

@@ -6,7 +6,7 @@
  * `NodeExecutionEnv` here, pi-env's `RemoteExecutionEnv` on a machine, one connection per machine, started on its first
  * use and closed with the app.
  */
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import {

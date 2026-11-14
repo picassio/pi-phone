@@ -11,7 +11,7 @@
  * Also what people typed and picked in interactive answers (`OpenUiStateDoc`).
  */
 import { rebased } from "./docs.ts";
-import type { JsonValue } from "@earendil-works/chord";
+import type { JsonValue } from "@earendil-works/chord/json";
 import { defineDoc } from "@earendil-works/pi-durable";
 
 /** What a route answers: its status and JSON, as the component expects them. */

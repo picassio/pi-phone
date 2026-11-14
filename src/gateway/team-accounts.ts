@@ -15,7 +15,7 @@ import type { Api, AssistantMessageEventStream, AuthPrompt, Context, Model, Prov
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { ACCOUNT_PROVIDERS, accountProvider, baseProvider, isTeamAccount, TEAM_SEPARATOR } from "../server/accounts.ts";
 import { patchClaudeCodePayload } from "../server/cc-patch.ts";
-import { DEFAULT_SETTINGS } from "../server/phone-settings.ts";
+import { DEFAULT_SETTINGS, raiseClaudeCodeVersion } from "../server/phone-settings.ts";
 import { type AccountUsage, UsageLimits } from "../server/usage-limits.ts";
 import { HttpError } from "../server/errors.ts";
 import { recording } from "../server/limit-gate.ts";
@@ -265,7 +265,10 @@ export class TeamAccounts {
      */
     /**
      * One answer of a team account's model. `billing` is the caller's Claude Code billing setting: a Claude subscription's
-     * requests get the patch here, where they are made (the caller's own `onPayload` can't come along).
+     * requests get the patch here, where they are made (the caller's own `onPayload` can't come along). A pi-phone from
+     * before Pi 1.5.2 sends 2.1.280, which Anthropic refuses newer models to: it is raised as the phone's own setting is.
+     * A patched request is sent whole, as `installClaudeCodeBilling` sends it: a thread's continuation would leave out
+     * the billing header.
      */
     stream(
         id: string,
@@ -292,9 +295,10 @@ export class TeamAccounts {
         }
 
         if (billing?.enabled === true && /^\d+\.\d+\.\d+$/.test(billing.version)) {
-            const version = billing.version;
+            const version = raiseClaudeCodeVersion(billing.version);
 
             this.#claudeVersion = version;
+            options.disableContinuation = true;
             options.onPayload = (payload, requestModel) => patchClaudeCodePayload(payload, baseProvider(requestModel.provider), { version });
         }
 

@@ -6,7 +6,7 @@
  *
  * pi-pocket's `host.browser` is not ported yet: pi-phone's browser is its own (`browser/pi-browser.ts`).
  */
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import { HttpError } from "./errors.ts";
 import type { Approvals, AskAnswer, AskField, AskRequest } from "./host.ts";
 

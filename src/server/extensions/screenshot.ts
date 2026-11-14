@@ -5,7 +5,7 @@
  * web page. It closes the check-and-fix step Effective HTML's skills and OfficeCLI's ask for.
  */
 import { arr, bool, num, obj, opt, str } from "@earendil-works/pi-schema";
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import { type Cursor, defineExtension, defineTool, GenerationTask, type HookApi, hook, section } from "@earendil-works/pi-durable";
 import type { PocketHost } from "../host.ts";
 import { compareImages, describeComparison, diffPathOf } from "../image-compare.ts";

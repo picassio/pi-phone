@@ -15,7 +15,7 @@ import {
     type ToolExecutionResult,
     ToolTask,
 } from "@earendil-works/pi-durable";
-import type { JsonValue } from "@earendil-works/chord";
+import type { JsonValue } from "@earendil-works/chord/json";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import type { PocketHost } from "../host.ts";

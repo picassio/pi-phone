@@ -13,7 +13,8 @@
  */
 import { arr, bool, int, num, obj, opt, str, union } from "@earendil-works/pi-schema";
 import { literal } from "../tool-schema.ts";
-import type { Context, JsonValue } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
+import type { JsonValue } from "@earendil-works/chord/json";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import type { PocketHost } from "../host.ts";

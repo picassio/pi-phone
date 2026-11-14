@@ -182,3 +182,8 @@ is skipped on purpose.
   second reads the branch again and writes commits of 8 MB; the list is pi-phone's own (Pi's `listAll` keeps every
   session's whole text; here a search looks through a session's first megabyte of text); uploads and a machine's copy
   are written as they come; continuing checks the file's folder instead of reading the list.
+- Pi 1.5.2 (PP-510): 85ed5da3 (packages to 1.5.2, pi-ai reports Claude Code 2.1.322; chord's `Context` and `copyJson`
+  from its subpaths) and e8d2b314 (a shaped call sends its whole request, as Pi 1.5.1 continues Anthropic conversations
+  as threads). Differs: pi-phone has no `anthropic-shape.ts`, request shapers or cache keeper; its billing patch
+  (`claude-billing.ts`, the team server's `team-accounts.ts`) sets `disableContinuation`, and its version is the phone
+  setting, raised to 2.1.322 when older. React and react-dom go to 19.3.0, chord 1.5.2's peer.

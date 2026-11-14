@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { patchClaudeCodePayload } from "../src/server/cc-patch.ts";
 
-const VERSION = "2.1.280";
+const VERSION = "2.1.322";
 const options = { version: VERSION };
 
 const oauthIdentity = {

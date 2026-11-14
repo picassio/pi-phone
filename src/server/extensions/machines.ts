@@ -17,7 +17,7 @@
  *   from and to, and their sizes; Approve runs what Settings › Machines runs (`MachineTools.install`, `installScript`).
  * For longer work there, a session in a folder on the machine runs all of Pi's tools there.
  */
-import type { JsonValue } from "@earendil-works/chord";
+import type { JsonValue } from "@earendil-works/chord/json";
 import { arr, num, obj, opt, str, union } from "@earendil-works/pi-schema";
 import { literal } from "../tool-schema.ts";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";

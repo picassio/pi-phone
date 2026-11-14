@@ -40,7 +40,7 @@ const ids: Record<string, string> = {};
 /** The scripted model on the gateway: what it was last asked, and how many calls it answered. */
 const asked: { calls: number; aborted: number; patched: boolean[] } = { calls: 0, aborted: 0, patched: [] };
 /** Binh's Claude Code billing setting (phone.json), sent with each answer. */
-let billing = { enabled: true, version: "2.1.280" };
+let billing = { enabled: true, version: "2.1.322" };
 
 before(async () => {
     const db = new DatabaseSync(":memory:");
@@ -123,10 +123,10 @@ test("a teammate's pi-phone lists the team account's models and gets its answers
     assert.equal(asked.calls, before + 1, "answered on the gateway");
     assert.equal(asked.patched.at(-1), true, "the billing patch, made on the gateway with Binh's setting");
 
-    billing = { enabled: false, version: "2.1.280" };
+    billing = { enabled: false, version: "2.1.322" };
     await models.completeSimple(listed[0] as Model<Api>, ask("no patch"));
     assert.equal(asked.patched.at(-1), false, "off in Binh's settings: not patched");
-    billing = { enabled: true, version: "2.1.280" };
+    billing = { enabled: true, version: "2.1.322" };
 });
 
 test("a role without the account, or without the model, is refused with the reason", async () => {

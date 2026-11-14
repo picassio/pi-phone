@@ -3,7 +3,7 @@
  * wiki_lint, wiki_summarize, wiki_migrate) and its context, scoped to the session's project, in every session's prompt.
  * The wiki is pi-para's, at ~/.pi/wiki, shared with pi-para in pi on other computers (`para.ts`).
  */
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import type { Static } from "@earendil-works/pi-schema";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -24,7 +24,7 @@ import { readOnlyCommand } from "./plan.ts";
 import { CAPTURE_SYSTEM_PROMPT } from "pi-para/templates/prompts";
 import { CAPTURE_EXTENSION } from "../para-capture.ts";
 import { shownText } from "../context-policy.ts";
-import type { JsonValue } from "@earendil-works/chord";
+import type { JsonValue } from "@earendil-works/chord/json";
 import { buildWikiToolGuidanceSection, WIKI_TOOL_DESCRIPTIONS, type WikiToolName } from "pi-para/wiki-tool-guidance";
 import { createEditExecute, createReadExecute } from "pi-para/tools/edit-read";
 import { createIngestExecute } from "pi-para/tools/ingest";

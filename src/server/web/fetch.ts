@@ -11,7 +11,7 @@
  * Text longer than Pi should take at once is saved whole in `~/.cache/pi-phone/fetch/`, and Pi gets the start and the
  * path to read the rest with offsets.
  */
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { Readability } from "@mozilla/readability";
 import { createHash } from "node:crypto";

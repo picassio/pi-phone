@@ -9,7 +9,7 @@
  * waits for the person instead, and when they submit, skip, or it times out, sends the conversation the same words as
  * a message starting "Interview <id> finished." (`deliver.ts`), which starts Pi's next turn when it is idle.
  */
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import { bool, num, obj, opt, str } from "@earendil-works/pi-schema";
 import { type ConversationId, defineExtension, defineTask, defineTool, section, type TaskId } from "@earendil-works/pi-durable";
 import { sendFollowUp } from "../deliver.ts";

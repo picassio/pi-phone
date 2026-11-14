@@ -2,6 +2,10 @@
  * The Claude Code billing patch on every model request. Pi Durable, titles, and every other caller go through
  * `ModelRuntime.streamSimple` (`completeSimple` calls it too), so replacing it on the instance adds pi-ai's
  * `onPayload` to all of them. A caller's own `onPayload` runs first; the patch sees its result.
+ *
+ * A billed call sends its whole request (`disableContinuation`): since Pi 1.5.1 pi-ai continues an Anthropic
+ * conversation as a message thread, whose continuation leaves out the system blocks, and with them the billing header
+ * this patch puts there (pi-pocket e8d2b314).
  */
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
@@ -38,6 +42,8 @@ export function installClaudeCodeBilling(models: { streamSimple: StreamSimple },
             return transform(upstream ?? payload, requestModel);
         };
 
-        return underlying(model, context, { ...options, onPayload });
+        const billed = settings.current().claudeCodeBilling.enabled && baseProvider(model.provider) === "anthropic";
+
+        return underlying(model, context, billed ? { ...options, onPayload, disableContinuation: true } : { ...options, onPayload });
     };
 }

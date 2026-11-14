@@ -1,4 +1,4 @@
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import type { RenderOptions, Shot } from "./screenshots.ts";
 import type { HookId } from "./hooks.ts";
 import type { PiBrowser } from "./browser/pi-browser.ts";

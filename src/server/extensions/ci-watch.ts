@@ -12,7 +12,7 @@
  */
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import { type ConversationId, InboxDoc, type SubmissionId, type Tx } from "@earendil-works/pi-durable";
 import { obj, opt, str, union } from "@earendil-works/pi-schema";
 import { literal } from "../tool-schema.ts";

@@ -88,7 +88,7 @@ async function binhsPiPhone() {
 
     models.registerNativeProvider(localAnthropic(provider.url, BASE));
 
-    const client = new TeamAccountsClient({ url: address, token: store.box(ids.Binh!).token }, () => undefined, () => ({ enabled: false, version: "2.1.280" }));
+    const client = new TeamAccountsClient({ url: address, token: store.box(ids.Binh!).token }, () => undefined, () => ({ enabled: false, version: "2.1.322" }));
 
     await client.sync(models);
 
