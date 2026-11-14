@@ -109,6 +109,8 @@ const REPO: Stubs = {
     sessions: "No sessions match.",
     session_read: "(no messages)",
 };
+/** README.md with the typo the wiki-no-typo scenario asks to fix. */
+const TYPO_README = "# pi-phone\n\nYou will recieve a notification when Pi is done.\n";
 /** A machine's nightly backup (the wiki scenario on a machine): its crontab, script and log, stood in. */
 const BACKUP_LOG =
     'rsync: [sender] send_files failed to open "/srv/app/data/app.sqlite-wal": Permission denied (13)\nrsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1338) [sender=3.2.7]';
@@ -621,7 +623,9 @@ export const SCENARIOS: readonly Scenario[] = [
         id: "wiki-no-typo",
         variant: "phone",
         message: "Fix the typo 'recieve' in ~/work/pi-phone/README.md.",
-        stubs: REPO,
-        expect: { tool: ["read", "edit", "bash", "codemode"], forbid: ["wiki_query", "wiki_read"], forbidArgs: { codemode: { code: /tools\.wiki_/ } } },
+        // The README as it is, typo and all: REPO's stand-ins hold no 'recieve', and on Opus every run read on, found
+        // nothing and stopped (0/10, 2026-11-14). Looking first is fine; the edit is the call scored.
+        stubs: { ...REPO, read: TYPO_README, bash: (args) => (/\b(grep|rg)\b/.test(command(args)) ? "README.md:3:You will recieve a notification when Pi is done." : /\b(cat|head|sed)\b/.test(command(args)) ? TYPO_README : "(no output)") },
+        expect: { tool: ["edit", "write", "codemode"], forbid: ["wiki_query", "wiki_read"], forbidArgs: { codemode: { code: /tools\.wiki_/ } } },
     },
 ];
