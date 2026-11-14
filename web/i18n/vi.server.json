@@ -398,7 +398,7 @@
     "askRun is true or false.": "askRun là true hoặc false.",
     "There is a machine named {1} already.": "Đã có máy tên {1}.",
     "Scan the machine first.": "Hãy quét máy trước.",
-    "{1}'s host key changed since you accepted it. If you know why (the machine was reinstalled), forget the old key and scan again; otherwise do not connect.": "Host key của {1} đã thay đổi từ khi bạn chấp nhận. Nếu bạn biết vì sao (máy đã cài lại), hãy quên khóa cũ và quét lại; nếu không, đừng kết nối.",
+    "{1}'s host key changed since you accepted it. If you know why (it was reinstalled or moved to another host), compare the new key with the machine's own and replace it on its row in Settings › Machines; otherwise do not connect.": "Host key của {1} đã thay đổi từ khi bạn chấp nhận. Nếu bạn biết vì sao (máy đã cài lại hoặc chuyển sang host khác), hãy so khóa mới với khóa của chính máy đó rồi thay nó ở dòng của máy trong Cài đặt › Máy; nếu không, đừng kết nối.",
     "Accept the machine's host key first.": "Hãy chấp nhận host key của máy trước.",
     "{1} has no Git Bash, the shell Pi runs commands with on Windows: install Git for Windows (git-scm.com), then connect again.": "{1} không có Git Bash, shell Pi dùng để chạy lệnh trên Windows: hãy cài Git for Windows (git-scm.com), rồi kết nối lại.",
     "{1} could not run a command: {2}": "{1} không chạy được lệnh: {2}",
@@ -407,7 +407,6 @@
     "Give the address as user@host or user@host:port.": "Nhập địa chỉ dạng user@host hoặc user@host:port.",
     "The port is a number from 1 to 65535.": "Cổng là số từ 1 đến 65535.",
     "{1}'s host key is not accepted yet: scan and accept it first.": "Host key của {1} chưa được chấp nhận: hãy quét và chấp nhận trước.",
-    "{1}'s host key changed since you accepted it. If the machine was reinstalled, forget the old key and scan again; otherwise do not connect.": "Host key của {1} đã thay đổi từ khi bạn chấp nhận. Nếu máy đã được cài lại, hãy quên khóa cũ và quét lại; nếu không, đừng kết nối.",
     "Could not reach {1} ({2}@{3}): {4}": "Không kết nối được {1} ({2}@{3}): {4}",
     "Only the owner can continue sessions in Pi.": "Chỉ chủ sở hữu tiếp tục phiên trong Pi được.",
     "The agent is working in this session. Wait for it to finish, or stop it.": "Agent đang làm việc trong phiên này. Hãy chờ nó xong, hoặc dừng nó.",
@@ -827,5 +826,7 @@
     "Test sites are hosts or *.suffix patterns separated by commas, or none.": "Trang thử nghiệm là các tên miền hoặc mẫu *.hậu-tố cách nhau bằng dấu phẩy, hoặc none.",
     "A test site is a host like staging.example.com, or *.suffix like *.ts.net: not {1}.": "Một trang thử nghiệm là tên miền như staging.example.com, hoặc *.hậu-tố như *.ts.net: không phải {1}.",
     "At most {1} test sites: {2} given.": "Tối đa {1} trang thử nghiệm: đã đưa {2}.",
-    "Sending a real site's pages to another run model is the owner's to approve.": "Gửi các trang của một trang web thật tới mô hình chạy khác là việc chủ sở hữu duyệt."
+    "Sending a real site's pages to another run model is the owner's to approve.": "Gửi các trang của một trang web thật tới mô hình chạy khác là việc chủ sở hữu duyệt.",
+    "Replacing a machine's host key is the owner's.": "Thay host key của một máy là việc của chủ sở hữu.",
+    "{1} has no host key to replace: accept its key instead.": "{1} chưa có host key nào để thay: hãy chấp nhận khóa của nó."
 }

@@ -3908,5 +3908,19 @@
     "Each step's page then goes to OpenRouter (openrouter.ai). Approve once is for this run; Deny runs it with the setting's model.": "那时每一步的页面会发送到 OpenRouter（openrouter.ai）。“批准一次”只用于本次运行；“拒绝”则用设置中的模型运行。",
     "Each step's page then goes to the session's model's provider. Approve once is for this run; Deny runs it with the setting's model.": "那时每一步的页面会发送到会话模型的提供方。“批准一次”只用于本次运行；“拒绝”则用设置中的模型运行。",
     "The setting: {model}": "设置：{model}",
-    "Pi asks for: {model}": "Pi 请求：{model}"
+    "Pi asks for: {model}": "Pi 请求：{model}",
+    "{name}: host key replaced, connected again (pi-env {daemon} was there).": "{name}：主机密钥已替换，已重新连接（pi-env {daemon} 仍在）。",
+    "{name}: host key replaced. pi-env is not there: install and connect it.": "{name}：主机密钥已替换。pi-env 不在那里：请安装并连接。",
+    "Host key changed": "主机密钥已变更",
+    "Its host key changed since you accepted it.": "它的主机密钥在你接受后已变更。",
+    "Expected after a reinstall or a move to another host. Check the new key, compare it with the machine's own, then replace it: the machine stays set up.": "重装或迁移到另一台主机后这很正常。查看新密钥，与机器本身的密钥比对，然后替换：机器保持已设置的状态。",
+    "Check the new key": "查看新密钥",
+    "Accepted before": "之前接受的",
+    "It presents now": "它现在出示的",
+    "A key you did not expect may be an attack. Compare it with {command} run on the machine itself, from its console or a guest agent, never over this ssh.": "意料之外的密钥可能是攻击。请与在机器本身上运行 {command} 的结果比对，通过它的控制台或来宾代理，绝不要通过这个 ssh。",
+    "Replacing…": "正在替换…",
+    "Replace key": "替换密钥",
+    "Replace {name}'s host key?": "要替换 {name} 的主机密钥吗？",
+    "A key you did not expect may be an attack: approve only when you know why it changed (a reinstall, a move to another host). Approve replaces it and connects again when pi-env is there; Deny keeps the old key.": "意料之外的密钥可能是攻击：只有在你知道它为何变更（重装、迁移到另一台主机）时才批准。批准会替换它，并在 pi-env 存在时重新连接；拒绝则保留旧密钥。",
+    "Replacing a host key is the owner's: waiting for them.": "替换主机密钥只能由所有者进行：正在等待他们。"
 }

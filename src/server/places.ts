@@ -20,7 +20,7 @@ import {
 import { HttpError } from "./errors.ts";
 import { machinePaths } from "./machine-paths.ts";
 import type { Machine, Machines } from "./machines.ts";
-import { sshProblem } from "./machines.ts";
+import { hostKeyChanged, sshProblem } from "./machines.ts";
 
 const PREFIX = "machine:";
 
@@ -51,8 +51,11 @@ export const isRemote = (cwd: string): boolean => cwd.startsWith(PREFIX);
 /** The cwd's path part, for display: the folder on the phone, or on the machine. */
 export const pathOf = (cwd: string): string => parsePlace(cwd).path;
 
-/** A machine's answer to `Places.health`: when it was checked, and if it failed, why (and what ssh said). */
-export type MachineHealth = { ok: boolean; at: number; problem?: string; said?: string };
+/**
+ * A machine's answer to `Places.health`: when it was checked, and if it failed, why (and what ssh said); `hostKey` when
+ * it presents another host key than the one accepted (PP-509: its row offers to compare and replace it).
+ */
+export type MachineHealth = { ok: boolean; at: number; problem?: string; said?: string; hostKey?: "changed" };
 
 const HEALTH_MS = 60_000;
 /** How long a machine has to answer before its folder is refused (`checkDirectory`). */
@@ -162,7 +165,13 @@ export class Places {
                 const reached = await this.reach(machine.id, 10_000);
                 const health: MachineHealth = reached.ok
                     ? { ok: true, at: Date.now() }
-                    : { ok: false, at: Date.now(), problem: sshProblem(reached.error), said: reached.error.slice(0, 300) };
+                    : {
+                          ok: false,
+                          at: Date.now(),
+                          problem: sshProblem(reached.error),
+                          said: reached.error.slice(0, 300),
+                          ...(hostKeyChanged(reached.error) ? { hostKey: "changed" as const } : {}),
+                      };
 
                 return [machine.id, health] as const;
             }),

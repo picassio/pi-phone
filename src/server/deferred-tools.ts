@@ -65,6 +65,8 @@ export const DEFERRED_TOOLS: readonly string[] = [
     "pi_bring_back",
     "machine_add",
     "machine_tools",
+    // A machine's changed host key (PP-509): rare, after a reinstall or a move.
+    "machine_rekey",
     // People's documents.
     "doc_search",
     "doc_list",

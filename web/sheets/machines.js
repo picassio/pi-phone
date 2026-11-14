@@ -408,6 +408,21 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
             }
         });
     const doScan = () => call("scan", async () => setScan(await api(`machines/${encodeURIComponent(machine.id)}/scan`, {})));
+    // Its host key changed (PP-509): the new one, to compare with the old before replacing it.
+    const scanChanged = () => call("scan", async () => setScan({ ...(await api(`machines/${encodeURIComponent(machine.id)}/scan`, {})), replace: true }));
+    const replaceKey = () =>
+        call("replace", async () => {
+            const done = await api(`machines/${encodeURIComponent(machine.id)}/replace-key`, { lines: scan.lines, fingerprint: scan.fingerprints[0] });
+
+            setScan(null);
+            notify(
+                "info",
+                done.kept
+                    ? t("{name}: host key replaced, connected again (pi-env {daemon} was there).", { name: machine.name, daemon: done.machine.daemon })
+                    : t("{name}: host key replaced. pi-env is not there: install and connect it.", { name: machine.name }),
+            );
+            onChanged();
+        });
     const accept = () =>
         call("accept", async () => {
             await api(`machines/${encodeURIComponent(machine.id)}/accept`, { lines: scan.lines, fingerprint: scan.fingerprints[0] });
@@ -505,6 +520,7 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
     }
 
     const state = machine.remote ? "connected" : machine.hostKey ? "trusted" : "new";
+    const keyChanged = state === "connected" && health?.ok === false && health.hostKey === "changed";
 
     return html`<div class="provider machine">
         <div>
@@ -512,7 +528,7 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
                 ${machine.name}
                 ${team && html` <span class="pv-team-tag">${t("Team")}</span>`}
                 ${state === "connected" && health?.ok !== false && html`<${StateTag} label=${t("Connected")} />`}
-                ${state === "connected" && health?.ok === false && html`<${StateTag} tone="err" label=${t("Can't connect")} />`}
+                ${state === "connected" && health?.ok === false && html`<${StateTag} tone="err" label=${keyChanged ? t("Host key changed") : t("Can't connect")} />`}
             </div>
             <div class="muted small mono">${address(machine)}</div>
             <div class="muted small">
@@ -609,7 +625,19 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
                 </div>`
             }
             ${
+                keyChanged &&
+                !scan &&
+                (!team || manage) &&
+                html`<div class="machine-problem small" data-part="machine-key-changed">
+                    <strong>${t("Its host key changed since you accepted it.")}</strong> ${t("Expected after a reinstall or a move to another host. Check the new key, compare it with the machine's own, then replace it: the machine stays set up.")}
+                    <div class="sheet-actions">
+                        <button class="button small primary" disabled=${busy !== null} onClick=${scanChanged}>${busy === "scan" ? t("Scanning…") : t("Check the new key")}</button>
+                    </div>
+                </div>`
+            }
+            ${
                 state === "connected" &&
+                !keyChanged &&
                 health !== undefined &&
                 (health.ok
                     ? html`<div class="muted small">${t("Answers now (checked {when})", { when: agoText(health.at) })}</div>`
@@ -620,7 +648,29 @@ function MachineRow({ machine, keys, onChanged, health, onRecheck }) {
                       </div>`)
             }
             ${
+                scan?.replace &&
+                html`<div class="machine-step" data-part="machine-replace-key">
+                    <dl class="machine-add-facts">
+                        <dt>${t("Accepted before")}</dt>
+                        <dd class="mono small">${machine.hostKey}</dd>
+                        <dt>${t("It presents now")}</dt>
+                        <dd>${scan.fingerprints.map((fingerprint) => html`<div class="mono small">${fingerprint}</div>`)}</dd>
+                    </dl>
+                    <p class="machine-problem machine-key-warning small">
+                        <${Icon} name="alert" size=${16} />
+                        <span>${tx("A key you did not expect may be an attack. Compare it with {command} run on the machine itself, from its console or a guest agent, never over this ssh.", {
+                            command: html`<span class="mono">ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub</span>`,
+                        })}</span>
+                    </p>
+                    <div class="sheet-actions">
+                        <button class="button small" onClick=${() => setScan(null)}>${t("Not now")}</button>
+                        <button class="button small primary" disabled=${busy !== null} onClick=${replaceKey}>${busy === "replace" ? t("Replacing…") : t("Replace key")}</button>
+                    </div>
+                </div>`
+            }
+            ${
                 scan &&
+                !scan.replace &&
                 html`<div class="machine-step">
                     <p class="small">
                         ${tx("The machine presents this host key. Compare it with {command} run on the machine itself, then accept.", {

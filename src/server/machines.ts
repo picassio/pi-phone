@@ -15,7 +15,8 @@
  * The app's files from before (`~/.ssh/pi-phone_config`, its `Include`, `~/.ssh/pi-phone_known_hosts`) are moved
  * or removed once, as the app starts; the owner's own files there stay as they are.
  */
-import { randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -30,9 +31,11 @@ import {
     forgetHostKey,
     HostKeyChangedError,
     HostKeyUnknownError,
+    packagedDaemon,
     RemoteExecutionEnv,
     type RemotePlatform,
     scanHostKey,
+    sshArguments,
     SshError,
     type SshTarget,
 } from "@earendil-works/pi-env";
@@ -595,9 +598,10 @@ export class Machines {
             await acceptHostKey(this.target(machine), lines as string[]);
         } catch (error) {
             if (error instanceof HostKeyChangedError) {
+                // In these words where each is thrown, so the tabs' translations find them (scripts/i18n-check.ts).
                 throw new HttpError(
                     409,
-                    `${machine.name}'s host key changed since you accepted it. If you know why (the machine was reinstalled), forget the old key and scan again; otherwise do not connect.`,
+                    `${machine.name}'s host key changed since you accepted it. If you know why (it was reinstalled or moved to another host), compare the new key with the machine's own and replace it on its row in Settings › Machines; otherwise do not connect.`,
                 );
             }
 
@@ -608,6 +612,59 @@ export class Machines {
         this.#save(id);
 
         return { ...machine };
+    }
+
+    /**
+     * A connected machine's host key changed for a reason the owner knows (a reinstall, a move to another host, PP-509):
+     * the key `scan` showed takes the old one's place in the known hosts, and the machine stays set up when pi-env is
+     * there with this app's hash (checked over ssh, nothing uploaded): it connects again at once. Without it, the machine
+     * waits for "Install and connect" (`kept: false`), as one whose key was just accepted. Every change goes through
+     * `#save`, so its held connection and the cached health go, and every tab hears of it.
+     */
+    async replaceKey(id: string, lines: unknown, fingerprint: unknown): Promise<{ machine: Machine; kept: boolean }> {
+        const machine = this.#own(id);
+
+        if (!Array.isArray(lines) || !lines.every((line) => typeof line === "string") || typeof fingerprint !== "string") {
+            throw new HttpError(400, "Scan the machine first.");
+        }
+
+        if (machine.hostKey === undefined) {
+            throw new HttpError(409, `${machine.name} has no host key to replace: accept its key instead.`);
+        }
+
+        const target = this.target(machine);
+
+        await forgetHostKey(target);
+        await acceptHostKey(target, lines as string[]);
+        machine.hostKey = fingerprint;
+
+        if (machine.remote === undefined) {
+            this.#save(id);
+
+            return { machine: { ...machine }, kept: false };
+        }
+
+        let there: boolean;
+
+        try {
+            there = await daemonThere(target, await detectPlatform(target));
+        } catch (error) {
+            this.#save(id);
+            throw sshFailure(machine, error);
+        }
+
+        if (!there) {
+            delete machine.remote;
+            delete machine.daemon;
+            delete machine.connectedAt;
+            this.#save(id);
+
+            return { machine: { ...machine }, kept: false };
+        }
+
+        this.#save(id);
+
+        return { machine: await this.connect(id), kept: true };
     }
 
     /** Stop trusting the machine's host key, after the owner confirmed it changed for a known reason. */
@@ -722,7 +779,47 @@ export function parseAddress(address: unknown): { user: string; host: string; po
     return { user: match[1]!, host: match[2]!.replace(/^\[|\]$/g, ""), port };
 }
 
-/** An ssh failure in the owner's words: what the machine said, with the likely cause first. */
+/**
+ * Whether pi-env, as this app ships it for the machine's system, is on the machine with its hash (`deployDaemon`'s place
+ * and name: `~/.pi/mobile/tools/pi-env-<first 32 of its SHA-256>`), checked over ssh without uploading anything. A
+ * machine with no hash tool counts as without it: "Install and connect" then says why.
+ */
+async function daemonThere(target: SshTarget, remote: RemotePlatform): Promise<boolean> {
+    const sha256 = createHash("sha256").update(readFileSync(packagedDaemon(remote))).digest("hex");
+    const name = `pi-env-${sha256.slice(0, 32)}`;
+    let command: string;
+
+    if (remote.platform === "windows") {
+        const file = `${remote.home}\\.pi\\mobile\\tools\\${name}.exe`.replaceAll("'", "''");
+        const script = `$f = '${file}'; if ((Test-Path -LiteralPath $f) -and ((Get-FileHash -Algorithm SHA256 -LiteralPath $f).Hash.ToLower() -eq '${sha256}')) { 'present' } else { 'missing' }`;
+
+        command = `powershell -NoProfile -NonInteractive -EncodedCommand ${Buffer.from(script, "utf16le").toString("base64")}`;
+    } else {
+        const file = `${remote.home}/.pi/mobile/tools/${name}`.replaceAll("'", `'\\''`);
+        const check = `f='${file}'; if command -v sha256sum >/dev/null 2>&1; then h=$(sha256sum "$f" 2>/dev/null | cut -d' ' -f1); elif command -v shasum >/dev/null 2>&1; then h=$(shasum -a 256 "$f" 2>/dev/null | cut -d' ' -f1); else h=none; fi; if [ "$h" = ${sha256} ]; then echo present; else echo missing; fi`;
+
+        command = `sh -c '${check.replaceAll("'", `'\\''`)}'`;
+    }
+
+    const said = await new Promise<string>((resolve, reject) => {
+        const child = spawn("ssh", [...sshArguments(target), command], { stdio: ["ignore", "pipe", "pipe"] });
+        let out = "";
+        let err = "";
+
+        child.stdout.on("data", (chunk: Buffer) => (out += chunk.toString()));
+        child.stderr.on("data", (chunk: Buffer) => (err += chunk.toString()));
+        child.on("error", (error) => reject(new SshError(error.message, null, "")));
+        child.on("close", (code) => (code === 0 ? resolve(out) : reject(new SshError(`ssh ${target.host} failed with exit code ${code}`, code, err))));
+    });
+
+    return said.trim().split(/\r?\n/).at(-1) === "present";
+}
+
+/** Whether what ssh or pi-env said means the machine's host key is not the one accepted (pi-env: "The host key of <host> changed"). */
+export function hostKeyChanged(said: string): boolean {
+    return /Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED|host key (?:(?:of|for) \S+ )?(?:has )?changed/i.test(said);
+}
+
 /**
  * What an ssh failure means, in the owner's words: the likely cause first, else what ssh said. For setup's errors and
  * for the machines' health (`Places.health`).
@@ -733,8 +830,8 @@ export function sshProblem(said: string): string {
     }
 
     // Narrow: pi-env's "No host key received from <host>" means the machine did not answer, not that its key changed.
-    if (/Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED|host key (for \S+ )?(has )?changed/i.test(said)) {
-        return "its host key changed since you accepted it: if it was reinstalled, forget the old key and scan again";
+    if (hostKeyChanged(said)) {
+        return "its host key changed since you accepted it: if you know why (it was reinstalled or moved), compare the new key and replace it on its row in Settings › Machines";
     }
 
     if (/Connection refused|Could not resolve|No route|timed out|Network is unreachable|no answer in|No host key received/i.test(said)) {
@@ -756,7 +853,7 @@ function sshFailure(machine: Machine, error: unknown): Error {
     if (error instanceof HostKeyChangedError) {
         return new HttpError(
             409,
-            `${machine.name}'s host key changed since you accepted it. If the machine was reinstalled, forget the old key and scan again; otherwise do not connect.`,
+            `${machine.name}'s host key changed since you accepted it. If you know why (it was reinstalled or moved to another host), compare the new key with the machine's own and replace it on its row in Settings › Machines; otherwise do not connect.`,
         );
     }
 

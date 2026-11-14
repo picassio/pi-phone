@@ -3888,5 +3888,19 @@
     "Each step's page then goes to OpenRouter (openrouter.ai). Approve once is for this run; Deny runs it with the setting's model.": "Khi đó trang của mỗi bước sẽ đi tới OpenRouter (openrouter.ai). Duyệt một lần là cho lượt chạy này; Từ chối sẽ chạy bằng mô hình của cài đặt.",
     "Each step's page then goes to the session's model's provider. Approve once is for this run; Deny runs it with the setting's model.": "Khi đó trang của mỗi bước sẽ đi tới nhà cung cấp mô hình của phiên. Duyệt một lần là cho lượt chạy này; Từ chối sẽ chạy bằng mô hình của cài đặt.",
     "The setting: {model}": "Cài đặt: {model}",
-    "Pi asks for: {model}": "Pi xin dùng: {model}"
+    "Pi asks for: {model}": "Pi xin dùng: {model}",
+    "{name}: host key replaced, connected again (pi-env {daemon} was there).": "{name}: đã thay host key, đã kết nối lại (pi-env {daemon} vẫn ở đó).",
+    "{name}: host key replaced. pi-env is not there: install and connect it.": "{name}: đã thay host key. pi-env không có ở đó: hãy cài và kết nối.",
+    "Host key changed": "Host key đã đổi",
+    "Its host key changed since you accepted it.": "Host key của máy đã đổi từ khi bạn chấp nhận.",
+    "Expected after a reinstall or a move to another host. Check the new key, compare it with the machine's own, then replace it: the machine stays set up.": "Điều này bình thường sau khi cài lại hoặc chuyển sang host khác. Hãy xem khóa mới, so với khóa của chính máy, rồi thay: máy vẫn giữ nguyên thiết lập.",
+    "Check the new key": "Xem khóa mới",
+    "Accepted before": "Đã chấp nhận trước đây",
+    "It presents now": "Máy đưa ra bây giờ",
+    "A key you did not expect may be an attack. Compare it with {command} run on the machine itself, from its console or a guest agent, never over this ssh.": "Một khóa bạn không chờ đợi có thể là một cuộc tấn công. Hãy so với {command} chạy trên chính máy đó, từ console hoặc guest agent của nó, đừng bao giờ qua ssh này.",
+    "Replacing…": "Đang thay…",
+    "Replace key": "Thay khóa",
+    "Replace {name}'s host key?": "Thay host key của {name}?",
+    "A key you did not expect may be an attack: approve only when you know why it changed (a reinstall, a move to another host). Approve replaces it and connects again when pi-env is there; Deny keeps the old key.": "Một khóa bạn không chờ đợi có thể là một cuộc tấn công: chỉ duyệt khi bạn biết vì sao nó đổi (cài lại, chuyển sang host khác). Duyệt sẽ thay khóa và kết nối lại khi pi-env có ở đó; Từ chối giữ khóa cũ.",
+    "Replacing a host key is the owner's: waiting for them.": "Thay host key là việc của chủ sở hữu: đang chờ họ."
 }

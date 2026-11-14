@@ -1643,6 +1643,8 @@ function waitingRow(approval) {
             return { icon: "plus", title: form.next ? t("Make the next version: {title}", { title: form.title }) : t("Make a drop-in: {title}", { title: form.title }), detail: more(form.module) };
         case "machine":
             return { icon: "monitor", title: t("Add {name} to your machines?", { name: form.name }), detail: more(form.address) };
+        case "machine-rekey":
+            return { icon: "monitor", title: t("Replace {name}'s host key?", { name: form.name }), detail: more(form.address) };
         default:
             return approval.tool === "board_mode"
                 ? { icon: "board", title: t("Track this on the board?"), detail: more(approval.reason) }
@@ -2082,6 +2084,52 @@ function MachineAddCard({ approval }) {
                 : html`<div class="approval-actions">
                       <button class="button deny" disabled=${busy} onClick=${() => answer(false)}>${t("Deny")}</button>
                       <button class="button primary" disabled=${busy} onClick=${() => answer(true)}>${t("Approve and connect")}</button>
+                  </div>`
+        }
+    </div>`;
+}
+
+/**
+ * Pi replaces a machine's changed host key (`machine_rekey`, PP-509): the key accepted before, the one it presents now
+ * (the one Pi read on the machine itself: a mismatch never makes a card), and a warning. The owner's to approve.
+ */
+function MachineRekeyCard({ approval }) {
+    const { me } = store.state;
+    const form = approval.form;
+    const [busy, setBusy] = useState(false);
+    const answer = (allow) => {
+        setBusy(true);
+        attempt(() => actions.approve(approval.id, allow)).finally(() => setBusy(false));
+    };
+
+    return html`<div class="approval machine-add-card machine-rekey-card" data-part="approval">
+        <div class="approval-head">
+            <span class="approval-shield" aria-hidden="true"><${Icon} name="monitor" size=${16} /></span>
+            <div class="approval-title">
+                <span class="approval-ask">${tx("Replace {name}'s host key?", { name: html`<span class="mono">${form.name}</span>` })}</span>
+                <span class="approval-reason"><${Linked} text=${approval.reason} /></span>
+            </div>
+        </div>
+        <dl class="machine-add-facts">
+            <dt>${t("Address")}</dt>
+            <dd class="mono">${form.address}</dd>
+            <dt>${t("Accepted before")}</dt>
+            <dd class="mono small">${form.old}</dd>
+            <dt>${t("It presents now")}</dt>
+            <dd>
+                ${form.hostKeys.map((fingerprint) => html`<div class="mono small">${fingerprint}</div>`)}
+                <span class="machine-add-match"><${Icon} name="check" size=${16} /> ${t("the one Pi read on the machine itself")}</span>
+            </dd>
+        </dl>
+        <div class="muted small">
+            ${t("A key you did not expect may be an attack: approve only when you know why it changed (a reinstall, a move to another host). Approve replaces it and connects again when pi-env is there; Deny keeps the old key.")}
+        </div>
+        ${
+            me?.role !== "owner"
+                ? html`<div class="muted small">${t("Replacing a host key is the owner's: waiting for them.")}</div>`
+                : html`<div class="approval-actions">
+                      <button class="button deny" disabled=${busy} onClick=${() => answer(false)}>${t("Deny")}</button>
+                      <button class="button primary" disabled=${busy} onClick=${() => answer(true)}>${t("Replace key")}</button>
                   </div>`
         }
     </div>`;
@@ -2669,6 +2717,10 @@ function ApprovalCard({ approval }) {
 
     if (approval.form?.type === "machine-tools") {
         return html`<${MachineToolsCard} approval=${approval} />`;
+    }
+
+    if (approval.form?.type === "machine-rekey") {
+        return html`<${MachineRekeyCard} approval=${approval} />`;
     }
 
     if (approval.form?.type === "secret") {

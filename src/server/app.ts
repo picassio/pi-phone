@@ -5570,6 +5570,11 @@ export class PocketApp {
             throw new HttpError(403, "Changing a machine's tools is the owner's.");
         }
 
+        // Pi's machine_rekey card (PP-509): Approve trusts another host key for a machine, the owner's alone.
+        if (allow && request.form?.type === "machine-rekey" && user.role !== "owner") {
+            throw new HttpError(403, "Replacing a machine's host key is the owner's.");
+        }
+
         // A click or step that may pay, send, book or delete (PP-455): Approve once is the owner's alone.
         if (allow && request.form?.type === "risky" && user.role !== "owner") {
             throw new HttpError(403, "Approving a step that may pay, send, book or delete is the owner's.");
@@ -5597,6 +5602,7 @@ export class PocketApp {
             request.form.type !== "extension" &&
             request.form.type !== "creator" &&
             request.form.type !== "machine-tools" &&
+            request.form.type !== "machine-rekey" &&
             !formAnswered
         ) {
             throw new HttpError(

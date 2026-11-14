@@ -2334,6 +2334,14 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 return json(response, 200, await app.machines.accept(second, body.lines, body.fingerprint));
             }
 
+            // A changed host key the owner compared (PP-509): the new one replaces the old, and the machine stays set up
+            // when pi-env is there with its hash.
+            if (third === "replace-key") {
+                const body = await readJson<{ lines?: unknown; fingerprint?: unknown }>(request);
+
+                return json(response, 200, await app.machines.replaceKey(second, body.lines, body.fingerprint));
+            }
+
             if (third === "forget") {
                 await app.machines.forget(second);
 

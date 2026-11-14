@@ -645,6 +645,13 @@ dự án thật.</sub>
   dụng, thứ không gì đọc ra được. Pi tự thêm máy bằng `machine_add` (ví dụ một máy ảo nó vừa tạo): một thẻ hiện
   địa chỉ, khóa SSH và host key, đối chiếu với khóa Pi đọc trên chính máy khi có thể, cùng các công cụ cần cài (được chọn
   sẵn, trừ ffmpeg, HyperFrames và TLC); **Duyệt và kết nối** thêm máy, cài pi-env, kết nối và cài các công cụ đã chọn; Từ chối thì không lưu gì.
+- **Host key đã đổi** (máy ảo cài lại, hoặc chuyển sang host khác và được cloud-init tạo khóa mới): dòng của máy ghi
+  **Host key đã đổi**; **Xem khóa mới** hiện khóa đã chấp nhận trước đây và khóa máy đưa ra bây giờ, kèm lời cảnh báo hãy
+  so với khóa của chính máy (từ console hoặc guest agent), và **Thay khóa** đặt khóa mới vào chỗ khóa cũ. Khi pi-env có
+  ở đó với đúng hash của ứng dụng, máy vẫn giữ kết nối: không phải Cài và kết nối, không tải lên gì. Kết nối của nó bắt
+  đầu lại, và lỗi biến mất ngay trên mọi tab, cả dòng của máy lẫn thanh báo của phiên. Pi làm việc này bằng
+  `machine_rekey`, đưa khóa nó đọc trên chính máy: khóa khác bị từ chối trước khi có thẻ, và bạn duyệt một thẻ có khóa cũ
+  và khóa mới.
 - **Cổng** của một máy (một dev server ở đó) mở được trong trình duyệt của điện thoại.
 - **Tiếp tục phiên Pi.** Tiếp tục một phiên từ Pi trên điện thoại này, một tệp `.jsonl`, hoặc `~/.pi/agent/sessions`
   của một máy, kèm lịch sử, với mọi kích thước (hàng trăm MB: tệp được đọc từng phần, phần xem trước chỉ đọc phần cuối).
@@ -997,7 +1004,7 @@ hiện tại và giá trị mới. Hỏi “bạn đổi được những gì?�
 | Hệ thống thiết kế Pi dùng | **Hệ thống thiết kế**: tìm, chọn một cái, hoặc *Không* | “Từ giờ thiết kế theo phong cách Stripe”, “Bỏ hệ thống thiết kế mặc định” |
 | Mô hình `image_generate` dùng để tạo hình | **Hình ảnh**: *Tự động*, *ChatGPT Images* (ChatGPT tự chọn model và độ nét), một mô hình hình ảnh của OpenRouter (kèm giá), hoặc mô hình của nhà cung cấp riêng được đánh dấu *Tạo hình ảnh* | “Từ giờ tạo hình bằng Nano Banana”, “Dùng ChatGPT Images cho hình này” |
 | Khóa API và token | **Bí mật**. Pi xin bí mật còn thiếu qua một ô ẩn trên thẻ, không bao giờ trong cuộc trò chuyện | Pi có thể xin một bí mật, đổi cờ của bí mật, hoặc xóa nó. Giá trị thì bạn tự gõ |
-| Máy tính khác | **Khóa SSH**, rồi **Máy** (**Cài công cụ** ở đó thêm OfficeCLI, ripgrep, fd, Chrome, Computer use, ffmpeg, HyperFrames, TLC) | Có với đổi tên, cài công cụ, cổng, hoặc gỡ máy. Chấp nhận host key mới là việc của bạn |
+| Máy tính khác | **Khóa SSH**, rồi **Máy** (**Cài công cụ** ở đó thêm OfficeCLI, ripgrep, fd, Chrome, Computer use, ffmpeg, HyperFrames, TLC) | Có với đổi tên, cài công cụ, cổng, hoặc gỡ máy; thay một host key đã đổi qua một thẻ (`machine_rekey`). Chấp nhận host key của máy mới là việc của bạn |
 | Tiện ích (Dự án, Wiki, Trình duyệt của Pi, Thiết kế & video, Kiểm chứng hình thức, Trình tạo tiện ích, …) | **Tiện ích** | “Bật Dự án”, “Tắt Thiết kế & video” |
 | Chi tiêu và giới hạn | **Chi tiêu** | “Giới hạn phiên này ở $5” |
 | Khi nào phiên tự nén | **Menu › Nén ngữ cảnh**, cho phiên này hoặc mọi phiên | “Nén phiên này ở 60%” |

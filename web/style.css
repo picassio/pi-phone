@@ -4145,7 +4145,8 @@ pre.diff .del {
 
 /* Pi's library cards (PP-468): each file whole, scrolled within the card; an edit's whole content a tap away. The
    facts and the diff sit flat in the card, not as cards of their own. */
-.library-card .machine-add-facts {
+.library-card .machine-add-facts,
+.machine-rekey-card .machine-add-facts {
     padding: 0;
     border: 0;
 }
@@ -20185,6 +20186,26 @@ pre.gallery-code {
 
 .machine-step .sheet-actions {
     margin-top: 8px;
+}
+
+/* A changed host key (PP-509): the old key and the new, then the warning beside its icon. In the row's step, the facts
+   are plain rows, not another framed box. */
+.machine-step .machine-add-facts {
+    margin-bottom: 8px;
+    padding: 0;
+    border: 0;
+}
+
+.machine-key-warning {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+.machine-key-warning > svg {
+    flex: none;
+    margin-top: 2px;
+    color: var(--warn);
 }
 
 /* ─── Pi sessions on a machine (pi-phone) ─────────────────────── */

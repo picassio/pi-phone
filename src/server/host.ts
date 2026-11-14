@@ -128,6 +128,12 @@ export interface ApprovalRequest {
          * comes as another's need (`needed`), and a note (what needs it). Approve runs what Settings › Machines runs;
          * only the owner approves.
          */
+        /**
+         * Pi replaces a machine's changed host key (`machine_rekey`, PP-509): the machine, the key accepted before, the
+         * keys it presents now, and the one Pi read on the machine itself (which matched: a mismatch never makes a card).
+         * Approve replaces the key and, when pi-env is there with its hash, connects again; only the owner approves.
+         */
+        | { type: "machine-rekey"; machine: string; name: string; address: string; old: string; hostKeys: string[]; expected: string }
         | {
               type: "machine-tools";
               machine: string;

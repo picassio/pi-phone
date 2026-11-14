@@ -8,6 +8,10 @@
  *   the address, the key, the host key as scanned now (checked against one Pi read on the machine itself, when given),
  *   and the install. Approve adds it, trusts that host key, installs pi-env and connects; Deny, or any step that fails,
  *   leaves nothing saved.
+ * - `machine_rekey` (PP-509): a machine's host key changed for a known reason (a reinstall, a move to another host):
+ *   Pi reads the new key on the machine itself (its console, a Proxmox guest agent) and gives it; a scanned key that is
+ *   not that one is refused before any card. The owner's card shows the old key and the new; Approve replaces it, and
+ *   the machine stays set up when pi-env is there with its hash (`Machines.replaceKey`).
  * - `machine_tools` (PP-325): the tools pi-phone installs on a machine, as Settings › Machines shows them (status), and
  *   installing, updating or removing them after the owner approves one card with the machine, the tools, their versions
  *   from and to, and their sizes; Approve runs what Settings › Machines runs (`MachineTools.install`, `installScript`).
@@ -19,6 +23,7 @@ import { literal } from "../tool-schema.ts";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import type { MachineToolChange, PocketHost } from "../host.ts";
 import { machinePaths } from "../machine-paths.ts";
+import { hostKeyChanged } from "../machines.ts";
 import { installOrder, type InstallResult, type ToolStatus, toolOffer, toolsToInstall } from "../machine-tools.ts";
 import { namesIn } from "../secrets.ts";
 import { MAX_SAVE_COMMAND } from "./secrets.ts";
@@ -37,15 +42,22 @@ export default function createMachines(host: PocketHost) {
         const all = host.machines();
         const found = all.find((each) => each.id === name || each.alias === wanted || each.name.toLowerCase() === wanted);
 
-        if (found === undefined) {
-            throw new Error(
-                all.length === 0
-                    ? "No machine is connected: add one with machine_add (the owner approves it), or the owner adds one in Settings › Machines."
-                    : `No machine ${name}. Machines: ${all.map((each) => each.alias).join(", ")}.`,
-            );
+        if (found !== undefined) {
+            return found;
         }
 
-        return found;
+        // One that is there but not set up (never connected, or its host key forgotten): say so, not "no machine".
+        const unset = host.machineStore.list().find((each) => each.team === undefined && each.remote === undefined && (each.id === name || each.name.toLowerCase() === wanted));
+
+        if (unset !== undefined) {
+            throw new Error(`${unset.name} is not set up: the owner connects it in Settings › Machines${unset.hostKey === undefined ? " (scan and accept its host key, then Install and connect)" : " (Install and connect)"}.`);
+        }
+
+        throw new Error(
+            all.length === 0
+                ? "No machine is connected: add one with machine_add (the owner approves it), or the owner adds one in Settings › Machines."
+                : `No machine ${name}. Machines: ${all.map((each) => each.alias).join(", ")}.`,
+        );
     };
 
     /**
@@ -158,7 +170,12 @@ export default function createMachines(host: PocketHost) {
             host.secrets.used(Object.keys(secrets));
 
             if (!result.ok) {
-                return failed(`${machine.alias}: ${result.error.message}`);
+                // A changed host key (PP-509): the way on, for Pi and for the owner.
+                return failed(
+                    hostKeyChanged(result.error.message)
+                        ? `${machine.alias}: ${result.error.message}. It presents another host key than the one the owner accepted. If the owner knows why (a reinstall, a move to another host), read the new key on the machine itself (its console or guest agent: ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub) and call machine_rekey with it; the owner approves on a card. Or the owner compares and replaces it on its row in Settings › Machines. Otherwise it may be an attack: do not connect.`
+                        : `${machine.alias}: ${result.error.message}`,
+                );
             }
 
             const tail = out.length > MAX_OUTPUT ? out.slice(-MAX_OUTPUT) : out;
@@ -351,6 +368,94 @@ export default function createMachines(host: PocketHost) {
                         ].join("\n"),
                     );
                 }
+            } catch (error) {
+                return failed(error instanceof Error ? error.message : String(error));
+            }
+        },
+    });
+
+    const rekey = defineTool({
+        name: "machine_rekey",
+        description:
+            "Replace a machine's changed SSH host key (after a reinstall, a move to another host, cloud-init making new keys), after the owner approves one card with the old key and the new. Read the new key on the machine itself first, through another channel than ssh (its console, a Proxmox guest agent: ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub), and give it as expectedFingerprint: a scanned key that is not that one is refused, nothing changed. On Approve the machine stays set up when pi-env is there with its hash; otherwise the owner taps Install and connect in Settings › Machines. Owner only.",
+        parameters: obj({
+            machine: str({ description: "The machine's name, alias or id" }),
+            expectedFingerprint: str({ description: "The new host key's SHA256 fingerprint as read on the machine itself, like SHA256:BHtq..." }),
+            reason: str({ description: "Why the key changed, in a sentence: shown on the card" }),
+        }, { open: true }),
+        execute: async (args, api, context) => {
+            try {
+                const asker = host.requesterOf(Number(api.conversationId) as never);
+
+                if (asker === undefined || host.person(asker).role !== "owner") {
+                    return failed("Only the owner replaces a machine's host key.");
+                }
+
+                const wanted = args.machine.trim().toLowerCase();
+                const store = host.machineStore;
+                const alias = host.machines().find((each) => each.alias === wanted)?.id;
+                const machine = store.list().find((each) => each.id === args.machine.trim() || each.id === alias || each.name.toLowerCase() === wanted);
+
+                if (machine === undefined) {
+                    return failed(`No machine ${args.machine}. Machines: ${store.list().map((each) => each.name).join(", ") || "none"}.`);
+                }
+
+                if (machine.team !== undefined) {
+                    return failed(`${machine.name} is the team's: its host key is changed on the team server, by someone who manages the team's machines.`);
+                }
+
+                if (machine.hostKey === undefined) {
+                    return failed(`${machine.name} has no accepted host key to replace: the owner scans and accepts it in Settings › Machines.`);
+                }
+
+                const scanned = await store.scan(machine.id);
+                const bare = (fingerprint: string) => fingerprint.replace(/\s*\(\w+\)\s*$/, "").replace(/^SHA256:/i, "");
+                const expected = args.expectedFingerprint.trim();
+                const address = `${machine.user}@${machine.host}${machine.port === undefined ? "" : `:${machine.port}`}`;
+
+                if (scanned.fingerprints.some((each) => bare(each) === bare(machine.hostKey!))) {
+                    return failed(`${machine.name} (${address}) presents the key accepted already, ${machine.hostKey}: nothing to replace.`);
+                }
+
+                const matched = scanned.fingerprints.find((each) => bare(each) === bare(expected));
+
+                if (matched === undefined) {
+                    return failed(
+                        `${address} presents ${scanned.fingerprints.join(", ")}, not ${expected}: refused, nothing changed. Read the key on the machine itself again; a key you did not read there may be an attack.`,
+                    );
+                }
+
+                const answer = await host.approvals.request(
+                    {
+                        id: `machine_rekey-${String(api.conversationId)}-${String(api.callId)}`,
+                        conversationId: Number(api.conversationId) as never,
+                        taskId: api.taskId as never,
+                        ...(api.callId === undefined ? {} : { callId: api.callId }),
+                        tool: "machine_rekey",
+                        subject: `Replace ${machine.name}'s host key ${machine.hostKey} with ${matched}`,
+                        reason: args.reason,
+                        form: { type: "machine-rekey", machine: machine.id, name: machine.name, address, old: machine.hostKey, hostKeys: scanned.fingerprints, expected },
+                        createdAt: Date.now(),
+                    },
+                    context as never,
+                );
+
+                if (!answer.allow) {
+                    return failed(`${answer.by === "superseded" ? "The request was replaced" : `${answer.by} said no`}: ${machine.name} keeps its old host key.`);
+                }
+
+                const { machine: now, kept } = await store.replaceKey(machine.id, scanned.lines, matched);
+
+                return {
+                    output: [
+                        text(
+                            kept
+                                ? `Replaced ${machine.name}'s host key with ${matched} and connected again: pi-env ${now.daemon} was there with its hash, nothing installed. machine_run and sessions there work now.`
+                                : `Replaced ${machine.name}'s host key with ${matched}. pi-env is not there with this app's hash${machine.remote === undefined ? " (it was not set up)" : ""}: the owner taps Install and connect on its row in Settings › Machines.`,
+                        ),
+                    ],
+                    details: { id: machine.id, hostKey: matched, kept },
+                };
             } catch (error) {
                 return failed(error instanceof Error ? error.message : String(error));
             }
@@ -572,5 +677,5 @@ export default function createMachines(host: PocketHost) {
         },
     });
 
-    return defineExtension({ name: "pocket-machines", tools: [run, copy, add, tools] });
+    return defineExtension({ name: "pocket-machines", tools: [run, copy, add, rekey, tools] });
 }

@@ -635,6 +635,13 @@ No Termux, no laptop, no cloud VM.
   `machine_add` (a VM it just made, say): one card shows the address, the SSH key and the host key, checked against the
   one Pi read on the machine when it could, and the tools to install (ticked, but for ffmpeg, HyperFrames and TLC); **Approve and connect** adds it,
   installs pi-env, connects, and installs the ticked tools; Deny saves nothing.
+- **A changed host key** (a VM reinstalled, or moved to another host and given new keys by cloud-init): the machine's
+  row says **Host key changed**; **Check the new key** shows the key accepted before and the one it presents now, with a
+  warning to compare it with the machine's own (its console or a guest agent), and **Replace key** puts the new one in
+  its place. When pi-env is there with this app's hash, the machine stays connected: no Install and connect, nothing
+  uploaded. Its connection starts afresh, and the error clears at once on every tab, the row and a session's dock
+  alike. Pi does it with `machine_rekey`, giving the key it read on the machine itself: another key is refused before
+  any card, and you approve one card with the old key and the new.
 - **Ports** of a machine (a dev server there) open in the phone's browser.
 - **Continue Pi sessions.** Pick up a session from Pi on this phone, a `.jsonl` file, or a machine's
   `~/.pi/agent/sessions`, with its history, at any size (hundreds of megabytes: it is read a part at a time, and the
@@ -976,7 +983,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | The design system Pi designs with | **Design system**: search, pick one, or *None* | "Design in the Stripe style from now on", "No default design system" |
 | The model `image_generate` makes images with | **Images**: *Automatic*, *ChatGPT Images* (ChatGPT picks the model and quality), an OpenRouter image model (with its price), or your provider's model marked *Makes images* | "Make images with Nano Banana from now on", "Use ChatGPT Images for this one" |
 | API keys and tokens | **Secrets**. Pi asks for a missing one with a hidden field on a card, never in the chat | Pi can ask for one, change a secret's flags, or delete one. You type the value |
-| Other computers | **SSH keys**, then **Machines** (**Install tools** there adds OfficeCLI, ripgrep, fd, Chrome, Computer use, ffmpeg, HyperFrames, TLC) | Yes for renaming, installing tools, ports, or removing. Accepting a new host key is yours |
+| Other computers | **SSH keys**, then **Machines** (**Install tools** there adds OfficeCLI, ripgrep, fd, Chrome, Computer use, ffmpeg, HyperFrames, TLC) | Yes for renaming, installing tools, ports, or removing; replacing a changed host key on a card (`machine_rekey`). Accepting a new machine's host key is yours |
 | Extensions (Projects, Wiki, Pi's browser, Design & video, Formal checks, Extension builder, …) | **Extensions** | "Turn on Projects", "Turn off Design & video" |
 | Spend and limits | **Spend** | "Limit this session to $5" |
 | When sessions compact by themselves | **Menu › Compact context**, for this session or every session | "Compact this session at 60%" |

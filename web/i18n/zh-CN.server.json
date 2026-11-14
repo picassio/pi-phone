@@ -60,14 +60,13 @@
     "Choose the SSH key for this machine.": "请为这台机器选择 SSH 密钥。",
     "askRun is true or false.": "askRun 的值是 true 或 false。",
     "Scan the machine first.": "请先扫描这台机器。",
-    "{1}'s host key changed since you accepted it. If you know why (the machine was reinstalled), forget the old key and scan again; otherwise do not connect.": "{1} 的主机密钥在你接受后已变更。如果你知道原因（机器重装过），请忘记旧密钥并重新扫描；否则不要连接。",
+    "{1}'s host key changed since you accepted it. If you know why (it was reinstalled or moved to another host), compare the new key with the machine's own and replace it on its row in Settings › Machines; otherwise do not connect.": "{1} 的主机密钥在你接受后已变更。如果你知道原因（重装过或迁移到了另一台主机），请将新密钥与机器本身的密钥比对，然后在设置 › 机器中它那一行替换；否则不要连接。",
     "Accept the machine's host key first.": "请先接受这台机器的主机密钥。",
     "Name the machine.": "请为机器命名。",
     "A machine's name is at most {1} characters.": "机器名称最多 {1} 个字符。",
     "Give the address as user@host or user@host:port.": "地址格式为 user@host 或 user@host:port。",
     "The port is a number from 1 to 65535.": "端口须是 1 到 65535 之间的数字。",
     "{1}'s host key is not accepted yet: scan and accept it first.": "{1} 的主机密钥尚未接受：请先扫描并接受。",
-    "{1}'s host key changed since you accepted it. If the machine was reinstalled, forget the old key and scan again; otherwise do not connect.": "{1} 的主机密钥在你接受后已变更。如果机器重装过，请忘记旧密钥并重新扫描；否则不要连接。",
     "Could not reach {1} ({2}@{3}): {4}": "无法连接 {1}（{2}@{3}）：{4}",
     "Only the owner can continue sessions in Pi.": "只有所有者能在 Pi 中继续会话。",
     "The agent is working in this session. Wait for it to finish, or stop it.": "代理正在这个会话中工作。请等它完成，或停止它。",
@@ -828,5 +827,7 @@
     "Test sites are hosts or *.suffix patterns separated by commas, or none.": "测试网站是用逗号分隔的主机或 *.后缀 模式，或 none。",
     "A test site is a host like staging.example.com, or *.suffix like *.ts.net: not {1}.": "测试网站是像 staging.example.com 这样的主机，或像 *.ts.net 这样的 *.后缀：不是 {1}。",
     "At most {1} test sites: {2} given.": "最多 {1} 个测试网站：给了 {2} 个。",
-    "Sending a real site's pages to another run model is the owner's to approve.": "把真实网站的页面发送给另一个运行模型，需要所有者批准。"
+    "Sending a real site's pages to another run model is the owner's to approve.": "把真实网站的页面发送给另一个运行模型，需要所有者批准。",
+    "Replacing a machine's host key is the owner's.": "替换机器的主机密钥只能由所有者进行。",
+    "{1} has no host key to replace: accept its key instead.": "{1} 没有可替换的主机密钥：请改为接受它的密钥。"
 }

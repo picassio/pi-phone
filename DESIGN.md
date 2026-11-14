@@ -411,8 +411,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
   are in, so nothing moves under a tap.
 - **Machines** (`src/server/machines.ts`, `web/sheets/machines.js`): other computers sessions can work on, through
   `@earendil-works/pi-env` (its daemon on the machine, deployed over ssh and verified by hash). `machines.json` holds
-  name, `user@host[:port]`, and the SSH key; host keys the owner accepted are in `~/.ssh/pi-phone_known_hosts` under
-  one alias per machine (a changed key is refused). Three owner taps before anything runs there: scan the host key,
+  name, `user@host[:port]`, and the SSH key; host keys the owner accepted are in the app's own `<data>/ssh/known_hosts`
+  under one alias per machine (a changed key is refused, and replaced only on the owner's word: below). Three owner taps before anything runs there: scan the host key,
   accept it, "Install and connect" (deploys the daemon to `~/.pi/mobile/tools` on the machine); or one approval card
   for Pi's `machine_add` (PP-139, `extensions/machines.ts`): it scans the host key of the new address first
   (`Machines.scanNew`, under the id the machine will get, saving nothing), refuses one that is not the fingerprint Pi
@@ -421,6 +421,25 @@ so Pi changes them through the settings tools; "the last session" is the one the
   Deny or a failed step saves nothing (a key made with `key: "new"` stays, and its public half comes back to Pi).
   `ready(id)` refuses a machine not connected yet, so the agent can never trigger a deployment without the owner's
   yes. Tested against the bundled `sshd` (`test/machines.test.ts`, `test/machine-add.test.ts`).
+  **A changed host key** (PP-509: a VM moved between Proxmox hosts, and cloud-init made new keys): accept refuses a
+  key that differs from the one trusted, and Forget took the machine back to new (scan, accept, Install and connect).
+  Now `Machines.replaceKey` swaps the alias's known-hosts lines for the scanned ones and, for a connected machine,
+  checks over ssh that pi-env is in `~/.pi/mobile/tools` with this app's hash (`deployDaemon`'s name and place, nothing
+  uploaded; no hash tool counts as not there): then it connects again at once (`kept`); otherwise the machine waits for
+  Install and connect. The row shows it when the health check says the key changed (`MachineHealth.hostKey`,
+  `hostKeyChanged()`, which also reads pi-env's "The host key of <host> changed"): **Check the new key** scans, shows
+  the old and the new with a warning to compare on the machine's console or guest agent, and **Replace key** calls
+  `POST /api/machines/<id>/replace-key`. Pi's `machine_rekey` (deferred behind tool_search, so the base prompt does not
+  grow) scans, refuses a key that is not the `expectedFingerprint` Pi read on the machine itself before any card, and
+  shows one owner-only card (`form.type: "machine-rekey"`, `MachineRekeyCard`) with the old key and the new. A failed
+  `machine_run` on a changed key says this way on. **Stale errors:** every machine change runs `Places.forget`, which
+  closes the held connection and now also drops `health()`'s kept answer (a counter keeps a check that began before
+  the change from being kept): the folder picker read "host key changed" for a minute after the key was replaced.
+  `hello`'s machines carry `connectedAt`, so the Machines sheet (list and health) and a session's dock (`MachineBar`)
+  look again in every tab when a machine connects; before, the row kept "Can't connect" after Install and connect
+  until the sheet was opened again, and the dock until the tab was hidden and shown. pi-env passes
+  `ControlMaster=no`, so there is no shared ssh master to renew; a Ports forward is its own ssh and ends with the
+  machine. Tests: `test/machine-rekey.test.ts` (real sshd whose key changes), `test/machine-rekey-ui.test.ts`.
   **Windows** (2026-10-19): through Windows' own OpenSSH Server (pi-env's Windows daemons, x64 and arm64, are in the
   APK). The daemon runs command lines with Git Bash, so "Install and connect" runs one and refuses a Windows machine
   without it (install Git for Windows). Paths there are drive paths with forward slashes (`C:/Users/tuan`,
