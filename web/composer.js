@@ -309,6 +309,8 @@ function MachineBar() {
     const { conversationId, view } = store.state;
     const cwd = view.agent?.cwd ?? view.conversation?.cwd ?? "";
     const remote = isRemotePlace(cwd);
+    // Its machine as `hello` brings it: connected again (its host key replaced, PP-509), the bar looks again at once.
+    const connected = remote ? (store.state.server?.machines ?? []).find((machine) => cwd.startsWith(`machine:${machine.id}:`))?.connectedAt ?? "none" : "";
     const [reach, setReach] = useState(null);
     const [trying, setTrying] = useState(false);
     const look = () =>
@@ -330,7 +332,7 @@ function MachineBar() {
         document.addEventListener("visibilitychange", back);
 
         return () => document.removeEventListener("visibilitychange", back);
-    }, [conversationId, cwd]);
+    }, [conversationId, cwd, connected]);
 
     if (!remote || !reach || reach.ok) {
         return null;

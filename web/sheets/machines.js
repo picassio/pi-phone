@@ -2,7 +2,7 @@
 // Add one, accept its host key, approve the daemon install, test it, edit, remove. Laid out as the Providers sheet.
 import { useEffect, useState } from "preact/hooks";
 import { agoText, t, tx } from "../i18n.js";
-import { api, attempt, closeSheet, notify, openSheet } from "../store.js";
+import { api, attempt, closeSheet, notify, openSheet, store } from "../store.js";
 import { Choice, copyText, html, Icon, Loader, Sheet, StateTag } from "../ui.js";
 import { windowsSetupScript } from "../windows-setup.js";
 import { CrdConnectForm } from "../crd-connect.js";
@@ -737,12 +737,17 @@ export function MachinesSheet() {
     };
     const own = (machines ?? []).filter((machine) => !machine.team);
     const teams = (machines ?? []).filter((machine) => machine.team);
-    const row = (machine) => html`<${MachineRow} key=${machine.id} machine=${machine} keys=${keys} health=${health[machine.id]} onRecheck=${recheck} onChanged=${() => attempt(load)} />`;
-
-    useEffect(() => {
+    // A change reads the list and how each answers again: a host key just replaced or a machine just connected no longer
+    // shows the error from before (PP-509).
+    const changed = () => {
         attempt(load);
         recheck();
-    }, []);
+    };
+    const row = (machine) => html`<${MachineRow} key=${machine.id} machine=${machine} keys=${keys} health=${health[machine.id]} onRecheck=${recheck} onChanged=${changed} />`;
+    // The connected machines as `hello` brings them: a change made in another tab, or by Pi, comes here too.
+    const connections = (store.state.server?.machines ?? []).map((machine) => `${machine.id}:${machine.connectedAt}`).join(",");
+
+    useEffect(changed, [connections]);
 
     return html`<${Sheet} title=${t("Machines")} onClose=${closeSheet}>
         <p class="muted small">

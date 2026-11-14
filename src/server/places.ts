@@ -156,6 +156,7 @@ export class Places {
         }
 
         const machines = this.#machines.list().filter((machine) => machine.remote !== undefined);
+        const generation = this.#generation;
         const checked = await Promise.all(
             machines.map(async (machine) => {
                 const reached = await this.reach(machine.id, 10_000);
@@ -167,12 +168,19 @@ export class Places {
             }),
         );
 
-        this.#health = { at: Date.now(), machines: Object.fromEntries(checked) };
+        const answer = { at: Date.now(), machines: Object.fromEntries(checked) };
 
-        return this.#health.machines;
+        // A machine that changed while this check ran is not kept with an answer from before the change.
+        if (generation === this.#generation) {
+            this.#health = answer;
+        }
+
+        return answer.machines;
     }
 
     #health: { at: number; machines: Record<string, MachineHealth> } | undefined;
+    /** Counts `forget`s, so a health check that began before one is not kept. */
+    #generation = 0;
 
     /**
      * One connection per machine, lazily: nothing happens until the first request, which starts the daemon over ssh
@@ -293,8 +301,14 @@ export class Places {
         return formatPlace({ machineId: machine.id, path: paths.onDrive(paths.normal(absolute.value), machine.remote!.home) });
     }
 
-    /** A machine was edited or removed: its connection and environments are dropped, and start afresh next time. */
+    /**
+     * A machine was edited, removed, connected, or its host key changed: its connection and environments are dropped,
+     * and start afresh next time. What `health` kept goes too, so no reader is told an answer from before (PP-509: the
+     * folder picker kept "its host key changed" for a minute after the key was replaced).
+     */
     forget(machineId: string): void {
+        this.#health = undefined;
+        this.#generation += 1;
         this.#connections.get(machineId)?.close();
         this.#connections.delete(machineId);
 

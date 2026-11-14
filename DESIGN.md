@@ -462,7 +462,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
   machine tools. The folder picker
   browses the machine through its environment (New folder makes one there). **Health:** a machine counts as set up once
   connected, but whether it answers now is `Places.health()`: every set-up machine `reach`ed at once (10 s each),
-  kept a minute, with `sshProblem()` saying what a failure means (key refused, host key changed, not reachable). It is
+  kept a minute (dropped by any change to a machine), with `sshProblem()` saying what a failure means (key refused, host key changed, not reachable). It is
   served at `GET /api/machines/health` (`?fresh=1` checks again). The Machines sheet asks fresh as it opens and shows
   "Answers now" or "Can't connect" with the reason and Check again; the folder picker marks a machine that does not
   answer. Worktrees are for the phone's folders.

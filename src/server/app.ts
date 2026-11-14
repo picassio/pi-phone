@@ -4703,6 +4703,8 @@ export class PocketApp {
                         id: machine.id,
                         name: machine.name,
                         home: machine.remote!.home,
+                        // A new connection (its host key replaced, PP-509): what showed it failing looks again.
+                        connectedAt: machine.connectedAt ?? 0,
                         ...(machine.team === undefined ? {} : { team: true, folder: machinePaths(machine.remote).join(machine.remote!.home, machine.team.folder) }),
                     })),
                 extensions: this.loader.extensionNames(),
