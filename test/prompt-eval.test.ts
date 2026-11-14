@@ -194,6 +194,54 @@ test("the wiki scenarios check the wiki's call, which is no lead-in there; a loo
     assert.match(judge(typo.expect, { leadIns: [call("wiki_query", { query: "README" }), read], call: fix, text: "" }, none).why, /called wiki_query .*which it must not/);
 });
 
+test("most: a call made more often than its limit, lead-ins included, fails, saying how often (PP-512)", () => {
+    const expect = { tool: ["answer"], most: { subagent: 1 } };
+
+    assert.equal(judge(expect, { leadIns: [call("subagent", { action: "status" })], call: undefined, text: "Waiting." }, none).pass, true);
+    assert.equal(
+        judge(expect, { leadIns: [call("subagent", { action: "status" }), call("subagent", { action: "status" })], call: undefined, text: "" }, none).why,
+        "called subagent 2 times, at most 1",
+    );
+});
+
+test("the compact reminder's scenarios: work given minutes ago, one look at its status, then the call checked; a second look or a send fails (PP-512)", () => {
+    const status = call("subagent", { action: "status", name: "builder" });
+    const run = (id: string, replies: readonly Call[][]) => {
+        const scenario = SCENARIOS.find((each) => each.id === id)!;
+        const stubs = stubsFor(scenario);
+        const leadIns: Call[] = [];
+
+        for (const calls of replies) {
+            const next = nextStep({ calls, text: "" }, files, stubs);
+
+            if (!next.more) {
+                return judge(scenario.expect, { leadIns: [...leadIns, ...next.leadIns], call: next.call, text: "Waiting for its report." }, none);
+            }
+
+            leadIns.push(...calls);
+        }
+
+        return judge(scenario.expect, { leadIns, call: undefined, text: "(stopped)" }, none);
+    };
+
+    for (const id of ["compact-long-wait", "compact-brief-wait"]) {
+        const asked = /\(asked (\d{4}-\d\d-\d\d \d\d:\d\d) UTC\)/.exec(SCENARIOS.find((each) => each.id === id)!.message)![1]!;
+        const ago = Date.now() - Date.parse(`${asked.replace(" ", "T")}:00Z`);
+
+        assert.ok(ago >= 0 && ago < 10 * 60_000, `${id}: asked ${asked}, ${Math.round(ago / 60_000)} min before the run`);
+    }
+
+    assert.match(String(leadIn(status, files, stubsFor(SCENARIOS.find((each) => each.id === "compact-long-wait")!))), /^builder: working · context 14k tokens/);
+    assert.equal(run("compact-long-wait", [[status], [call("compact_self")]]).pass, true);
+    assert.equal(run("compact-long-wait", [[call("tool_search", { query: "compact_self" })]]).pass, true);
+    assert.match(run("compact-long-wait", [[status], [status], [call("compact_self")]]).why, /called subagent 2 times, at most 1/);
+    assert.match(run("compact-long-wait", [[call("subagent", { action: "send", name: "builder", message: "?" })], [call("compact_self")]]).why, /which it must not/);
+    assert.equal(run("compact-brief-wait", [[status], []]).pass, true);
+    assert.equal(run("compact-brief-wait", [[]]).pass, true);
+    assert.match(run("compact-brief-wait", [[status], [status], [status]]).why, /called subagent 3 times, at most 1/);
+    assert.match(run("compact-brief-wait", [[status], [call("compact_self")]]).why, /which it must not/);
+});
+
 test("ui-menu-open and ui-typed leave room for Opus's four rounds of looks first (bash, bash, bash, read)", () => {
     for (const id of ["ui-menu-open", "ui-typed"]) {
         assert.ok((SCENARIOS.find((each) => each.id === id)!.rounds ?? 3) >= 5, id);

@@ -73,6 +73,23 @@ const LIBRARY_CODE = matches(/searchTools\([^)]*(skill|command|library|pin|undo)
 /** A near miss of a library tool: none of them, nor a search for them. */
 const NOT_LIBRARY = { forbid: ["skill_save", "command_save", "library_pin", "library_list", "library_undo", "library_delete"], forbidArgs: { tool_search: { query: /skill|library|slash/i } } } as const;
 
+/**
+ * When work went to a subagent, as the hook writes it (`when` in src/server/self-compact.ts): a few minutes before the
+ * run, as the reminder comes at the end of the turn that gave the work. A fixed date reads days old against the prompt's
+ * Today (PP-512: Opus looked at the status of work "asked" five days before, rightly).
+ */
+const askedAgo = (minutes: number) => `${new Date(Date.now() - minutes * 60_000).toISOString().slice(0, 16).replace("T", " ")} UTC`;
+/**
+ * The subagent a compact reminder names, as status shows it (PP-511's figures): at work. A scenario is a new session's
+ * first message, with no spawn before it, so one look at its status is a fair check (PP-512); a second is polling, and
+ * sending it work or stopping it is no wait.
+ */
+const atWork = (name: string): Stubs => ({
+    subagent: (args) =>
+        args.action === "status" ? `${name}: working · context 14k tokens, 7% of claude-opus-5.5's window · cache warm (it lasts 5 min)` : "(done)",
+});
+const ONE_LOOK = { most: { subagent: 1 }, forbidArgs: { subagent: { action: /^(spawn|send|stop)$/ } } } as const;
+
 /** The compact reminder as the hook sends it (`reminderText` in src/server/self-compact.ts), waiting on `wait`. */
 const compactReminder = (wait: string) =>
     [
@@ -539,23 +556,31 @@ export const SCENARIOS: readonly Scenario[] = [
     },
     // The compact reminder (PP-473, src/server/self-compact.ts): a long wait compacts with compact_self (a rarer tool:
     // tool_search first, or a codemode script that finds it); a wait shorter than the cache's 5 minutes, or a person's
-    // message with nothing pending, does not.
+    // message with nothing pending, does not. One look at the subagent's status first is fine, a second is not (PP-512).
     {
         id: "compact-long-wait",
         variant: "phone",
         message: compactReminder(
-            '- Subagent "builder" (asked 2026-11-09 09:12 UTC): Run the full test suite on the devbox, fix every failure, and report back. It usually takes 30 to 40 minutes.',
+            `- Subagent "builder" (asked ${askedAgo(2)}): Run the full test suite on the devbox, fix every failure, and report back. It usually takes 30 to 40 minutes.`,
         ),
+        stubs: atWork("builder"),
         expect: {
             tool: ["compact_self", "tool_search", "codemode"],
             args: { tool_search: { query: matches(/compact/i) }, codemode: { code: matches(/compact_self|searchTools\([^)]*compact/i) } },
+            ...ONE_LOOK,
         },
     },
     {
         id: "compact-brief-wait",
         variant: "phone",
-        message: compactReminder('- Subagent "linter" (asked 2026-11-09 09:12 UTC): Run eslint on src/app.ts and report the count. It takes about 20 seconds.'),
-        expect: { tool: ["answer"], forbid: ["compact_self"], forbidArgs: { tool_search: { query: /compact/i } } },
+        message: compactReminder(`- Subagent "linter" (asked ${askedAgo(1)}): Run eslint on src/app.ts and report the count. It takes about 20 seconds.`),
+        stubs: atWork("linter"),
+        expect: {
+            tool: ["answer"],
+            forbid: ["compact_self"],
+            most: ONE_LOOK.most,
+            forbidArgs: { tool_search: { query: /compact/i }, ...ONE_LOOK.forbidArgs },
+        },
     },
     {
         id: "compact-nothing-pending",

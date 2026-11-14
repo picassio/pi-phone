@@ -31,6 +31,8 @@ export type Expect = {
     forbid?: readonly string[];
     /** Calls never made, lead-ins included: per tool, an argument's pattern (bash running `gh auth token`). */
     forbidArgs?: Readonly<Record<string, Readonly<Record<string, RegExp>>>>;
+    /** Calls made at most so many times, lead-ins included: one look at a subagent's status is a check, two are polling (PP-512). */
+    most?: Readonly<Record<string, number>>;
     /** A file the model reads before the call checked (a skill's SKILL.md: did it open the skill?), by its path. */
     reads?: RegExp;
 };
@@ -141,6 +143,13 @@ export function judge(expect: Expect, trace: Trace, offered: Offered): Outcome {
 
     if (forbidden !== undefined) {
         return fail(`called ${forbidden.name} ${show(forbidden.arguments)}, which it must not`);
+    }
+
+    const made = [...trace.leadIns, ...(trace.call === undefined ? [] : [trace.call])];
+    const over = Object.entries(expect.most ?? {}).find(([tool, most]) => made.filter((call) => call.name === tool).length > most);
+
+    if (over !== undefined) {
+        return fail(`called ${over[0]} ${made.filter((call) => call.name === over[0]).length} times, at most ${over[1]}`);
     }
 
     if (expect.reads !== undefined && !trace.leadIns.some((call) => call.name === "read" && expect.reads!.test(String(call.arguments.path ?? "")))) {

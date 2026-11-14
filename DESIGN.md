@@ -635,7 +635,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
   real cost). `prompt-eval-capture.ts` opens the app in a temporary home with a scripted model and keeps the real first
   request of a new session, on the phone and on a machine (a test sshd on 127.0.0.1); each scenario of
   `prompt-eval-scenarios.ts` (a message, the variant, the first call it expects: tool, argument checks, tools it must not
-  call) puts its message in that request and sends it to OpenRouter (`anthropic/claude-haiku-5.5` by default, `--model`
+  call, how often a call may come at most) puts its message in that request and sends it to OpenRouter (`anthropic/claude-haiku-5.5` by default, `--model`
   for others), N runs each (3). No tool runs: read-only looks the prompt asks for first (a skill's file, the wiki,
   secrets_list) and, where a scenario stands them in, a look at the files it names get a stand-in result and the model is
   asked again (at most 3 rounds); the next call is judged (`prompt-eval-check.ts`, tested without the network).
@@ -1533,7 +1533,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
       `[via hook compact-reminder] …` (`reminderText`): the wait, the context, a cold wake-up's cost, compacting's (the
       context read warm and 2k tokens of summary) and the wake-up after it (the prompt's system messages, 20k kept and
       the summary), at the model's catalogue prices. Pi decides; the prompt-eval scenarios `compact-long-wait`,
-      `compact-brief-wait` and `compact-nothing-pending` hold that it does so well.
+      `compact-brief-wait` and `compact-nothing-pending` hold that it does so well. A scenario is a new session's first
+      message, with no spawn before it, so the first two give the work a time minutes before the run (a fixed date read
+      days old against Today, and Opus rightly looked at the status of work "asked" five days before: PP-512), and they
+      allow one look at the subagent's status (stood in: at work), not two, nor a send or a stop.
     - **Compact before the cache expires** (`beforeExpiry`, off): after each run, a timer at the session's cache
       lifetime less a lead (`SelfCompact.timingOf`, `cacheTiming`: 5 minutes less 30 s, or with the 1-hour cache 60
       minutes less 5; the prompt cache's lifetime below); when it fires, a session still idle, waiting, its measured context past `remindAt`, and not held back by a
