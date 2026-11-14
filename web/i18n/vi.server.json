@@ -832,5 +832,7 @@
     "At most {1} test sites: {2} given.": "Tối đa {1} trang thử nghiệm: đã đưa {2}.",
     "Sending a real site's pages to another run model is the owner's to approve.": "Gửi các trang của một trang web thật tới mô hình chạy khác là việc chủ sở hữu duyệt.",
     "Replacing a machine's host key is the owner's.": "Thay host key của một máy là việc của chủ sở hữu.",
-    "{1} has no host key to replace: accept its key instead.": "{1} chưa có host key nào để thay: hãy chấp nhận khóa của nó."
+    "{1} has no host key to replace: accept its key instead.": "{1} chưa có host key nào để thay: hãy chấp nhận khóa của nó.",
+    "subagentRetireDays must be one of {1} (0: never).": "subagentRetireDays phải là một trong {1} (0: không bao giờ).",
+    "Give the days ({1}) or off.": "Hãy đưa số ngày ({1}) hoặc off."
 }

@@ -176,6 +176,49 @@ test("the bar says what works; Stop stops one", real, async () => {
     assert.equal(app.isBusy(slow.conversationId), false, "the subagent stopped");
 });
 
+// PP-515.
+test("Retire idle subagents asks first, retires the idle ones, and lists them under Retired, where a row opens one", real, async () => {
+    const id = await started(0);
+
+    await says(".agents-count", /^1 working · 1 done$/);
+    await settled();
+    await page.click({ selector: ".agents-summary" });
+    await see(`return JSON.stringify(document.querySelectorAll(".agents-list .agent-row").length === 2)`, "a row each");
+    // Once quick's report has reached Pi: one on its way is not idle yet.
+    await see(`return JSON.stringify(document.querySelector('[data-part="retire-idle"]') !== null)`, "Retire idle subagents", 20_000);
+    await settled();
+    await page.click({ selector: '[data-part="retire-idle"]' });
+    // It asks first, with how many; the working one is not counted.
+    await says('[data-part="retire-confirm"]', /^Retire 1 idle subagent\? Its conversation is kept\./);
+    await page.click({ selector: '[data-part="retire-yes"]' });
+    await says('[data-part="retired-toggle"]', /^Retired · 1$/);
+    await says(".agents-count", /^1 subagent working$/);
+    assert.deepEqual(Object.keys((await app.harness.snapshot(SubagentsDoc, id, context))!.agents), ["slow"]);
+
+    const quick = app.retiredSubagents(owner(app), id)[0]!;
+
+    assert.equal(quick.name, "quick");
+    await settled();
+    await page.click({ selector: '[data-part="retired-toggle"]' });
+    await says('[data-part="retired-agent"] .agent-name', /^quick$/);
+    assert.equal(await textOf('[data-part="retired-agent"] .agent-when'), "retired now · idle 1m");
+    assert.equal(await textOf('[data-part="retired-agent"] .agent-asked'), "Check quick, please.");
+
+    if (process.env.PHONE_SHOTS !== undefined) {
+        mkdirSync(process.env.PHONE_SHOTS, { recursive: true });
+        await settled();
+        writeFileSync(join(process.env.PHONE_SHOTS, "subagents-retired-390.jpg"), Buffer.from((await page.screenshot()).data, "base64"));
+    }
+
+    // Its conversation is kept: the row opens it.
+    await settled();
+    await page.click({ selector: '[data-part="retired-agent"] .agent-open' });
+    await see(`return JSON.stringify(location.pathname === "/s/${quick.conversationId}")`, "the retired subagent's conversation");
+    // It keeps its name there.
+    await says(".topbar .title-main", /^quick$/);
+    await app.commands.abort((await app.harness.snapshot(SubagentsDoc, id, context))!.agents.slow!.conversationId, owner(app));
+});
+
 test("the board shows a sub-tile for each subagent at work, with what it does", real, async () => {
     await started(0);
     await page.setViewport(VIEWPORTS.desktop);

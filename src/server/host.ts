@@ -21,6 +21,7 @@ import type { ResolvedSubagentDefaults } from "./subagent-defaults.ts";
 import type { Goals } from "./goals.ts";
 import type { SelfCompact } from "./self-compact.ts";
 import type { ColdSubagents } from "./cold-subagent.ts";
+import type { SubagentRetirement } from "./subagent-retire.ts";
 import type { Schedules } from "./schedules.ts";
 import type { SessionControl } from "./session-control.ts";
 import type { Para } from "./para.ts";
@@ -776,6 +777,8 @@ export interface PocketHost {
      * that finished its work, while its cache is warm (PP-513).
      */
     readonly coldSubagents: Pick<ColdSubagents, "figures" | "check" | "compact" | "finished" | "finish">;
+    /** Idle subagents retired from their session (PP-515): at each subagent call; and which status lists without all. */
+    readonly subagentRetire: Pick<SubagentRetirement, "auto" | "recent">;
     /**
      * Text from elsewhere made safe for Pi to read (`fence.ts`): `quoted` gives one line, cut to `max`, without
      * invisible characters or any tag, in quotes it cannot close; `defang` keeps the lines, but no closing tag survives,

@@ -1675,6 +1675,38 @@ so Pi changes them through the settings tools; "the last session" is the one the
       prompt cache still warm, …" line and Spend's group, with `warmSaving`: the next run on the context kept against
       the summary turn's real cost and the next run on what is left, at warm prices. `requestsPerRun` leaves summary
       turns out of the runs it averages.
+  - **Idle subagents retire** (PP-515, story PP-472; the owner, 2026-11-14: "Dọn đi"; `subagent-retire.ts`). A session
+    kept every subagent it spawned (#993: 106, most idle for days), and `subagent status` and the subagents bar listed
+    them all. `SubagentsDoc.retired` (oldest first: name, conversation, `retiredAt`, `idleSince`, what it was asked)
+    holds those that left `agents`.
+    - **When:** `SubagentRetirement.auto` at the start of every `subagent` call (the tool's own retirement, before it
+      reads the registry), and `atStart` for every session with subagents at the server's start, before
+      `harness.resume()`: no timer per subagent (Android's Doze, and nothing to schedule). The threshold is
+      `config.subagentRetireDays` (`subagents.retireAfter`, Menu › Subagents: 1, 2, 3, 7, 14 or 30 days, 3 by default,
+      0 never). `retire(parent, 0)` is "Retire idle subagents": the subagents bar's button (`POST
+      c/:id/retire-subagents`, who can steer) and the app action `subagents.retire` (the owner's card).
+    - **Idle since** the newest of `askedAt`, `answeredAt` and the timestamps of the subagent's 40 newest entries (a
+      person's own message to it counts), on the app's clock (`app.now`). One commit checks and moves the record, so a
+      restart retires it whole or not at all. **Never retired:** a run or a compaction (`LiveDoc`), messages queued
+      (`InboxDoc`), its own summary turn asked or ready (`SelfCompactDoc`), `finishing` (PP-513), a reporter at work
+      for its name (`pocket.subagent-reporter` tasks of the parent, pending to sleeping: work sent and not reported, or
+      compacting before or after it), or its report waiting to go (`outbox`, `sending`).
+    - **Kept:** its conversation; its parent (`#noteSubagents` reads `retired` too, so `rootOf`, access, Spend and the
+      cost figures stay its session's); its name where it shows (`subagentNameOf`: its own view's title, the running
+      list, the progress board); Plan mode follows it. Its name is free: a spawn makes a new one.
+    - **The tool, its text unchanged** (no new action; the prompt budget stays): `status` without a name lists those
+      working, compacting, with a report on its way, or idle under a day (`RECENT_MS`; `recent()` reads entries only
+      for one old by its record), then "and N older idle ones (status all lists them)."; `status all` lists every one
+      in the registry; `send`, `stop` or `status` of a retired name answers "X was retired (idle 4 days); spawn a new
+      one." and sends it nothing.
+    - **The bar** (`web/subagents.js`): the view carries `subagentsRetired` (a count); open, the bar ends with
+      "Retired · N", which fetches the list (`GET c/:id/retired-subagents`, newest first) as rows that open each
+      conversation, and "Retire idle subagents", which asks in the bar (how many; their conversations are kept). Open,
+      it stays while there are retired ones, after the button took the last rows. `/?sheet=subagent-settings` opens
+      Menu › Subagents by link. The settings list (`settings` without an area) must stay within a tool result's 50 KB:
+      the per-session `context.session*` helps now point at their global setting's values instead of repeating them.
+      `test/subagent-retire.test.ts` (its clock moves by days), `test/subagents-ui.test.ts`,
+      `test/subagent-settings-ui.test.ts`.
 - **Server edition** (`--platform server`, PP-20; the owner's decision of 2026-10-20, board epic PP-19): the same server in
   Docker (`Dockerfile`, `deploy/`), behind Caddy. `main.ts` runs as `phone` unless told `--platform server` (the image sets `PI_PHONE_PLATFORM=server`). On a
   server, Pi's browser is a `ChromeEngine` with its profile kept in `~/.pi/mobile/browser`, screenshots come from

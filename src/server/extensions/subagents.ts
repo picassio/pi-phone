@@ -46,6 +46,7 @@ import { diffLines, githubReview, parseReviewResult, prepareReview, quote, type 
 import { whyUnanswered } from "../subagent-runs.ts";
 import { BetterTask, BRIEF_MARK } from "../better.ts";
 import type { ColdOutcome, ColdPlan, FinishPlan, SubagentFigures } from "../cold-subagent.ts";
+import { retiredText } from "../subagent-retire.ts";
 
 // Exclude Agent Teams by name even while it is off; enabling it later must not give nested agents delegation.
 const AgentTeams = defineExtension({ name: "pocket-agent-teams" });
@@ -1109,15 +1110,22 @@ export default function createSubagents(host: PocketHost) {
                           },
                       }),
             });
+            // Subagents idle longer than the setting leave the session first (PP-515): a send to one says so.
+            await host.subagentRetire.auto(api.conversationId, context);
             const registry = (await api.snapshot(SubagentsDoc, api.conversationId, context)) ?? {
                 agents: {},
                 reporters: {},
             };
+            const retired = (each: string) => registry.retired?.findLast((record) => record.name === each);
 
             if (action === "status") {
-                // "all", as the tool's description offers, as well as no name (pi-pocket 0.21.0, PP-132).
-                const names = name === undefined || name === "all" ? Object.keys(registry.agents) : [name];
+                // No name: those at work or idle under a day, and how many older ones (PP-515); "all": every one, as the
+                // tool's description offers (pi-pocket 0.21.0, PP-132).
+                const short = name === undefined;
+                const names = short || name === "all" ? Object.keys(registry.agents) : [name];
+                const reporting = new Set([...(registry.outbox ?? []), ...(registry.sending?.reports ?? [])].map((report) => report.name));
                 const lines: string[] = [];
+                let older = 0;
 
                 for (const each of names) {
                     const found = Object.hasOwn(registry.agents, each)
@@ -1125,6 +1133,17 @@ export default function createSubagents(host: PocketHost) {
                         : undefined;
 
                     if (found === undefined) {
+                        const gone = retired(each);
+
+                        if (gone !== undefined) {
+                            lines.push(retiredText(gone));
+                        }
+
+                        continue;
+                    }
+
+                    if (short && !reporting.has(each) && !(await host.subagentRetire.recent(found.conversationId, found, context))) {
+                        older++;
                         continue;
                     }
 
@@ -1137,6 +1156,10 @@ export default function createSubagents(host: PocketHost) {
                     lines.push(`${each}: ${doing}${figuresLine(figures, Date.now())}`);
                 }
 
+                if (older > 0) {
+                    lines.push(`${lines.length === 0 ? "None at work or idle under a day, " : ""}and ${older} older idle one${older === 1 ? "" : "s"} (status all lists them).`);
+                }
+
                 return reply(lines.length === 0 ? "No subagents." : lines.join("\n"));
             }
 
@@ -1147,7 +1170,10 @@ export default function createSubagents(host: PocketHost) {
             const agent = Object.hasOwn(registry.agents, name) ? registry.agents[name] : undefined;
 
             if (action !== "spawn" && agent === undefined) {
-                return reply(`No subagent named ${name}.`);
+                const gone = retired(name);
+
+                // Not woken: its conversation stays as it was, and a new one takes the work.
+                return reply(gone === undefined ? `No subagent named ${name}.` : retiredText(gone));
             }
 
             if (action === "stop") {

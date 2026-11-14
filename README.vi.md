@@ -134,6 +134,14 @@ dự án thật.</sub>
   rồi đi, đúng một lần; `subagent status` ghi "compacting after its work". Bản ghi của subagent hiện dòng "Đã nén", và
   **Chi tiêu** liệt kê lần nén cùng số tiết kiệm. Mặc định bật: Menu › Nén ngữ cảnh › **Nén subagent khi nó xong việc**
   (Pi: `sessions.compactFinishedSubagent`).
+- **Subagent rảnh được cho nghỉ.** Subagent rảnh 3 ngày sẽ rời danh sách của phiên vào lần tới Pi dùng công cụ
+  subagent, hoặc khi server khởi động; cuộc hội thoại của nó vẫn được giữ, và chi phí vẫn nằm trong **Chi tiêu**.
+  `subagent status` chỉ liệt kê subagent đang làm hoặc rảnh dưới một ngày, rồi đếm số subagent cũ hơn (`status all`
+  liệt kê hết). Tin gửi tới subagent đã nghỉ sẽ báo Pi rằng nó đã nghỉ và hãy tạo subagent mới; nó không bao giờ bị
+  gọi dậy. Thanh subagent liệt kê chúng trong mục **Đã nghỉ**, mỗi dòng mở cuộc hội thoại của nó, và **Cho subagent
+  rảnh nghỉ** cho các subagent đang rảnh của phiên này nghỉ ngay, sau khi bạn xác nhận. Menu › Subagent › **Cho subagent
+  rảnh nghỉ sau**: từ 1 đến 30 ngày, hoặc không bao giờ (Pi: `subagents.retireAfter`, và hành động
+  `subagents.retire`).
 - **Bộ nhớ đệm prompt 1 giờ, khi bạn cần.** Mặc định bộ nhớ đệm prompt của Claude giữ 5 phút. Với phiên chờ lâu hơn
   (chờ subagent, lượt chạy CI, lịch hẹn), chọn 1 giờ trong Menu › Nén ngữ cảnh, cho phiên này hoặc mọi phiên: thức
   dậy trong vòng một giờ sẽ đọc lại bộ nhớ đệm thay vì ghi lại toàn bộ ngữ cảnh, còn mỗi lần ghi bộ nhớ đệm tốn 2 lần giá

@@ -132,6 +132,13 @@ No Termux, no laptop, no cloud VM.
   meanwhile waits until it is done, then goes, once; `subagent status` says "compacting after its work". Its
   transcript shows the "Compacted" line, and **Spend** lists it with what it saved. On by default: Menu › Compact
   context › **Compact a subagent when it finishes its work** (Pi: `sessions.compactFinishedSubagent`).
+- **Idle subagents retire.** A subagent idle for 3 days leaves its session's list the next time Pi uses the subagent
+  tool, or when the server starts; its conversation is kept, and its cost stays in **Spend**. `subagent status` lists
+  only those working or idle under a day, then how many older ones there are (`status all` lists them). A message to a
+  retired one tells Pi it was retired and to spawn a new one; it is never woken. The subagents bar lists them under
+  **Retired**, each opening its conversation, and **Retire idle subagents** retires this session's idle ones now, after
+  you confirm. Menu › Subagents › **Retire idle subagents after**: 1 to 30 days, or never (Pi:
+  `subagents.retireAfter`, and the action `subagents.retire`).
 - **A 1-hour prompt cache, when you want it.** Claude's prompt cache lasts 5 minutes by default. For a session that
   waits longer (on subagents, CI runs, schedules), pick 1 hour in Menu › Compact context, for this session or every
   session: a wake-up within the hour reads the cache instead of writing the whole context again, and each cache write

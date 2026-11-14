@@ -98,8 +98,10 @@ import {
     type SessionGroupsOf,
     type SessionMeta,
     SessionsDoc,
+    type RetiredSubagent,
     type SubagentRecord,
     SubagentsDoc,
+    subagentNameOf,
     ReviewLoopDoc,
     TurnsDoc,
 } from "./docs.ts";
@@ -116,6 +118,7 @@ import { AutoCompact, checkCompactAt } from "./auto-compact.ts";
 import { type CacheRetentionChoice, checkCacheRetention, installCacheRetention } from "./cache-retention.ts";
 import { SelfCompact } from "./self-compact.ts";
 import { ColdSubagents } from "./cold-subagent.ts";
+import { RETIRE_DAYS, SubagentRetirement } from "./subagent-retire.ts";
 import { withAssistant } from "./assistant.ts";
 import { type CallPlan, type CallStart, chatgptAccount, type VoiceEndpoints, type VoiceMode, VOICES, VoiceService, isVoiceMode, voiceInstructions, withVoice, wordsHint } from "./voice.ts";
 import { GitHubLogin } from "./github-login.ts";
@@ -278,9 +281,10 @@ type SubagentsValue = {
     agents?: Record<string, SubagentRecord>;
     outbox?: readonly { name: string }[];
     sending?: { reports: readonly { name: string }[] };
+    retired?: readonly RetiredSubagent[];
 };
 
-type SubagentsOf = { agents: Record<string, SubagentRecord>; reporting: Set<string> };
+type SubagentsOf = { agents: Record<string, SubagentRecord>; reporting: Set<string>; retired: readonly RetiredSubagent[] };
 
 /** One subagent on the subagents board: the subagents bar's view, the session it works in, and the call it waits on. */
 export type SubagentEntry = ReturnType<typeof subagentView> & {
@@ -638,6 +642,8 @@ export class PocketApp {
     readonly selfCompact = new SelfCompact(this);
     /** Subagents whose prompt cache went cold, compacted before new work when that costs less (PP-511, `cold-subagent.ts`). */
     readonly coldSubagents = new ColdSubagents(this);
+    /** Idle subagents retired from their session, their conversations kept (PP-515, `subagent-retire.ts`). */
+    readonly subagentRetire = new SubagentRetirement(this);
     /** The app's `gh` and `git` signed in to GitHub (`github-login.ts`). */
     readonly github = new GitHubLogin();
     /** The app's SSH keys, for machines (`ssh-keys.ts`). */
@@ -1642,6 +1648,7 @@ export class PocketApp {
             goals: this.goals,
             selfCompact: this.selfCompact,
             coldSubagents: this.coldSubagents,
+            subagentRetire: this.subagentRetire,
             text: Object.freeze({ quoted, defang }),
             thinkingLevels: THINKING_LEVELS,
         };
@@ -1779,6 +1786,8 @@ export class PocketApp {
             this.#scheduleSessions();
         });
 
+        // Subagents idle longer than the setting leave their sessions (PP-515), before work resumes: none is at work yet.
+        await this.subagentRetire.atStart([...this.#subagents.keys()]);
         // Work a previous process left unfinished continues now.
         this.harness.resume();
         // Idle sessions' captures into the wiki, from now on.
@@ -2579,15 +2588,9 @@ export class PocketApp {
 
     /** The name a subagent conversation has in its parent's subagents, if it is one. */
     #subagentName(id: ConversationId): string | undefined {
-        for (const { agents } of this.#subagents.values()) {
-            for (const [name, record] of Object.entries(agents)) {
-                if (record.conversationId === id) {
-                    return name;
-                }
-            }
-        }
+        const parent = this.parentOf(id);
 
-        return undefined;
+        return parent === undefined ? undefined : subagentNameOf(this.#subagents.get(parent), id);
     }
 
     /** The account cards a session shows: its own wait's, and its subagents' (as their approvals show there). */
@@ -3578,7 +3581,7 @@ export class PocketApp {
             return undefined;
         }
 
-        const name = Object.entries(this.#subagents.get(parent)?.agents ?? {}).find(([, record]) => record.conversationId === id)?.[0] ?? "subagent";
+        const name = subagentNameOf(this.#subagents.get(parent), id) ?? "subagent";
         const root = this.sessionMeta(this.rootOf(id));
 
         return `${root?.title ?? "New session"} · ${name}`;
@@ -3702,16 +3705,54 @@ export class PocketApp {
 
     #noteSubagents(id: ConversationId, doc: SubagentsValue | null | undefined): void {
         const agents = doc?.agents ?? {};
+        // Retired ones stay this session's (PP-515): their conversations open, and count in its Spend.
+        const retired = doc?.retired ?? [];
 
-        for (const record of Object.values(agents)) {
+        for (const record of [...Object.values(agents), ...retired]) {
             this.#parents.set(record.conversationId, id);
         }
 
-        if (Object.keys(agents).length === 0) {
+        if (Object.keys(agents).length === 0 && retired.length === 0) {
             this.#subagents.delete(id);
         } else {
-            this.#subagents.set(id, { agents: { ...agents }, reporting: reportingOf(doc) });
+            this.#subagents.set(id, { agents: { ...agents }, reporting: reportingOf(doc), retired: [...retired] });
         }
+    }
+
+    /** A session's retired subagents (PP-515), newest first: the subagents bar's Retired list. */
+    retiredSubagents(user: User, id: ConversationId): RetiredSubagent[] {
+        this.requireSee(user, id);
+
+        return [...(this.#subagents.get(id)?.retired ?? [])].reverse();
+    }
+
+    /**
+     * Retire a session's idle subagents now (PP-515: the subagents bar's "Retire idle subagents", the app action
+     * `subagents.retire`), however long they were idle: their conversations are kept. Those retired.
+     */
+    async retireSubagents(user: User, id: ConversationId): Promise<RetiredSubagent[]> {
+        this.requireSee(user, id);
+        this.requireSteer(user);
+
+        return this.subagentRetire.retire(id, 0);
+    }
+
+    /** The owner chooses how many days a subagent stays idle before it is retired (PP-515); 0: never. */
+    async setSubagentRetireDays(user: User, days: unknown): Promise<void> {
+        if (user.role !== "owner") {
+            throw new HttpError(403, "Only the owner can do that");
+        }
+
+        if (typeof days !== "number" || !(RETIRE_DAYS as readonly number[]).includes(days)) {
+            throw new HttpError(400, `subagentRetireDays must be one of ${RETIRE_DAYS.join(", ")} (0: never).`);
+        }
+
+        if (days === this.config.subagentRetireDays) {
+            return;
+        }
+
+        this.config.subagentRetireDays = days;
+        await this.#refreshClients();
     }
 
     /**
@@ -4753,6 +4794,8 @@ export class PocketApp {
                 progressBoard: this.config.progressBoard,
                 // The model and thinking level subagents start on in every session (PP-281); a part absent: the session's own.
                 subagentDefaults: this.config.subagentDefaults,
+                // Days a subagent stays idle before it is retired, 0: never (PP-515).
+                subagentRetireDays: this.config.subagentRetireDays,
                 // Minutes idle before a session is captured into the wiki, or null (`para-capture.ts`).
                 wikiCaptureMinutes: this.config.wikiCaptureMinutes,
                 // The most hours a run waits for a provider's limit to clear; 0: it does not wait (`limit-gate.ts`).

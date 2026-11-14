@@ -45,6 +45,7 @@ import {
     type SubagentRecord,
     STOPPED,
     SubagentsDoc,
+    subagentNameOf,
     type Turns,
     TurnsDoc,
 } from "./docs.ts";
@@ -363,6 +364,8 @@ export class Room {
     #reporting = new Set<string>();
     /** Why their reports wait, while a spend limit holds them back. */
     #held: string | undefined;
+    /** How many of its subagents were retired (PP-515): the subagents bar's Retired list fetches them when opened. */
+    #retired = 0;
     chat: ChatMessage[] = [];
     reactions: Record<string, Record<string, string[]>> = {};
     pins: Pin[] = [];
@@ -433,6 +436,7 @@ export class Room {
         this.subagents = { ...(subagents?.agents ?? {}) } as Record<string, SubagentRecord>;
         this.#reporting = reportingOf(subagents);
         this.#held = subagents?.held;
+        this.#retired = subagents?.retired?.length ?? 0;
         this.chat = [
             ...((await harness.snapshot(ChatDoc, this.id, context))?.messages ?? []),
         ] as ChatMessage[];
@@ -469,12 +473,11 @@ export class Room {
         this.better = { ...((await harness.snapshot(BetterDoc, this.id, context)) ?? {}) };
 
         if (owner !== undefined) {
-            const siblings =
-                (await harness.snapshot(SubagentsDoc, owner.conversationId, context))?.agents ?? {};
+            const siblings = await harness.snapshot(SubagentsDoc, owner.conversationId, context);
 
-            // A `/better` helper (PP-506) is named for its command.
+            // A `/better` helper (PP-506) is named for its command; a retired subagent keeps its name (PP-515).
             this.subagentName =
-                Object.entries(siblings).find(([, record]) => record.conversationId === this.id)?.[0] ??
+                subagentNameOf(siblings, this.id) ??
                 (this.#app.better.sessionOf(this.id) === undefined ? undefined : "/better");
             this.parent = {
                 id: owner.conversationId,
@@ -556,6 +559,7 @@ export class Room {
             this.subagents = { ...((value?.agents as Record<string, SubagentRecord>) ?? {}) };
             this.#reporting = reportingOf(value as Parameters<typeof reportingOf>[0]);
             this.#held = typeof value?.held === "string" ? value.held : undefined;
+            this.#retired = Array.isArray(value?.retired) ? value.retired.length : 0;
         }
 
         this.schedule();
@@ -710,6 +714,7 @@ export class Room {
             limitOffers: this.#app.limitOffersFor(this.id),
             // Reports on their way that a spend limit holds back, and why: the subagents bar says so.
             subagentsHeld: this.#reporting.size > 0 ? (this.#held ?? null) : null,
+            subagentsRetired: this.#retired,
             authors: this.authors,
             reactions: this.reactions,
             pins: this.pins,

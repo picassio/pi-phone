@@ -108,6 +108,8 @@ const emptyView = () => ({
     better: { running: null, last: null },
     branch: null,
     subagentsHeld: null,
+    // How many of its subagents were retired (PP-515): the subagents bar's Retired list.
+    subagentsRetired: 0,
     limitOffers: [],
 });
 
@@ -690,6 +692,7 @@ function mergeView(current, data) {
         better: data.better ?? base.better,
         // Why subagents' reports wait (a spend limit), or null when none do: the subagents bar says it.
         subagentsHeld: data.subagentsHeld === undefined ? base.subagentsHeld : data.subagentsHeld,
+        subagentsRetired: data.subagentsRetired ?? base.subagentsRetired,
         // What the folder has checked out: `{ branch }` or `{ detached }`, and null outside a repository.
         branch: data.branch === undefined ? base.branch : data.branch,
         // The account cards of waits for a limit here, its subagents' too (PP-135).

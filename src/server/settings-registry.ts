@@ -28,6 +28,7 @@ import { CHROME_FEATURES_MAX, MACHINE_BROWSER_MODES } from "./browser/machine-en
 import { TEST_SITES_MAX } from "./test-sites.ts";
 import { CODEMODE_MODES, CONTEXT_PARTS, type ContextPart, contextModes, resolveContextPolicy } from "./context-policy.ts";
 import { THINKING_LEVELS } from "./models.ts";
+import { DEFAULT_RETIRE_DAYS, RETIRE_DAYS } from "./subagent-retire.ts";
 import { copyFileSync, existsSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
@@ -355,6 +356,31 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             choices: () => ["inherit", "session", ...THINKING_LEVELS],
             apply: (user, value, target) => app.setSubagentDefault(user, "thinking", value.trim().toLowerCase(), session(target)),
         },
+        // Idle subagents leave their session (PP-515): their conversations are kept.
+        {
+            id: "subagents.retireAfter",
+            area: "models",
+            title: "Retire idle subagents after",
+            help: `Days idle before a subagent leaves its session's list, in every session: ${RETIRE_DAYS.filter((days) => days > 0).join(", ")} (default ${DEFAULT_RETIRE_DAYS}), or off. Its conversation is kept. Menu › Subagents.`,
+            owner: true,
+            read: () => (app.config.subagentRetireDays === 0 ? "off" : `${app.config.subagentRetireDays} days`),
+            choices: () => ["off", ...RETIRE_DAYS.filter((days) => days > 0).map(String)],
+            apply: (user, value) => {
+                const word = value.trim().toLowerCase();
+
+                if (NONE.test(word) || word === "never") {
+                    return app.setSubagentRetireDays(user, 0);
+                }
+
+                const days = /^(\d+)\s*(d|days?)?$/.exec(word);
+
+                if (days === null) {
+                    throw new HttpError(400, `Give the days (${RETIRE_DAYS.filter((each) => each > 0).join(", ")}) or off.`);
+                }
+
+                return app.setSubagentRetireDays(user, Number(days[1]));
+            },
+        },
         {
             id: "providers.limitWait",
             area: "providers",
@@ -510,7 +536,8 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 id: `context.session${capital(part)}`,
                 area: "sessions",
                 title: `${CONTEXT_TITLES[part]}, one session`,
-                help: `${CONTEXT_HELP[part]} Or inherit (the setting for every session). Target: the session's number.`,
+                // Short (PP-515): the settings list stays within a tool result's 50 KB, its last lines too.
+                help: `context.${part}'s values, for one session, or inherit (the setting for every session). Target: the session's number.`,
                 owner: true,
                 target: "session",
                 read: (target) => {
@@ -1699,6 +1726,20 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 await app.checkVoice(user);
 
                 return voiceModels(app.config.voiceCheck);
+            },
+        },
+        {
+            id: "subagents.retire",
+            area: "models",
+            title: "Retire a session's idle subagents now",
+            help: "However long idle; not one working or with a report on its way. Their conversations are kept.",
+            owner: true,
+            args: { session: "The session's number" },
+            describe: (args) => `Retire the idle subagents of session ${args.session ?? ""}; their conversations are kept`,
+            run: async (user, args) => {
+                const retired = await app.retireSubagents(user, session(args.session));
+
+                return retired.length === 0 ? "No subagent there was idle." : `Retired ${retired.length}: ${retired.map((each) => each.name).join(", ")}.`;
             },
         },
         {

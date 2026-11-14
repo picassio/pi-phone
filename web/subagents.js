@@ -1,7 +1,9 @@
 // The subagents bar, above the message box: this session's subagents at a glance. It shows while one works or has a
 // report on its way to Pi, and after they finish until it is put away. Folded, one line: how many work and how many
 // are done, and what the newest one does. Unfolded, a row each: what it was asked, what it does this moment (its peek,
-// as tiles have), for how long, whether its report is on its way, Stop, and a tap to open it.
+// as tiles have), for how long, whether its report is on its way, Stop, and a tap to open it. Below them: "Retire idle
+// subagents" (PP-515), on a confirm, and the Retired list, fetched when opened: a row each, which opens its kept
+// conversation.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { nowDoing } from "./agent-now.js";
 import { t, tn } from "./i18n.js";
@@ -212,8 +214,111 @@ function Held({ why }) {
     </div>`;
 }
 
+/** A span short, as times ago are: "40m", "5h", "4d". */
+function spanOf(ms) {
+    const minutes = Math.max(1, Math.round(ms / 60_000));
+
+    return minutes < 60 ? t("{n}m", { n: minutes }) : minutes < 1440 ? t("{n}h", { n: Math.round(minutes / 60) }) : t("{n}d", { n: Math.round(minutes / 1440) });
+}
+
+/** Idle now, so "Retire idle subagents" would retire it: not working, and no report on its way (the server checks the rest). */
+const retirable = (agent) => !agent.busy && !agent.reporting;
+
+/** A retired subagent's row: when it was retired, how long it had been idle, what it was asked; a tap opens it. */
+function RetiredRow({ agent }) {
+    const idle = spanOf(agent.retiredAt - agent.idleSince);
+
+    return html`<div class="agent-row retired" data-part="retired-agent">
+        <button class="agent-open" onClick=${() => navigate(agent.conversationId)}>
+            <span class="agent-mark" aria-hidden="true"><${Icon} name="archive" size=${16} /></span>
+            <span class="agent-main">
+                <span class="agent-head">
+                    <span class="agent-name">${agent.name}</span>
+                    <span class="agent-when">${t("retired {when} · idle {idle}", { when: timeAgo(fromServer(agent.retiredAt)), idle })}</span>
+                </span>
+                ${agent.asked && html`<span class="agent-asked">${agent.asked}</span>`}
+            </span>
+        </button>
+    </div>`;
+}
+
+/**
+ * Under the rows: "Retire idle subagents" for those idle now, on a confirm that says how many and that their
+ * conversations are kept; and "Retired", which fetches and lists the retired ones.
+ */
+function Retirement({ agents, retiredCount }) {
+    const id = store.state.conversationId;
+    const [asking, setAsking] = useState(false);
+    const [shown, setShown] = useState(false);
+    const [retired, setRetired] = useState(null);
+    const idle = agents.filter(retirable).length;
+    const load = () =>
+        attempt(async () => {
+            const answer = await api(`c/${id}/retired-subagents`);
+
+            setRetired(answer.retired);
+        });
+    const retire = () =>
+        attempt(async () => {
+            await api(`c/${id}/retire-subagents`, {});
+            setAsking(false);
+
+            if (shown) {
+                await load();
+            }
+        });
+
+    // A list shown follows the count: one retired meanwhile (here or by Pi's next call) joins it.
+    useEffect(() => {
+        if (shown) {
+            void load();
+        }
+    }, [shown, retiredCount]);
+
+    if (idle === 0 && retiredCount === 0) {
+        return null;
+    }
+
+    return html`<div class="agents-retirement" data-part="subagents-retirement">
+        ${
+            asking
+                ? html`<div class="agents-confirm" role="alertdialog" aria-label=${t("Retire idle subagents")} data-part="retire-confirm">
+                      <span>${tn(idle, "Retire {n} idle subagent? Its conversation is kept.", "Retire {n} idle subagents? Their conversations are kept.")}</span>
+                      <span class="agents-confirm-actions">
+                          <button class="button small ghost" onClick=${() => setAsking(false)}>${t("Cancel")}</button>
+                          <button class="button small primary" data-part="retire-yes" onClick=${retire}>${t("Retire")}</button>
+                      </span>
+                  </div>`
+                : html`<div class="agents-foot">
+                      ${
+                          retiredCount > 0 &&
+                          html`<button class="agents-foot-button" aria-expanded=${shown} data-part="retired-toggle" onClick=${() => setShown(!shown)}>
+                              <span>${t("Retired · {n}", { n: retiredCount })}</span>
+                              <span class=${`agents-foot-chevron ${shown ? "open" : ""}`}><${Icon} name="chevron" size=${16} /></span>
+                          </button>`
+                      }
+                      ${
+                          idle > 0 &&
+                          canSteer() &&
+                          html`<button class="agents-foot-button agents-retire" data-part="retire-idle" onClick=${() => setAsking(true)}>
+                              <${Icon} name="archive" size=${16} />
+                              <span>${t("Retire idle subagents")}</span>
+                          </button>`
+                      }
+                  </div>`
+        }
+        ${
+            shown &&
+            retiredCount > 0 &&
+            html`<div class="agents-list agents-retired" data-part="retired-list">
+                ${retired === null ? html`<div class="agents-loading muted small">${t("Loading…")}</div>` : retired.map((agent) => html`<${RetiredRow} key=${agent.conversationId} agent=${agent} />`)}
+            </div>`
+        }
+    </div>`;
+}
+
 /** The bar, while it shows: its hooks watch its rows for peeks, and tick the elapsed times. */
-function Bar({ agents, active, open, held }) {
+function Bar({ agents, all, retiredCount, active, open, held }) {
     const box = useRef(null);
     const [, rerender] = useState(0);
     const count = (status) => agents.filter((agent) => stateOf(agent) === status).length;
@@ -222,10 +327,13 @@ function Bar({ agents, active, open, held }) {
     // Trouble first: on a phone the end of the line may not fit.
     const kinds = ["working", "failed", "stopped", "done"].filter((status) => count(status) > 0);
     // "3 subagents working" when one kind says it all; "2 working · 1 done · 1 failed", short for a phone, when not.
+    // None left but retired ones (PP-515): how many were.
     const summary =
-        kinds.length === 1
-            ? allIn(kinds[0], agents.length)
-            : kinds.map((status) => countIn(status, count(status))).join(" · ");
+        kinds.length === 0
+            ? tn(retiredCount, "{n} subagent retired", "{n} subagents retired")
+            : kinds.length === 1
+              ? allIn(kinds[0], agents.length)
+              : kinds.map((status) => countIn(status, count(status))).join(" · ");
     const shown = ordered(agents);
 
     // The rows' and the folded line's peeks: what each working subagent does now.
@@ -296,10 +404,12 @@ function Bar({ agents, active, open, held }) {
         ${held && html`<${Held} why=${held} />`}
         ${
             open &&
+            shown.length > 0 &&
             html`<div class="agents-list">
                 ${shown.map((agent) => html`<${AgentRow} key=${agent.name} agent=${agent} />`)}
             </div>`
         }
+        ${open && html`<${Retirement} agents=${all} retiredCount=${retiredCount} />`}
     </div>`;
 }
 
@@ -310,18 +420,24 @@ function Bar({ agents, active, open, held }) {
 export function SubagentsBar() {
     const { view, conversationId, subagentsOpen } = store.state;
     const away = awayMarks()[conversationId] ?? 0;
-    const agents = (view.subagents ?? []).filter(
+    const all = view.subagents ?? [];
+    const agents = all.filter(
         (agent) => agent.busy || agent.reporting || newest(agent) > away,
     );
+    const open = subagentsOpen === conversationId;
+    const retiredCount = view.subagentsRetired;
 
-    if (agents.length === 0) {
+    // Open, it stays while there are retired ones to list, after "Retire idle subagents" took the last rows too.
+    if (agents.length === 0 && !(open && retiredCount > 0)) {
         return null;
     }
 
     return html`<${Bar}
         agents=${agents}
+        all=${all}
+        retiredCount=${retiredCount}
         held=${view.subagentsHeld}
         active=${agents.some((agent) => agent.busy || agent.reporting)}
-        open=${subagentsOpen === conversationId}
+        open=${open}
     />`;
 }

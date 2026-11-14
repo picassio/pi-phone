@@ -833,5 +833,7 @@
     "At most {1} test sites: {2} given.": "最多 {1} 个测试网站：给了 {2} 个。",
     "Sending a real site's pages to another run model is the owner's to approve.": "把真实网站的页面发送给另一个运行模型，需要所有者批准。",
     "Replacing a machine's host key is the owner's.": "替换机器的主机密钥只能由所有者进行。",
-    "{1} has no host key to replace: accept its key instead.": "{1} 没有可替换的主机密钥：请改为接受它的密钥。"
+    "{1} has no host key to replace: accept its key instead.": "{1} 没有可替换的主机密钥：请改为接受它的密钥。",
+    "subagentRetireDays must be one of {1} (0: never).": "subagentRetireDays 必须是以下之一：{1}（0：从不）。",
+    "Give the days ({1}) or off.": "请给出天数（{1}）或 off。"
 }

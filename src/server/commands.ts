@@ -1821,9 +1821,10 @@ export class Commands {
             const conversations = [id];
 
             for (let index = 0; index < conversations.length; index++) {
-                for (const agent of Object.values(
-                    (await tx.doc(SubagentsDoc, conversations[index]!)).agents,
-                )) {
+                const subagents = await tx.doc(SubagentsDoc, conversations[index]!);
+
+                // Retired ones too (PP-515): a person may still talk to one.
+                for (const agent of [...Object.values(subagents.agents), ...(subagents.retired ?? [])]) {
                     conversations.push(agent.conversationId);
                 }
             }

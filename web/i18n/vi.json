@@ -3908,5 +3908,17 @@
     "Replace key": "Thay khóa",
     "Replace {name}'s host key?": "Thay host key của {name}?",
     "A key you did not expect may be an attack: approve only when you know why it changed (a reinstall, a move to another host). Approve replaces it and connects again when pi-env is there; Deny keeps the old key.": "Một khóa bạn không chờ đợi có thể là một cuộc tấn công: chỉ duyệt khi bạn biết vì sao nó đổi (cài lại, chuyển sang host khác). Duyệt sẽ thay khóa và kết nối lại khi pi-env có ở đó; Từ chối giữ khóa cũ.",
-    "Replacing a host key is the owner's: waiting for them.": "Thay host key là việc của chủ sở hữu: đang chờ họ."
+    "Replacing a host key is the owner's: waiting for them.": "Thay host key là việc của chủ sở hữu: đang chờ họ.",
+    "Retire idle subagents after": "Cho subagent rảnh nghỉ sau",
+    "Never": "Không bao giờ",
+    "A subagent idle that long leaves its session's list, and Pi spawns a new one for new work. Its conversation is kept: the subagents bar lists it under Retired.": "Subagent rảnh lâu như vậy sẽ rời danh sách của phiên, và Pi tạo subagent mới cho việc mới. Cuộc hội thoại của nó vẫn được giữ: thanh subagent liệt kê nó trong mục Đã nghỉ.",
+    "{n} day": "{n} ngày",
+    "retired {when} · idle {idle}": "nghỉ {when} · đã rảnh {idle}",
+    "Retire idle subagents": "Cho subagent rảnh nghỉ",
+    "Retire": "Cho nghỉ",
+    "Retired · {n}": "Đã nghỉ · {n}",
+    "Retire {n} idle subagent? Its conversation is kept.": "Cho {n} subagent rảnh nghỉ? Cuộc hội thoại của nó vẫn được giữ.",
+    "Retire {n} idle subagents? Their conversations are kept.": "Cho {n} subagent rảnh nghỉ? Các cuộc hội thoại của chúng vẫn được giữ.",
+    "{n} subagent retired": "{n} subagent đã nghỉ",
+    "{n} subagents retired": "{n} subagent đã nghỉ"
 }

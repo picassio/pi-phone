@@ -3,7 +3,7 @@
 // every session's. Pi changes the same choices on a card (subagents.model, subagents.sessionModel, …). The model is
 // picked with the session's model picker (PP-410, `pickModel`): every account with its plan figures.
 import { useEffect } from "preact/hooks";
-import { t } from "../i18n.js";
+import { t, tn } from "../i18n.js";
 import { api, attempt, closeSheet, loadUsage, openSheet, store } from "../store.js";
 import { pickModel } from "./model.js";
 import { levelName } from "../subagents.js";
@@ -187,6 +187,29 @@ function Allowed() {
     </div>`;
 }
 
+/** The days `subagents.retireAfter` takes (PP-515); 0: never. */
+const RETIRE_DAYS = [0, 1, 2, 3, 7, 14, 30];
+
+/** How long a subagent stays idle before it leaves its session's list, in every session (PP-515). The owner's. */
+function RetireAfter() {
+    const days = store.state.server.subagentRetireDays;
+
+    return html`<div class="field" data-part="subagent-retire">
+        <div class="pp-row">
+            <span>${t("Retire idle subagents after")}</span>
+            <div class="pp-choice">
+                <${Choice}
+                    label=${t("Retire idle subagents after")}
+                    value=${String(days)}
+                    options=${RETIRE_DAYS.map((each) => ({ value: String(each), label: each === 0 ? t("Never") : tn(each, "{n} day", "{n} days") }))}
+                    onChange=${(value) => attempt(() => api("settings", { subagentRetireDays: Number(value) }))}
+                />
+            </div>
+        </div>
+        <p class="muted small">${t("A subagent idle that long leaves its session's list, and Pi spawns a new one for new work. Its conversation is kept: the subagents bar lists it under Retired.")}</p>
+    </div>`;
+}
+
 /** Menu › Subagents (every session), or a session's own (`own`). */
 export function SubagentSettingsSheet({ own }) {
     const { view } = store.state;
@@ -214,6 +237,7 @@ export function SubagentSettingsSheet({ own }) {
             <${Parts} own=${forOne ? (view.conversation?.subagentDefaults ?? {}) : undefined} set=${set} />
         </div>
         ${!forOne && store.state.me?.role === "owner" && html`<${Allowed} />`}
+        ${!forOne && store.state.me?.role === "owner" && html`<${RetireAfter} />`}
         <p class="muted small">${t("A level above a model's highest becomes its highest. A model you name that is not in the list comes as a card first.")}</p>
     <//>`;
 }

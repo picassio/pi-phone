@@ -17165,6 +17165,96 @@ textarea.notes {
     margin-right: 0.2rem;
 }
 
+/*
+ * Under the rows (PP-515): "Retired · N", which lists the retired subagents, and "Retire idle subagents", which asks
+ * first, in the bar's own row.
+ */
+.agents-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    padding: 0 4px;
+    border-top: 1px solid var(--hair);
+}
+
+.agents-foot-button {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 8px;
+    background: none;
+    border: 0;
+    border-radius: var(--r-row);
+    color: var(--muted);
+    font: inherit;
+    cursor: pointer;
+    transition: background-color var(--t-hover) var(--ease-out);
+}
+
+.agents-retire {
+    margin-left: auto;
+    color: var(--text);
+}
+
+@media (hover: hover) {
+    .agents-foot-button:hover {
+        background: var(--hover);
+    }
+}
+
+.agents-foot-chevron {
+    display: inline-flex;
+    transform: rotate(-90deg);
+    transition: transform var(--t-in) var(--ease-out);
+}
+
+.agents-foot-chevron.open {
+    transform: rotate(90deg);
+}
+
+.agents-confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--hair);
+    line-height: 20px;
+}
+
+.agents-confirm-actions {
+    display: inline-flex;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.agent-row.retired .agent-mark {
+    color: var(--muted);
+}
+
+/* On the 4 px grid: 8 + 20 + 4 + 16 + 8 (centred, as the name's and the time's fonts differ: by baseline, 21). */
+.agent-row.retired .agent-head {
+    align-items: center;
+    line-height: 20px;
+}
+
+.agent-row.retired .agent-asked {
+    line-height: 16px;
+}
+
+/* Under the rows' own list, both in the bar's height on a phone. */
+.agents-list.agents-retired {
+    max-height: min(30vh, 16rem);
+}
+
+.agents-loading {
+    padding: 12px;
+}
+
 /* ─── Extensions' pages ──────────────────────────────────────── */
 
 /*

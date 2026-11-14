@@ -1893,6 +1893,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 subagentDefault?: unknown;
                 progressBoard?: unknown;
                 limitWaitHours?: unknown;
+                subagentRetireDays?: unknown;
                 limitNotice?: unknown;
                 assistant?: unknown;
                 voice?: unknown;
@@ -1915,6 +1916,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
                     body.subagentDefault,
                     body.progressBoard,
                     body.limitWaitHours,
+                    body.subagentRetireDays,
                     body.limitNotice,
                     body.assistant,
                     body.voice,
@@ -1982,6 +1984,11 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 const { part, value } = (body.subagentDefault ?? {}) as { part?: unknown; value?: unknown };
 
                 await app.setSubagentDefault(user, part as SubagentPart, value);
+            }
+
+            // Days a subagent stays idle before it is retired, 0: never (PP-515).
+            if (body.subagentRetireDays !== undefined) {
+                await app.setSubagentRetireDays(user, body.subagentRetireDays);
             }
 
             // How long a run waits for a provider's limit to clear, and whether the phone hears of a long wait (PP-135).

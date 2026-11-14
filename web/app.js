@@ -959,6 +959,8 @@ const LINKED_SHEETS = new Set([
     "shortcuts",
     "spend",
     "ssh-keys",
+    // `/?sheet=subagent-settings`: Menu › Subagents, where idle subagents' retirement is set (PP-515).
+    "subagent-settings",
     "web-access",
 ]);
 const linkedSheet = new URLSearchParams(location.search).get("sheet");

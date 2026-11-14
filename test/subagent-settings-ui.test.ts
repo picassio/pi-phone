@@ -125,8 +125,15 @@ test("Menu › Subagents: every session's model and thinking, and models added s
     assert.equal(await inPage<number>(`return JSON.stringify(document.querySelectorAll(".sheet select").length)`), 0);
     assert.deepEqual(
         await inPage<string[]>(`return JSON.stringify([...document.querySelectorAll(".pp-row .choice-text > span:first-child")].map((each) => each.textContent.trim()))`),
-        ["The session's own", "The session's own"],
+        ["The session's own", "The session's own", "3 days"],
     );
+
+    // How long a subagent stays idle before it is retired (PP-515): 3 days by default, never on a choice.
+    await choose("subagent-retire", "Never");
+    await until(() => app.config.subagentRetireDays === 0, "never retired");
+    await choose("subagent-retire", "7 days");
+    await until(() => app.config.subagentRetireDays === 7, "retired after 7 days");
+    await see(`return JSON.stringify(document.querySelector('[data-part="subagent-retire"] .choice-text > span').textContent.trim() === "7 days")`, "the sheet shows 7 days");
 
     await chooseModel("faux-2", ["The session's own"], "The session's own");
     await until(() => app.config.subagentDefaults.model === "faux/faux-2", "every session's model");

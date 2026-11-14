@@ -9,6 +9,7 @@ import type { CacheRetentionChoice } from "./cache-retention.ts";
 import { type CodemodeMode, type ContextPart, type ContextPolicy, DEFAULT_CONTEXT_POLICY } from "./context-policy.ts";
 import { type HookId, hookInfo } from "./hooks.ts";
 import { type SubagentDefaults, type SubagentPart, withPart } from "./subagent-defaults.ts";
+import { DEFAULT_RETIRE_DAYS, RETIRE_DAYS } from "./subagent-retire.ts";
 
 /**
  * The progress board on the phone (PP-283): the notification's rows, the floating bubble, hiding it when idle, and the
@@ -203,6 +204,8 @@ interface PocketConfig {
     subagentModels?: string[];
     /** The model and thinking level Pi starts subagents on in every session (`subagent-defaults.ts`); absent: the session's own. */
     subagentDefaults?: SubagentDefaults;
+    /** Days a subagent stays idle before it is retired (`subagent-retire.ts`, PP-515); 0: never. Absent: 3. */
+    subagentRetireDays?: number;
     /**
      * How many messages and new sessions one session may send other sessions in an hour (`session-control.ts`); null:
      * no limit. Absent: `DEFAULT_SEND_LIMIT`. A session's own (`SessionMeta.sendLimit`) comes first.
@@ -554,6 +557,23 @@ export class ConfigStore {
             delete this.#config.subagentDefaults;
         } else {
             this.#config.subagentDefaults = next;
+        }
+
+        this.save();
+    }
+
+    /** Days a subagent stays idle before it is retired; 0: never (PP-515). */
+    get subagentRetireDays(): number {
+        const days = this.#config.subagentRetireDays;
+
+        return typeof days === "number" && (RETIRE_DAYS as readonly number[]).includes(days) ? days : DEFAULT_RETIRE_DAYS;
+    }
+
+    set subagentRetireDays(days: number) {
+        if (days === DEFAULT_RETIRE_DAYS) {
+            delete this.#config.subagentRetireDays;
+        } else {
+            this.#config.subagentRetireDays = days;
         }
 
         this.save();

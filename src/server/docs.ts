@@ -241,6 +241,28 @@ export type ColdCompacted = { reporter: number; before: number; idleMs: number }
 /** A subagent's report waiting to go to its parent: all those waiting go together, as one message. */
 export type PendingReport = { name: string; text: string };
 
+/**
+ * A subagent that left its session's registry, idle too long (PP-515, `subagent-retire.ts`): its conversation is kept,
+ * and opens from the subagents bar's Retired list or by link. `idleSince`: its last message or answer before then.
+ */
+export type RetiredSubagent = {
+    name: string;
+    conversationId: ConversationId;
+    retiredAt: number;
+    idleSince: number;
+    asked?: string;
+};
+
+/** The name a subagent conversation has, or had, in its parent's subagents: a retired one's too. */
+export function subagentNameOf(
+    doc: { agents?: Readonly<Record<string, { conversationId: ConversationId }>>; retired?: readonly RetiredSubagent[] } | null | undefined,
+    id: ConversationId,
+): string | undefined {
+    const named = Object.entries(doc?.agents ?? {}).find(([, record]) => record.conversationId === id)?.[0];
+
+    return named ?? doc?.retired?.findLast((each) => each.conversationId === id)?.name;
+}
+
 /** A conversation's named background subagents, and the reporter task of each message sent to them. */
 export const SubagentsDoc = defineDoc<{
     agents: Record<string, SubagentRecord>;
@@ -268,6 +290,8 @@ export const SubagentsDoc = defineDoc<{
     held?: string;
     /** An earlier build's names of the batch in the queue: no longer written, and cleared where found. */
     delivering?: string[];
+    /** Subagents retired from `agents`, oldest first (PP-515): their conversations are kept, and stay this session's. */
+    retired?: RetiredSubagent[];
 }>({
     kind: "pocket.subagents",
     version: 1,

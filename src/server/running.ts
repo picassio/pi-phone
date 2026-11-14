@@ -6,7 +6,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { type ConversationId, LiveDoc, type TaskGraphNode } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
-import { ScheduleDoc, SubagentsDoc } from "./docs.ts";
+import { ScheduleDoc, SubagentsDoc, subagentNameOf } from "./docs.ts";
 import { COMMAND_TASK } from "./extension-commands.ts";
 import { projectEntry } from "./projection.ts";
 import { describeMoment, describeRepeat, nextRepeat, type Repeat } from "./when.ts";
@@ -253,12 +253,11 @@ export async function runningNow(app: PocketApp, user: User): Promise<RunningSes
         }
 
         const parent = app.parentOf(node.conversationId);
+        // A retired one (PP-515) a person talks to keeps its name.
         const subagent =
             parent === undefined
                 ? undefined
-                : Object.entries(
-                      (await app.harness.snapshot(SubagentsDoc, parent, context))?.agents ?? {},
-                  ).find(([, record]) => record.conversationId === node.conversationId)?.[0];
+                : subagentNameOf(await app.harness.snapshot(SubagentsDoc, parent, context), node.conversationId);
 
         (await session(node.conversationId)).tasks.push({
             id: Number(node.id),

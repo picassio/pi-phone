@@ -246,6 +246,16 @@ export async function conversationRoutes(
         return json(response, 200, { ok: true });
     }
 
+    // This session's retired subagents, newest first (PP-515): the subagents bar's Retired list.
+    if (third === "retired-subagents" && method === "GET") {
+        return json(response, 200, { retired: app.retiredSubagents(user, id) });
+    }
+
+    // Retire this session's idle subagents now (PP-515): their conversations are kept.
+    if (third === "retire-subagents" && method === "POST") {
+        return json(response, 200, { retired: (await app.retireSubagents(user, id)).map((each) => each.name) });
+    }
+
     // A failed subagent dealt with: `at` says which failure the person saw.
     if (third === "dismiss" && method === "POST") {
         const body = await readJson<{ at?: unknown }>(request);

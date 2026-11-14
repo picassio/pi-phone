@@ -3928,5 +3928,17 @@
     "Replace key": "替换密钥",
     "Replace {name}'s host key?": "要替换 {name} 的主机密钥吗？",
     "A key you did not expect may be an attack: approve only when you know why it changed (a reinstall, a move to another host). Approve replaces it and connects again when pi-env is there; Deny keeps the old key.": "意料之外的密钥可能是攻击：只有在你知道它为何变更（重装、迁移到另一台主机）时才批准。批准会替换它，并在 pi-env 存在时重新连接；拒绝则保留旧密钥。",
-    "Replacing a host key is the owner's: waiting for them.": "替换主机密钥只能由所有者进行：正在等待他们。"
+    "Replacing a host key is the owner's: waiting for them.": "替换主机密钥只能由所有者进行：正在等待他们。",
+    "Retire idle subagents after": "空闲子代理退役时间",
+    "Never": "从不",
+    "A subagent idle that long leaves its session's list, and Pi spawns a new one for new work. Its conversation is kept: the subagents bar lists it under Retired.": "空闲这么久的子代理会离开会话的列表，新的工作由 Pi 另起一个子代理。它的对话会保留：子代理栏在“已退役”下列出它。",
+    "{n} day": "{n} 天",
+    "retired {when} · idle {idle}": "退役 {when} · 空闲 {idle}",
+    "Retire idle subagents": "让空闲子代理退役",
+    "Retire": "退役",
+    "Retired · {n}": "已退役 · {n}",
+    "Retire {n} idle subagent? Its conversation is kept.": "让 {n} 个空闲子代理退役？它的对话会保留。",
+    "Retire {n} idle subagents? Their conversations are kept.": "让 {n} 个空闲子代理退役？它们的对话会保留。",
+    "{n} subagent retired": "{n} 个子代理已退役",
+    "{n} subagents retired": "{n} 个子代理已退役"
 }
