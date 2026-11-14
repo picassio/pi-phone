@@ -7942,6 +7942,8 @@ export class PocketApp {
         this.#closing ??= (async () => {
             clearTimeout(this.#sessionsTimer);
             clearInterval(this.#browserSweep);
+            // First: a look at idle sessions that fired while the rest closes read a closed storage ("Session is closed").
+            this.paraCapture.stop();
             this.phoneControl.close();
             this.computerControl.close();
             this.voice.endAll();
@@ -7999,7 +8001,6 @@ export class PocketApp {
                 }
 
                 storageClosed = true;
-                this.paraCapture.stop();
                 this.forwards.closeAll();
                 await this.para.close();
                 await this.places.close(context);
