@@ -563,6 +563,20 @@ export const SCENARIOS: readonly Scenario[] = [
         message: "Thanks, that's all for today. I'll be back tomorrow morning.",
         expect: { tool: ["answer"], forbid: ["compact_self"], forbidArgs: { tool_search: { query: /compact/i } } },
     },
+    // Work for a subagent idle past its prompt cache (PP-511, src/server/cold-subagent.ts): send compacts a cold, large
+    // one by itself, so Pi sends (or looks at its status first), and neither compacts it another way nor starts a new one.
+    {
+        id: "subagent-cold-send",
+        variant: "phone",
+        message:
+            "The subagent researcher you started this morning has been idle for about 40 minutes and its context is large. Give it the next task: summarise the three PDFs in ~/work/docs in five bullets each. Keep using researcher; don't start another one.",
+        expect: {
+            tool: ["subagent", "codemode"],
+            args: { subagent: { action: matches(/^(send|status)$/), name: equals("researcher") }, codemode: { code: matches(/tools\.subagent\([^)]*researcher/) } },
+            forbid: ["session_compact", "compact_self"],
+            forbidArgs: { subagent: { action: /^(spawn|stop)$/ } },
+        },
+    },
     // An artifact for a thing to see, made at once.
     {
         id: "artifact-counter",

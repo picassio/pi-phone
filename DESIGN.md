@@ -1567,6 +1567,35 @@ so Pi changes them through the settings tools; "the last session" is the one the
       context"; after, "Not compacted", opening Pi's summary, or "Not compacted: the summary turn gave no summary.".
       The same in the live view, after a reload and in the history (read with the context, so a request on one side of
       the compaction entry finds it on the other); `test/self-compact-ui.test.ts`.
+  - **A cold subagent compacts before new work** (PP-511, story PP-472; the owner, 2026-11-14: the main session often
+    reuses a subagent long after its last answer, with a large context; `cold-subagent.ts`). `subagent send` checks the
+    subagent first (`ColdSubagents.check`): with `config.selfCompact.coldSubagent` on (the default; Menu › Compact
+    context, Pi's `sessions.compactColdSubagent`), the subagent idle (`LiveDoc.run`), its last answer's `timestamp`
+    older than its cache's lifetime (`SelfCompact.timingOf`: it follows its session's), its context measured (not an
+    estimate after a compaction), at least 50k tokens, and the cost rule (`coldCosts`): a cold rewrite, the context at
+    the write price (`writePrice`), against compacting: Pi Durable's summarizer reading the part it summarizes
+    (context less Pi's prompt and the 20k kept) uncached at the input price, 3k of summary at the output price, and
+    what is left (prompt, 20k, summary) at the write price. Pi Durable's summarizer, not self-compaction's warm-prefix
+    summary: the cache is cold, so there is no warm prefix to read, and a subagent's summary turn would take its
+    report's place. The rule leaves out the smaller reads of the run's later requests, and the summarizer's real input
+    is smaller (tool results cut to 2,000 characters, no thinking), so it leans toward sending as it is. Opus 5.5 ($4
+    input, $5 write, $20 output), a 35k prompt: at 180k, $0.90 cold against $0.85 compacting (58k left); with the
+    1-hour cache ($8 write), $1.44 against $1.02. The send puts the figures (`ColdPlan`: tokens, idle time, prompt,
+    the newest entry, what it spent and wrote so far) in the reporter's input, whose first phase is then `compact`,
+    before `deliver`: `ColdSubagents.compact` waits for a compaction already under way (a manual one in
+    `LiveDoc.compactions`), or takes a compaction entry placed after the check as done, before it starts one
+    (`conversation.compact()`), so a reporter run again after a restart compacts once; the message is submitted only
+    in `deliver`, under its request id, so it goes once. It records the compaction as the subagent's
+    (`recordCompaction`, reason `cold`, once by its entry: the subagent's compaction line, Spend's group): its cost is
+    what the subagent spent since the check (it was idle), the after is the prompt plus the compacted view's messages,
+    the saving `savingOf`. The reporter writes the outcome to `SubagentRecord.compacted` (by its task id), which the
+    send waits for (a watch) and words: "Compacted X first: 182k → 58k tokens; its cache had gone cold (23 min since
+    its last answer). Sent to X." A failed compaction is not followed by the message (no uncompacted fallback): the
+    send says so, and the reporter reports the subagent failed. `subagent status` shows each subagent's context, its
+    share of the model's window, the time since its last answer, and whether its cache is warm (working, or within its
+    lifetime) or cold. One clause in the tool's description ("a cold, large one compacts first"), paid for by dropping
+    its repeat of the guide's "those that arrive together come in one": the budget went from 84,934 to 84,928.
+    `test/subagent-cold.test.ts`; the prompt-eval scenario `subagent-cold-send`.
 - **Server edition** (`--platform server`, PP-20; the owner's decision of 2026-10-20, board epic PP-19): the same server in
   Docker (`Dockerfile`, `deploy/`), behind Caddy. `main.ts` runs as `phone` unless told `--platform server` (the image sets `PI_PHONE_PLATFORM=server`). On a
   server, Pi's browser is a `ChromeEngine` with its profile kept in `~/.pi/mobile/browser`, screenshots come from

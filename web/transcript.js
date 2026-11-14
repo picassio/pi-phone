@@ -2913,7 +2913,12 @@ const usd = (amount) => `${amount < 0 ? "−" : ""}$${Math.abs(amount).toFixed(a
 
 /** "Compacted: Pi chose to while waiting, 152k → 31k tokens, $0.09, saved about $0.66" (PP-473). */
 function selfCompactedLine(record) {
-    const reason = record.reason === "pi" ? t("Pi chose to while waiting") : t("the prompt cache was about to expire");
+    const reason =
+        record.reason === "pi"
+            ? t("Pi chose to while waiting")
+            : record.reason === "cold"
+              ? t("its prompt cache had gone cold before new work")
+              : t("the prompt cache was about to expire");
 
     return t("Compacted: {reason}, {before} → {after} tokens, {cost}, saved about {saving}", {
         reason,

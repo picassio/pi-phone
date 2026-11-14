@@ -20,6 +20,7 @@ import type { ContextPolicy } from "./context-policy.ts";
 import type { ResolvedSubagentDefaults } from "./subagent-defaults.ts";
 import type { Goals } from "./goals.ts";
 import type { SelfCompact } from "./self-compact.ts";
+import type { ColdSubagents } from "./cold-subagent.ts";
 import type { Schedules } from "./schedules.ts";
 import type { SessionControl } from "./session-control.ts";
 import type { Para } from "./para.ts";
@@ -770,6 +771,8 @@ export interface PocketHost {
     readonly goals: Pick<Goals, "get" | "run" | "record" | "mayContinue">;
     /** Self-compaction (PP-473): compact_self queues one; the generation's and the compaction's hooks run it. */
     readonly selfCompact: Pick<SelfCompact, "queue" | "refused" | "onYield" | "apply" | "summaryFor">;
+    /** Subagents' context and cache (PP-511): their figures for status, and compacting a cold one before new work. */
+    readonly coldSubagents: Pick<ColdSubagents, "figures" | "check" | "compact">;
     /**
      * Text from elsewhere made safe for Pi to read (`fence.ts`): `quoted` gives one line, cut to `max`, without
      * invisible characters or any tag, in quotes it cannot close; `defang` keeps the lines, but no closing tag survives,

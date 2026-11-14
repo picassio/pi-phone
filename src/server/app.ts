@@ -115,6 +115,7 @@ import { SessionGroups } from "./session-groups.ts";
 import { AutoCompact, checkCompactAt } from "./auto-compact.ts";
 import { type CacheRetentionChoice, checkCacheRetention, installCacheRetention } from "./cache-retention.ts";
 import { SelfCompact } from "./self-compact.ts";
+import { ColdSubagents } from "./cold-subagent.ts";
 import { withAssistant } from "./assistant.ts";
 import { type CallPlan, type CallStart, chatgptAccount, type VoiceEndpoints, type VoiceMode, VOICES, VoiceService, isVoiceMode, voiceInstructions, withVoice, wordsHint } from "./voice.ts";
 import { GitHubLogin } from "./github-login.ts";
@@ -635,6 +636,8 @@ export class PocketApp {
     readonly better = new BetterRuns(this);
     /** compact_self, the compact reminder, and compacting before the cache expires (PP-473, `self-compact.ts`). */
     readonly selfCompact = new SelfCompact(this);
+    /** Subagents whose prompt cache went cold, compacted before new work when that costs less (PP-511, `cold-subagent.ts`). */
+    readonly coldSubagents = new ColdSubagents(this);
     /** The app's `gh` and `git` signed in to GitHub (`github-login.ts`). */
     readonly github = new GitHubLogin();
     /** The app's SSH keys, for machines (`ssh-keys.ts`). */
@@ -1638,6 +1641,7 @@ export class PocketApp {
             setWikiRerankModel: (model) => this.#setWikiRerankModel(model),
             goals: this.goals,
             selfCompact: this.selfCompact,
+            coldSubagents: this.coldSubagents,
             text: Object.freeze({ quoted, defang }),
             thinkingLevels: THINKING_LEVELS,
         };

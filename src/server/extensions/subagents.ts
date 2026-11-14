@@ -36,7 +36,7 @@ import {
     type ToolExecutionApi,
     type Tx,
 } from "@earendil-works/pi-durable";
-import { type PendingReport, REPORT_PREFIX, SubagentsDoc } from "../docs.ts";
+import { type ColdCompacted, type PendingReport, REPORT_PREFIX, SubagentsDoc } from "../docs.ts";
 import { describe } from "../errors.ts";
 import type { PocketHost } from "../host.ts";
 import type { ResolvedSubagentDefaults } from "../subagent-defaults.ts";
@@ -45,6 +45,7 @@ import { requestFor } from "../requests.ts";
 import { diffLines, githubReview, parseReviewResult, prepareReview, quote, type ReviewTarget, reviewGuidelines, reviewPrompt } from "../review.ts";
 import { whyUnanswered } from "../subagent-runs.ts";
 import { BetterTask, BRIEF_MARK } from "../better.ts";
+import type { ColdOutcome, ColdPlan, SubagentFigures } from "../cold-subagent.ts";
 
 // Exclude Agent Teams by name even while it is off; enabling it later must not give nested agents delegation.
 const AgentTeams = defineExtension({ name: "pocket-agent-teams" });
@@ -77,23 +78,75 @@ const Anchor = defineTask<null, { phase: "done" }, null>({
         runtime.commit(() => ({ status: "terminal", outcome: { status: "aborted" } }), context),
 });
 
-/** `requestedBy`: whom the parent worked for when it sent the message, whose work the subagent's then is. */
+/**
+ * `requestedBy`: whom the parent worked for when it sent the message, whose work the subagent's then is. `cold`: the
+ * subagent's cache went cold, and it compacts before the message (PP-511, `cold-subagent.ts`).
+ */
 type ReporterInput = {
     name: string;
     conversationId: ConversationId;
     message: string;
     followUp: boolean;
     requestedBy?: string;
+    cold?: ColdPlan;
 };
-type ReporterState = { phase: "deliver" } | { phase: "report"; report?: string };
+type ReporterState = { phase: "compact" } | { phase: "deliver" } | { phase: "report"; report?: string };
 
-/** Delivers one message to a subagent, waits for the answer, and reports it to the parent, through `Courier`. */
-function reporterFor(Courier: CourierTask, host: Pick<PocketHost, "notice">) {
+/**
+ * Delivers one message to a subagent, waits for the answer, and reports it to the parent, through `Courier`. A subagent
+ * whose cache went cold compacts first ("compact"): the phase is checkpointed before the message goes, so a restart
+ * neither compacts twice (`ColdSubagents.compact` finds the compaction under way or placed) nor delivers twice.
+ */
+function reporterFor(Courier: CourierTask, host: Pick<PocketHost, "notice" | "coldSubagents">) {
     return defineTask<ReporterInput, ReporterState, null>({
         name: "pocket.subagent-reporter",
         version: 1,
-        initial: () => ({ phase: "deliver" }),
+        initial: (input) => ({ phase: input.cold === undefined ? "deliver" : "compact" }),
         phases: {
+            compact: async (reporter, runtime, context) => {
+                const { name, conversationId, cold } = reporter.input;
+                let outcome: ColdOutcome | { error: string } | undefined;
+
+                if (cold !== undefined) {
+                    try {
+                        outcome = await host.coldSubagents.compact(conversationId, cold, context);
+                    } catch (error) {
+                        // Stopped, or cut off by a restart: the task's to handle, and the phase runs again.
+                        if (runtime.signal.aborted || context.abortSignal?.aborted === true) {
+                            throw error;
+                        }
+
+                        outcome = { error: describe(error) };
+                    }
+                }
+
+                await runtime.commit(async (tx) => {
+                    const agent = (await tx.doc(SubagentsDoc, runtime.conversationId)).agents[name];
+
+                    if (cold === undefined || outcome === undefined) {
+                        return { status: "running", checkpoint: { phase: "deliver" } };
+                    }
+
+                    if (agent !== undefined) {
+                        agent.compacted = { reporter: Number(reporter.id), before: cold.tokens, idleMs: cold.idleMs, ...outcome };
+                    }
+
+                    // The message does not go uncompacted: it fails, as the subagent's failure, with why.
+                    if ("error" in outcome) {
+                        const why = `compacting it before the message failed (${outcome.error}); the message was not delivered`;
+
+                        if (agent !== undefined) {
+                            agent.answeredAt = Date.now();
+                            agent.failed = true;
+                            agent.error = why;
+                        }
+
+                        return { status: "running", checkpoint: { phase: "report", report: `${REPORT_PREFIX}${name} failed: ${why}]` } };
+                    }
+
+                    return { status: "running", checkpoint: { phase: "deliver" } };
+                }, context);
+            },
             deliver: async (reporter, runtime, context) => {
                 const { name, conversationId, message, followUp, requestedBy } = reporter.input;
                 const subagent = (await runtime.conversation(conversationId, context))!;
@@ -784,6 +837,81 @@ async function checkedBrief(message: string, api: ToolExecutionApi, context: Con
 /** Where a level stands among the thinking levels, lowest first. */
 const rank = (level: ModelThinkingLevel) => THINKING_LEVELS.indexOf(level);
 
+const thousands = (tokens: number) => `${Math.round(tokens / 1000)}k`;
+
+/** A time span as Pi reads it: 40 s, 23 min, 2 h 5 min. */
+function span(ms: number): string {
+    const minutes = Math.floor(ms / 60_000);
+
+    if (minutes < 1) {
+        return `${Math.max(0, Math.round(ms / 1000))} s`;
+    }
+
+    return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h${minutes % 60 === 0 ? "" : ` ${minutes % 60} min`}`;
+}
+
+/** A subagent's context and cache, for status (PP-511): after its state, each part after a dot. */
+function figuresLine(figures: SubagentFigures, now: number): string {
+    const { tokens, estimated, window, model, lastAt, ttlMs, busy } = figures;
+    const share = tokens === undefined || window === undefined || window <= 0 ? "" : `, ${Math.round((tokens / window) * 100)}% of ${model}'s window`;
+    const warm = busy || (lastAt !== undefined && now - lastAt < ttlMs);
+
+    return [
+        tokens === undefined ? "context not measured yet" : `context ${estimated ? "about " : ""}${thousands(tokens)} tokens${share}`,
+        ...(lastAt === undefined ? [] : [`last answer ${span(now - lastAt)} ago`]),
+        `cache ${warm ? "warm" : "cold"} (it lasts ${span(ttlMs)})`,
+    ]
+        .map((part) => ` · ${part}`)
+        .join("");
+}
+
+/** Wait until the reporter `reporter` has compacted `name` (or found nothing to, or failed): its record says what came of it. */
+async function compactedBy(api: ToolExecutionApi, name: string, reporter: number, context: Context): Promise<ColdCompacted> {
+    const mine = (value: { agents: Record<string, { compacted?: ColdCompacted }> } | null | undefined) => {
+        const compacted = value?.agents[name]?.compacted;
+
+        return compacted?.reporter === reporter ? compacted : undefined;
+    };
+    const watch = await api.watchDoc(SubagentsDoc, api.conversationId, context);
+
+    if (watch === undefined) {
+        throw new Error("The subagents' record cannot be watched.");
+    }
+
+    try {
+        return (
+            mine(watch.value) ??
+            (await new Promise<ColdCompacted>((resolve, reject) => {
+                watch.start(async (call) => {
+                    const compacted = call.kind === "value" ? mine(call.value) : undefined;
+
+                    if (compacted !== undefined) {
+                        resolve(compacted);
+                    }
+                });
+                void watch.closed.then(() => reject(new Error("The subagents' watch ended")), reject);
+            }))
+        );
+    } finally {
+        await watch.stop();
+    }
+}
+
+/** What the send says of the compaction before it (PP-511), or why the message did not go. */
+function compactedText(name: string, compacted: ColdCompacted): string {
+    const idle = `${span(compacted.idleMs)} since its last answer`;
+
+    if ("error" in compacted) {
+        return `Compacting ${name} first failed: ${compacted.error}. Its cache had gone cold (${idle}); the message was not sent.`;
+    }
+
+    if ("nothing" in compacted) {
+        return `${name}'s cache had gone cold (${idle}), but it had nothing old enough to compact.`;
+    }
+
+    return `Compacted ${name} first: ${thousands(compacted.before)} → ${thousands(compacted.after)} tokens; its cache had gone cold (${idle}).`;
+}
+
 export default function createSubagents(host: PocketHost) {
     const Courier = courierFor(host);
     const Reporter = reporterFor(Courier, host);
@@ -815,9 +943,9 @@ export default function createSubagents(host: PocketHost) {
         description:
             "Manage persistent background subagents. Actions: spawn (name, message; it runs on the subagents' model and " +
             "thinking level the owner set, or yours; model and thinking only when the person asks for them; tools to " +
-            "allow), send (name, message; followUp: true queues it after the current answer instead of steering), stop " +
-            "(name: aborts its current work), status (one name, or all). Answers come back to you as messages at your " +
-            "next pause; those that arrive together come in one.",
+            "allow), send (name, message; followUp: true queues it after the current answer instead of steering; a cold, " +
+            "large one compacts first), stop (name: aborts its current work), status (one name, or all). Answers come back to you as messages at your " +
+            "next pause.",
         parameters,
         // Not rerun after a crash: repeating stop could stop newer work. The model sees the interruption and can check
         // with status.
@@ -859,11 +987,10 @@ export default function createSubagents(host: PocketHost) {
                         continue;
                     }
 
-                    const busy =
-                        (await api.snapshot(LiveDoc, found.conversationId, context))?.run !==
-                        undefined;
+                    // Its context and cache (PP-511): what the next work costs it.
+                    const figures = await host.coldSubagents.figures(found.conversationId);
 
-                    lines.push(`${each}: ${busy ? "working" : "idle"}`);
+                    lines.push(`${each}: ${figures.busy ? "working" : "idle"}${figuresLine(figures, Date.now())}`);
                 }
 
                 return reply(lines.length === 0 ? "No subagents." : lines.join("\n"));
@@ -905,6 +1032,8 @@ export default function createSubagents(host: PocketHost) {
             // A subagent started before thinking was capped, or one a person raised, thinks no harder than the session
             // for this work (unless the owner set the subagents' level): lowered (never raised) as the work is sent.
             let lowered: ModelThinkingLevel | undefined;
+            // A subagent whose cache went cold, with a context worth compacting: it compacts before the message (PP-511).
+            let cold: ColdPlan | undefined;
 
             if (action === "send") {
                 const child = await api.snapshot(AgentDoc, agent!.conversationId, context);
@@ -936,7 +1065,12 @@ export default function createSubagents(host: PocketHost) {
                         );
                     }
                 }
+
+                cold = (await host.coldSubagents.check(agent!.conversationId)).plan;
             }
+
+            // The reporter this sends the work with, which compacts a cold subagent first.
+            let reporter: number | undefined;
 
             // Resolve spawn options before the commit, so a refused model fails without side effects. A model the owner
             // does not allow for subagents, which the person asked for, waits for the owner's card.
@@ -1067,9 +1201,11 @@ export default function createSubagents(host: PocketHost) {
                     message: sent,
                     followUp: action === "send" && followUp === true,
                     ...(requestedBy === undefined ? {} : { requestedBy }),
+                    ...(cold === undefined ? {} : { cold }),
                 };
 
                 state.reporters[api.taskId] = await tx.createTask(Reporter, input, BACKGROUND);
+                reporter = Number(state.reporters[api.taskId]);
 
                 if (action === "send") {
                     return lowered === undefined
@@ -1102,6 +1238,13 @@ export default function createSubagents(host: PocketHost) {
             const current = (await api.snapshot(SubagentsDoc, api.conversationId, context))?.agents[
                 name
             ];
+
+            // Awaited: the answer says what compacting came to, and a failure that the message did not go.
+            if (cold !== undefined && reporter !== undefined) {
+                const compacted = await compactedBy(api, name, reporter, context);
+
+                return reply("error" in compacted ? compactedText(name, compacted) : `${compactedText(name, compacted)} ${result}`, current?.conversationId);
+            }
 
             return reply(result, current?.conversationId);
         },

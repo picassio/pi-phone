@@ -218,7 +218,20 @@ export type SubagentRecord = {
     approvedModel?: string;
     /** What it reviews, when the `review` tool started it (PP-357): the card's title, and what posting it needs. */
     review?: ReviewMeta;
+    /**
+     * The compaction before the newest work its cache had gone cold for (PP-511, `cold-subagent.ts`), by the reporter
+     * that delivers that work: its context before and after, how long it had been idle, what it cost and saved; or why
+     * it failed, or that it had nothing old enough to compact. The send waits for it, and says it.
+     */
+    compacted?: ColdCompacted;
 };
+
+/** What became of compacting a subagent before work (PP-511): done, nothing to compact, or failed. */
+export type ColdCompacted = { reporter: number; before: number; idleMs: number } & (
+    | { after: number; cost: number; saving: number }
+    | { nothing: true }
+    | { error: string }
+);
 
 /** A subagent's report waiting to go to its parent: all those waiting go together, as one message. */
 export type PendingReport = { name: string; text: string };
@@ -574,6 +587,9 @@ export const ReviewLoopDoc = defineDoc<ReviewLoopState>({
 /** Why a session compacted itself (PP-473): Pi chose to (`compact_self`), or its cache was about to expire. */
 export type SelfCompactReason = "pi" | "expiry";
 
+/** Why a compaction was recorded: a self-compaction's reason, or a subagent compacted before work (PP-511). */
+export type SelfCompactionReason = SelfCompactReason | "cold";
+
 /**
  * One self-compaction (PP-473): the context before and after, in tokens; what it cost (the summary turn); what it saved
  * (`savingOf`); the compaction entry it placed, for the transcript's line.
@@ -582,7 +598,7 @@ export type SelfCompaction = {
     session: number;
     entry: number;
     at: number;
-    reason: SelfCompactReason;
+    reason: SelfCompactionReason;
     before: number;
     after: number;
     cost: number;

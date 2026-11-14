@@ -116,6 +116,14 @@ dự án thật.</sub>
   tắt) làm việc đó không cần hỏi: phiên đang chờ mà rảnh 4,5 phút sẽ tự nén, trừ khi có báo cáo đến trước. Cả ba ở
   Menu › Nén ngữ cảnh (Pi: `sessions.compactSelf`, `sessions.compactRemindAt`, `sessions.compactBeforeExpiry`). Không
   áp dụng cho subagent: câu trả lời cuối của subagent là báo cáo của nó.
+- **Bộ nhớ đệm nguội của subagent được kiểm tra trước việc mới.** Khi Pi giao việc cho một subagent đã rảnh lâu hơn thời
+  gian sống của bộ nhớ đệm prompt, và ghi lại cả ngữ cảnh của nó tốn hơn nén (bộ tóm tắt đọc phần cũ, bản tóm tắt, và
+  ghi ngữ cảnh nhỏ hơn; không bao giờ dưới 50k token), subagent được nén trước và tin nhắn chỉ đi khi nén xong. Kết quả
+  công cụ của Pi nói rõ ("Compacted researcher first: 182k → 58k tokens; its cache had gone cold (23 min since its last
+  answer)"), bản ghi của subagent hiện dòng "Đã nén", và **Chi tiêu** liệt kê lần nén cùng số tiết kiệm. Subagent còn ấm
+  hoặc nhỏ thì nhận việc như cũ. `subagent status` hiện ngữ cảnh của từng subagent, tỉ lệ của cửa sổ, câu trả lời cuối,
+  và bộ nhớ đệm còn ấm hay đã nguội. Mặc định bật: Menu › Nén ngữ cảnh › **Nén subagent đã nguội trước việc mới**
+  (Pi: `sessions.compactColdSubagent`).
 - **Bộ nhớ đệm prompt 1 giờ, khi bạn cần.** Mặc định bộ nhớ đệm prompt của Claude giữ 5 phút. Với phiên chờ lâu hơn
   (chờ subagent, lượt chạy CI, lịch hẹn), chọn 1 giờ trong Menu › Nén ngữ cảnh, cho phiên này hoặc mọi phiên: thức
   dậy trong vòng một giờ sẽ đọc lại bộ nhớ đệm thay vì ghi lại toàn bộ ngữ cảnh, còn mỗi lần ghi bộ nhớ đệm tốn 2 lần giá
@@ -1008,7 +1016,7 @@ hiện tại và giá trị mới. Hỏi “bạn đổi được những gì?�
 | Tiện ích (Dự án, Wiki, Trình duyệt của Pi, Thiết kế & video, Kiểm chứng hình thức, Trình tạo tiện ích, …) | **Tiện ích** | “Bật Dự án”, “Tắt Thiết kế & video” |
 | Chi tiêu và giới hạn | **Chi tiêu** | “Giới hạn phiên này ở $5” |
 | Khi nào phiên tự nén | **Menu › Nén ngữ cảnh**, cho phiên này hoặc mọi phiên | “Nén phiên này ở 60%” |
-| Nén khi phiên đang chờ (`compact_self`, tỉ lệ của lời nhắc, trước khi bộ nhớ đệm hết hạn) | **Menu › Nén ngữ cảnh** | “Nén các phiên đang chờ trước khi bộ nhớ đệm hết hạn” |
+| Nén khi phiên đang chờ (`compact_self`, tỉ lệ của lời nhắc, trước khi bộ nhớ đệm hết hạn, subagent đã nguội trước việc mới) | **Menu › Nén ngữ cảnh** | “Nén các phiên đang chờ trước khi bộ nhớ đệm hết hạn” |
 | Bộ nhớ đệm prompt giữ bao lâu (5 phút hoặc 1 giờ) | **Menu › Nén ngữ cảnh**, cho phiên này hoặc mọi phiên | “Cho phiên này dùng bộ nhớ đệm prompt 1 giờ” |
 | Wiki, bí mật và kỹ năng nào vào prompt | **Menu › Nén ngữ cảnh** | “Đưa lại chỉ mục wiki vào prompt của phiên này” |
 | Thiết bị và người khác | **Truy cập** (Tailscale), **Mọi người** (thiết bị, lời mời, mã khôi phục) | Có với liệt kê thiết bị, đăng xuất một hoặc tất cả, hoặc đổi vai trò của một người. Mã khôi phục là việc của bạn |

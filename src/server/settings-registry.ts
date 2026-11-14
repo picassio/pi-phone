@@ -448,6 +448,16 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             choices: () => ["on", "off"],
             apply: (user, value) => app.setSelfCompact(user, "beforeExpiry", onOff(value)),
         },
+        {
+            id: "sessions.compactColdSubagent",
+            area: "sessions",
+            title: "Compact a subagent whose prompt cache went cold before new work",
+            help: "For every session: on (the default) or off. On: work sent to a subagent idle longer than its prompt cache lasts, with a context that would cost more to write again than to compact, compacts it first. Menu › Compact context.",
+            owner: true,
+            read: () => (app.config.selfCompact.coldSubagent ? "on" : "off"),
+            choices: () => ["on", "off"],
+            apply: (user, value) => app.setSelfCompact(user, "coldSubagent", onOff(value)),
+        },
         // ─── The prompt cache's lifetime (PP-475) ───
         {
             id: "sessions.cacheRetention",

@@ -212,7 +212,8 @@ test("status with the name all lists every subagent", async () => {
     await app.commands.submit(id, owner(app), { text: "status all", requestId: `status-${id}` });
     await until(async () => !app.isBusy(id) && (await results()) !== before, "the status");
 
-    assert.match(await results(), /st1: idle\\nst2: idle/);
+    // Each with its context and cache after its state (PP-511, test/subagent-cold.test.ts).
+    assert.match(await results(), /st1: idle · [^\\]+\\nst2: idle · /);
 });
 
 test("a report reaches an idle parent at once, and the parent answers it", async () => {

@@ -113,6 +113,14 @@ No Termux, no laptop, no cloud VM.
   idle 4.5 minutes compacts itself, unless a report comes first. All three are in Menu › Compact context (Pi:
   `sessions.compactSelf`, `sessions.compactRemindAt`, `sessions.compactBeforeExpiry`). Not in subagents: a subagent's
   final answer is its report.
+- **A subagent's cold cache is checked before new work.** When Pi sends work to a subagent idle longer than its prompt
+  cache lasts, and writing its whole context again would cost more than compacting it (the summarizer reading the old
+  part, the summary, and the smaller context written; never under 50k tokens), the subagent compacts first and the
+  message goes once that is done. Pi's tool result says so ("Compacted researcher first: 182k → 58k tokens; its cache
+  had gone cold (23 min since its last answer)"), the subagent's transcript shows the "Compacted" line, and **Spend**
+  lists it with what it saved. A warm or small subagent is sent the work as it is. `subagent status` shows each
+  subagent's context, its share of the window, its last answer, and whether its cache is warm or cold. On by default:
+  Menu › Compact context › **Compact a cold subagent before new work** (Pi: `sessions.compactColdSubagent`).
 - **A 1-hour prompt cache, when you want it.** Claude's prompt cache lasts 5 minutes by default. For a session that
   waits longer (on subagents, CI runs, schedules), pick 1 hour in Menu › Compact context, for this session or every
   session: a wake-up within the hour reads the cache instead of writing the whole context again, and each cache write
@@ -987,7 +995,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 | Extensions (Projects, Wiki, Pi's browser, Design & video, Formal checks, Extension builder, …) | **Extensions** | "Turn on Projects", "Turn off Design & video" |
 | Spend and limits | **Spend** | "Limit this session to $5" |
 | When sessions compact by themselves | **Menu › Compact context**, for this session or every session | "Compact this session at 60%" |
-| Compacting while a session waits (`compact_self`, the reminder's share, before the cache expires) | **Menu › Compact context** | "Compact waiting sessions before their cache expires" |
+| Compacting while a session waits (`compact_self`, the reminder's share, before the cache expires, a cold subagent before new work) | **Menu › Compact context** | "Compact waiting sessions before their cache expires" |
 | How long the prompt cache lasts (5 minutes or 1 hour) | **Menu › Compact context**, for this session or every session | "Give this session the 1-hour prompt cache" |
 | What of the wiki, secrets and skills goes into the prompt | **Menu › Compact context** | "Put the wiki's index back in this session's prompt" |
 | Other devices and people | **Access** (Tailscale), **People** (devices, invites, recovery code) | Yes for listing devices, signing one or all out, or changing a person's role. The recovery code is yours |

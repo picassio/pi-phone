@@ -26,7 +26,7 @@
  */
 import type { AssistantMessage, Message } from "@earendil-works/pi-ai";
 import { type ConversationId, UsageDoc } from "@earendil-works/pi-durable";
-import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { BACKGROUND_CONTEXT, type Context } from "@earendil-works/chord/context";
 import { estimateMessageTokens, estimateTextTokens } from "@earendil-works/pi-ai/utils/estimate";
 import type { PocketApp } from "./app.ts";
 import { cacheTiming } from "./cache-retention.ts";
@@ -51,7 +51,7 @@ export const SUMMARY_POINTER = "Your summary of the conversation before this poi
 export const SELF_COMPACT_MARK = "pocket:self-compact";
 
 /** Pi Durable's default `keepRecentTokens`: the newest part of the context a compaction keeps as it is. */
-const KEEP_RECENT_TOKENS = 20_000;
+export const KEEP_RECENT_TOKENS = 20_000;
 /** About how long a summary is, for the reminder's estimate. */
 const SUMMARY_TOKENS = 2_000;
 /** About what the two requests of a self-compaction add to the prefix (the reminder's answer, the summary request). */
@@ -294,9 +294,16 @@ export class SelfCompact {
             throw new HttpError(403, "Only the owner can do that");
         }
 
-        if (part === "tool" || part === "beforeExpiry") {
+        if (part === "tool" || part === "beforeExpiry" || part === "coldSubagent") {
             if (typeof value !== "boolean") {
-                throw new HttpError(400, part === "tool" ? "compact_self is on (true) or off (false)." : "Compacting before the cache expires is on (true) or off (false).");
+                throw new HttpError(
+                    400,
+                    part === "tool"
+                        ? "compact_self is on (true) or off (false)."
+                        : part === "beforeExpiry"
+                          ? "Compacting before the cache expires is on (true) or off (false)."
+                          : "Compacting a subagent whose cache went cold before new work is on (true) or off (false).",
+                );
             }
 
             this.#app.config.setSelfCompact(part, value);
@@ -309,7 +316,7 @@ export class SelfCompact {
 
             this.#app.config.setSelfCompact("remindAt", percent);
         } else {
-            throw new HttpError(400, "Self-compaction's settings are tool, remindAt and beforeExpiry.");
+            throw new HttpError(400, "Self-compaction's settings are tool, remindAt, beforeExpiry and coldSubagent.");
         }
 
         if (!this.settings().beforeExpiry || !this.settings().tool) {
@@ -370,15 +377,8 @@ export class SelfCompact {
         return { subagents, sessions, ci, schedules, tasks };
     }
 
-    /** A model's prices and window, from the catalogue; an error names one it does not know. */
     #model(provider: string, modelId: string): { prices: Prices; window: number } {
-        const model = this.#app.models.getModel(provider, modelId);
-
-        if (model === undefined) {
-            throw new Error(`Model ${provider}/${modelId} is not in the catalogue.`);
-        }
-
-        return { prices: model.cost, window: model.contextWindow };
+        return catalogued(this.#app, provider, modelId);
     }
 
     /**
@@ -685,23 +685,7 @@ export class SelfCompact {
                 model: ready.model,
             };
 
-            const all = await app.harness.commit(async (tx) => {
-                const doc = await tx.doc(SelfCompactDoc, id);
-
-                delete doc.ready;
-                doc.done = [...doc.done, record].slice(-KEEP_DONE);
-                const spend = await tx.doc(SpendDoc);
-                const before = spend.selfCompactions ?? { count: 0, cost: 0, saved: 0, recent: [] };
-                // Plain copies: the document's own records cannot be read once the commit settles, and Spend keeps these.
-                const recent = [...before.recent.map((each) => ({ ...each })), record].slice(-KEEP_SPEND);
-                const now = { count: before.count + 1, cost: before.cost + record.cost, saved: before.saved + record.saving, recent };
-
-                spend.selfCompactions = now;
-
-                return now;
-            }, context);
-
-            app.spend.selfCompacted(all);
+            await recordCompaction(app, id, record, context);
             app.log(`self-compact in ${String(id)}: ${compactedLine(record)}`);
             // The transcript's line says how much, in the person's language.
             app.notice("info", "Compacted.", id);
@@ -720,7 +704,52 @@ export class SelfCompact {
     }
 }
 
+/** A model's prices and window, from the catalogue; an error names one it does not know. */
+export function catalogued(app: Pick<PocketApp, "models">, provider: string, modelId: string): { prices: Prices; window: number } {
+    const model = app.models.getModel(provider, modelId);
+
+    if (model === undefined) {
+        throw new Error(`Model ${provider}/${modelId} is not in the catalogue.`);
+    }
+
+    return { prices: model.cost, window: model.contextWindow };
+}
+
+/**
+ * Record a compaction of `id` (`record.entry`, its compaction entry) in the conversation (the transcript's line) and in
+ * Spend, and clear a self-compaction's summary. Once: a compaction recorded already (a restart that runs this again) is
+ * left as it is.
+ */
+export async function recordCompaction(app: PocketApp, id: ConversationId, record: SelfCompaction, at: Context): Promise<void> {
+    const all = await app.harness.commit(async (tx) => {
+        const doc = await tx.doc(SelfCompactDoc, id);
+
+        delete doc.ready;
+
+        if (doc.done.some((each) => each.entry === record.entry)) {
+            return undefined;
+        }
+
+        doc.done = [...doc.done, record].slice(-KEEP_DONE);
+        const spend = await tx.doc(SpendDoc);
+        const before = spend.selfCompactions ?? { count: 0, cost: 0, saved: 0, recent: [] };
+        // Plain copies: the document's own records cannot be read once the commit settles, and Spend keeps these.
+        const recent = [...before.recent.map((each) => ({ ...each })), record].slice(-KEEP_SPEND);
+        const now = { count: before.count + 1, cost: before.cost + record.cost, saved: before.saved + record.saving, recent };
+
+        spend.selfCompactions = now;
+
+        return now;
+    }, at);
+
+    if (all !== undefined) {
+        app.spend.selfCompacted(all);
+    }
+}
+
+const REASONS = { pi: "Pi chose to while waiting", expiry: "the prompt cache was about to expire", cold: "the subagent's prompt cache had gone cold before new work" } as const;
+
 /** The line a self-compaction leaves, in English (the transcript has its own, in the person's language). */
 export function compactedLine(record: SelfCompaction): string {
-    return `Compacted: ${record.reason === "pi" ? "Pi chose to while waiting" : "the prompt cache was about to expire"}, ${thousands(record.before)} → ${thousands(record.after)} tokens, ${dollars(record.cost)}, saved about ${dollars(record.saving)}; the summary request read ${record.read} tokens from the cache and wrote ${record.written}.`;
+    return `Compacted: ${REASONS[record.reason]}, ${thousands(record.before)} → ${thousands(record.after)} tokens, ${dollars(record.cost)}, saved about ${dollars(record.saving)}; the summary request read ${record.read} tokens from the cache and wrote ${record.written}.`;
 }
