@@ -2300,9 +2300,15 @@ so Pi changes them through the settings tools; "the last session" is the one the
   every open shadow root in it (200 at most; `cache.roots`), so web components' controls and text are the page's; a
   control's hit test uses its own root's `elementFromPoint`, and the focus check the deep active element. Other frames:
   those in the page's process come from `Page.getFrameTree`; a Chrome's frames of other sites (out-of-process) are
-  attached as they come (`Target.setAutoAttach`, flattened, `waitForDebuggerOnStart`, filter `iframe`; `Cdp.adopt`),
+  attached as they come (`Target.setAutoAttach`, flattened, `waitForDebuggerOnStart`; `Cdp.adopt`),
   each set up before it runs: the local addresses refused there too (`Fetch.enable`, on the phone's rules), its dialogs
-  answered, its own such frames attached; one whose setup fails stays paused. The phone's WebView keeps every frame in
+  answered, its own such frames attached; one whose setup fails stays paused. No filter: `waitForDebuggerOnStart` holds
+  the page's workers too, also those a filter `iframe` keeps from being attached, and those never ran (Chrome 157). The
+  Azure portal's blades wait for their workers and went to `/Error/PageLoadTimeout` after 60 s on a full load (PP-516;
+  loaded in 3 to 7 s without it). So every target is attached, and each that is not a frame (workers, service workers)
+  is let run at once and detached. A read the page does not answer in 30 s (`BrowserPage.answerMs`) says why in words
+  (`PageNotAnswering`): the tab busy or held when the browser still answers for it (`Page.getNavigationHistory`, the
+  browser's own), else the browser or its link. The phone's WebView keeps every frame in
   the page's process (`BrowserEngine.oopif` false), so its tree has them all. Each read lists the frames (40 at most),
   places each by its element in its parent (`DOM.getFrameOwner`, `DOM.resolveNode`, `OWNER_BOX`: content box, shown),
   composed up to the main frame with the part in view, and runs the same snapshot in the isolated world `pi-read` of

@@ -12,7 +12,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { chordOf } from "../src/server/browser/page.ts";
+import { BrowserPage, chordOf, PageNotAnswering } from "../src/server/browser/page.ts";
 import { ChromeEngine, PiBrowser, type PiBrowserOptions } from "../src/server/browser/pi-browser.ts";
 import { answering, NO_CARD } from "./no-card.ts";
 
@@ -110,6 +110,24 @@ const PAGES: Record<string, string> = {
         <button onclick="navigator.geolocation.getCurrentPosition(() => { out.textContent = 'Location found'; }, (e) => { out.textContent = 'Location error ' + e.code; }, { timeout: 2000 })">Find me</button>
         <button onclick="Notification.requestPermission().then((answer) => { out.textContent = 'Notifications ' + answer; })">Notify me</button>
         <p id="out">Nothing asked</p>`,
+    // A page that works only once its workers answer, as the Azure portal's blades do (PP-516): one from an address, one
+    // from a blob, and one the frame of another site starts.
+    "/workers": `<!doctype html><title>Workers</title><meta name="viewport" content="width=device-width">
+        <p id="out">Workers starting</p><p id="framed">Frame worker starting</p>
+        <iframe src="http://pay.test:PORT/frame-worker" style="height:40px"></iframe>
+        <script>
+            const answered = new Set();
+            const heard = (name) => { answered.add(name); if (answered.size === 2) out.textContent = 'Both workers answered'; };
+            new Worker('/worker.js').onmessage = () => heard('file');
+            new Worker(URL.createObjectURL(new Blob(['postMessage(1)'], { type: 'text/javascript' }))).onmessage = () => heard('blob');
+            addEventListener('message', (e) => { if (e.data === 'frame worker answered') framed.textContent = 'Frame worker answered'; });
+        </script>`,
+    "/frame-worker": `<!doctype html><script>
+        new Worker(URL.createObjectURL(new Blob(['postMessage(1)'], { type: 'text/javascript' }))).onmessage = () => parent.postMessage('frame worker answered', '*');
+    </script>`,
+    // A page whose scripts keep its thread busy for 8 seconds, a moment after it loads.
+    "/busy": `<!doctype html><title>Busy</title><p>Busy page</p>
+        <script>setTimeout(() => { const end = Date.now() + 8000; while (Date.now() < end); }, 300);</script>`,
     "/card": `<!doctype html><title>Card</title><meta name="viewport" content="width=device-width">
         <label>Card number <input id="card"></label><br><label>PIN <input id="pin" type="password"></label><br>
         <button onclick="out.textContent = 'Paid with ' + card.value + (pin.value === '4321' ? ' and the PIN' : ' without the PIN')">Pay</button>
@@ -141,6 +159,13 @@ before(async () => {
             }
 
             response.end();
+
+            return;
+        }
+
+        if (path === "/worker.js") {
+            response.writeHead(200, { "content-type": "text/javascript" });
+            response.end("postMessage('ready')");
 
             return;
         }
@@ -232,6 +257,57 @@ test("with Chrome: controls in a frame of another site, a frame of the page's ow
         assert.match(applied, /Coupon SAVE10/);
     } finally {
         await browser.close();
+    }
+});
+
+test("with Chrome: a page's workers start, its own and a frame's of another site, on each load: none is held for a debugger that never comes (PP-516)", { skip }, async () => {
+    const browser = browserHere();
+
+    try {
+        // The first load, and the next: each starts its workers again.
+        for (let load = 1; load <= 2; load += 1) {
+            await browser.open(1, "http://pi.test/workers");
+
+            const started = Date.now();
+            const page = await browser.wait(1, { text: "Both workers answered" });
+
+            // A wait that ran out says so, naming the text: only the page's own line counts.
+            assert.match(page, /^Both workers answered$/m, `load ${load}`);
+            assert.match(await browser.wait(1, { text: "Frame worker answered" }), /^Frame worker answered$/m, `load ${load}`);
+            assert.ok(Date.now() - started < 10_000, `load ${load}: the workers took ${Date.now() - started} ms`);
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
+test("with Chrome: a page whose thread is busy does not answer a read, and Pi is told so plainly, not a protocol timeout (PP-516)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect(await engine.newTab()));
+
+        await page.init({ width: 412, height: 860, mobile: true }, { oopif: true });
+        page.answerMs = 2000;
+        await page.cdp.send("Page.navigate", { url: "http://pi.test/busy" });
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+
+        const started = Date.now();
+
+        await assert.rejects(page.evaluate("document.title"), (error) => {
+            assert.ok(error instanceof PageNotAnswering, String(error));
+            assert.match(error.message, /^The page did not answer within 2 seconds: its scripts are busy .*browser_wait.*browser_tabs switch_to.*browser_open/);
+
+            return true;
+        });
+        // The browser's own answer for the tab tells it apart at once, while the page is still busy.
+        assert.ok(Date.now() - started < 4000, `${Date.now() - started} ms`);
+
+        // Once the page is free, it answers again.
+        await new Promise((resolve) => setTimeout(resolve, 7000));
+        assert.equal(await page.evaluate<string>("document.title"), "Busy");
+    } finally {
+        await engine.close();
     }
 });
 

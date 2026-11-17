@@ -477,6 +477,9 @@ const PERMISSION_WATCH = `(() => {
 
 export class StalePage extends Error {}
 
+/** The page did not answer a read in time (`BrowserPage.answerMs`): the error says why, as far as the browser tells (PP-516). */
+export class PageNotAnswering extends Error {}
+
 /** One element per observed node, in page order, numbered from 1. */
 export function elementsOf(observed: Observed): Element[] {
     const byNode = new Map<number, Element>();
@@ -1383,6 +1386,10 @@ export class BrowserPage {
     /**
      * Attach the frames of other sites a connection's page (or frame) has and will have, each paused until it is set up
      * as the page is: the local addresses refused, its dialogs answered, its own such frames attached (PP-376).
+     *
+     * Every kind of target is attached, not only frames: `waitForDebuggerOnStart` holds the page's workers too, also
+     * those a filter keeps from being attached, and nothing would ever let those run (Chrome 157). The Azure portal's
+     * blades wait for their workers and gave up after 60 seconds (PP-516). Each one that is not a frame goes on at once.
      */
     async #attachFrames(cdp: Cdp): Promise<void> {
         cdp.on("Target.attachedToTarget", (params) => {
@@ -1391,7 +1398,10 @@ export class BrowserPage {
 
             void (async () => {
                 if (info?.type !== "iframe" || info.targetId === undefined) {
-                    await child.send("Runtime.runIfWaitingForDebugger");
+                    if (params.waitingForDebugger === true) {
+                        await child.send("Runtime.runIfWaitingForDebugger");
+                    }
+
                     child.close();
 
                     return;
@@ -1428,7 +1438,7 @@ export class BrowserPage {
                 // The frame went away while it was set up: its session ended with it.
             });
         });
-        await cdp.send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: true, flatten: true, filter: [{ type: "iframe", exclude: false }] });
+        await cdp.send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
     }
 
     /**
@@ -1590,18 +1600,44 @@ export class BrowserPage {
         return shown ?? [];
     }
 
+    /** How long a read of the page may take before Pi says the page does not answer (a test shortens it). */
+    answerMs = 30_000;
+
     async evaluate<T>(expression: string, awaitPromise = false): Promise<T> {
-        const answer = await this.cdp.send<{ result?: { value?: unknown }; exceptionDetails?: { text?: string; exception?: { description?: string } } }>("Runtime.evaluate", {
-            expression,
-            returnByValue: true,
-            awaitPromise,
-        });
+        type Answer = { result?: { value?: unknown }; exceptionDetails?: { text?: string; exception?: { description?: string } } };
+        let answer: Answer;
+
+        try {
+            answer = await this.cdp.send<Answer>("Runtime.evaluate", { expression, returnByValue: true, awaitPromise }, this.answerMs);
+        } catch (error) {
+            if (error instanceof CdpError && /took longer than/.test(error.message)) {
+                throw new PageNotAnswering(await this.#whyNoAnswer());
+            }
+
+            throw error;
+        }
 
         if (answer.exceptionDetails !== undefined) {
             throw new StalePage(`The page changed while it was read (${answer.exceptionDetails.exception?.description?.split("\n")[0] ?? answer.exceptionDetails.text ?? "an error"}).`);
         }
 
         return answer.result?.value as T;
+    }
+
+    /**
+     * Why the page did not answer (PP-516), said plainly: the browser answers for the tab without the page's thread
+     * (its history), so a tab it answers for is busy or held; one it does not answer for either is the browser's.
+     */
+    async #whyNoAnswer(): Promise<string> {
+        const seconds = Math.round(this.answerMs / 1000);
+        const browserAnswers = await this.cdp.send("Page.getNavigationHistory", {}, 5000).then(
+            () => true,
+            () => false,
+        );
+
+        return browserAnswers
+            ? `The page did not answer within ${seconds} seconds: its scripts are busy (a page still working, or stuck in a loop), or Chrome holds its tab (a tab in the background of a window, a frozen tab). Wait with browser_wait and read it again, bring the tab to the front with browser_tabs switch_to, or load it again with browser_open.`
+            : `Neither the page nor the browser answered within ${seconds} seconds: the browser is stuck or its connection is (on a machine, the ssh link). Close Pi's browser (browser_close) and open the page again.`;
     }
 
     /**
