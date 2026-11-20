@@ -20,6 +20,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import type { PocketHost } from "../host.ts";
 import { diffPathOf } from "../image-compare.ts";
+import { MCP_FOLDER } from "../mcp/config.ts";
 
 /** A redline spec that names a file (a tokens.css), not a plain list (PP-398, `redline.ts`'s `specFrom`). */
 const isSpecFile = (spec: string) => /\.css$/i.test(spec.trim()) && !/[\n,;]/.test(spec);
@@ -195,9 +196,10 @@ export function pathsOf(tool: string, args: Record<string, unknown>): { read: st
  */
 export function keyStoreRefusal(tool: string, args: Record<string, unknown>, where: { dataDir: string; home: string; cwd: string }): string | undefined {
     // The private SSH keys are in app.sqlite since PP-382; pocket.sqlite (Pi Durable's) held them before.
-    const stores = [join(where.dataDir, "ssh"), join(where.dataDir, "app.sqlite"), join(where.dataDir, "pocket.sqlite"), join(where.dataDir, "secrets.json")];
+    // The MCP servers' file (PP-523): its headers may hold tokens, and what runs is the owner's to approve.
+    const stores = [join(where.dataDir, "ssh"), join(where.dataDir, "app.sqlite"), join(where.dataDir, "pocket.sqlite"), join(where.dataDir, "secrets.json"), join(where.dataDir, MCP_FOLDER)];
     const spell = (path: string) => [path, ...(path.startsWith(`${where.home}/`) ? [`~${path.slice(where.home.length)}`] : [])];
-    const STORES = "The app keeps its keys (SSH keys, its ssh-agent, the secrets) out of Pi's tools: use machine_run, machine_copy, or a session on a machine for machines, and secrets by name in bash.";
+    const STORES = "The app keeps its keys (SSH keys, its ssh-agent, the secrets, the MCP servers) out of Pi's tools: use machine_run, machine_copy, or a session on a machine for machines, and secrets by name in bash.";
     // The owner's drop-in extensions (PP-171): code that runs in the server with the app's host, secrets included, and
     // loads again when its file changes. Only the owner puts files there; Pi's tools do not write or name it.
     const dropIns = join(where.dataDir, "extensions");

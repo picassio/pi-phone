@@ -3354,6 +3354,22 @@ so Pi changes them through the settings tools; "the last session" is the one the
   the draft after it does not stop the list, and a pick (tap, Tab or Enter) always fills the box with `/<name> ` before
   the draft, caret after it, never running a command that takes nothing (typed `/`, such a pick runs at once, as
   before). On a 320 px box Attach hides while Pi works; the menu stays. Test: `test/composer-focus-ui.test.ts`.
+- **MCP servers** (epic PP-517; design `~/work/pp328/mcp-design.md`, the owner's decisions of 2026-11-20 on the epic):
+  built in, not a drop-in (pi-pocket has none in its core; the gallery's pocket-mcp, MIT, has three fixed tools and no
+  machines: its fences, image limits and fingerprints are taken). `@earendil-works/pi-mcp` (pinned with Pi) does the
+  protocol.
+  - **The servers' file** (`mcp/config.ts`, PP-523): `<data>/mcp/servers.json`, mode 0600, the shared `mcpServers`
+    shape (so an entry from Claude, Cursor or Pi pastes in) checked by `validateMcpServerConfig`, plus pi-phone's
+    fields: `runs` (`session`, the default: where the session works; `phone`; `machine:<id>`), `folders` (as a
+    secret's: empty is every folder), `idleMinutes` (30), `startTimeout` and `timeout` (60 s, at most 600),
+    `askEachCall`, `planMode` (trust the server's read-only hints), `hiddenTools` (names or `*` patterns). Unknown
+    fields are refused: the file is a trust boundary. `env` and `headers` values are text or `${NAME}` of a secret,
+    filled in when the server starts; Pi's `!command` values are refused (a command outside bash's checks), and so is
+    the legacy SSE transport (pi-mcp has none). Two names whose tools would share a namespace (`a-b`, `a_b`) are
+    refused. Each entry is approved by its fingerprint (SHA-256 of the canonical entry and its name, all but
+    `enabled`): an entry changed outside the app reads but does not run until the owner approves it again. Pi's tools
+    stay out of `<data>/mcp` (`keyStoreRefusal`), as out of the secrets' file. A file that is not JSON moves aside, as
+    the secrets' does; an invalid entry stays in it, out of use, with its reason (`problems()`).
 
 ## 5. Build
 
