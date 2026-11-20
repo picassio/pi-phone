@@ -207,6 +207,14 @@ export class Places {
     }
 
     /**
+     * The pi-env connection that starts programs at a place (PP-524: MCP servers' stdio): the phone's own daemon, the
+     * one its terminals use, or the machine's.
+     */
+    processConnection(machineId: string | undefined): Connection {
+        return machineId === undefined ? (this.#localDaemon ??= new Connection({ command: [localDaemon()] })) : this.connection(this.#machines.ready(machineId));
+    }
+
+    /**
      * A shell in a pseudo-terminal at a place (`terminal.ts`): the user's login shell, `SHELL` of the daemon's
      * environment (on the phone, PiService sets it to the bundled bash), in the place's folder, as `xterm-256color`.
      */

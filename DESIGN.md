@@ -3370,6 +3370,21 @@ so Pi changes them through the settings tools; "the last session" is the one the
     `enabled`): an entry changed outside the app reads but does not run until the owner approves it again. Pi's tools
     stay out of `<data>/mcp` (`keyStoreRefusal`), as out of the secrets' file. A file that is not JSON moves aside, as
     the secrets' does; an invalid entry stays in it, out of use, with its reason (`problems()`).
+  - **Running servers** (`mcp/manager.ts`, PP-524): one instance per (server, place, folder), shared by the sessions
+    there (one Godot editor per project), started on its first call. The program runs in pi-env's daemon
+    (`openProcess`, `Places.processConnection`): the phone's own, or the machine's over the app's ssh, so one code path
+    serves both and nothing else needs ssh; its stdio is MCP through pi-mcp's `PipeTransport`. It starts in the
+    session's folder (or the entry's `cwd`; with `runs` on another computer, that computer's home); `~/` in the
+    command, args, cwd and env values is that computer's home. Secrets fill `${NAME}` at the start, only where the
+    folder may use them; a secret that asks first keeps the server from starting until PP-527 brings its card. A call
+    waits the entry's `timeout`, which the server's progress extends, never past 10 minutes; one that times out is
+    cancelled and says the tool may still run. A server that dies starts again on the next call after 1, 5, then 30 s;
+    three deaths (a failed start counts) in 5 minutes mark it failed, tell the owner (`ownerNotice`), and keep it down
+    until a reconnect. A call in flight when it dies fails with "the tool may have run": no call is ever sent twice.
+    `idleMinutes` without a call closes stdin and kills its process group. At most 6 run; a new one stops the one used
+    longest ago with no call running, and is refused when all are busy. An entry changed or turned off stops its
+    instances. Its stderr (the last 64 KB) is for the owner's page, never the model. Checked live on 2026-11-20 from
+    the phone to tuanlh-devbox-01 over pi-ssh: the call in 728 ms, the remote process gone after the idle stop.
 
 ## 5. Build
 
