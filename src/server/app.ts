@@ -1330,7 +1330,16 @@ export class PocketApp {
         // The rarer tools load when Pi needs them (PP-276, `deferred-tools.ts`): left out by a session whose tools are all.
         registry.install(deferredToolsExtension());
         // MCP servers' tools (PP-525), deferred: installed again as the servers or their tools change.
-        const installMcp = () => registry.install(mcpExtension(this.mcpServers, this.mcpTools, this.mcp, () => this.defaultCwd));
+        const installMcp = () =>
+            registry.install(
+                mcpExtension({
+                    servers: this.mcpServers,
+                    cache: this.mcpTools,
+                    manager: this.mcp,
+                    defaultCwd: () => this.defaultCwd,
+                    machineName: (id) => this.machines.get(id)?.name ?? id,
+                }),
+            );
 
         installMcp();
         this.mcpServers.onChange(installMcp);

@@ -17,6 +17,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSy
 import { join } from "node:path";
 import type { Extension, ToolRegistration } from "@earendil-works/pi-durable";
 import { defineExtension } from "@earendil-works/pi-durable";
+import { createToolSearchTool, TOOL_SEARCH_TOOL_NAME } from "@earendil-works/pi-durable/tool-search";
 import { createMcpToolName, McpError, type McpOutputSaver, normalizeMcpInputSchema, type Tool } from "@earendil-works/pi-mcp";
 import { clip, defang, fencedMcp, INVISIBLE_CLASS } from "../fence.ts";
 import { hiddenTool, MCP_FOLDER, type McpServerInfo, type McpServers } from "./config.ts";
@@ -182,14 +183,117 @@ function registrations(server: McpServerInfo, tools: readonly CachedTool[], mana
 
 /**
  * The `mcp` extension as the servers and the cache are now: every cached tool of each server that is on and approved.
- * Which session may call which (the folders) is checked at each call (the manager), and narrowed in `tool_search`.
+ * Which session may call which (the folders) is checked at each call (the manager), and narrowed in `tool_search`
+ * (PP-526): with a server that may run, the extension brings its own `tool_search`, Pi Durable's with the same
+ * declaration, which searches only the MCP tools of the servers serving the session's folder, and first lists the tools
+ * of those it has none of yet. Installed after `deferred-tools`, it is the one sessions use, also those whose tools are
+ * all (no `deferred-tools` there). The section `mcp_servers` names the servers serving the folder, one line each, and is
+ * left out when none does: a session without MCP servers has the prompt it had.
  */
-export function mcpExtension(servers: McpServers, cache: McpToolCache, manager: McpManager, defaultCwd: () => string): Extension {
+export function mcpExtension(options: McpExtensionOptions): Extension {
+    const tools = mcpTools(options);
+    const runnable = options.servers.list().some((server) => server.enabled && server.approved);
+
+    return defineExtension({
+        name: MCP_EXTENSION,
+        tools: [...tools.map((each) => each.tool), ...(runnable ? [scopedToolSearch(options)] : [])],
+        sections: [{ key: MCP_SECTION, render: ({ agent }) => serversSection(options, agent.cwd ?? options.defaultCwd(), agent.tools.some((tool) => tool.name === TOOL_SEARCH_TOOL_NAME)) }],
+    });
+}
+
+export type McpExtensionOptions = {
+    servers: McpServers;
+    cache: McpToolCache;
+    manager: McpManager;
+    defaultCwd: () => string;
+    /** A machine's name, for the section. */
+    machineName: (machineId: string) => string;
+};
+
+export const MCP_SECTION = "mcp_servers";
+/** How long tool_search waits for the servers in scope to list their tools the first time. */
+export const LIST_WAIT_MS = 20_000;
+
+/** Every cached tool of each server that is on and approved, with its server. */
+function mcpTools(options: McpExtensionOptions): { server: string; tool: ToolRegistration }[] {
     const taken = new Set<string>();
-    const tools = servers
+
+    return options.servers
         .list()
         .filter((server) => server.enabled && server.approved)
-        .flatMap((server) => registrations(server, cache.tools(server.name) ?? [], manager, defaultCwd, taken));
+        .flatMap((server) => registrations(server, options.cache.tools(server.name) ?? [], options.manager, options.defaultCwd, taken).map((tool) => ({ server: server.name, tool })));
+}
 
-    return defineExtension({ name: MCP_EXTENSION, tools });
+/**
+ * The servers serving a folder, for the prompt: one line each with its description, its tools' count and where it
+ * runs. `search`: the model has tool_search; in codemode's Only mode it does not, and scripts find tools with
+ * `searchTools`.
+ */
+export function serversSection(options: McpExtensionOptions, cwd: string, search: boolean): string | undefined {
+    const serving = options.servers.servingIn(cwd);
+
+    if (serving.length === 0) {
+        return undefined;
+    }
+
+    const lines = serving.map((server) => {
+        const count = options.cache.tools(server.name)?.filter((tool) => !hiddenTool(server, tool.name)).length;
+        const runs = server.kind === "http" ? "over HTTP" : server.runs.where === "phone" ? "on the phone" : server.runs.where === "machine" ? `on ${options.machineName(server.runs.machineId)}` : "where this session works";
+        const about = server.description === "" ? "" : `: ${cleanText(server.description, 120)}`;
+
+        return `- ${server.name}${about} (${count === undefined ? "tools listed on first use" : `${count} tools`}, ${runs})`;
+    });
+    const find = search ? "Find their tools with tool_search (what you need, or the server's name)" : "Find their tools in a codemode script with searchTools(query)";
+
+    return [`MCP servers for this folder. ${find}; they are named mcp__<server>__<tool>.`, ...lines].join("\n");
+}
+
+/** Pi Durable's tool_search over the MCP tools of the servers serving the session's folder, and the other deferred tools. */
+function scopedToolSearch(options: McpExtensionOptions): ToolRegistration {
+    const base = createToolSearchTool() as unknown as ToolRegistration;
+
+    return {
+        ...base,
+        async execute(args, api, context) {
+            const agent = await api.agent(context);
+            const cwd = agent.cwd ?? options.defaultCwd();
+            const serving = options.servers.servingIn(cwd).map((server) => server.name);
+            const notes = await listFirst(options, serving.filter((name) => options.cache.tools(name) === undefined), cwd, context.abortSignal);
+            const all = mcpTools(options);
+            const ours = new Set(all.map((each) => each.tool.name));
+            const offered = new Set(agent.tools.map((tool) => tool.name));
+            const inScope = all.filter((each) => serving.includes(each.server) && !offered.has(each.tool.name)).map((each) => each.tool);
+            // The MCP tools as they are now (listed just now, too), only those of the servers in scope.
+            const deferred = [...agent.deferred.filter((tool) => !ours.has(tool.name) && !tool.name.startsWith("mcp__")), ...inScope];
+            const result = await base.execute(args, { ...api, agent: async () => ({ ...agent, deferred }) }, context);
+
+            return notes.length === 0 ? result : { ...result, output: [...(result.output ?? []), { type: "text" as const, text: notes.join("\n") }] };
+        },
+    };
+}
+
+/**
+ * List the tools of the servers in scope that never listed them, at most `LIST_WAIT_MS`: they start for it. What did not
+ * come is said, for the search to be made again.
+ */
+async function listFirst(options: McpExtensionOptions, names: readonly string[], cwd: string, signal: AbortSignal | undefined): Promise<string[]> {
+    let timer: NodeJS.Timeout | undefined;
+    const late = new Promise<"late">((resolve) => {
+        timer = setTimeout(() => resolve("late"), LIST_WAIT_MS);
+    });
+
+    try {
+        const listed = await Promise.all(
+            names.map((name) =>
+                Promise.race([options.manager.tools(name, cwd, signal).then(() => undefined), late]).then(
+                    (outcome) => (outcome === "late" ? `The MCP server ${name} is still starting: search again in a moment to find its tools.` : undefined),
+                    (error: unknown) => `The MCP server ${name} could not list its tools: ${defang(error instanceof Error ? error.message : String(error))}`,
+                ),
+            ),
+        );
+
+        return listed.filter((note): note is string => note !== undefined);
+    } finally {
+        clearTimeout(timer);
+    }
 }

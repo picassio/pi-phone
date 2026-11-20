@@ -136,7 +136,8 @@ export const notLoaded = (name: string) =>
 export function explainNotLoaded(messages: readonly Message[]): readonly Message[] | undefined {
     let changed = false;
     const explained = messages.map((message) => {
-        if (message.role !== "toolResult" || !message.isError || !DEFERRED.has(message.toolName)) {
+        // An MCP server's tools wait for tool_search too (PP-526).
+        if (message.role !== "toolResult" || !message.isError || !(DEFERRED.has(message.toolName) || message.toolName.startsWith("mcp__"))) {
             return message;
         }
 

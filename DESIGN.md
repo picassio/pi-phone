@@ -3400,6 +3400,19 @@ so Pi changes them through the settings tools; "the last session" is the one the
     their first bytes (PNG, JPEG, GIF, WebP), at most 4, 3.7 MB each and 8 MB in all, the rest said. A JSON-RPC error
     from the server is fenced as `<mcp_error>` (2000 characters). The secrets' `afterTool` hook hides their values as
     in every result.
+  - **By folder, and the prompt** (`mcp/tools.ts`, PP-526): with a server that may run, `pocket-mcp` brings its own
+    `tool_search`, Pi Durable's with the same declaration (so the request is the same size), installed after
+    `deferred-tools` so sessions use it, also those whose tools are all. It searches the other deferred tools and the
+    MCP tools of the servers serving the session's folder only, as they are now: a server in scope that never listed
+    its tools starts for it first (20 s at most; one later says it is still starting), and its tools are found in that
+    same search. A tool of another folder's server called anyway (a script can) says the server does not serve this
+    folder; one not loaded says to load it with tool_search (`explainNotLoaded`). The section `mcp_servers` names the
+    servers serving the folder, one line each (name, description, tool count, where it runs), and is left out when
+    none does, so a session without MCP servers has the prompt it had (84,931 characters on 2026-11-20). One server of
+    111 tools adds 271 characters (`test/prompt-budget.test.ts` holds it under 300), none of its tools. codemode's
+    Only mode keeps them deferred and unlisted (its listing leaves deferred tools out); there the section says
+    scripts find them with `searchTools`. prompt-eval has 8 MCP scenarios on two new variants, `mcp` (a Godot project
+    a GoPeak stand-in serves) and `mcp-loaded` (its scene tools loaded by a first turn).
 
 ## 5. Build
 

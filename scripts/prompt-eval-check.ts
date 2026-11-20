@@ -47,7 +47,11 @@ export type Turn = { role: "user" | "assistant"; text: string };
  */
 export type Scenario = {
     id: string;
-    variant: "phone" | "machine" | "pinned";
+    /**
+     * `mcp`: a session on the phone in a Godot project an MCP server (`gopeak`) serves; `mcp-loaded`: the same after a
+     * turn whose tool_search loaded the server's scene tools (PP-526).
+     */
+    variant: "phone" | "machine" | "pinned" | "mcp" | "mcp-loaded";
     message: string;
     expect: Expect;
     /** Earlier turns, from the person's request to Pi's last words before the message: user, assistant, user, … assistant. */

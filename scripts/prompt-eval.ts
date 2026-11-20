@@ -138,7 +138,7 @@ if (values["dry-run"]) {
     process.exit(0);
 }
 
-type Captured = { message: string; phone: Context; machine: Context; pinned: Context; files: Record<string, string> };
+type Captured = { message: string; phone: Context; machine: Context; pinned: Context; mcp: Context; "mcp-loaded": Context; files: Record<string, string> };
 type Tree = { label: string; captured: Captured };
 
 const work = mkdtempSync(join(tmpdir(), "prompt-eval-"));
@@ -414,7 +414,7 @@ const requests = (tree: number) => results.filter((result) => result.job.tree ==
 const report = [
     `# prompt-eval, ${new Date().toISOString().slice(0, 10)}`,
     "",
-    `Model ${MODEL} on Anthropic, subscription account ${values.account}, ${RUNS} run${RUNS === 1 ? "" : "s"} of each of ${scenarios.length} scenarios (${(["phone", "machine", "pinned"] as const).map((variant) => `${scenarios.filter((each) => each.variant === variant).length} ${variant}`).join(", ")}).`,
+    `Model ${MODEL} on Anthropic, subscription account ${values.account}, ${RUNS} run${RUNS === 1 ? "" : "s"} of each of ${scenarios.length} scenarios (${(["phone", "machine", "pinned", "mcp", "mcp-loaded"] as const).map((variant) => `${scenarios.filter((each) => each.variant === variant).length} ${variant}`).join(", ")}).`,
     "",
     `| Scenario | Variant | ${trees.map((tree) => tree.label).join(" | ")} |`,
     `|---|---|${trees.map(() => "---|").join("")}`,
