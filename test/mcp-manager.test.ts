@@ -208,15 +208,16 @@ test("a changed entry stops its instances, an off server and other folders are r
     );
 });
 
-test("a server's list_changed is heard, and its tools are listed again", async () => {
+test("a server's tools are listed when it starts, and again on its list_changed", async () => {
     const { servers, manager, work } = setup("changed");
-    const heard: string[] = [];
+    const heard: [string, boolean][] = [];
 
-    manager.onToolsChanged((server) => heard.push(server));
+    manager.onTools((server, tools) => heard.push([server, tools.some((tool) => tool.name === "extra")]));
     servers.save("stub", stub());
     assert.ok(!(await manager.tools("stub", work)).some((tool) => tool.name === "extra"));
+    assert.deepEqual(heard, [["stub", false]], "listed once as it started, not again for tools()");
     await manager.call("stub", work, "grow", {});
-    await until(() => heard.length === 1);
-    assert.deepEqual(heard, ["stub"]);
+    await until(() => heard.length === 2);
+    assert.deepEqual(heard[1], ["stub", true]);
     assert.ok((await manager.tools("stub", work)).some((tool) => tool.name === "extra"));
 });

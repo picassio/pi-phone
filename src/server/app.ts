@@ -82,6 +82,9 @@ import { readAvatar, removeAvatar, saveAvatar } from "./avatars.ts";
 import { APP_ROOT, APPEARANCE_DEFAULTS, type AppearanceOptions, ConfigStore, type User, type WelcomeState } from "./config.ts";
 import { CODEMODE_MODES, type CodemodeMode, CONTEXT_PARTS, type ContextPart, type ContextPolicy, contextMode, resolveContextPolicy } from "./context-policy.ts";
 import { DEFERRED_EXTENSION, deferredToolsExtension } from "./deferred-tools.ts";
+import { McpServers } from "./mcp/config.ts";
+import { McpManager, type McpWhere } from "./mcp/manager.ts";
+import { mcpExtension, McpToolCache } from "./mcp/tools.ts";
 import { type ResolvedSubagentDefaults, resolveSubagentDefaults, SESSION, SUBAGENT_PARTS, type SubagentPart, untilText, withPart } from "./subagent-defaults.ts";
 import {
     ArtifactBodyDoc,
@@ -694,6 +697,9 @@ export class PocketApp {
     #boards: Projects | undefined;
     /** Where sessions work, here or on a machine, and each place's execution environment (`places.ts`). */
     readonly places: Places;
+    readonly mcpServers: McpServers;
+    readonly mcp: McpManager;
+    readonly mcpTools: McpToolCache;
     /** Ports of machines opened here (`forwards.ts`). */
     readonly forwards: Forwards;
     /** Forwards the screenshot tools opened (`#machinePort`, PP-440): how many renders use each, by its id. */
@@ -797,6 +803,16 @@ export class PocketApp {
             void this.#refreshClients().catch((error: unknown) => this.log(`machines not sent to the tabs: ${describe(error)}`));
         });
         this.places = new Places(this.machines, () => this.#toolPath());
+        // The owner's MCP servers (PP-517): the file, the running instances, and their tools' cache.
+        this.mcpServers = new McpServers(options.dataDir, (line) => this.log(line));
+        this.mcp = new McpManager({
+            servers: this.mcpServers,
+            secrets: this.secrets,
+            where: (machineId) => this.#mcpWhere(machineId),
+            notify: (message) => this.ownerNotice("warning", message),
+            log: (line) => this.log(line),
+        });
+        this.mcpTools = new McpToolCache(options.dataDir, this.mcpServers, this.mcp, (line) => this.log(line));
         // The team server's machines this person may use (PP-82): into Machines, reached through its relay and agent.
         this.teamMachines = new TeamMachinesClient(this.#teamServer, sshDir, (line) => this.log(line), (entries, manage) => this.machines.setTeam(entries, manage));
         this.accounts = new Accounts(options.dataDir, () => this.models, options.accountProviders);
@@ -1313,6 +1329,12 @@ export class PocketApp {
         );
         // The rarer tools load when Pi needs them (PP-276, `deferred-tools.ts`): left out by a session whose tools are all.
         registry.install(deferredToolsExtension());
+        // MCP servers' tools (PP-525), deferred: installed again as the servers or their tools change.
+        const installMcp = () => registry.install(mcpExtension(this.mcpServers, this.mcpTools, this.mcp, () => this.defaultCwd));
+
+        installMcp();
+        this.mcpServers.onChange(installMcp);
+        this.mcpTools.onChange(installMcp);
         // Durable work of the app itself, whatever extension modules are on.
         registry.install(
             defineExtension({
@@ -7978,6 +8000,21 @@ export class PocketApp {
      * The PATH of commands on the phone: `officecli` when installed, ffmpeg and ffprobe the app carries (the media
      * tool's, PP-296), and `pi-ssh` (the app's machines, through its agent) first.
      */
+    /** Where an MCP server runs (PP-524): the phone's daemon with the app's PATH, or a machine's; not Windows yet. */
+    #mcpWhere(machineId: string | undefined): McpWhere {
+        if (machineId === undefined) {
+            return { connection: this.places.processConnection(undefined), home: this.#home, path: this.#toolPath() };
+        }
+
+        const machine = this.machines.ready(machineId);
+
+        if (machine.remote!.platform === "windows") {
+            throw new Error(`MCP servers do not run on Windows machines yet (${machine.name}): run it on the phone or a Linux or macOS machine.`);
+        }
+
+        return { connection: this.places.processConnection(machineId), home: machine.remote!.home };
+    }
+
     #toolPath(): string {
         const office = this.officecli.available() ? `${this.officecli.binDir}:` : "";
         const media = localEngine();
@@ -8050,6 +8087,7 @@ export class PocketApp {
                 storageClosed = true;
                 this.forwards.closeAll();
                 await this.para.close();
+                await this.mcp.close();
                 await this.places.close(context);
                 await this.teamMachines.close();
                 this.sshAgent.stop();

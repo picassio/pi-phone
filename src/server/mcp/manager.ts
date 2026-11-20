@@ -81,6 +81,7 @@ type Instance = {
     startedAt?: number;
     lastUsedAt?: number;
     tools?: Tool[];
+    listing?: Promise<Tool[]>;
     calls: number;
     inFlight: number;
     idle?: NodeJS.Timeout;
@@ -124,7 +125,7 @@ export class McpManager {
     readonly #now: () => number;
     readonly #max: number;
     readonly #instances = new Map<string, Instance>();
-    readonly #toolsChanged = new Set<(server: string) => void>();
+    readonly #listeners = new Set<(server: string, tools: readonly Tool[]) => void>();
     readonly #unsubscribe: () => void;
 
     constructor(host: McpManagerHost) {
@@ -143,11 +144,36 @@ export class McpManager {
         });
     }
 
-    /** `listener(server)` when a running server says its tools changed (`notifications/tools/list_changed`). */
-    onToolsChanged(listener: (server: string) => void): () => void {
-        this.#toolsChanged.add(listener);
+    /**
+     * `listener(server, tools)` whenever a server's tools are listed afresh: once it starts, and again when it says they
+     * changed (`notifications/tools/list_changed`).
+     */
+    onTools(listener: (server: string, tools: readonly Tool[]) => void): () => void {
+        this.#listeners.add(listener);
 
-        return () => this.#toolsChanged.delete(listener);
+        return () => this.#listeners.delete(listener);
+    }
+
+    /** List the tools of a running instance, once at a time, and tell the listeners. */
+    #list(instance: Instance, client: McpClient, server: McpServerInfo): Promise<Tool[]> {
+        instance.listing ??= client
+            .listTools({ timeoutMs: server.timeout * 1000 })
+            .then((tools) => {
+                if (instance.client === client) {
+                    instance.tools = tools;
+                }
+
+                for (const listener of [...this.#listeners]) {
+                    listener(instance.server, tools);
+                }
+
+                return tools;
+            })
+            .finally(() => {
+                instance.listing = undefined;
+            });
+
+        return instance.listing;
     }
 
     /**
@@ -213,9 +239,7 @@ export class McpManager {
         try {
             const client = await this.#client(instance, server, cwd, signal);
 
-            instance.tools ??= await client.listTools({ timeoutMs: server.timeout * 1000, ...(signal === undefined ? {} : { signal }) });
-
-            return instance.tools;
+            return instance.tools ?? (await this.#list(instance, client, server));
         } finally {
             this.#done(instance, server);
         }
@@ -358,12 +382,11 @@ export class McpManager {
 
         instance.client = client;
         instance.startedAt = this.#now();
+        const listed = (error: unknown) => this.#host.log(`mcp: listing ${instance.server}'s tools failed: ${message(error)}`);
+
         client.onNotification("notifications/tools/list_changed", () => {
             instance.tools = undefined;
-
-            for (const listener of [...this.#toolsChanged]) {
-                listener(instance.server);
-            }
+            void this.#list(instance, client, server).catch(listed);
         });
         client.onClose(() => {
             instance.stderr = transport.stderr;
@@ -381,6 +404,8 @@ export class McpManager {
             }
         });
         this.#host.log(`mcp: ${instance.server} started (pid ${instance.pid ?? "?"}) ${instance.machineId === undefined ? "on the phone" : `on machine ${instance.machineId}`} in ${instance.folder}`);
+        // Its tools, for the cache that offers them (`tools.ts`), from its first start on.
+        void this.#list(instance, client, server).catch(listed);
 
         return client;
     }

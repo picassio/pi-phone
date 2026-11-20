@@ -3385,6 +3385,21 @@ so Pi changes them through the settings tools; "the last session" is the one the
     longest ago with no call running, and is refused when all are busy. An entry changed or turned off stops its
     instances. Its stderr (the last 64 KB) is for the owner's page, never the model. Checked live on 2026-11-20 from
     the phone to tuanlh-devbox-01 over pi-ssh: the call in 728 ms, the remote process gone after the idle stop.
+  - **Their tools** (`mcp/tools.ts`, `mcp/result.ts`, PP-525): each tool of a server that is on and approved is a tool
+    of its own, `mcp__<server>__<tool>` (pi-mcp's `createMcpToolName`: 64 characters, a hash on a clash), deferred
+    (only `tool_search` offers it; codemode scripts call it any time) and `replay: "unsafe"`. They are the extension
+    `pocket-mcp` (a reserved name, so the gallery's drop-in `mcp` cannot replace it), installed again when the servers
+    or their tools change. The tools come from `<data>/mcp/tools-cache.json`, per server with the fingerprint they were
+    listed for: after a restart they are found with no server started, and a changed entry drops them. The manager
+    lists a server's tools as it starts and on `tools/list_changed` (GoPeak's compact profile changes its list as it
+    runs). The server's text in a declaration is cleaned (invisible characters out, `defang`, one paragraph, 1000
+    characters after "MCP server <name> (<its description>)"); a schema over 8000 characters is offered as any
+    object. Its `readOnlyHint` reaches plan mode only with the entry's `planMode`; `hiddenTools` are left out. An
+    answer is fenced (`fencedMcp`: `<mcp_result>`, a note that it is data), text past 20 KB cut in the middle with the
+    whole saved in a temporary folder of the session's environment, where `read` reaches it; pictures checked by
+    their first bytes (PNG, JPEG, GIF, WebP), at most 4, 3.7 MB each and 8 MB in all, the rest said. A JSON-RPC error
+    from the server is fenced as `<mcp_error>` (2000 characters). The secrets' `afterTool` hook hides their values as
+    in every result.
 
 ## 5. Build
 
