@@ -4,8 +4,9 @@
  * removes one, after the owner approves a card with the whole entry and, for a change, its diff. Nothing changes on a
  * Deny. Both wait for tool_search (`DEFERRED_TOOLS`), and only the owner's message may change a server.
  *
- * The list never shows a value that may be a key: an `env` or `headers` value whose name speaks of a key, a token, a
- * secret, a password or auth is shown as `(set)` unless it is only `${NAME}`s of the owner's secrets.
+ * The list never shows a value that may be a key: `env` and `headers` by their names alone, a URL without its user
+ * and password, query and fragment, an argument's value after `=` (`--api-key=…`, `KEY=…`) and the argument after a
+ * flag that speaks of a key, a token, a secret, a password or auth, unless it is only `${NAME}`s of the owner's secrets.
  */
 import { generateUnifiedPatch } from "@earendil-works/pi-coding-agent";
 import { defineTool, type ToolRegistration } from "@earendil-works/pi-durable";
@@ -61,17 +62,41 @@ export function unpinnedPackage(server: McpServer): string | undefined {
 const KEYISH = /key|token|secret|password|passwd|auth|cookie|credential/i;
 const ONLY_SECRETS = /^(\$\{[A-Z_][A-Z0-9_]*\}\s*)+$|^[A-Za-z]+ \$\{[A-Z_][A-Z0-9_]*\}$/;
 
-/** Values as the list shows them: a value that may be a key is `(set)`. */
-function shown(values: Record<string, string>): string {
-    return Object.entries(values)
-        .map(([key, value]) => `${key}=${KEYISH.test(key) && !ONLY_SECRETS.test(value) ? "(set)" : value}`)
-        .join(", ");
+const HIDDEN = "(hidden)";
+
+/** A URL as the list shows it: no user or password, query or fragment, which can hold a key (`?key=…`). */
+export function maskedUrl(text: string): string {
+    return text.replace(/\b([a-z][a-z0-9+.-]*:\/\/)([^\s/?#]*@)?([^\s/?#]*)([^\s?#]*)(\?[^\s#]*)?(#\S*)?/gi, (_whole, scheme: string, user: string | undefined, host: string, path: string, query: string | undefined, fragment: string | undefined) =>
+        `${scheme}${user === undefined ? "" : `${HIDDEN}@`}${host}${path}${query === undefined ? "" : `?${HIDDEN}`}${fragment === undefined ? "" : `#${HIDDEN}`}`,
+    );
+}
+
+/**
+ * A command's arguments as the list shows them: a value after `=` hidden (`--api-key=…`, `TOKEN=…`), the argument
+ * after a flag that names a key hidden (`--token …`), URLs masked; `${NAME}`s of the owner's secrets stay.
+ */
+export function maskedArgs(argv: readonly string[]): string[] {
+    return argv.map((arg, at) => {
+        const assigned = /^(-{0,2}[A-Za-z_][\w.-]*)=(.*)$/s.exec(arg);
+
+        if (assigned !== null) {
+            return ONLY_SECRETS.test(assigned[2]!) ? arg : `${assigned[1]}=${HIDDEN}`;
+        }
+
+        const before = at === 0 ? undefined : argv[at - 1];
+
+        if (before !== undefined && /^-{1,2}[\w.-]+$/.test(before) && KEYISH.test(before) && !ONLY_SECRETS.test(arg)) {
+            return HIDDEN;
+        }
+
+        return maskedUrl(arg);
+    });
 }
 
 /** Where a server runs, in words. */
 function runsWords(server: McpServer, machineName: (id: string) => string): string {
     if (server.kind === "http") {
-        return server.runs.where === "machine" ? `over HTTP at ${server.url}, from ${machineName(server.runs.machineId)}` : `over HTTP at ${server.url}`;
+        return server.runs.where === "machine" ? `over HTTP at ${maskedUrl(server.url)}, from ${machineName(server.runs.machineId)}` : `over HTTP at ${maskedUrl(server.url)}`;
     }
 
     return server.runs.where === "session" ? "where the session works" : server.runs.where === "phone" ? "on the phone" : `on ${machineName(server.runs.machineId)}`;
@@ -83,7 +108,7 @@ const entryJson = (server: McpServer) => JSON.stringify({ [server.name]: entryOf
 export function mcpAdminTools(options: McpExtensionOptions): ToolRegistration[] {
     const { servers, manager, cache, guard } = options;
     const line = (server: McpServerInfo) => {
-        const command = server.kind === "stdio" ? `stdio: ${[server.command, ...server.args].join(" ")}` : `http: ${server.url}`;
+        const command = server.kind === "stdio" ? `stdio: ${maskedArgs([server.command, ...server.args]).join(" ")}` : `http: ${maskedUrl(server.url)}`;
         const values = server.kind === "stdio" ? server.env : server.headers;
         const tools = cache.tools(server.name);
         const running = manager
@@ -94,7 +119,8 @@ export function mcpAdminTools(options: McpExtensionOptions): ToolRegistration[] 
         return [
             `- ${server.name}: ${server.enabled ? "on" : "off"}${server.approved ? "" : ", changed since the owner approved it (does not run)"}`,
             `  ${command}`,
-            ...(Object.keys(values).length === 0 ? [] : [`  ${server.kind === "stdio" ? "env" : "headers"}: ${shown(values)}`]),
+            // Their names alone: a value can be a key whatever its name (DATABASE_URL).
+            ...(Object.keys(values).length === 0 ? [] : [`  ${server.kind === "stdio" ? "env" : "headers"} (values not shown): ${Object.keys(values).join(", ")}`]),
             `  runs ${runsWords(server, options.machineName)}; folders: ${server.folders.length === 0 ? "every folder" : server.folders.join(", ")}`,
             `  ${tools === undefined ? "tools not listed yet" : `${tools.length} tools`}; timeout ${server.timeout} s; idle stop after ${server.idleMinutes} min${server.askEachCall ? "; asks before each call" : ""}${server.planMode ? "; its read-only tools run in plan mode" : ""}`,
             ...(server.description === "" ? [] : [`  ${server.description}`]),

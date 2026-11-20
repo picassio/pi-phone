@@ -175,7 +175,8 @@ test("a result that writes </mcp_result> stays inside its fence; a fake picture 
 
     const fake = await say("fake");
 
-    assert.match(fake.text, /Left out: a picture that is not PNG, JPEG, GIF or WebP \(said to be image\/gif\)/);
+    assert.match(fake.text, /Left out: a picture that is not PNG, JPEG, GIF or WebP\.\)$/);
+    assert.doesNotMatch(fake.text, /image\/gif/, "the type the server named stays out");
     assert.equal(fake.images.length, 0);
 
     const error = await say("error");

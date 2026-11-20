@@ -9,7 +9,8 @@
  * The manager fills it each time it lists a server's tools (as it starts, and on `tools/list_changed`).
  *
  * A tool's description and schema are the server's text, so they are cleaned: invisible characters out, no closing
- * tag, 1000 characters at most, after "MCP server <name>"; a schema over 8000 characters is offered as any object.
+ * tag, 1000 characters at most, after "MCP server <name>"; the descriptions and titles inside its schema too
+ * (`cleanSchema`); a schema over 8000 characters is offered as any object.
  * `replay` is unsafe (a restart in a call answers "interrupted", never runs it again). The server's `readOnlyHint`
  * reaches plan mode only when the owner trusts the server's hints (`planMode`).
  */
@@ -45,6 +46,21 @@ export function cleanText(text: string, max: number): string {
     return clip(defang(text.replace(INVISIBLE, "").replace(/\s+/g, " ")), max);
 }
 
+/** A schema with every `description` and `title` in it, at any depth, cleaned as a tool's description is. */
+export function cleanSchema(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.map(cleanSchema);
+    }
+
+    if (typeof value !== "object" || value === null) {
+        return value;
+    }
+
+    return Object.fromEntries(
+        Object.entries(value).map(([key, each]) => [key, (key === "description" || key === "title") && typeof each === "string" ? cleanText(each, MAX_DESCRIPTION) : cleanSchema(each)]),
+    );
+}
+
 export class McpToolCache {
     readonly #file: string;
     readonly #servers: McpServers;
@@ -66,7 +82,7 @@ export class McpToolCache {
             }
         }
 
-        manager.onTools((server, tools) => this.#store(server, tools));
+        manager.onTools((server, tools, fingerprint) => this.#store(server, tools, fingerprint));
     }
 
     /** The cached tools of a server, for its current entry; undefined when they were never listed for it. */
@@ -83,10 +99,11 @@ export class McpToolCache {
         return () => this.#listeners.delete(listener);
     }
 
-    #store(name: string, tools: readonly Tool[]): void {
+    /** Keep the tools listed for the entry whose fingerprint is `fingerprint`; a listing of an entry since changed is not kept. */
+    #store(name: string, tools: readonly Tool[], fingerprint: string): void {
         const server = this.#servers.get(name);
 
-        if (server === undefined) {
+        if (server === undefined || server.fingerprint !== fingerprint) {
             return;
         }
 
@@ -128,7 +145,7 @@ function registrations(server: McpServerInfo, tools: readonly CachedTool[], opti
 
             taken.add(name);
 
-            const normalized = normalizeMcpInputSchema(tool.inputSchema);
+            const normalized = cleanSchema(normalizeMcpInputSchema(tool.inputSchema)) as Record<string, unknown>;
             const tooBig = JSON.stringify(normalized).length > MAX_SCHEMA;
             const about = server.description === "" ? "" : ` (${cleanText(server.description, 200)})`;
             const description = `MCP server ${server.name}${about}: ${cleanText(tool.description ?? tool.name, MAX_DESCRIPTION)}${tooBig ? " Its parameters' schema is too large to show: give the arguments its description names." : ""}`;
@@ -243,6 +260,8 @@ function startOptions(options: McpExtensionOptions, name: string, caller: McpCal
 
     return {
         ...(context.abortSignal === undefined ? {} : { signal: context.abortSignal }),
+        // A yes to a secret that asks first is this session's.
+        who: `session ${String(caller.conversationId)}`,
         askSecrets: (names) =>
             options.guard.ask(caller, { key: `start-${name}`, tool: `mcp server ${name}`, subject: command, reason: `Starts the MCP server ${name} with ${names.map((each) => `$${each}`).join(", ")}` }, context),
     };

@@ -1812,7 +1812,11 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             run: async (_user, args) => {
                 const result = await app.mcpPage.test(mcpServer(args.name).name, args.folder);
 
-                return result.ok ? `${args.name}: ${result.tools.length} tools in ${(result.ms / 1000).toFixed(1)} s: ${result.tools.join(", ")}` : `${args.name} did not answer: ${result.error}`;
+                // The tools' names are the server's text: only the characters a tool's name has (MCP's A-Z, a-z, 0-9, _, - and .), cut.
+                // The error is the app's words (`failureWords`): a server's own stays in the owner's log.
+                const names = result.ok ? result.tools.map((tool) => tool.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 64)) : [];
+
+                return result.ok ? `${args.name}: ${names.length} tools in ${(result.ms / 1000).toFixed(1)} s: ${names.join(", ")}` : `${args.name} did not answer: ${result.error}`;
             },
         },
         {

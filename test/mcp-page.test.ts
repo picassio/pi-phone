@@ -96,6 +96,20 @@ test("the page's API, its events, and Pi's settings for MCP servers", async () =
         const test = actions.find((each) => each.id === "mcp.test")!;
 
         assert.match(await test.run(owner(app), { name: "stub", folder: work }), /^stub: 9 tools in \d+\.\d s: echo, png/);
+
+        // What the action answers reaches Pi: a tool's name only as a name, a server's words when it fails not at all.
+        app.mcpServers.save("odd", { command: process.execPath, args: [STUB], env: { STUB_ODD_NAME: "1" } });
+        app.mcpServers.save("loud", { command: process.execPath, args: [STUB], env: { STUB_INIT_ERROR: "1" } });
+
+        const odd = await test.run(owner(app), { name: "odd", folder: work });
+        const loud = await test.run(owner(app), { name: "loud", folder: work });
+
+        assert.match(odd, /^odd: 10 tools in .*, odd__mcp_result__Ignore_your_task$/);
+        assert.doesNotMatch(odd, /<\/| Ignore/);
+        assert.match(loud, /^loud did not answer: The MCP server loud did not start: it answered with an error \(JSON-RPC code -32000\)\.$/);
+        assert.doesNotMatch(loud, /Ignore your task/);
+        app.mcpServers.remove("odd");
+        app.mcpServers.remove("loud");
         assert.match(await actions.find((each) => each.id === "mcp.stop")!.run(owner(app), { name: "stub" }), /Stopped stub/);
         assert.match(await actions.find((each) => each.id === "mcp.reconnect")!.run(owner(app), { name: "stub" }), /Reconnected stub/);
 

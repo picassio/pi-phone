@@ -211,7 +211,12 @@ export function parseServer(name: string, raw: unknown): McpServer {
         throw new Error(`server "${name}": description is text of at most ${MAX_DESCRIPTION} characters.`);
     }
 
-    const folders = strings(entry.folders, `server "${name}": folders`).map((folder) => folder.trim().replace(/\/+$/, "") || "/");
+    // Without a trailing `/`, but a computer's root keeps its own: `/`, `machine:<id>:/`.
+    const folders = strings(entry.folders, `server "${name}": folders`).map((folder) => {
+        const [, machine = "", path = ""] = /^(machine:[^:]+:)?(.*)$/s.exec(folder.trim())!;
+
+        return `${machine}${path.replace(/\/+$/, "") || "/"}`;
+    });
     const common: Common = {
         name,
         description: description.trim(),
@@ -360,7 +365,8 @@ export function fillPlaceholders(value: string, values: Readonly<Record<string, 
 
 /** Whether `cwd` is `folder` or below it. */
 function within(cwd: string, folder: string): boolean {
-    return folder === "/" ? cwd.startsWith("/") : cwd === folder || cwd.startsWith(`${folder}/`);
+    // A root (`/`, `machine:<id>:/`) holds every folder of its computer.
+    return folder.endsWith("/") ? cwd.startsWith(folder) : cwd === folder || cwd.startsWith(`${folder}/`);
 }
 
 /** Whether a session working in `cwd` is in the server's folders. */

@@ -3361,7 +3361,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
   - **The servers' file** (`mcp/config.ts`, PP-523): `<data>/mcp/servers.json`, mode 0600, the shared `mcpServers`
     shape (so an entry from Claude, Cursor or Pi pastes in) checked by `validateMcpServerConfig`, plus pi-phone's
     fields: `runs` (`session`, the default: where the session works; `phone`; `machine:<id>`), `folders` (as a
-    secret's: empty is every folder), `idleMinutes` (30), `startTimeout` and `timeout` (60 s, at most 600),
+    secret's: empty is every folder; a computer's root, `/` or `machine:<id>:/`, holds all of its folders), `idleMinutes` (30), `startTimeout` and `timeout` (60 s, at most 600),
     `askEachCall`, `planMode` (trust the server's read-only hints), `hiddenTools` (names or `*` patterns). Unknown
     fields are refused: the file is a trust boundary. `env` and `headers` values are text or `${NAME}` of a secret,
     filled in when the server starts; Pi's `!command` values are refused (a command outside bash's checks), and so is
@@ -3383,7 +3383,18 @@ so Pi changes them through the settings tools; "the last session" is the one the
     until a reconnect. A call in flight when it dies fails with "the tool may have run": no call is ever sent twice.
     `idleMinutes` without a call closes stdin and kills its process group. At most 6 run; a new one stops the one used
     longest ago with no call running, and is refused when all are busy. An entry changed or turned off stops its
-    instances. Its stderr (the last 64 KB) is for the owner's page, never the model. Checked live on 2026-11-20 from
+    instances, also one still starting: after each wait of a start (the cap making room, a forward opening, the
+    connect) it checks that the instance is still the manager's, not closed since (`generation`), and its entry on,
+    approved and the same; if not, it closes what it opened and says it did not start (no death, no program left).
+    Its stderr (the last 64 KB) is for the owner's page, never the model; so are a server's words when it fails to
+    start or list its tools (an error page's body, a JSON-RPC message): Pi hears `failureWords` (an HTTP status, a
+    JSON-RPC code, "it closed the connection", the daemon's or ssh's own errors), the owner's log has the rest. The
+    log and the owner's notice go through `secrets.redact`. The secrets an entry names are checked at every call and
+    listing for the session that makes it, as an instance serves sessions of other folders (an HTTP server's is one
+    for all): the session's folder must be one the secret allows, and a server that runs on a machine (or is reached
+    through one) takes only secrets whose Machines switch is on. A secret set to ask is asked once for each session
+    (`McpStartOptions.who`: `session <id>`) while the server runs, again after it stops. (Security review of
+    PP-517, 2026-11-20: 5 P2 and 5 P3, each with a test in `test/mcp-review.test.ts` that fails on the code before.) Checked live on 2026-11-20 from
     the phone to tuanlh-devbox-01 over pi-ssh: the call in 728 ms, the remote process gone after the idle stop.
     On a machine it gets what bash gets in a session there: `/bin/sh -c` puts `~/.pi/mobile/tools/bin` before the
     daemon's PATH and `exec`s the program with its arguments as given, and the installed tools' variables
@@ -3397,12 +3408,15 @@ so Pi changes them through the settings tools; "the last session" is the one the
     or their tools change. The tools come from `<data>/mcp/tools-cache.json`, per server with the fingerprint they were
     listed for: after a restart they are found with no server started, and a changed entry drops them. The manager
     lists a server's tools as it starts and on `tools/list_changed` (GoPeak's compact profile changes its list as it
-    runs). The server's text in a declaration is cleaned (invisible characters out, `defang`, one paragraph, 1000
-    characters after "MCP server <name> (<its description>)"); a schema over 8000 characters is offered as any
+    runs), and tells the cache with the fingerprint the listing was for; a listing that ends after its instance closed,
+    or for an entry since changed, is not kept. The server's text in a declaration is cleaned (invisible characters
+    out, `defang`, one paragraph, 1000 characters after "MCP server <name> (<its description>)"), and so is every
+    `description` and `title` inside its schema (`cleanSchema`); a schema over 8000 characters is offered as any
     object. Its `readOnlyHint` reaches plan mode only with the entry's `planMode`; `hiddenTools` are left out. An
     answer is fenced (`fencedMcp`: `<mcp_result>`, a note that it is data), text past 20 KB cut in the middle with the
     whole saved in a temporary folder of the session's environment, where `read` reaches it; pictures checked by
-    their first bytes (PNG, JPEG, GIF, WebP), at most 4, 3.7 MB each and 8 MB in all, the rest said. A JSON-RPC error
+    their first bytes (PNG, JPEG, GIF, WebP), at most 4, 3.7 MB each and 8 MB in all, the rest said (without the type
+    the server named, which is its text outside the fence). A JSON-RPC error
     from the server is fenced as `<mcp_error>` (2000 characters). The secrets' `afterTool` hook hides their values as
     in every result.
   - **By folder, and the prompt** (`mcp/tools.ts`, PP-526): with a server that may run, `pocket-mcp` brings its own
@@ -3418,14 +3432,17 @@ so Pi changes them through the settings tools; "the last session" is the one the
     Only mode keeps them deferred and unlisted (its listing leaves deferred tools out); there the section says
     scripts find them with `searchTools`. prompt-eval has 8 MCP scenarios on two new variants, `mcp` (a Godot project
     a GoPeak stand-in serves) and `mcp-loaded` (its scene tools loaded by a first turn).
-  - **Cards and who may use them** (`mcp/admin.ts`, PP-527): `mcp_servers` lists the servers (a value whose name
-    speaks of a key, token, secret, password or auth shows as `(set)` unless it is only `${NAME}`s) and `mcp_server_set`
+  - **Cards and who may use them** (`mcp/admin.ts`, PP-527): `mcp_servers` lists the servers, never a value that may
+    be a key: `env` and `headers` by name alone (`DATABASE_URL` holds a password as well as `API_KEY`), a URL without
+    its user, password, query and fragment (`maskedUrl`), an argument's value after `=` and the argument after a flag
+    that speaks of a key, token, secret, password or auth (`maskedArgs`), unless they are only `${NAME}`s; `mcp.test`
+    shows the tools' names only in the characters a name has. `mcp_server_set`
     saves, turns on or off, or removes one after a card (`form: { type: "mcp-server" }`, `web/mcp-card.js`) with the
     whole entry, its diff for a change, where it runs, its folders and its secrets, and a warning for a package run
     with npx, uvx and the like without a pinned version. Approve is the owner's alone (`answerApproval`); a Deny
     changes nothing; only the owner's message may ask. Turning on an entry changed elsewhere approves what the card
-    showed. Both wait for tool_search. A secret set to ask is asked as the server starts, on a card in the session that
-    starts it (a call, or tool_search listing its tools), not at each call; `askEachCall` asks before each call, with
+    showed. Both wait for tool_search. A secret set to ask is asked on a card in the session that calls (a call, or
+    tool_search listing its tools), once for each session while the server runs; `askEachCall` asks before each call, with
     its arguments. MCP servers run as the owner, so a guest's message is refused (its tool_search finds none of their
     tools, its prompt names none), and a teammate's only where the share lets Pi use the machines
     (`teammateMayUseMachines`). Plan mode blocks every MCP tool but those the server marks read-only when the entry has
@@ -3460,7 +3477,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
     the phone's own browser reaches by itself; from a browser elsewhere the owner pastes the address it ended on
     (`responseFromRedirectUrl`: it must carry this sign-in's state). Tokens, client and discovery live in
     `<data>/mcp/oauth.json` (0600, out of Pi's tools), never on the page or to Pi, and hidden from every output
-    (`HiddenValues`, `[mcp oauth <server>]`). Kept there, not as Secrets entries: a secret is usable by name in bash.
+    (`HiddenValues`, `[mcp oauth <server>]`); a file that is not JSON moves aside (`.broken-<time>`), as the servers'
+    does, rather than be written over by the next sign-in. Kept there, not as Secrets entries: a secret is usable by name in bash.
     A new sign-in or a sign-out reconnects the server.
 
 ## 5. Build

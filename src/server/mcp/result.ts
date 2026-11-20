@@ -45,7 +45,8 @@ export async function formatResult(tool: string, result: CallToolResult, save?: 
         const type = imageType(part.data);
 
         if (type === undefined) {
-            left.push(`a picture that is not PNG, JPEG, GIF or WebP (said to be ${part.mimeType})`);
+            // Not the type the server named: its words, outside the fence.
+            left.push("a picture that is not PNG, JPEG, GIF or WebP");
         } else if (images.length >= MAX_IMAGES) {
             left.push(`a picture past the first ${MAX_IMAGES}`);
         } else if (part.data.length > MAX_IMAGE_BASE64) {

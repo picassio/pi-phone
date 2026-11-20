@@ -14,9 +14,16 @@
  * - At most `maxInstances` (6) run; a new one stops the instance used longest ago that has no call running.
  * - An entry changed or turned off stops its instances.
  *
- * Its stderr stays here for the owner (`status`), never for the model: it can hold what the server was given.
+ * Its stderr stays here for the owner (`status`), never for the model: it can hold what the server was given. So does
+ * what a server says when it fails to start or to list its tools (an error page's body, a JSON-RPC error's message):
+ * Pi hears what happened in the app's words alone (`failureWords`), the owner's log has the rest, its secrets hidden.
+ *
+ * The secrets an entry names are checked at every call and listing, for the session that makes it (its folder, and
+ * the Machines switch where the server runs), as an instance is shared by sessions in other folders; one set to ask
+ * first is asked for once per session and start (`McpStartOptions.who`). An instance turned off, changed or stopped
+ * while it starts (a card waits, the cap makes room, a forward opens) does not start: what was opened is closed.
  */
-import { type Connection, openProcess } from "@earendil-works/pi-env";
+import { type Connection, HostKeyChangedError, HostKeyUnknownError, openProcess, RemoteError, SshError } from "@earendil-works/pi-env";
 import {
     type AuthProvider,
     type CallToolResult,
@@ -24,6 +31,7 @@ import {
     McpAuthRequiredError,
     McpClient,
     McpConnectionClosedError,
+    McpError,
     McpHttpError,
     McpSessionExpiredError,
     McpTimeoutError,
@@ -62,6 +70,47 @@ function signInWords(name: string, server: McpServerInfo): string {
         : `The MCP server ${name} refused its credentials (HTTP 401): its headers' token, or an oauth entry to sign in with (Settings › MCP servers).`;
 }
 
+/** An error the app made itself (a start that took too long): its words are ours. */
+class McpStartError extends Error {}
+
+/** A start cancelled: its instance was turned off, changed or stopped meanwhile. Not a death. */
+class McpStartCancelled extends McpStartError {}
+
+/**
+ * What went wrong talking to a server, in the app's words alone: an HTTP error's status (its body is the server's
+ * page), a JSON-RPC error's code (its message is the server's), a program that exited, the network. Errors of the
+ * app's own (the daemon's, ssh's, a timeout) keep their words.
+ */
+export function failureWords(error: unknown): string {
+    if (error instanceof McpHttpError) {
+        return `it answered HTTP ${error.status}`;
+    }
+
+    if (error instanceof McpError) {
+        return `it answered with an error (JSON-RPC code ${error.code})`;
+    }
+
+    if (error instanceof McpConnectionClosedError) {
+        return "it closed the connection";
+    }
+
+    if (error instanceof McpTimeoutError) {
+        return `it did not answer in ${Math.round(error.timeoutMs / 1000)} s`;
+    }
+
+    // fetch says a network failure (refused, reset, DNS) as a TypeError.
+    if (error instanceof TypeError) {
+        return "the network failed";
+    }
+
+    if (error instanceof McpStartError || error instanceof RemoteError || error instanceof SshError || error instanceof HostKeyUnknownError || error instanceof HostKeyChangedError) {
+        return error.message;
+    }
+
+    // Anything else came from reading what the server sent (a line that is not JSON quotes it).
+    return "it sent something that is not MCP";
+}
+
 /** A program's stderr (the last 64 KB); an HTTP server has none. */
 const stderrOf = (transport: McpTransport): string => (transport instanceof PipeTransport ? transport.stderr : "");
 
@@ -93,14 +142,15 @@ export function launchArgv(argv: readonly string[], where: Pick<McpWhere, "pathF
 
 export type McpManagerHost = {
     servers: McpServers;
-    secrets: Pick<Secrets, "environment" | "get" | "used">;
+    secrets: Pick<Secrets, "allowed" | "environment" | "get" | "redact" | "used">;
     /**
      * The place a server runs on: the phone (`undefined`) or a machine. Throws, naming what is missing, when it cannot
      * run there (a machine not set up, or a Windows machine).
      */
     where(machineId: string | undefined): McpWhere;
-    /** Tell the owner (a server failed). */
+    /** Tell the owner (a server failed); the secrets' values hidden. */
     notify(message: string): void;
+    /** The app's log; the secrets' values hidden. */
     log(line: string): void;
     /** A machine's host and port forwarded to the phone, for an HTTP server reached through it (`forwards.ts`). */
     forward?(machineId: string, host: string, port: number): Promise<{ port: number; close: () => void }>;
@@ -111,10 +161,11 @@ export type McpManagerHost = {
 };
 
 /**
- * What a call or a listing brings for a start: its cancel signal, and how to ask a person for the secrets set to ask
- * first (a card in the session that starts the server; answers whether they allowed it).
+ * What a call or a listing brings: its cancel signal, how to ask a person for the secrets set to ask first (a card in
+ * the session that calls; answers whether they allowed it), and who calls (the session), whom that answer is for until
+ * the server stops; without `who`, the folder.
  */
-export type McpStartOptions = { signal?: AbortSignal; askSecrets?: (names: readonly string[]) => Promise<boolean> };
+export type McpStartOptions = { signal?: AbortSignal; askSecrets?: (names: readonly string[]) => Promise<boolean>; who?: string };
 
 export type McpInstanceState = "starting" | "ready" | "stopped" | "failed";
 
@@ -158,6 +209,10 @@ type Instance = {
     failed?: string;
     /** Set while the app itself closes it: not a death. */
     closing: boolean;
+    /** One more each time the app closes it: a start that began before is cancelled. */
+    generation: number;
+    /** Who allowed the secrets that ask first, while it runs (`McpStartOptions.who`). */
+    allowed: Set<string>;
     stderr: string;
 };
 
@@ -194,7 +249,7 @@ export class McpManager {
     readonly #now: () => number;
     readonly #max: number;
     readonly #instances = new Map<string, Instance>();
-    readonly #listeners = new Set<(server: string, tools: readonly Tool[]) => void>();
+    readonly #listeners = new Set<(server: string, tools: readonly Tool[], fingerprint: string) => void>();
     readonly #unsubscribe: () => void;
 
     constructor(host: McpManagerHost) {
@@ -214,26 +269,35 @@ export class McpManager {
     }
 
     /**
-     * `listener(server, tools)` whenever a server's tools are listed afresh: once it starts, and again when it says they
-     * changed (`notifications/tools/list_changed`).
+     * `listener(server, tools, fingerprint)` whenever a server's tools are listed afresh: once it starts, and again when
+     * it says they changed (`notifications/tools/list_changed`); `fingerprint` is the entry's they were listed for.
      */
-    onTools(listener: (server: string, tools: readonly Tool[]) => void): () => void {
+    onTools(listener: (server: string, tools: readonly Tool[], fingerprint: string) => void): () => void {
         this.#listeners.add(listener);
 
         return () => this.#listeners.delete(listener);
     }
 
-    /** List the tools of a running instance, once at a time, and tell the listeners. */
+    #log(line: string): void {
+        this.#host.log(this.#host.secrets.redact(line));
+    }
+
+    /**
+     * List the tools of a running instance, once at a time, and tell the listeners; a listing that ends after the
+     * instance closed or started again (an entry changed meanwhile) is not told.
+     */
     #list(instance: Instance, client: McpClient, server: McpServerInfo): Promise<Tool[]> {
         instance.listing ??= client
             .listTools({ timeoutMs: server.timeout * 1000 })
             .then((tools) => {
-                if (instance.client === client) {
-                    instance.tools = tools;
+                if (instance.client !== client) {
+                    return tools;
                 }
 
+                instance.tools = tools;
+
                 for (const listener of [...this.#listeners]) {
-                    listener(instance.server, tools);
+                    listener(instance.server, tools, instance.fingerprint);
                 }
 
                 return tools;
@@ -293,7 +357,7 @@ export class McpManager {
         }
 
         if (instance === undefined) {
-            instance = { key, server: name, fingerprint: server.fingerprint, machineId, folder, calls: 0, inFlight: 0, deaths: [], closing: false, stderr: "" };
+            instance = { key, server: name, fingerprint: server.fingerprint, machineId, folder, calls: 0, inFlight: 0, deaths: [], closing: false, generation: 0, allowed: new Set(), stderr: "" };
             this.#instances.set(key, instance);
         }
 
@@ -307,9 +371,17 @@ export class McpManager {
         instance.inFlight += 1;
 
         try {
+            await this.#authorize(instance, server, cwd, options);
+
             const client = await this.#client(instance, server, cwd, options);
 
-            return instance.tools ?? (await this.#list(instance, client, server));
+            try {
+                return instance.tools ?? (await this.#list(instance, client, server));
+            } catch (error) {
+                this.#log(`mcp: listing ${name}'s tools failed: ${message(error)}`);
+
+                throw new Error(`The MCP server ${name} did not list its tools: ${failureWords(error)}.`);
+            }
         } finally {
             this.#done(instance, server);
         }
@@ -347,6 +419,8 @@ export class McpManager {
         };
 
         try {
+            await this.#authorize(instance, server, cwd, options);
+
             try {
                 return await send();
             } catch (error) {
@@ -355,7 +429,7 @@ export class McpManager {
                     throw error;
                 }
 
-                this.#host.log(`mcp: ${name}'s session expired: a new one, and ${tool} sent again once`);
+                this.#log(`mcp: ${name}'s session expired: a new one, and ${tool} sent again once`);
                 await this.#close(instance, false);
 
                 return await send();
@@ -401,7 +475,7 @@ export class McpManager {
         if (instance.inFlight === 0 && instance.client !== undefined) {
             instance.idle = setTimeout(() => {
                 if (instance.inFlight === 0) {
-                    this.#host.log(`mcp: ${instance.server} stopped after ${server.idleMinutes} minutes without a call`);
+                    this.#log(`mcp: ${instance.server} stopped after ${server.idleMinutes} minutes without a call`);
                     void this.#close(instance, false);
                 }
             }, server.idleMinutes * 60_000);
@@ -441,10 +515,40 @@ export class McpManager {
         return instance.client?.connectionState === "connected" ? instance.client : await instance.starting!;
     }
 
+    /**
+     * Whether the instance may still start as it began: still the manager's, not closed since (`generation`), its entry
+     * on, approved and the same. Throws, closing what the start opened, when not.
+     */
+    async #stillWanted(instance: Instance, generation: number, opened?: { client?: McpClient; transport?: McpTransport }): Promise<void> {
+        const server = this.#host.servers.get(instance.server);
+
+        if (this.#instances.get(instance.key) === instance && instance.generation === generation && server !== undefined && this.#host.servers.runnable(instance.server) && server.fingerprint === instance.fingerprint) {
+            return;
+        }
+
+        await opened?.client?.close().catch(() => undefined);
+        await opened?.transport?.close().catch(() => undefined);
+
+        if (instance.transport === opened?.transport) {
+            instance.transport = undefined;
+            instance.release?.();
+            instance.release = undefined;
+        }
+
+        this.#log(`mcp: ${instance.server} was turned off, changed or stopped while it started: not started`);
+
+        throw new McpStartCancelled(`The MCP server ${instance.server} was turned off, changed or stopped while it started: it did not start.`);
+    }
+
     async #start(instance: Instance, server: McpServerInfo, cwd: string, options: McpStartOptions): Promise<McpClient> {
-        const values = await this.#secretValues(server, cwd, options);
+        const generation = instance.generation;
+
+        await this.#stillWanted(instance, generation);
+
+        const values = this.#secretValues(server, cwd);
 
         await this.#makeRoom(instance);
+        await this.#stillWanted(instance, generation);
 
         const startTimeout = server.kind === "stdio" ? server.startTimeout : DEFAULT_START_TIMEOUT;
         // An HTTP server's connect is tried again on a network error, a timeout or a 408, 429 or 5xx; never a call.
@@ -455,9 +559,11 @@ export class McpManager {
             const transport = server.kind === "stdio" ? this.#pipe(instance, server, values) : await this.#http(instance, server, values);
             const client = new McpClient({ name: "pi-phone", version: "1", requestTimeoutMs: startTimeout * 1000 });
 
+            instance.transport = transport;
+            // A forward opened for it: closed with it.
+            await this.#stillWanted(instance, generation, { transport });
             instance.closing = false;
             instance.tools = undefined;
-            instance.transport = transport;
 
             let timer: NodeJS.Timeout | undefined;
 
@@ -465,12 +571,18 @@ export class McpManager {
                 await Promise.race([
                     client.connect(transport),
                     new Promise((_resolve, reject) => {
-                        timer = setTimeout(() => reject(new Error(`it did not start in ${startTimeout} s`)), startTimeout * 1000);
+                        timer = setTimeout(() => reject(new McpStartError(`it did not start in ${startTimeout} s`)), startTimeout * 1000);
                     }),
                 ]);
+                await this.#stillWanted(instance, generation, { client, transport });
 
                 return this.#ready(instance, server, client, transport);
             } catch (error) {
+                // Stopped while it started: closed already, and no death.
+                if (error instanceof McpStartCancelled) {
+                    throw error;
+                }
+
                 failure = error;
                 instance.stderr = stderrOf(transport);
                 await client.close().catch(() => undefined);
@@ -478,11 +590,14 @@ export class McpManager {
                 instance.release?.();
                 instance.release = undefined;
 
+                // Closed meanwhile (its connect failed for that): cancelled, not a death.
+                await this.#stillWanted(instance, generation, { transport });
+
                 if (attempt === tries || !retryable(error)) {
                     break;
                 }
 
-                this.#host.log(`mcp: ${instance.server} did not connect (${message(error)}): trying again`);
+                this.#log(`mcp: ${instance.server} did not connect (${message(error)}): trying again`);
                 await sleep(HTTP_CONNECT_RETRY_MS[attempt - 1]!, options.signal);
             } finally {
                 clearTimeout(timer);
@@ -494,9 +609,11 @@ export class McpManager {
             throw new Error(signInWords(instance.server, server));
         }
 
-        this.#died(instance, `it did not start: ${message(failure)}`);
+        // The server's own words (an error page, a JSON-RPC message) go to the owner's log; Pi hears the app's.
+        this.#log(`mcp: ${instance.server} did not start: ${message(failure)}`);
+        this.#died(instance, `it did not start: ${failureWords(failure)}.`);
 
-        throw new Error(`The MCP server ${instance.server} did not start: ${message(failure)}`);
+        throw new Error(`The MCP server ${instance.server} did not start: ${failureWords(failure)}.`);
     }
 
     /** A stdio server's program, started by the daemon where it runs, with its environment. */
@@ -551,7 +668,7 @@ export class McpManager {
     #ready(instance: Instance, server: McpServerInfo, client: McpClient, transport: McpTransport): McpClient {
         instance.client = client;
         instance.startedAt = this.#now();
-        const listed = (error: unknown) => this.#host.log(`mcp: listing ${instance.server}'s tools failed: ${message(error)}`);
+        const listed = (error: unknown) => this.#log(`mcp: listing ${instance.server}'s tools failed: ${message(error)}`);
 
         client.onNotification("notifications/tools/list_changed", () => {
             instance.tools = undefined;
@@ -566,6 +683,7 @@ export class McpManager {
 
             instance.client = undefined;
             instance.transport = undefined;
+            instance.allowed.clear();
             instance.release?.();
             instance.release = undefined;
             clearTimeout(instance.idle);
@@ -574,7 +692,7 @@ export class McpManager {
                 this.#died(instance, "it stopped by itself.");
             }
         });
-        this.#host.log(
+        this.#log(
             server.kind === "http"
                 ? `mcp: ${instance.server} connected over HTTP${instance.machineId === undefined ? "" : ` through machine ${instance.machineId}`}`
                 : `mcp: ${instance.server} started (pid ${instance.pid ?? "?"}) ${instance.machineId === undefined ? "on the phone" : `on machine ${instance.machineId}`} in ${instance.folder}`,
@@ -585,29 +703,54 @@ export class McpManager {
         return client;
     }
 
-    /** The values of the secrets the entry names (its env or headers), where the session may use them; asked for when set to ask. */
-    async #secretValues(server: McpServerInfo, cwd: string, options: McpStartOptions): Promise<Record<string, string>> {
+    /**
+     * Whether the session in `cwd` may use what the entry's secrets give the server, at each call and listing: an
+     * instance serves sessions of other folders than the one that started it. Each secret must be one the session's
+     * folder may use, and one that may go to machines when the server runs on one (or is reached through one). One set
+     * to ask first is asked for on a card in the calling session, once for each session while the server runs.
+     */
+    async #authorize(instance: Instance, server: McpServerInfo, cwd: string, options: McpStartOptions): Promise<void> {
         const names = secretNames(server);
-        const refused = names.filter((name) => this.#host.secrets.get(name) === undefined || this.#host.secrets.environment([name], cwd)[name] === undefined);
+        const secrets = this.#host.secrets;
+        const refused = names.filter((name) => secrets.get(name) === undefined || !secrets.allowed(name, cwd));
 
         if (refused.length > 0) {
             throw new Error(`The MCP server ${server.name} needs the secret${refused.length === 1 ? "" : "s"} ${refused.join(", ")}, which ${refused.length === 1 ? "is" : "are"} not set or may not be used in this folder (Settings › Secrets).`);
         }
 
-        // A secret that asks first is asked for as the server starts, on a card in the session that starts it.
-        const asking = names.filter((name) => this.#host.secrets.get(name)!.ask);
+        const homeOnly = instance.machineId === undefined ? [] : names.filter((name) => !secrets.get(name)!.machines);
 
-        if (asking.length > 0) {
-            if (options.askSecrets === undefined) {
-                throw new Error(`The MCP server ${server.name} needs ${asking.join(", ")}, which ${asking.length === 1 ? "asks" : "ask"} before each use, and nobody can be asked here.`);
-            }
-
-            if (!(await options.askSecrets(asking))) {
-                throw new Error(`The MCP server ${server.name} did not start: its use of ${asking.map((name) => `$${name}`).join(", ")} was not allowed.`);
-            }
+        if (homeOnly.length > 0) {
+            throw new Error(`The MCP server ${server.name} runs on a machine, and ${homeOnly.join(", ")} may be used on the phone alone (its Machines switch, Settings › Secrets).`);
         }
 
+        const asking = names.filter((name) => secrets.get(name)!.ask);
+        const who = options.who ?? cwd;
+
+        if (asking.length === 0 || instance.allowed.has(who)) {
+            return;
+        }
+
+        if (options.askSecrets === undefined) {
+            throw new Error(`The MCP server ${server.name} needs ${asking.join(", ")}, which ${asking.length === 1 ? "asks" : "ask"} before each use, and nobody can be asked here.`);
+        }
+
+        if (!(await options.askSecrets(asking))) {
+            throw new Error(`The MCP server ${server.name} was not used: its use of ${asking.map((name) => `$${name}`).join(", ")} was not allowed.`);
+        }
+
+        instance.allowed.add(who);
+    }
+
+    /** The values of the secrets the entry names (its env or headers), for the session in `cwd` (`#authorize` checked it). */
+    #secretValues(server: McpServerInfo, cwd: string): Record<string, string> {
+        const names = secretNames(server);
         const values = this.#host.secrets.environment(names, cwd);
+        const missing = names.filter((name) => values[name] === undefined);
+
+        if (missing.length > 0) {
+            throw new Error(`The MCP server ${server.name} needs the secret${missing.length === 1 ? "" : "s"} ${missing.join(", ")}, which ${missing.length === 1 ? "is" : "are"} not set or may not be used in this folder (Settings › Secrets).`);
+        }
 
         this.#host.secrets.used(names);
 
@@ -618,11 +761,11 @@ export class McpManager {
         const now = this.#now();
 
         instance.deaths = [...instance.deaths.filter((at) => at > now - DEATH_WINDOW_MS), now];
-        this.#host.log(`mcp: ${instance.server} died (${instance.deaths.length} in 5 minutes): ${why}`);
+        this.#log(`mcp: ${instance.server} died (${instance.deaths.length} in 5 minutes): ${why}`);
 
         if (instance.deaths.length >= DEATHS_FOR_FAILED) {
             instance.failed = `it died ${instance.deaths.length} times in 5 minutes; the last time ${why}`;
-            this.#host.notify(`The MCP server ${instance.server} failed: ${instance.failed} It stays down until you reconnect it in Settings › MCP servers.`);
+            this.#host.notify(this.#host.secrets.redact(`The MCP server ${instance.server} failed: ${instance.failed} It stays down until you reconnect it in Settings › MCP servers.`));
         }
     }
 
@@ -640,7 +783,7 @@ export class McpManager {
             throw new Error(`${this.#max} MCP servers are running with calls in flight: ${starting.server} cannot start now.`);
         }
 
-        this.#host.log(`mcp: stopped ${quiet[0]!.server} to start ${starting.server} (at most ${this.#max} run at once)`);
+        this.#log(`mcp: stopped ${quiet[0]!.server} to start ${starting.server} (at most ${this.#max} run at once)`);
         await this.#close(quiet[0]!, false);
     }
 
@@ -648,6 +791,8 @@ export class McpManager {
     async #close(instance: Instance, forget: boolean): Promise<void> {
         clearTimeout(instance.idle);
         instance.closing = true;
+        instance.generation += 1;
+        instance.allowed.clear();
 
         const client = instance.client;
         const transport = instance.transport;

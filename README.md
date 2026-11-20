@@ -183,8 +183,9 @@ No Termux, no laptop, no cloud VM.
   the sign-in finishes by itself, in another browser paste the address it ended on. Its tokens stay in the app, hidden
   like secrets, and are refreshed. Each tool is a tool of Pi's, `mcp__<server>__<tool>`, that waits for `tool_search` (a server of 111 tools
   adds one line to the prompt, none of its tools), only in the folders the server serves; codemode scripts call them
-  too. Their answers come as data, pictures included. `${NAME}` in its env names one of your secrets; a secret that
-  asks first is asked as the server starts. An entry changed outside the app does not run until you approve it again;
+  too. Their answers come as data, pictures included. `${NAME}` in its env names one of your secrets, checked for
+  each session that calls (its folder, and the secret's Machines switch where the server runs); a secret that asks
+  first is asked once for each session while the server runs. An entry changed outside the app does not run until you approve it again;
   plan mode lets a server's tools through only when its entry trusts their read-only marks; a guest's message cannot use
   them.
 - **Sign in once.** Claude Pro/Max, other providers' OAuth, or API keys, from the Providers sheet. GitHub through a

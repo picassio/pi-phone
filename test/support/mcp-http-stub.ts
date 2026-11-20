@@ -8,8 +8,8 @@ export type HttpStub = {
     port: number;
     /** The token every request must bear; undefined: none checked. */
     token: string | undefined;
-    /** Refuse this many more initialize requests with `status`. */
-    refuse(count: number, status: number): void;
+    /** Refuse this many more initialize requests with `status`, and `text` as the page ("busy"). */
+    refuse(count: number, status: number, text?: string): void;
     /** Forget every session. */
     expire(): void;
     /** What it was sent: initialize requests, tools/call requests by tool, and the Authorization headers seen. */
@@ -30,6 +30,7 @@ export async function startHttpStub(options: { token?: string } = {}): Promise<H
     const seen = { initializes: 0, calls: {} as Record<string, number>, authorizations: [] as string[] };
     let refusals = 0;
     let refusal = 503;
+    let refusalText = "busy";
     let next = 0;
     const server: Server = createServer(async (request, response) => {
         const authorization = request.headers.authorization ?? "";
@@ -62,7 +63,7 @@ export async function startHttpStub(options: { token?: string } = {}): Promise<H
 
             if (refusals > 0) {
                 refusals -= 1;
-                response.writeHead(refusal).end("busy");
+                response.writeHead(refusal).end(refusalText);
 
                 return;
             }
@@ -127,9 +128,10 @@ export async function startHttpStub(options: { token?: string } = {}): Promise<H
         url: `http://127.0.0.1:${port}/mcp`,
         port,
         token: options.token,
-        refuse: (count, status) => {
+        refuse: (count, status, text = "busy") => {
             refusals = count;
             refusal = status;
+            refusalText = text;
         },
         expire: () => sessions.clear(),
         seen,

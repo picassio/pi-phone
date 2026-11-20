@@ -151,7 +151,7 @@ export async function mcpTest(host: McpPageHost, name: string, folder: unknown):
 
     try {
         // The owner pressed Test: a secret that asks first is allowed for this start.
-        const tools = await host.manager.tools(name, folder.trim(), { askSecrets: async () => true });
+        const tools = await host.manager.tools(name, folder.trim(), { askSecrets: async () => true, who: "the owner's Test connection" });
 
         return { ok: true, tools: tools.map((tool) => tool.name), ms: Date.now() - started };
     } catch (error) {

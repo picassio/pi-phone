@@ -201,12 +201,12 @@ test("secrets fill ${NAME} where the folder may use them; elsewhere the server d
     await manager.stop("stub");
     await assert.rejects(manager.call("stub", work, "echo", { message: "x" }), /asks before each use, and nobody can be asked here/);
 
-    // Asked as it starts: a no keeps it down, a yes starts it.
+    // Asked for the session that calls: a no keeps it down, a yes starts it.
     const asked: string[][] = [];
 
     await assert.rejects(
         manager.call("stub", work, "echo", { message: "x" }, { askSecrets: async (names) => (asked.push([...names]), false) }),
-        /did not start: its use of \$STUB_TOKEN was not allowed/,
+        /was not used: its use of \$STUB_TOKEN was not allowed/,
     );
     assert.match(textOf(await manager.call("stub", work, "echo", { message: "x" }, { askSecrets: async (names) => (asked.push([...names]), true) })), /token=Bearer stub-token/);
     assert.deepEqual(asked, [["STUB_TOKEN"], ["STUB_TOKEN"]]);

@@ -65,8 +65,12 @@ export class McpOAuth {
             try {
                 this.#stored = JSON.parse(readFileSync(this.#file, "utf8")) as Stored;
             } catch {
-                // Not the parser's message: it can quote a token.
-                host.log(`mcp: ${this.#file} is not valid JSON: the MCP servers that sign in sign in again`);
+                // Moved aside, as the servers' file is, not written over by the next sign-in: what it held can be
+                // looked at. Not the parser's message: it can quote a token.
+                const aside = `${this.#file}.broken-${Date.now()}`;
+
+                renameSync(this.#file, aside);
+                host.log(`mcp: ${this.#file} is not valid JSON: moved it to ${aside}; the MCP servers that sign in sign in again`);
             }
         }
 

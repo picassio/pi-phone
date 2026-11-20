@@ -1,6 +1,6 @@
 // Who may use the owner's MCP servers, and the cards that ask first (PP-527): mcp_server_set changes a server only
 // after the owner approves a card with the whole entry and its diff (a Deny changes nothing); an entry changed
-// outside the app does not run until a card approves it again; a secret set to ask is asked as the server starts;
+// outside the app does not run until a card approves it again; a secret set to ask is asked for the session that calls;
 // askEachCall asks before each call; plan mode blocks a server's tools unless its entry trusts their read-only hints;
 // a guest's message is refused and finds nothing, and a guest cannot approve.
 import { type App, cleanUp, context, lastText, newSession, openApp, owner, root, scriptedModel, until, work } from "./helpers.ts";
@@ -163,7 +163,7 @@ test("a change shows its diff and stops the running server; an entry changed out
     await turn("turn on", [true]);
 });
 
-test("a secret set to ask is asked as the server starts; askEachCall asks before each call", async () => {
+test("a secret set to ask is asked for the session that calls, once while the server runs; askEachCall asks before each call", async () => {
     app.secrets.set("STUB_TOKEN", { value: "stub-token-0123456789", ask: true });
     app.mcpServers.save("stub", entry({ env: { STUB_TOKEN: "${STUB_TOKEN}" } }));
 
@@ -171,12 +171,12 @@ test("a secret set to ask is asked as the server starts; askEachCall asks before
     const refused = await turn("search", [false]);
 
     assert.equal(refused.cards[0]!.reason, "Starts the MCP server stub with $STUB_TOKEN");
-    assert.match(refused.said, /could not list its tools: .*did not start: its use of \$STUB_TOKEN was not allowed/);
+    assert.match(refused.said, /could not list its tools: The MCP server stub was not used: its use of \$STUB_TOKEN was not allowed/);
 
     const allowed = await turn("search", [true]);
 
     assert.match(allowed.said, /mcp__stub__echo/);
-    assert.match((await turn("echo")).said, /token=\[secret STUB_TOKEN\]/, "asked as it starts, not again while it runs");
+    assert.match((await turn("echo")).said, /token=\[secret STUB_TOKEN\]/, "asked once for this session, not again while it runs");
 
     app.secrets.set("STUB_TOKEN", { ask: false });
     app.mcpServers.save("stub", entry({ askEachCall: true }));

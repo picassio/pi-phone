@@ -186,8 +186,9 @@ dự án thật.</sub>
   đăng nhập tự xong, ở trình duyệt khác thì dán địa chỉ mà trình duyệt dừng lại. Token của nó ở trong ứng dụng, được giấu như
   bí mật, và được làm mới. Mỗi tool là một tool của Pi, `mcp__<máy chủ>__<tool>`, chờ `tool_search` nạp (một máy chủ 111 tool chỉ thêm một
   dòng vào prompt, không thêm tool nào), và chỉ có trong các thư mục máy chủ phục vụ; script codemode cũng gọi được. Kết
-  quả của chúng đến dưới dạng dữ liệu, kèm cả hình. `${NAME}` trong env của nó trỏ tới một bí mật của bạn; bí mật đặt là
-  hỏi trước sẽ được hỏi khi máy chủ khởi động. Một mục bị sửa ngoài ứng dụng sẽ không chạy cho tới khi bạn duyệt lại;
+  quả của chúng đến dưới dạng dữ liệu, kèm cả hình. `${NAME}` trong env của nó trỏ tới một bí mật của bạn, được kiểm
+  cho từng phiên gọi (thư mục của phiên, và công tắc Máy của bí mật ở nơi máy chủ chạy); bí mật đặt là hỏi trước được
+  hỏi một lần cho mỗi phiên khi máy chủ đang chạy. Một mục bị sửa ngoài ứng dụng sẽ không chạy cho tới khi bạn duyệt lại;
   chế độ lập kế hoạch chỉ cho tool của máy chủ chạy khi mục đó tin dấu chỉ-đọc của chúng; tin nhắn của khách không
   dùng được chúng.
 - **Đăng nhập một lần.** Claude Pro/Max, OAuth của các nhà cung cấp khác, hoặc khóa API, từ bảng Nhà cung cấp. GitHub
