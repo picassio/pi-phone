@@ -3992,5 +3992,8 @@
     "Loading MCP servers": "正在加载 MCP 服务器",
     "No MCP servers yet.": "还没有 MCP 服务器。",
     "Import JSON": "导入 JSON",
-    "Add a server": "添加服务器"
+    "Add a server": "添加服务器",
+    "over HTTP, from {machine}": "通过 HTTP，经由 {machine}",
+    "Reached from": "访问来源",
+    "{machine}, its localhost forwarded here": "{machine}，其 localhost 转发到这里"
 }

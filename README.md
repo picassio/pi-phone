@@ -177,7 +177,9 @@ No Termux, no laptop, no cloud VM.
   runs, the folders it serves and the secrets it uses (`mcp_server_set`; `mcp_servers` lists them; settings
   `mcp.enabled`, actions `mcp.test`, `mcp.reconnect`, `mcp.stop`). A command runs where the session works, on the phone or on its machine,
   with what bash gets there (a wrapper such as `xvfb-run` too), starting on first use and stopping after 30 idle
-  minutes. Each tool is a tool of Pi's, `mcp__<server>__<tool>`, that waits for `tool_search` (a server of 111 tools
+  minutes. A URL is reached over Streamable HTTP from the phone, or from a machine whose port the app forwards; a
+  connect that meets a 5xx or 429 is tried twice more, a tool call never, and a session the server forgot is opened
+  again. Each tool is a tool of Pi's, `mcp__<server>__<tool>`, that waits for `tool_search` (a server of 111 tools
   adds one line to the prompt, none of its tools), only in the folders the server serves; codemode scripts call them
   too. Their answers come as data, pictures included. `${NAME}` in its env names one of your secrets; a secret that
   asks first is asked as the server starts. An entry changed outside the app does not run until you approve it again;

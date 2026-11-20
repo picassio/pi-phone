@@ -17,10 +17,45 @@
  * Its stderr stays here for the owner (`status`), never for the model: it can hold what the server was given.
  */
 import { type Connection, openProcess } from "@earendil-works/pi-env";
-import { type CallToolResult, McpAbortError, McpClient, McpConnectionClosedError, McpTimeoutError, PipeTransport, type ProgressNotification, type Tool } from "@earendil-works/pi-mcp";
+import {
+    type AuthProvider,
+    type CallToolResult,
+    McpAbortError,
+    McpAuthRequiredError,
+    McpClient,
+    McpConnectionClosedError,
+    McpHttpError,
+    McpSessionExpiredError,
+    McpTimeoutError,
+    type McpTransport,
+    PipeTransport,
+    type ProgressNotification,
+    StreamableHttpTransport,
+    type Tool,
+} from "@earendil-works/pi-mcp";
 import { parsePlace } from "../places.ts";
 import type { Secrets } from "../secrets.ts";
-import { fillPlaceholders, type McpServerInfo, type McpServers, type McpStdioServer, secretNames, serves } from "./config.ts";
+import { DEFAULT_START_TIMEOUT, fillPlaceholders, type McpHttpServer, type McpServerInfo, type McpServers, type McpStdioServer, secretNames, serves } from "./config.ts";
+
+/** Waits before an HTTP server's connect is tried again (PP-529): twice. */
+export const HTTP_CONNECT_RETRY_MS = [500, 1_500] as const;
+
+/** Whether a failed connect may be tried again: the network, a timeout, or a 408, 429 or 5xx; never a sign-in's 401. */
+function retryable(error: unknown): boolean {
+    if (error instanceof McpAuthRequiredError || error instanceof McpSessionExpiredError) {
+        return false;
+    }
+
+    if (error instanceof McpHttpError) {
+        return error.status === 408 || error.status === 429 || error.status >= 500;
+    }
+
+    // fetch says a network failure (refused, reset, DNS) as a TypeError.
+    return error instanceof TypeError || error instanceof McpTimeoutError;
+}
+
+/** A program's stderr (the last 64 KB); an HTTP server has none. */
+const stderrOf = (transport: McpTransport): string => (transport instanceof PipeTransport ? transport.stderr : "");
 
 /** Waits before starting a server that died again: after its first, second, and later deaths. */
 export const BACKOFF_MS = [1_000, 5_000, 30_000] as const;
@@ -59,6 +94,10 @@ export type McpManagerHost = {
     /** Tell the owner (a server failed). */
     notify(message: string): void;
     log(line: string): void;
+    /** A machine's host and port forwarded to the phone, for an HTTP server reached through it (`forwards.ts`). */
+    forward?(machineId: string, host: string, port: number): Promise<{ port: number; close: () => void }>;
+    /** An HTTP server's OAuth sign-in (PP-530), for an entry with `oauth`. */
+    authProvider?(server: McpHttpServer): AuthProvider;
     now?: () => number;
     maxInstances?: number;
 };
@@ -95,7 +134,9 @@ type Instance = {
     machineId: string | undefined;
     folder: string;
     client?: McpClient;
-    transport?: PipeTransport;
+    transport?: McpTransport;
+    /** What an HTTP server through a machine holds open: its forward, closed with the instance. */
+    release?: () => void;
     starting?: Promise<McpClient>;
     pid?: number;
     startedAt?: number;
@@ -200,7 +241,7 @@ export class McpManager {
      * Where a session in `cwd` runs the server, or why it may not use it: the machine (`undefined` for the phone) and the
      * folder the program starts in.
      */
-    place(name: string, cwd: string): { server: McpServerInfo & McpStdioServer; machineId: string | undefined; folder: string } {
+    place(name: string, cwd: string): { server: McpServerInfo; machineId: string | undefined; folder: string } {
         const server = this.#host.servers.get(name);
 
         if (server === undefined) {
@@ -219,8 +260,9 @@ export class McpManager {
             throw new Error(`The MCP server ${name} does not serve this session's folder (${cwd}).`);
         }
 
-        if (server.kind !== "stdio") {
-            throw new Error(`The MCP server ${name} is reached over HTTP, which comes with PP-529.`);
+        // An HTTP server: one instance, reached from the phone or through its machine (PP-529).
+        if (server.kind === "http") {
+            return { server, machineId: server.runs.where === "machine" ? server.runs.machineId : undefined, folder: "" };
         }
 
         const here = parsePlace(cwd);
@@ -232,7 +274,7 @@ export class McpManager {
         return { server, machineId, folder };
     }
 
-    #instance(name: string, cwd: string): { instance: Instance; server: McpServerInfo & McpStdioServer } {
+    #instance(name: string, cwd: string): { instance: Instance; server: McpServerInfo } {
         const { server, machineId, folder } = this.place(name, cwd);
         const key = JSON.stringify([name, machineId ?? null, folder]);
         let instance = this.#instances.get(key);
@@ -284,7 +326,7 @@ export class McpManager {
         const capTimer = setTimeout(() => cap.abort(new McpTimeoutError(MAX_CALL_MS)), MAX_CALL_MS);
         const signal = options.signal === undefined ? cap.signal : AbortSignal.any([options.signal, cap.signal]);
 
-        try {
+        const send = async () => {
             const client = await this.#client(instance, server, cwd, options);
 
             instance.calls += 1;
@@ -294,7 +336,32 @@ export class McpManager {
                 signal,
                 ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
             });
+        };
+
+        try {
+            try {
+                return await send();
+            } catch (error) {
+                // An HTTP server that forgot its session refused the call unread (404): a new session, and the call once more.
+                if (!(error instanceof McpSessionExpiredError)) {
+                    throw error;
+                }
+
+                this.#host.log(`mcp: ${name}'s session expired: a new one, and ${tool} sent again once`);
+                await this.#close(instance, false);
+
+                return await send();
+            }
         } catch (error) {
+            if (error instanceof McpSessionExpiredError) {
+                throw new Error(`The MCP server ${name} forgot its session twice: ${tool} was not run. Reconnect it (Settings › MCP servers).`);
+            }
+
+            // Its status only: an error page's body is the server's text.
+            if (error instanceof McpHttpError) {
+                throw new Error(`The MCP server ${name} answered HTTP ${error.status} to ${tool}: the tool may have run. The call is not sent again.`);
+            }
+
             if (error instanceof McpTimeoutError || cap.signal.aborted) {
                 const seconds = cap.signal.aborted ? MAX_CALL_MS / 1000 : server.timeout;
 
@@ -329,7 +396,7 @@ export class McpManager {
         }
     }
 
-    async #client(instance: Instance, server: McpServerInfo & McpStdioServer, cwd: string, options: McpStartOptions): Promise<McpClient> {
+    async #client(instance: Instance, server: McpServerInfo, cwd: string, options: McpStartOptions): Promise<McpClient> {
         const signal = options.signal;
 
         if (instance.failed !== undefined) {
@@ -361,14 +428,70 @@ export class McpManager {
         return instance.client?.connectionState === "connected" ? instance.client : await instance.starting!;
     }
 
-    async #start(instance: Instance, server: McpServerInfo & McpStdioServer, cwd: string, options: McpStartOptions): Promise<McpClient> {
-        const where = this.#host.where(instance.machineId);
-        const env = await this.#environment(server, cwd, where, options);
+    async #start(instance: Instance, server: McpServerInfo, cwd: string, options: McpStartOptions): Promise<McpClient> {
+        const values = await this.#secretValues(server, cwd, options);
 
         await this.#makeRoom(instance);
 
+        const startTimeout = server.kind === "stdio" ? server.startTimeout : DEFAULT_START_TIMEOUT;
+        // An HTTP server's connect is tried again on a network error, a timeout or a 408, 429 or 5xx; never a call.
+        const tries = server.kind === "http" ? HTTP_CONNECT_RETRY_MS.length + 1 : 1;
+        let failure: unknown;
+
+        for (let attempt = 1; attempt <= tries; attempt++) {
+            const transport = server.kind === "stdio" ? this.#pipe(instance, server, values) : await this.#http(instance, server, values);
+            const client = new McpClient({ name: "pi-phone", version: "1", requestTimeoutMs: startTimeout * 1000 });
+
+            instance.closing = false;
+            instance.tools = undefined;
+            instance.transport = transport;
+
+            let timer: NodeJS.Timeout | undefined;
+
+            try {
+                await Promise.race([
+                    client.connect(transport),
+                    new Promise((_resolve, reject) => {
+                        timer = setTimeout(() => reject(new Error(`it did not start in ${startTimeout} s`)), startTimeout * 1000);
+                    }),
+                ]);
+
+                return this.#ready(instance, server, client, transport);
+            } catch (error) {
+                failure = error;
+                instance.stderr = stderrOf(transport);
+                await client.close().catch(() => undefined);
+                await transport.close().catch(() => undefined);
+                instance.release?.();
+                instance.release = undefined;
+
+                if (attempt === tries || !retryable(error)) {
+                    break;
+                }
+
+                this.#host.log(`mcp: ${instance.server} did not connect (${message(error)}): trying again`);
+                await sleep(HTTP_CONNECT_RETRY_MS[attempt - 1]!, options.signal);
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+
+        this.#died(instance, `it did not start: ${message(failure)}`);
+
+        throw new Error(`The MCP server ${instance.server} did not start: ${message(failure)}`);
+    }
+
+    /** A stdio server's program, started by the daemon where it runs, with its environment. */
+    #pipe(instance: Instance, server: McpStdioServer, values: Record<string, string>): PipeTransport {
+        const where = this.#host.where(instance.machineId);
+        const env = {
+            ...(where.path === undefined ? {} : { PATH: where.path }),
+            ...where.sessionEnv,
+            ...Object.fromEntries(Object.entries(server.env).map(([key, value]) => [key, expandHome(fillPlaceholders(value, values), where.home)])),
+        };
         const argv = launchArgv([expandHome(server.command, where.home), ...server.args.map((arg) => expandHome(arg, where.home))], where);
-        const transport = new PipeTransport({
+
+        return new PipeTransport({
             open: async (handlers) => {
                 const program = await openProcess(where.connection, { cwd: instance.folder, argv, env, onStdout: handlers.onStdout, onStderr: handlers.onStderr });
 
@@ -377,32 +500,37 @@ export class McpManager {
                 return program;
             },
         });
-        const client = new McpClient({ name: "pi-phone", version: "1", requestTimeoutMs: server.startTimeout * 1000 });
+    }
 
-        instance.closing = false;
-        instance.tools = undefined;
-        instance.transport = transport;
+    /**
+     * An HTTP server's transport, its headers' secrets filled in. Reached through a machine, its URL's host and port are
+     * forwarded to the phone first, over the app's ssh, for as long as the instance runs.
+     */
+    async #http(instance: Instance, server: McpHttpServer, values: Record<string, string>): Promise<StreamableHttpTransport> {
+        const url = new URL(server.url);
 
-        let timer: NodeJS.Timeout | undefined;
+        if (server.runs.where === "machine") {
+            if (this.#host.forward === undefined) {
+                throw new Error(`The MCP server ${server.name} is reached through a machine, and no forward can be opened here.`);
+            }
 
-        try {
-            await Promise.race([
-                client.connect(transport),
-                new Promise((_resolve, reject) => {
-                    timer = setTimeout(() => reject(new Error(`it did not start in ${server.startTimeout} s`)), server.startTimeout * 1000);
-                }),
-            ]);
-        } catch (error) {
-            instance.stderr = transport.stderr;
-            await client.close().catch(() => undefined);
-            await transport.close().catch(() => undefined);
-            this.#died(instance, `it did not start: ${message(error)}`);
+            const port = url.port === "" ? (url.protocol === "https:" ? 443 : 80) : Number(url.port);
+            const forward = await this.#host.forward(server.runs.machineId, url.hostname, port);
 
-            throw new Error(`The MCP server ${instance.server} did not start: ${message(error)}`);
-        } finally {
-            clearTimeout(timer);
+            instance.release = forward.close;
+            url.hostname = "127.0.0.1";
+            url.port = String(forward.port);
         }
 
+        return new StreamableHttpTransport({
+            url,
+            headers: Object.fromEntries(Object.entries(server.headers).map(([key, value]) => [key, fillPlaceholders(value, values)])),
+            ...(this.#host.authProvider === undefined || server.oauth === undefined ? {} : { authProvider: this.#host.authProvider(server) }),
+        });
+    }
+
+    /** A connected client: kept, heard when it closes or its tools change, and its tools listed. */
+    #ready(instance: Instance, server: McpServerInfo, client: McpClient, transport: McpTransport): McpClient {
         instance.client = client;
         instance.startedAt = this.#now();
         const listed = (error: unknown) => this.#host.log(`mcp: listing ${instance.server}'s tools failed: ${message(error)}`);
@@ -412,7 +540,7 @@ export class McpManager {
             void this.#list(instance, client, server).catch(listed);
         });
         client.onClose(() => {
-            instance.stderr = transport.stderr;
+            instance.stderr = stderrOf(transport);
 
             if (instance.client !== client) {
                 return;
@@ -420,21 +548,27 @@ export class McpManager {
 
             instance.client = undefined;
             instance.transport = undefined;
+            instance.release?.();
+            instance.release = undefined;
             clearTimeout(instance.idle);
 
             if (!instance.closing) {
                 this.#died(instance, "it stopped by itself.");
             }
         });
-        this.#host.log(`mcp: ${instance.server} started (pid ${instance.pid ?? "?"}) ${instance.machineId === undefined ? "on the phone" : `on machine ${instance.machineId}`} in ${instance.folder}`);
+        this.#host.log(
+            server.kind === "http"
+                ? `mcp: ${instance.server} connected over HTTP${instance.machineId === undefined ? "" : ` through machine ${instance.machineId}`}`
+                : `mcp: ${instance.server} started (pid ${instance.pid ?? "?"}) ${instance.machineId === undefined ? "on the phone" : `on machine ${instance.machineId}`} in ${instance.folder}`,
+        );
         // Its tools, for the cache that offers them (`tools.ts`), from its first start on.
         void this.#list(instance, client, server).catch(listed);
 
         return client;
     }
 
-    /** The program's environment: the entry's, its secrets filled in where the session may use them, the app's PATH on the phone. */
-    async #environment(server: McpStdioServer, cwd: string, where: McpWhere, options: McpStartOptions): Promise<Record<string, string>> {
+    /** The values of the secrets the entry names (its env or headers), where the session may use them; asked for when set to ask. */
+    async #secretValues(server: McpServerInfo, cwd: string, options: McpStartOptions): Promise<Record<string, string>> {
         const names = secretNames(server);
         const refused = names.filter((name) => this.#host.secrets.get(name) === undefined || this.#host.secrets.environment([name], cwd)[name] === undefined);
 
@@ -459,11 +593,7 @@ export class McpManager {
 
         this.#host.secrets.used(names);
 
-        return {
-            ...(where.path === undefined ? {} : { PATH: where.path }),
-            ...where.sessionEnv,
-            ...Object.fromEntries(Object.entries(server.env).map(([key, value]) => [key, expandHome(fillPlaceholders(value, values), where.home)])),
-        };
+        return values;
     }
 
     #died(instance: Instance, why: string): void {
@@ -514,9 +644,11 @@ export class McpManager {
 
         await client?.close().catch(() => undefined);
         await transport?.close().catch(() => undefined);
+        instance.release?.();
+        instance.release = undefined;
 
         if (transport !== undefined) {
-            instance.stderr = transport.stderr;
+            instance.stderr = stderrOf(transport);
         }
     }
 
@@ -542,7 +674,7 @@ export class McpManager {
             calls: each.calls,
             deaths: each.deaths.length,
             ...(each.failed === undefined ? {} : { failed: each.failed }),
-            stderr: each.transport?.stderr ?? each.stderr,
+            stderr: each.transport === undefined ? each.stderr : stderrOf(each.transport),
         }));
     }
 

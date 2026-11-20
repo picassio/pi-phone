@@ -3972,5 +3972,8 @@
     "Loading MCP servers": "Đang tải máy chủ MCP",
     "No MCP servers yet.": "Chưa có máy chủ MCP nào.",
     "Import JSON": "Nhập JSON",
-    "Add a server": "Thêm máy chủ"
+    "Add a server": "Thêm máy chủ",
+    "over HTTP, from {machine}": "qua HTTP, từ {machine}",
+    "Reached from": "Truy cập từ",
+    "{machine}, its localhost forwarded here": "{machine}, localhost của nó được chuyển về đây"
 }

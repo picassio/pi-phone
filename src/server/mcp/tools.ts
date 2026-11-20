@@ -286,7 +286,7 @@ export function serversSection(options: McpExtensionOptions, cwd: string, search
 
     const lines = serving.map((server) => {
         const count = options.cache.tools(server.name)?.filter((tool) => !hiddenTool(server, tool.name)).length;
-        const runs = server.kind === "http" ? "over HTTP" : server.runs.where === "phone" ? "on the phone" : server.runs.where === "machine" ? `on ${options.machineName(server.runs.machineId)}` : "where this session works";
+        const runs = server.kind === "http" ? (server.runs.where === "machine" ? `over HTTP from ${options.machineName(server.runs.machineId)}` : "over HTTP") : server.runs.where === "phone" ? "on the phone" : server.runs.where === "machine" ? `on ${options.machineName(server.runs.machineId)}` : "where this session works";
         const about = server.description === "" ? "" : `: ${cleanText(server.description, 120)}`;
 
         return `- ${server.name}${about} (${count === undefined ? "tools listed on first use" : `${count} tools`}, ${runs})`;

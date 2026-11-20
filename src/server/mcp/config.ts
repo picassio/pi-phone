@@ -70,6 +70,11 @@ export type McpHttpServer = Common & {
     url: string;
     headers: Record<string, string>;
     oauth?: McpOAuthConfig;
+    /**
+     * Where its URL is reached from (PP-529): the phone (the default), or a machine, whose `localhost` (or any host it
+     * reaches) the app forwards to the phone over its ssh.
+     */
+    runs: { where: "phone" } | { where: "machine"; machineId: string };
 };
 
 export type McpServer = McpStdioServer | McpHttpServer;
@@ -79,7 +84,7 @@ export type McpServerInfo = McpServer & { fingerprint: string; approved: boolean
 
 const COMMON_KEYS = ["type", "description", "enabled", "timeout", "folders", "idleMinutes", "askEachCall", "planMode", "hiddenTools"];
 const STDIO_KEYS = new Set([...COMMON_KEYS, "command", "args", "env", "cwd", "runs", "startTimeout"]);
-const HTTP_KEYS = new Set([...COMMON_KEYS, "url", "headers", "oauth"]);
+const HTTP_KEYS = new Set([...COMMON_KEYS, "url", "headers", "oauth", "runs"]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -257,7 +262,19 @@ export function parseServer(name: string, raw: unknown): McpServer {
         url: config.url,
         headers: textMap(config.headers, "headers", name),
         ...(config.oauth === undefined ? {} : { oauth: config.oauth }),
+        runs: httpRuns(entry.runs, name),
     };
+}
+
+/** Where an HTTP server's URL is reached from: the phone, or a machine (its localhost forwarded). */
+function httpRuns(value: unknown, server: string): McpHttpServer["runs"] {
+    const runs = value === undefined ? ({ where: "phone" } as const) : runsOf(value, server);
+
+    if (runs.where === "session") {
+        throw new Error(`server "${server}": an HTTP server's runs is "phone" (its URL reached from the phone) or "machine:<machine id>" (from that machine).`);
+    }
+
+    return runs;
 }
 
 /** The entry as the file keeps it: the shared shape, with pi-phone's fields only where they differ from the defaults. */
@@ -290,6 +307,7 @@ export function entryOf(server: McpServer): Record<string, unknown> {
         url: server.url,
         ...(Object.keys(server.headers).length === 0 ? {} : { headers: server.headers }),
         ...(server.oauth === undefined ? {} : { oauth: server.oauth }),
+        ...(server.runs.where === "phone" ? {} : { runs: runsText(server.runs) }),
         ...common,
     };
 }

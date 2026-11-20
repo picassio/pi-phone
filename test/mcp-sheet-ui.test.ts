@@ -147,6 +147,13 @@ for (const [viewport, label] of [[VIEWPORTS.mobile, "390"], [VIEWPORTS.desktop, 
         await present(".sheet .mcp-form", "the form");
         report = await measure(`mcp-sheet-add-${label}`, viewport.width);
         assert.deepEqual(await mustFix(report), [], describeLayout(report));
+        // A URL's form: its headers and where it is reached from (PP-529).
+        await page.evaluate(`document.querySelector(".sheet .mcp-form .choice").click(); return "true";`);
+        await present('.choice-menu [role="option"]', "the kinds");
+        await page.evaluate(`[...document.querySelectorAll('.choice-menu [role="option"]')].find((each) => each.innerText.includes("A URL")).click(); return "true";`);
+        await until(async () => (await sheetText()).includes("Reached from"), "the URL's form");
+        report = await measure(`mcp-sheet-add-http-${label}`, viewport.width);
+        assert.deepEqual(await mustFix(report), [], describeLayout(report));
         await clickText(".sheet .mcp-form button", "Cancel");
         await clickText(".sheet button", "Import JSON");
         await present(".sheet .mcp-import", "the import form");

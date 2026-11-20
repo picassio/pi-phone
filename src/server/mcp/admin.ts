@@ -71,7 +71,7 @@ function shown(values: Record<string, string>): string {
 /** Where a server runs, in words. */
 function runsWords(server: McpServer, machineName: (id: string) => string): string {
     if (server.kind === "http") {
-        return `over HTTP at ${server.url}`;
+        return server.runs.where === "machine" ? `over HTTP at ${server.url}, from ${machineName(server.runs.machineId)}` : `over HTTP at ${server.url}`;
     }
 
     return server.runs.where === "session" ? "where the session works" : server.runs.where === "phone" ? "on the phone" : `on ${machineName(server.runs.machineId)}`;

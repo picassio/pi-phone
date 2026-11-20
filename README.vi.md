@@ -180,7 +180,8 @@ dự án thật.</sub>
   nó chạy, các thư mục nó phục vụ và các bí mật nó dùng (`mcp_server_set`; `mcp_servers` liệt kê chúng; setting
   `mcp.enabled`, action `mcp.test`, `mcp.reconnect`, `mcp.stop`). Lệnh chạy ở nơi phiên làm việc, trên điện thoại hoặc trên máy của
   phiên, với những gì bash có ở đó (kể cả lệnh bọc như `xvfb-run`). Nó khởi động ở lần dùng đầu và dừng sau 30 phút
-  rảnh. Mỗi tool là một tool của Pi, `mcp__<máy chủ>__<tool>`, chờ `tool_search` nạp (một máy chủ 111 tool chỉ thêm một
+  rảnh. Một URL được truy cập qua Streamable HTTP từ điện thoại, hoặc từ một máy mà ứng dụng chuyển cổng về; lần kết
+  nối gặp 5xx hay 429 được thử thêm hai lần, lời gọi tool thì không bao giờ, và phiên mà máy chủ quên được mở lại. Mỗi tool là một tool của Pi, `mcp__<máy chủ>__<tool>`, chờ `tool_search` nạp (một máy chủ 111 tool chỉ thêm một
   dòng vào prompt, không thêm tool nào), và chỉ có trong các thư mục máy chủ phục vụ; script codemode cũng gọi được. Kết
   quả của chúng đến dưới dạng dữ liệu, kèm cả hình. `${NAME}` trong env của nó trỏ tới một bí mật của bạn; bí mật đặt là
   hỏi trước sẽ được hỏi khi máy chủ khởi động. Một mục bị sửa ngoài ứng dụng sẽ không chạy cho tới khi bạn duyệt lại;

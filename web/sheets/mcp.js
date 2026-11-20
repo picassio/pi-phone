@@ -33,7 +33,7 @@ const lines = (text) =>
 /** Where it runs, in words. */
 function runsWords(server, machines) {
     if (server.kind === "http") {
-        return t("over HTTP");
+        return server.runs.startsWith("machine:") ? t("over HTTP, from {machine}", { machine: machines.find((each) => each.id === server.runs.slice("machine:".length))?.name ?? server.runs }) : t("over HTTP");
     }
 
     if (server.runs === "phone") {
@@ -102,7 +102,7 @@ function ServerForm({ server, machines, onDone }) {
                 const next =
                     kind === "stdio"
                         ? { command: command.trim(), ...(lines(args).length === 0 ? {} : { args: lines(args) }), ...(lines(env).length === 0 ? {} : { env: pairs(env, "=") }), ...(runs === "session" ? {} : { runs }), ...common }
-                        : { type: "http", url: url.trim(), ...(lines(headers).length === 0 ? {} : { headers: pairs(headers, ":") }), ...common };
+                        : { type: "http", url: url.trim(), ...(lines(headers).length === 0 ? {} : { headers: pairs(headers, ":") }), ...(runs.startsWith("machine:") ? { runs } : {}), ...common };
 
                 store.set({ mcp: await api(`mcp/${encodeURIComponent(name)}`, { entry: next }, { method: "PUT" }) });
                 onDone();
@@ -162,6 +162,15 @@ function ServerForm({ server, machines, onDone }) {
                       <div class="field">
                           <div class="label">${t("Headers, Name: value per line")}</div>
                           <textarea rows="2" class="mono" aria-label=${t("Headers, Name: value per line")} placeholder=${"Authorization: Bearer ${MY_TOKEN}"} value=${headers} onInput=${(event) => setHeaders(event.currentTarget.value)}></textarea>
+                      </div>
+                      <div class="field">
+                          <div class="label">${t("Reached from")}</div>
+                          <${Choice}
+                              label=${t("Reached from")}
+                              value=${runs.startsWith("machine:") ? runs : "phone"}
+                              options=${[{ value: "phone", label: t("This phone") }, ...machines.map((machine) => ({ value: `machine:${machine.id}`, label: t("{machine}, its localhost forwarded here", { machine: machine.name }) }))]}
+                              onChange=${setRuns}
+                          />
                       </div>`
         }
         <p class="muted small">${tx("Name a secret as {example}: its value goes in when the server starts, where the folder may use it.", { example: html`<span class="mono">\${NAME}</span>` })}</p>

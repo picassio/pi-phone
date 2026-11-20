@@ -813,6 +813,8 @@ export class PocketApp {
             servers: this.mcpServers,
             secrets: this.secrets,
             where: (machineId) => this.#mcpWhere(machineId),
+            // An HTTP server through a machine (PP-529): its port forwarded here as a render's is.
+            forward: (machineId, host, port) => this.#machinePort(`machine:${machineId}:/`, host, port),
             notify: (message) => this.ownerNotice("warning", message),
             log: (line) => this.log(line),
         });

@@ -3442,6 +3442,14 @@ so Pi changes them through the settings tools; "the last session" is the one the
     sends `mcp-servers` to the owner's tabs, which read the list again. Pi's side: `mcp.enabled` (target the server;
     an entry changed since approved is turned on only through mcp_server_set, whose card shows it), `mcp.test`,
     `mcp.reconnect`, `mcp.stop`. Not added to `show_screen` (it would grow every request).
+  - **Over HTTP** (`manager.ts`, PP-529): pi-mcp's `StreamableHttpTransport`, from the server Node on the phone, one
+    instance per server (no folder). `headers` name secrets as `${NAME}` (a bearer token), filled at the connect,
+    asked first where set. An entry's `runs` is `phone` (the default) or `machine:<id>`: then the URL's host and port
+    are forwarded to the phone (`#machinePort`, as a render's) for as long as the instance runs, and the URL goes to
+    `127.0.0.1:<forwarded port>`. A connect that meets the network, a timeout, a 408, 429 or 5xx is tried twice more
+    (0.5, 1.5 s); a 401 is not. A tool call is never sent again (pi-mcp retries no POST), but for a session the server
+    forgot (404 with our session id, `McpSessionExpiredError`): the call was not read, so a new session and the call once
+    more. An HTTP error in a call says only its status (an error page's body is the server's text). No legacy SSE.
 
 ## 5. Build
 

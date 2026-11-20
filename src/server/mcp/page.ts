@@ -54,7 +54,7 @@ export function mcpView(host: McpPageHost): McpView {
             description: server.description,
             entry: entryOf(server),
             command: server.kind === "stdio" ? [server.command, ...server.args].join(" ") : server.url,
-            runs: server.kind === "stdio" ? runsText(server.runs) : "http",
+            runs: runsText(server.runs),
             folders: server.folders,
             secrets: secretNames(server),
             ...(tools === undefined ? {} : { tools: tools.length, toolNames: tools.map((tool) => tool.name) }),
