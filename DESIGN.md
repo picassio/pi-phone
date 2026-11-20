@@ -3385,6 +3385,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
     longest ago with no call running, and is refused when all are busy. An entry changed or turned off stops its
     instances. Its stderr (the last 64 KB) is for the owner's page, never the model. Checked live on 2026-11-20 from
     the phone to tuanlh-devbox-01 over pi-ssh: the call in 728 ms, the remote process gone after the idle stop.
+    On a machine it gets what bash gets in a session there: `/bin/sh -c` puts `~/.pi/mobile/tools/bin` before the
+    daemon's PATH and `exec`s the program with its arguments as given, and the installed tools' variables
+    (`sessionEnvOf`) come under the entry's own `env`. A wrapper is a command like any: GoPeak on a machine without a
+    GPU runs as `xvfb-run -a -s "-screen 0 1280x800x24" npx -y gopeak@2.3.8` (or with `DISPLAY` in its env), and the
+    idle stop ends Xvfb with it (the daemon kills the process group; checked on tuanlh-devbox-01, 2026-11-20).
   - **Their tools** (`mcp/tools.ts`, `mcp/result.ts`, PP-525): each tool of a server that is on and approved is a tool
     of its own, `mcp__<server>__<tool>` (pi-mcp's `createMcpToolName`: 64 characters, a hash on a clash), deferred
     (only `tool_search` offers it; codemode scripts call it any time) and `replay: "unsafe"`. They are the extension

@@ -89,7 +89,7 @@ createInterface({ input: process.stdin }).on("line", (line) => {
         case "tools/call":
             switch (message.params?.name) {
                 case "echo":
-                    return reply(text(`echo: ${String(args.message)} pid=${process.pid} token=${process.env.STUB_TOKEN ?? "-"} godot=${process.env.GODOT_PATH ?? "-"} cwd=${process.cwd()}`));
+                    return reply(text(`echo: ${String(args.message)} pid=${process.pid} token=${process.env.STUB_TOKEN ?? "-"} godot=${process.env.GODOT_PATH ?? "-"} path0=${(process.env.PATH ?? "").split(":")[0]} cwd=${process.cwd()}`));
                 case "png":
                     return reply({ content: [{ type: "text", text: "a pixel" }, { type: "image", data: PNG, mimeType: "image/png" }] });
                 case "gif_fake":

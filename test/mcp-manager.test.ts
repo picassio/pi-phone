@@ -84,7 +84,7 @@ test("a server starts on its first call, in the session's folder, and later call
     const first = textOf(await manager.call("stub", work, "echo", { message: "hi" }));
     const second = textOf(await manager.call("stub", work, "echo", { message: "again" }));
 
-    assert.match(first, /^echo: hi pid=\d+ token=- godot=.*\/godot cwd=/);
+    assert.match(first, /^echo: hi pid=\d+ token=- godot=.*\/godot path0=\S+ cwd=/);
     assert.ok(first.includes(`godot=${root}/godot`), "~ is the home where it runs");
     assert.ok(first.endsWith(`cwd=${work}`), first);
     assert.equal(pidOf(first), pidOf(second));
@@ -93,6 +93,32 @@ test("a server starts on its first call, in the session's folder, and later call
         [{ server: "stub", state: "ready", calls: 2, pid: pidOf(first) }],
     );
     assert.deepEqual((await manager.tools("stub", work)).slice(0, 2).map((tool) => tool.name), ["echo", "png"]);
+});
+
+test("on a machine it gets what bash gets there (the tools' folder first on PATH, their variables under the entry's), and a wrapper's arguments stay as given", async () => {
+    const data = join(root, "machine-env");
+
+    mkdirSync(data, { recursive: true });
+    const servers = new McpServers(data);
+    const manager = new McpManager({
+        servers,
+        secrets: new Secrets(data),
+        where: () => ({ connection, home: root, pathFirst: "/opt/session-tools/bin", sessionEnv: { GODOT_PATH: "/session/godot", STUB_TOKEN: "from-the-session" } }),
+        notify: () => {},
+        log: () => {},
+    });
+
+    after(() => manager.close());
+    // As `xvfb-run -a -s "-screen 0 1280x800x24" <command>`: a wrapper that checks its own argument, then runs the server.
+    servers.save("wrapped", {
+        command: "/bin/sh",
+        args: ["-c", 'test "$1" = "-screen 0 1280x800x24" || exit 9; shift; exec "$@"', "wrap", "-screen 0 1280x800x24", process.execPath, STUB],
+        env: { STUB_TOKEN: "from-the-entry" },
+    });
+
+    const text = textOf(await manager.call("wrapped", `machine:box:${data}`, "echo", { message: "x" }));
+
+    assert.match(text, /token=from-the-entry godot=\/session\/godot path0=\/opt\/session-tools\/bin cwd=/);
 });
 
 test("the idle stop ends the server's process; the next call starts it again", async () => {

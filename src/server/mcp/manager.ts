@@ -32,7 +32,21 @@ export const MAX_CALL_MS = 10 * 60_000;
 export const DEFAULT_MAX_INSTANCES = 6;
 
 /** A place a server runs on: its pi-env connection, the home folder there, and on the phone the app's PATH. */
-export type McpWhere = { connection: Connection; home: string; path?: string };
+/**
+ * A place a server runs on, as bash runs in a session there: its pi-env connection, the home folder, and on the phone
+ * the app's PATH; on a machine, what bash gets there (`machine-tools.ts`): `pathFirst` before the daemon's PATH (the
+ * tools pi-phone installed) and `sessionEnv` (their variables), which the entry's own `env` overrides.
+ */
+export type McpWhere = { connection: Connection; home: string; path?: string; pathFirst?: string; sessionEnv?: Readonly<Record<string, string>> };
+
+/**
+ * The program as the daemon starts it. With `pathFirst`, a POSIX shell puts it before the daemon's PATH, as bash's
+ * prefix does, then `exec`s the program with its arguments untouched: a wrapper such as `xvfb-run -a -s "-screen 0
+ * 1280x800x24" npx -y gopeak` keeps its arguments as given, and its pid is the program's.
+ */
+export function launchArgv(argv: readonly string[], where: Pick<McpWhere, "pathFirst">): string[] {
+    return where.pathFirst === undefined ? [...argv] : ["/bin/sh", "-c", `PATH="${where.pathFirst}:$PATH"; export PATH; exec "$@"`, "mcp-server", ...argv];
+}
 
 export type McpManagerHost = {
     servers: McpServers;
@@ -344,7 +358,7 @@ export class McpManager {
 
         const where = this.#host.where(instance.machineId);
         const env = this.#environment(server, cwd, where);
-        const argv = [expandHome(server.command, where.home), ...server.args.map((arg) => expandHome(arg, where.home))];
+        const argv = launchArgv([expandHome(server.command, where.home), ...server.args.map((arg) => expandHome(arg, where.home))], where);
         const transport = new PipeTransport({
             open: async (handlers) => {
                 const program = await openProcess(where.connection, { cwd: instance.folder, argv, env, onStdout: handlers.onStdout, onStderr: handlers.onStderr });
@@ -432,6 +446,7 @@ export class McpManager {
 
         return {
             ...(where.path === undefined ? {} : { PATH: where.path }),
+            ...where.sessionEnv,
             ...Object.fromEntries(Object.entries(server.env).map(([key, value]) => [key, expandHome(fillPlaceholders(value, values), where.home)])),
         };
     }

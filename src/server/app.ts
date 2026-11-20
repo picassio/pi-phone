@@ -8021,7 +8021,13 @@ export class PocketApp {
             throw new Error(`MCP servers do not run on Windows machines yet (${machine.name}): run it on the phone or a Linux or macOS machine.`);
         }
 
-        return { connection: this.places.processConnection(machineId), home: machine.remote!.home };
+        // What bash gets in a session there: the tools pi-phone installed first on the PATH, and their variables.
+        return {
+            connection: this.places.processConnection(machineId),
+            home: machine.remote!.home,
+            pathFirst: `$HOME/${TOOLS_BIN}`,
+            sessionEnv: sessionEnvOf(machine, this.machineTools.catalog),
+        };
     }
 
     #toolPath(): string {
