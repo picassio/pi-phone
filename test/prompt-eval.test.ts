@@ -133,6 +133,19 @@ test("a scenario that passes less often after a change is a drop", () => {
     assert.deepEqual(dropped({ a: tally(3), b: tally(1), c: tally(2) }, { a: tally(2), b: tally(3), c: tally(2) }), ["a"]);
 });
 
+test("earlier turns go person, Pi, person, … Pi, so the scenario's message answers Pi's last words (PP-522)", () => {
+    const ended = SCENARIOS.filter((each) => each.before !== undefined);
+
+    assert.ok(ended.some((each) => each.expect.tool.includes("interview")), "a report that ends work, then interview");
+    assert.ok(ended.some((each) => each.expect.forbid?.includes("interview")), "one yes/no at the end stays in chat");
+
+    for (const scenario of ended) {
+        assert.ok(scenario.before!.length >= 2, scenario.id);
+        scenario.before!.forEach((turn, index) => assert.equal(turn.role, index % 2 === 0 ? "user" : "assistant", `${scenario.id} turn ${index + 1}`));
+        assert.equal(scenario.before!.at(-1)!.role, "assistant", scenario.id);
+    }
+});
+
 test("at least 30 scenarios, unique, covering what recent prompt changes touched", () => {
     assert.ok(SCENARIOS.length >= 30, `${SCENARIOS.length} scenarios`);
     assert.equal(new Set(SCENARIOS.map((each) => each.id)).size, SCENARIOS.length);

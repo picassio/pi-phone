@@ -37,15 +37,21 @@ export type Expect = {
     reads?: RegExp;
 };
 
+/** An earlier turn of the session, as plain text: what the person asked, what Pi said before it waited. */
+export type Turn = { role: "user" | "assistant"; text: string };
+
 /**
  * A scenario: a person's first message in a new session on the phone or on a machine, or on the phone with a skill of
- * the owner's library pinned to it (`pinned`, prompt-eval-capture.ts's `PINNED_SKILL`), and what it expects.
+ * the owner's library pinned to it (`pinned`, prompt-eval-capture.ts's `PINNED_SKILL`), and what it expects. With
+ * `before`, the message comes after those turns instead: a report that ends a piece of work (PP-522).
  */
 export type Scenario = {
     id: string;
     variant: "phone" | "machine" | "pinned";
     message: string;
     expect: Expect;
+    /** Earlier turns, from the person's request to Pi's last words before the message: user, assistant, user, … assistant. */
+    before?: readonly Turn[];
     /** One of the few run on an expensive model. */
     core?: boolean;
     /** Stand-in results for this scenario's lead-ins, by tool name, over the defaults. */

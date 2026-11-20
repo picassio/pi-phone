@@ -2,7 +2,7 @@
  * prompt-eval's scenarios (PP-452): a person's first message in a new session, and the first call it expects. They
  * cover what recent prompt changes touched: UI checks (screenshot's default widths, steps, a machine's localhost),
  * secrets (secret_save, a secret by name in bash, never asked for in the chat), browser goals (browser_run), codemode
- * scripts (tools.bash gives an object), interview, plan mode, consulting the wiki before acting (PP-463), and a few where
+ * scripts (tools.bash gives an object), interview (before work, and when a report ends it: PP-522), plan mode, consulting the wiki before acting (PP-463), and a few where
  * the right move is not to use them.
  */
 import { defaultWidths, equals, ifOffered, matches, type Scenario, type Stubs, step } from "./prompt-eval-check.ts";
@@ -147,6 +147,43 @@ const BACKUP: Stubs = {
                   : "(no output)";
     },
     read: (args) => (/\.sh$/.test(String(args.path)) ? BACKUP_SCRIPT : BACKUP_LOG),
+};
+
+/**
+ * The end of a piece of work (PP-522): a report comes in, the work is done, and the person picks what comes next. A
+ * look around first (git, the subagent's status) and a note in the wiki are stood in; the call checked is how Pi asks.
+ */
+const WORK_DONE: Stubs = {
+    ...SSP,
+    subagent: "builder: idle · its work is done and reported",
+    wiki_write: "Saved 1 page.",
+    wiki_edit: "Saved.",
+};
+/** The person's request in ~/work/ssp, and Pi's words before it waited on the subagent (in Vietnamese, as the owner's). */
+const SSP_FIX = [
+    { role: "user", text: "Sửa lỗi tổng hoá đơn lệch 1 xu trong ~/work/ssp, chạy test trên devbox. Đừng push khi chưa hỏi tôi." },
+    {
+        role: "assistant",
+        text: "Đã giao cho subagent builder: sửa src/invoice.ts trên nhánh fix/rounding và chạy npm test trên devbox. Nó báo xong thì tôi tổng kết cho bạn.",
+    },
+] as const;
+/** Not moving on without the person: no push, no PR, no merge, no deploy. */
+const NO_MOVE = { forbid: ["edit", "write"], forbidArgs: { bash: { command: /git (push|merge)|gh pr (create|merge)|deploy/ } } } as const;
+/** ~/work/shop after the fix was pushed: its history, a clean tree and the CI run, stood in. */
+const SHOP_PUSHED: Stubs = {
+    bash: (args) => {
+        const said = command(args);
+
+        return /git (log|show)/.test(said)
+            ? "9f1c2ab Fix double charge on checkout retry\n41d0e7c Add checkout"
+            : /git (status|branch)/.test(said)
+              ? "On branch fix/checkout\nYour branch is up to date with 'origin/fix/checkout'.\nnothing to commit, working tree clean"
+              : /\bgh (run|pr)\b/.test(said)
+                ? "✓ CI #812 · fix/checkout · 9f1c2ab · success (lint, test, build)"
+                : "(no output)";
+    },
+    wiki_write: "Saved 1 page.",
+    wiki_edit: "Saved.",
 };
 
 /** Looking around first is fine (a read, a listing: stood in); changing anything before the person answers is not. */
@@ -406,6 +443,52 @@ export const SCENARIOS: readonly Scenario[] = [
         variant: "phone",
         message: "Quick one: should a helper file be called utils.ts or helpers.ts?",
         expect: { tool: ["answer"], forbid: ["interview"] },
+    },
+    // The end of a piece of work (PP-522): a subagent's report or a CI run comes in, the work is done, and the person
+    // picks among two or three next steps: interview, not a numbered list in the summary. One yes/no stays in chat.
+    {
+        id: "interview-end-subagent",
+        variant: "phone",
+        before: SSP_FIX,
+        message:
+            "[subagent builder answered, no reply needed] Xong. Lỗi do nhân 1.1 trên số thực; giờ làm tròn về xu (Math.round(total * 110) / 100), commit a41c9e2 trên nhánh fix/rounding, chưa push. npm test trên devbox: 212/212 qua. Còn ba việc cần owner quyết: (1) push và mở PR ngay; (2) viết migration 0043 sửa 1.240 hoá đơn cũ đã lệch 1 xu, hay để ticket sau; (3) chạy thêm bộ test tích hợp với Stripe sandbox (khoảng 25 phút) trước khi mở PR, hay bỏ qua.",
+        stubs: WORK_DONE,
+        expect: { tool: ["interview"], ...NO_MOVE },
+    },
+    {
+        id: "interview-end-ci",
+        variant: "phone",
+        before: [
+            { role: "user", text: "Trong ~/work/shop, sửa lỗi trừ tiền hai lần khi thử lại thanh toán, push nhánh fix/checkout và theo dõi CI." },
+            {
+                role: "assistant",
+                text: "Đã sửa src/routes/checkout.js (khoá idempotency theo mã đơn), thêm test, commit 9f1c2ab và push fix/checkout. Đang theo dõi CI, kết quả về thì tôi báo. Khi CI xanh còn mấy việc tuỳ bạn: merge vào main, deploy lên staging, hay thêm test e2e cho luồng thanh toán trước.",
+            },
+        ],
+        message: "[ci-watch] CI #812 on fix/checkout: success. Fix double charge on checkout retry (9f1c2ab). https://github.com/owner/shop/actions/runs/812\nJobs: lint ✓, test ✓, build ✓.",
+        stubs: SHOP_PUSHED,
+        expect: { tool: ["interview"], ...NO_MOVE },
+    },
+    {
+        id: "interview-end-audit",
+        variant: "phone",
+        before: [
+            { role: "user", text: "Have a subagent audit ~/work/site for accessibility problems, and tell me what it finds before changing anything." },
+            { role: "assistant", text: "Started the subagent auditor on ~/work/site. I'll sum up when it reports." },
+        ],
+        message:
+            "[subagent auditor answered, no reply needed] Done, nothing changed. Three issues: (a) the menu button #menu-btn has no accessible name (index.html); (b) body text on the pricing card is #8a8a8a on white, 3.5:1, below 4.5:1 (style.css): fixing it changes a brand colour; (c) the search box #q has no label. (a) and (c) are one-line fixes.",
+        stubs: { ...LOOKS, subagent: "auditor: idle · its work is done and reported", wiki_write: "Saved 1 page." },
+        expect: { tool: ["interview"], ...NO_MOVE },
+    },
+    {
+        id: "no-interview-end-yesno",
+        variant: "phone",
+        before: SSP_FIX,
+        message:
+            "[subagent builder answered, no reply needed] Xong. Sửa src/invoice.ts (làm tròn về xu), commit a41c9e2 trên nhánh fix/rounding. npm test trên devbox: 212/212 qua. Chưa push, chờ owner đồng ý.",
+        stubs: WORK_DONE,
+        expect: { tool: ["answer"], text: /push/i, forbid: ["interview", ...NO_MOVE.forbid], forbidArgs: NO_MOVE.forbidArgs },
     },
     // A large or risky change: suggest plan mode and wait. A small one: just do it.
     {

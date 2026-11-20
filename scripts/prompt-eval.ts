@@ -1,8 +1,8 @@
 /**
  * Does Pi still pick the right tools after a prompt change (PP-452)? test/prompt-budget.test.ts holds the prompt's size;
  * this checks its behaviour. It builds the real first request of a new session (sections and tool schemas, a session on
- * the phone and one on a machine: `prompt-eval-capture.ts`), puts each scenario's message in it
- * (`prompt-eval-scenarios.ts`), sends it to a real Anthropic model on a subscription account, and checks the first tool
+ * the phone and one on a machine: `prompt-eval-capture.ts`), puts each scenario's message in it, after its earlier
+ * turns if it has any (`prompt-eval-scenarios.ts`), sends it to a real Anthropic model on a subscription account, and checks the first tool
  * call (or the answer) the model gives (`prompt-eval-check.ts`). No tool runs: read-only lead-ins the prompt asks for
  * first (a skill's file, the wiki, the secrets' list) get a stand-in result and the model is asked again, at most 3
  * times (a scenario's `rounds`); the next call is the one checked. The wiki scenarios (PP-463) check the wiki call
@@ -23,7 +23,7 @@
  * exit 1; runs the provider kept failing (left out of the passes) exit 2. Real model, real quota: not in CI. Run it on
  * the devbox (the machine variant needs /usr/sbin/sshd).
  */
-import { judge, type Offered, type Outcome, nextStep, dropped, type Scenario, stubsFor, type Tally, type Trace, type Call } from "./prompt-eval-check.ts";
+import { judge, type Offered, type Outcome, nextStep, dropped, type Scenario, stubsFor, type Tally, type Trace, type Turn, type Call } from "./prompt-eval-check.ts";
 import { SCENARIOS } from "./prompt-eval-scenarios.ts";
 import { execFileSync, spawnSync } from "node:child_process";
 import { copyFileSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -231,7 +231,30 @@ function stopIfExpired(message: string): void {
     }
 }
 
-/** The scenario's request: the variant's first request with the scenario's message in place of the capture's. */
+/** An earlier turn as the request carries it: Pi's own words as the run's model's, with no usage. */
+function turn(each: Turn): Message {
+    if (each.role === "user") {
+        return { role: "user", content: each.text, timestamp: 0 };
+    }
+
+    const none = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
+
+    return {
+        role: "assistant",
+        content: [{ type: "text", text: each.text }],
+        api: model!.api,
+        provider: model!.provider,
+        model: model!.id,
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: none },
+        stopReason: "stop",
+        timestamp: 0,
+    };
+}
+
+/**
+ * The scenario's request: the variant's first request with the scenario's message in place of the capture's, after the
+ * scenario's earlier turns (`before`), if any.
+ */
 function requestFor(captured: Captured, scenario: Scenario): Context {
     const request = structuredClone(captured[scenario.variant]);
     const user = request.messages.find((message) => message.role === "user" && message.content === captured.message);
@@ -241,6 +264,7 @@ function requestFor(captured: Captured, scenario: Scenario): Context {
     }
 
     user.content = scenario.message;
+    request.messages.splice(request.messages.indexOf(user), 0, ...(scenario.before ?? []).map(turn));
 
     return request;
 }
