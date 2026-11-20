@@ -24,7 +24,7 @@ const reply = (text: string, details?: Record<string, string>, isError = false) 
 
 const DESCRIPTION =
     "Present a form of questions to the person, in the app: they answer when they can, and the call waits for them. " +
-    "Use it when choosing between approaches, gathering requirements before building, or for a decision with several parts: better than back-and-forth chat for structured input. " +
+    "Use it to choose between approaches, gather requirements before building, settle a decision with parts, or pick next steps when your work is done: better than chat for structured input. " +
     "Pass questions as inline JSON (preferred) or a path to a JSON file. " +
     'Format: { "title": "...", "description": "...", "questions": [{ "id": "q1", "type": "single|multi|text|image|info", "question": "...", "options": ["A", "B"], "context": "...", "content": { "source": "...", "lang": "ts" }, "media": { "type": "image|mermaid|table|html", ... } }] }. ' +
     "Options are strings or { label, content? }. single and multi questions also offer Other, with a text field. " +
@@ -47,8 +47,11 @@ type AsyncState = { phase: "ask" } | { phase: "report"; text: string; attempt: n
 /** The short id Pi and the person see for an async interview. */
 const shortId = (callId: string) => callId.replace(/[^A-Za-z0-9]/g, "").slice(-8);
 
-/** In every prompt while the module is on. */
-export const ASKING = `Asking the person: when you need them to choose between options, or to answer several things at once (requirements, a decision with parts, which of several next steps), call interview instead of writing the questions in chat. Give your recommendation with each question. A single yes/no question, or one short question, stays in chat. Ask before acting, not after.`;
+/**
+ * In every prompt while the module is on. The end of a piece of work is named (PP-522): after a subagent's report or a
+ * CI run, Pi listed the next steps in its summary for the owner to pick, rather than in an interview.
+ */
+export const ASKING = `Asking the person: when they must choose between options, or answer several things at once (requirements, a decision with parts), call interview instead of asking in chat, at the end of your work too: next steps for them to pick go in interview, not in a numbered list. Give your recommendation with each question. A single yes/no question, or one short question, stays in chat.`;
 
 export default function createInterview(host: PocketHost) {
     /**
