@@ -186,6 +186,7 @@ import { checkDraft, type Interview, InterviewsDoc } from "./interviews.ts";
 import type { JsonValue } from "@earendil-works/chord/json";
 import { ANSWER_KEY, MAX_ANSWER_STATE_BYTES, MAX_ANSWER_STATES, OpenUiStateDoc } from "./openui.ts";
 import { type ApprovalRequest, Approvals, type PocketHost, type WebAccess } from "./host.ts";
+import { teammateMayUseMachines } from "./extensions/sharing.ts";
 import { waitForLock } from "./lock.ts";
 import { SAFETY_COPY_DAYS, safetyCopyBeforeUpgrade } from "./storage-upgrade.ts";
 import { isThinkingLevel, modelList, resolveModel, THINKING_LEVELS } from "./models.ts";
@@ -755,6 +756,8 @@ export class PocketApp {
     #sessionsTimer: NodeJS.Timeout | undefined;
     /** The extensions installed now: every conversation runs with them, except PiP's own, which PiP alone selects. */
     #registry: Registry | undefined;
+    /** What extensions get, kept for the app's own checks that need it (`#mcpRefusal`). */
+    #host: PocketHost | undefined;
     #unsubscribeCommits: (() => void) | undefined;
     #unsubscribeApprovals: (() => void) | undefined;
     #lockFile: string;
@@ -1333,6 +1336,31 @@ export class PocketApp {
         const installMcp = () =>
             registry.install(
                 mcpExtension({
+                    guard: {
+                        refusal: (id) => this.#mcpRefusal(id),
+                        notOwner: (id) => {
+                            const requester = this.attribution.requesterOf(id as never);
+
+                            return requester !== undefined && this.config.userById(requester)?.role !== "owner" ? "Only the owner's message may change the MCP servers." : undefined;
+                        },
+                        ask: async (caller, card, context) =>
+                            (
+                                await this.approvals.request(
+                                    {
+                                        id: `mcp-${card.key}-${String(caller.taskId)}-${caller.callId ?? ""}`,
+                                        conversationId: Number(caller.conversationId) as never,
+                                        taskId: caller.taskId as never,
+                                        ...(caller.callId === undefined ? {} : { callId: caller.callId }),
+                                        tool: card.tool,
+                                        subject: card.subject,
+                                        reason: card.reason,
+                                        ...(card.form === undefined ? {} : { form: card.form }),
+                                        createdAt: Date.now(),
+                                    },
+                                    context,
+                                )
+                            ).allow,
+                    },
                     servers: this.mcpServers,
                     cache: this.mcpTools,
                     manager: this.mcp,
@@ -1685,6 +1713,7 @@ export class PocketApp {
         };
 
         this.#registry = registry;
+        this.#host = host;
         // The owner's drop-ins (the owner's decision, 2026-10-26): modules the owner puts in `<data>/extensions`, each off
         // until turned on. Nothing downloads them. Its `node_modules` leads to the app's, so they import the packages the
         // server runs.
@@ -5663,6 +5692,11 @@ export class PocketApp {
             throw new HttpError(403, "The library of skills and commands is the owner's.");
         }
 
+        // Pi's mcp_server_set card (PP-527): what runs as the owner, on the phone or a machine, is the owner's to approve.
+        if (allow && request.form?.type === "mcp-server" && user.role !== "owner") {
+            throw new HttpError(403, "The MCP servers are the owner's.");
+        }
+
         // Pi's run model on a real site (PP-456): sending its pages to another provider is the owner's to approve.
         if (allow && request.form?.type === "run-model" && user.role !== "owner") {
             throw new HttpError(403, "Sending a real site's pages to another run model is the owner's to approve.");
@@ -5674,6 +5708,7 @@ export class PocketApp {
             request.form.type !== "machine" &&
             request.form.type !== "risky" &&
             request.form.type !== "library" &&
+            request.form.type !== "mcp-server" &&
             request.form.type !== "run-model" &&
             request.form.type !== "phone" &&
             request.form.type !== "computer" &&
@@ -8009,6 +8044,21 @@ export class PocketApp {
      * The PATH of commands on the phone: `officecli` when installed, ffmpeg and ffprobe the app carries (the media
      * tool's, PP-296), and `pi-ssh` (the app's machines, through its agent) first.
      */
+    /**
+     * Why Pi may not use the owner's MCP servers for what was asked last in session `id` (PP-527): they run as the owner,
+     * so only for the owner's own messages (and the app's, with nobody asking), or a teammate's whose share lets Pi use
+     * the machines; never for a local guest's.
+     */
+    #mcpRefusal(id: number): string | undefined {
+        const requester = this.attribution.requesterOf(id as never);
+
+        if (requester === undefined || this.config.userById(requester)?.role === "owner" || (this.#host !== undefined && teammateMayUseMachines(this.#host, id))) {
+            return undefined;
+        }
+
+        return "Not for a guest's or a teammate's message: Pi uses the owner's MCP servers only for the owner (a share that allows the machines allows them too).";
+    }
+
     /** Where an MCP server runs (PP-524): the phone's daemon with the app's PATH, or a machine's; not Windows yet. */
     #mcpWhere(machineId: string | undefined): McpWhere {
         if (machineId === undefined) {

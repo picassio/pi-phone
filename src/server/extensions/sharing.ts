@@ -50,6 +50,24 @@ export function mayUseMachines(host: PocketHost, id: number): boolean {
     return account === undefined || state.sessions[String(id)]?.[account.teammate]?.machines === true;
 }
 
+/**
+ * Whether what was asked last in session `id` is a teammate's (a scoped account of the team server) whose share of the
+ * session lets Pi use this pi-phone's machines: for what runs as the owner and only that share allows (PP-527: MCP
+ * servers). A local guest's message is not.
+ */
+export function teammateMayUseMachines(host: PocketHost, id: number): boolean {
+    const requester = host.requesterOf(id as never);
+
+    if (host.teamServer === undefined || requester === undefined) {
+        return false;
+    }
+
+    const state = sharingState(host).load();
+    const account = state.accounts.find((each) => each.userId === requester);
+
+    return account !== undefined && state.sessions[String(id)]?.[account.teammate]?.machines === true;
+}
+
 /** Why Pi doesn't use the owner's machines or secrets here. */
 export const NOT_FOR_TEAMMATES = "Not for a teammate's message: in this shared session Pi doesn't use the owner's machines or secrets (the owner can allow it when sharing).";
 

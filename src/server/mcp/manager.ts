@@ -63,6 +63,12 @@ export type McpManagerHost = {
     maxInstances?: number;
 };
 
+/**
+ * What a call or a listing brings for a start: its cancel signal, and how to ask a person for the secrets set to ask
+ * first (a card in the session that starts the server; answers whether they allowed it).
+ */
+export type McpStartOptions = { signal?: AbortSignal; askSecrets?: (names: readonly string[]) => Promise<boolean> };
+
 export type McpInstanceState = "starting" | "ready" | "stopped" | "failed";
 
 /** An instance as the owner's page shows it. */
@@ -245,13 +251,13 @@ export class McpManager {
     }
 
     /** The server's tools, as a session in `cwd` reaches it; starts it if it is not running. */
-    async tools(name: string, cwd: string, signal?: AbortSignal): Promise<Tool[]> {
+    async tools(name: string, cwd: string, options: McpStartOptions = {}): Promise<Tool[]> {
         const { instance, server } = this.#instance(name, cwd);
 
         instance.inFlight += 1;
 
         try {
-            const client = await this.#client(instance, server, cwd, signal);
+            const client = await this.#client(instance, server, cwd, options);
 
             return instance.tools ?? (await this.#list(instance, client, server));
         } finally {
@@ -268,7 +274,7 @@ export class McpManager {
         cwd: string,
         tool: string,
         args: Record<string, unknown>,
-        options: { signal?: AbortSignal; onProgress?: (progress: ProgressNotification) => void } = {},
+        options: McpStartOptions & { onProgress?: (progress: ProgressNotification) => void } = {},
     ): Promise<CallToolResult> {
         const { instance, server } = this.#instance(name, cwd);
 
@@ -279,7 +285,7 @@ export class McpManager {
         const signal = options.signal === undefined ? cap.signal : AbortSignal.any([options.signal, cap.signal]);
 
         try {
-            const client = await this.#client(instance, server, cwd, options.signal);
+            const client = await this.#client(instance, server, cwd, options);
 
             instance.calls += 1;
 
@@ -323,7 +329,9 @@ export class McpManager {
         }
     }
 
-    async #client(instance: Instance, server: McpServerInfo & McpStdioServer, cwd: string, signal: AbortSignal | undefined): Promise<McpClient> {
+    async #client(instance: Instance, server: McpServerInfo & McpStdioServer, cwd: string, options: McpStartOptions): Promise<McpClient> {
+        const signal = options.signal;
+
         if (instance.failed !== undefined) {
             throw new Error(`The MCP server ${instance.server} failed: ${instance.failed} It stays down until the owner reconnects it (Settings › MCP servers).`);
         }
@@ -344,7 +352,7 @@ export class McpManager {
             }
 
             if (instance.starting === undefined && instance.client === undefined) {
-                instance.starting = this.#start(instance, server, cwd).finally(() => {
+                instance.starting = this.#start(instance, server, cwd, options).finally(() => {
                     instance.starting = undefined;
                 });
             }
@@ -353,11 +361,12 @@ export class McpManager {
         return instance.client?.connectionState === "connected" ? instance.client : await instance.starting!;
     }
 
-    async #start(instance: Instance, server: McpServerInfo & McpStdioServer, cwd: string): Promise<McpClient> {
+    async #start(instance: Instance, server: McpServerInfo & McpStdioServer, cwd: string, options: McpStartOptions): Promise<McpClient> {
+        const where = this.#host.where(instance.machineId);
+        const env = await this.#environment(server, cwd, where, options);
+
         await this.#makeRoom(instance);
 
-        const where = this.#host.where(instance.machineId);
-        const env = this.#environment(server, cwd, where);
         const argv = launchArgv([expandHome(server.command, where.home), ...server.args.map((arg) => expandHome(arg, where.home))], where);
         const transport = new PipeTransport({
             open: async (handlers) => {
@@ -425,7 +434,7 @@ export class McpManager {
     }
 
     /** The program's environment: the entry's, its secrets filled in where the session may use them, the app's PATH on the phone. */
-    #environment(server: McpStdioServer, cwd: string, where: McpWhere): Record<string, string> {
+    async #environment(server: McpStdioServer, cwd: string, where: McpWhere, options: McpStartOptions): Promise<Record<string, string>> {
         const names = secretNames(server);
         const refused = names.filter((name) => this.#host.secrets.get(name) === undefined || this.#host.secrets.environment([name], cwd)[name] === undefined);
 
@@ -433,11 +442,17 @@ export class McpManager {
             throw new Error(`The MCP server ${server.name} needs the secret${refused.length === 1 ? "" : "s"} ${refused.join(", ")}, which ${refused.length === 1 ? "is" : "are"} not set or may not be used in this folder (Settings › Secrets).`);
         }
 
-        // A secret that asks first gets its card with PP-527; until then such a server does not start.
+        // A secret that asks first is asked for as the server starts, on a card in the session that starts it.
         const asking = names.filter((name) => this.#host.secrets.get(name)!.ask);
 
         if (asking.length > 0) {
-            throw new Error(`The MCP server ${server.name} needs ${asking.join(", ")}, which ${asking.length === 1 ? "asks" : "ask"} before each use: MCP servers cannot ask yet (PP-527).`);
+            if (options.askSecrets === undefined) {
+                throw new Error(`The MCP server ${server.name} needs ${asking.join(", ")}, which ${asking.length === 1 ? "asks" : "ask"} before each use, and nobody can be asked here.`);
+            }
+
+            if (!(await options.askSecrets(asking))) {
+                throw new Error(`The MCP server ${server.name} did not start: its use of ${asking.map((name) => `$${name}`).join(", ")} was not allowed.`);
+            }
         }
 
         const values = this.#host.secrets.environment(names, cwd);

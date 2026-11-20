@@ -834,5 +834,6 @@
     "Replacing a machine's host key is the owner's.": "Thay host key của một máy là việc của chủ sở hữu.",
     "{1} has no host key to replace: accept its key instead.": "{1} chưa có host key nào để thay: hãy chấp nhận khóa của nó.",
     "subagentRetireDays must be one of {1} (0: never).": "subagentRetireDays phải là một trong {1} (0: không bao giờ).",
-    "Give the days ({1}) or off.": "Hãy đưa số ngày ({1}) hoặc off."
+    "Give the days ({1}) or off.": "Hãy đưa số ngày ({1}) hoặc off.",
+    "The MCP servers are the owner's.": "Máy chủ MCP là của chủ sở hữu."
 }

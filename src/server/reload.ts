@@ -176,6 +176,9 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "wiki_summarize",
     "wiki_migrate",
     "secrets_list",
+    // The app's own MCP extension (`mcp/admin.ts`, PP-527); its servers' tools are mcp__<server>__<tool>.
+    "mcp_servers",
+    "mcp_server_set",
     "secret_request",
     "secret_save",
     "interview",

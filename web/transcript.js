@@ -33,6 +33,7 @@ import { CrdConnectForm } from "./crd-connect.js";
 import { BrowserRunCard } from "./browser-run-card.js";
 import { CreatorCard, MadeCard, onWaitingMade, waitingMade } from "./made-card.js";
 import { LibraryCard } from "./library-card.js";
+import { McpServerCard } from "./mcp-card.js";
 import { parseReviewResult, ReviewCard } from "./review-card.js";
 import { ScreenCard } from "./guide.js";
 import { KeepButton } from "./pages.js";
@@ -1645,6 +1646,8 @@ function waitingRow(approval) {
             return { icon: "monitor", title: t("Add {name} to your machines?", { name: form.name }), detail: more(form.address) };
         case "machine-rekey":
             return { icon: "monitor", title: t("Replace {name}'s host key?", { name: form.name }), detail: more(form.address) };
+        case "mcp-server":
+            return { icon: "shield", title: t("Change the MCP server {name}?", { name: form.name }), detail: more(form.runs) };
         default:
             return approval.tool === "board_mode"
                 ? { icon: "board", title: t("Track this on the board?"), detail: more(approval.reason) }
@@ -2689,6 +2692,10 @@ function ApprovalCard({ approval }) {
 
     if (approval.form?.type === "creator") {
         return html`<${CreatorCard} approval=${approval} />`;
+    }
+
+    if (approval.form?.type === "mcp-server") {
+        return html`<${McpServerCard} approval=${approval} />`;
     }
 
     if (approval.form?.type === "library") {

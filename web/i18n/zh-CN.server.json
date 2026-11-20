@@ -835,5 +835,6 @@
     "Replacing a machine's host key is the owner's.": "替换机器的主机密钥只能由所有者进行。",
     "{1} has no host key to replace: accept its key instead.": "{1} 没有可替换的主机密钥：请改为接受它的密钥。",
     "subagentRetireDays must be one of {1} (0: never).": "subagentRetireDays 必须是以下之一：{1}（0：从不）。",
-    "Give the days ({1}) or off.": "请给出天数（{1}）或 off。"
+    "Give the days ({1}) or off.": "请给出天数（{1}）或 off。",
+    "The MCP servers are the owner's.": "MCP 服务器归所有者管理。"
 }

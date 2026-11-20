@@ -174,6 +174,16 @@ dự án thật.</sub>
   hình, Creator) và gọi phần còn lại từ script. Một bài kiểm tra giữ phần prompt của chính pi-phone trong phiên mới
   dưới 85.000 ký tự. Một hình Pi đọc (thường là hình bạn vừa gửi) chỉ hiện một lần, bên trong lệnh gọi `read` khi bạn mở
   nó; hình do một lệnh gọi tạo ra (ảnh chụp màn hình, hình của `fetch_content`) hiện dưới dòng của lệnh gọi đó.
+- **Máy chủ MCP.** Nhờ Pi thêm một máy chủ MCP (một mục `mcpServers` của Claude, Cursor hay Pi: một lệnh, hoặc một URL)
+  rồi duyệt thẻ của nó. Thẻ hiện toàn bộ mục, nơi nó chạy, các thư mục nó phục vụ và các bí mật nó dùng
+  (`mcp_server_set`; `mcp_servers` liệt kê chúng). Lệnh chạy ở nơi phiên làm việc, trên điện thoại hoặc trên máy của
+  phiên, với những gì bash có ở đó (kể cả lệnh bọc như `xvfb-run`). Nó khởi động ở lần dùng đầu và dừng sau 30 phút
+  rảnh. Mỗi tool là một tool của Pi, `mcp__<máy chủ>__<tool>`, chờ `tool_search` nạp (một máy chủ 111 tool chỉ thêm một
+  dòng vào prompt, không thêm tool nào), và chỉ có trong các thư mục máy chủ phục vụ; script codemode cũng gọi được. Kết
+  quả của chúng đến dưới dạng dữ liệu, kèm cả hình. `${NAME}` trong env của nó trỏ tới một bí mật của bạn; bí mật đặt là
+  hỏi trước sẽ được hỏi khi máy chủ khởi động. Một mục bị sửa ngoài ứng dụng sẽ không chạy cho tới khi bạn duyệt lại;
+  chế độ lập kế hoạch chỉ cho tool của máy chủ chạy khi mục đó tin dấu chỉ-đọc của chúng; tin nhắn của khách không
+  dùng được chúng.
 - **Đăng nhập một lần.** Claude Pro/Max, OAuth của các nhà cung cấp khác, hoặc khóa API, từ bảng Nhà cung cấp. GitHub
   qua mã thiết bị (Cài đặt › GitHub), được `git` và `gh` của agent dùng.
 - **Máy chủ tương thích OpenAI của riêng bạn.** Nhà cung cấp › **Thêm nhà cung cấp tương thích OpenAI**: tên, URL gốc

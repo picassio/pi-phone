@@ -3940,5 +3940,17 @@
     "Retire {n} idle subagent? Its conversation is kept.": "让 {n} 个空闲子代理退役？它的对话会保留。",
     "Retire {n} idle subagents? Their conversations are kept.": "让 {n} 个空闲子代理退役？它们的对话会保留。",
     "{n} subagent retired": "{n} 个子代理已退役",
-    "{n} subagents retired": "{n} 个子代理已退役"
+    "{n} subagents retired": "{n} 个子代理已退役",
+    "Add the MCP server {name}?": "添加 MCP 服务器 {name}？",
+    "Change the MCP server {name}?": "修改 MCP 服务器 {name}？",
+    "Turn on the MCP server {name}?": "开启 MCP 服务器 {name}？",
+    "Turn off the MCP server {name}?": "关闭 MCP 服务器 {name}？",
+    "Remove the MCP server {name}?": "删除 MCP 服务器 {name}？",
+    "Its running instances stop. Its entry stays, to turn on again.": "它正在运行的实例会停止。条目保留，可以再次开启。",
+    "Its running instances stop and its entry goes.": "它正在运行的实例会停止，条目也会删除。",
+    "It runs this command as you, where it says, for sessions in these folders. Nothing runs until you approve.": "它以你的身份在所示位置运行此命令，供这些文件夹中的会话使用。在你批准前不会运行任何东西。",
+    "Every folder": "所有文件夹",
+    "{spec} names no version: what runs can change without a new card. Pin one, such as {spec}@1.2.3.": "{spec} 未指定版本：运行的内容可能在没有新卡片的情况下改变。请固定一个版本，例如 {spec}@1.2.3。",
+    "Whole entry after the change": "修改后的完整条目",
+    "The MCP servers are the owner's: only they approve this. You can deny it.": "MCP 服务器归所有者管理：只有所有者能批准。你可以拒绝。"
 }

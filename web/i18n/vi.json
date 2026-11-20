@@ -3920,5 +3920,17 @@
     "Retire {n} idle subagent? Its conversation is kept.": "Cho {n} subagent rảnh nghỉ? Cuộc hội thoại của nó vẫn được giữ.",
     "Retire {n} idle subagents? Their conversations are kept.": "Cho {n} subagent rảnh nghỉ? Các cuộc hội thoại của chúng vẫn được giữ.",
     "{n} subagent retired": "{n} subagent đã nghỉ",
-    "{n} subagents retired": "{n} subagent đã nghỉ"
+    "{n} subagents retired": "{n} subagent đã nghỉ",
+    "Add the MCP server {name}?": "Thêm máy chủ MCP {name}?",
+    "Change the MCP server {name}?": "Đổi máy chủ MCP {name}?",
+    "Turn on the MCP server {name}?": "Bật máy chủ MCP {name}?",
+    "Turn off the MCP server {name}?": "Tắt máy chủ MCP {name}?",
+    "Remove the MCP server {name}?": "Xóa máy chủ MCP {name}?",
+    "Its running instances stop. Its entry stays, to turn on again.": "Các bản đang chạy của nó dừng lại. Mục của nó vẫn giữ, để bật lại sau.",
+    "Its running instances stop and its entry goes.": "Các bản đang chạy của nó dừng lại và mục của nó bị xóa.",
+    "It runs this command as you, where it says, for sessions in these folders. Nothing runs until you approve.": "Nó chạy lệnh này bằng quyền của bạn, ở nơi ghi bên dưới, cho các phiên trong những thư mục này. Không gì chạy cho tới khi bạn duyệt.",
+    "Every folder": "Mọi thư mục",
+    "{spec} names no version: what runs can change without a new card. Pin one, such as {spec}@1.2.3.": "{spec} không ghi phiên bản: thứ được chạy có thể đổi mà không có thẻ mới. Hãy ghim một phiên bản, như {spec}@1.2.3.",
+    "Whole entry after the change": "Toàn bộ mục sau khi đổi",
+    "The MCP servers are the owner's: only they approve this. You can deny it.": "Máy chủ MCP là của chủ sở hữu: chỉ họ duyệt việc này. Bạn có thể từ chối."
 }

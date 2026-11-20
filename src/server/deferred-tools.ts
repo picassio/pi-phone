@@ -103,6 +103,9 @@ export const DEFERRED_TOOLS: readonly string[] = [
     "library_list",
     "library_undo",
     "library_delete",
+    // The owner's MCP servers (PP-527): listed and changed rarely, each by a card. Their tools wait too (mcp__*).
+    "mcp_servers",
+    "mcp_server_set",
     // A board's rarer work.
     "project_create",
     "project_update",

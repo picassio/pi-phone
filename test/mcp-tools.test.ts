@@ -92,7 +92,7 @@ async function say(text: string): Promise<{ toolName: string; text: string; imag
 }
 
 const toolsNow = () =>
-    (mcpExtension({ servers: app.mcpServers, cache: app.mcpTools, manager: app.mcp, defaultCwd: () => work, machineName: (id) => id }).tools ?? []).filter((tool) => tool.name.startsWith("mcp__"));
+    (mcpExtension({ guard: { refusal: () => undefined, notOwner: () => undefined, ask: async () => false }, servers: app.mcpServers, cache: app.mcpTools, manager: app.mcp, defaultCwd: () => work, machineName: (id) => id }).tools ?? []).filter((tool) => tool.name.startsWith("mcp__"));
 
 before(async () => {
     app = await openApp(scriptedModel(route), data, undefined, {}, { tools: "load" });

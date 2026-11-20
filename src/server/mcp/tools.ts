@@ -21,7 +21,9 @@ import { createToolSearchTool, TOOL_SEARCH_TOOL_NAME } from "@earendil-works/pi-
 import { createMcpToolName, McpError, type McpOutputSaver, normalizeMcpInputSchema, type Tool } from "@earendil-works/pi-mcp";
 import { clip, defang, fencedMcp, INVISIBLE_CLASS } from "../fence.ts";
 import { hiddenTool, MCP_FOLDER, type McpServerInfo, type McpServers } from "./config.ts";
-import type { McpManager } from "./manager.ts";
+import { mcpAdminTools, type McpServerForm } from "./admin.ts";
+import type { McpManager, McpStartOptions } from "./manager.ts";
+import type { Context } from "@earendil-works/chord/context";
 import { formatResult } from "./result.ts";
 
 /** Of the names the app keeps (`RESERVED_EXTENSIONS`): a drop-in named `mcp` (the gallery's pocket-mcp) cannot replace it. */
@@ -116,7 +118,9 @@ export class McpToolCache {
 export type McpToolDetails = { server: string; tool: string; images: number };
 
 /** The server's tools as Pi's: name, cleaned description and schema, and the call through the manager. */
-function registrations(server: McpServerInfo, tools: readonly CachedTool[], manager: McpManager, defaultCwd: () => string, taken: Set<string>): ToolRegistration[] {
+function registrations(server: McpServerInfo, tools: readonly CachedTool[], options: McpExtensionOptions, taken: Set<string>): ToolRegistration[] {
+    const { manager, defaultCwd, guard } = options;
+
     return tools
         .filter((tool) => !hiddenTool(server, tool.name))
         .map((tool) => {
@@ -138,11 +142,23 @@ function registrations(server: McpServerInfo, tools: readonly CachedTool[], mana
                 replay: "unsafe" as const,
                 ...(trusted ? { annotations: { readOnlyHint: true } } : {}),
                 async execute(args: Record<string, unknown>, api, context) {
+                    const refused = guard.refusal(Number(api.conversationId));
+
+                    if (refused !== undefined) {
+                        throw new Error(refused);
+                    }
+
                     const cwd = (await api.agent(context)).cwd ?? defaultCwd();
+
+                    // The owner asked to see each call of this server first (`askEachCall`).
+                    if (server.askEachCall && !(await guard.ask(api, { key: "call", tool: name, subject: JSON.stringify(args, null, 2), reason: `The MCP server ${server.name} asks before each call` }, context))) {
+                        throw new Error(`This call of ${name} was not allowed.`);
+                    }
+
                     let result;
 
                     try {
-                        result = await manager.call(server.name, cwd, tool.name, args, context.abortSignal === undefined ? {} : { signal: context.abortSignal });
+                        result = await manager.call(server.name, cwd, tool.name, args, startOptions(options, server.name, api, context));
                     } catch (error) {
                         // The server's own words (a JSON-RPC error) are data too.
                         if (error instanceof McpError) {
@@ -196,12 +212,44 @@ export function mcpExtension(options: McpExtensionOptions): Extension {
 
     return defineExtension({
         name: MCP_EXTENSION,
-        tools: [...tools.map((each) => each.tool), ...(runnable ? [scopedToolSearch(options)] : [])],
-        sections: [{ key: MCP_SECTION, render: ({ agent }) => serversSection(options, agent.cwd ?? options.defaultCwd(), agent.tools.some((tool) => tool.name === TOOL_SEARCH_TOOL_NAME)) }],
+        tools: [...tools.map((each) => each.tool), ...(runnable ? [scopedToolSearch(options)] : []), ...mcpAdminTools(options)],
+        sections: [
+            {
+                key: MCP_SECTION,
+                render: ({ agent, conversationId }) =>
+                    options.guard.refusal(Number(conversationId)) === undefined ? serversSection(options, agent.cwd ?? options.defaultCwd(), agent.tools.some((tool) => tool.name === TOOL_SEARCH_TOOL_NAME)) : undefined,
+            },
+        ],
     });
 }
 
+/** The ids of the call that asks, as a tool's `api` has them. */
+export type McpCaller = { conversationId: unknown; taskId: unknown; callId?: string };
+
+/** Who may use MCP servers here, and the cards that ask a person first (PP-527). */
+export type McpGuard = {
+    /** Why Pi may not use MCP servers for what was asked in this session (a guest's or a teammate's message), or undefined. */
+    refusal(conversationId: number): string | undefined;
+    /** Why Pi may not change the MCP servers for what was asked here (only the owner's message may), or undefined. */
+    notOwner(conversationId: number): string | undefined;
+    /** Ask on a card in the session, as the call's own: whether it was allowed. A `form`'s card is the owner's to approve. */
+    ask(caller: McpCaller, card: { key: string; tool: string; subject: string; reason: string; form?: McpServerForm }, context: Context): Promise<boolean>;
+};
+
+/** A start's options for a call: its cancel signal, and a card for the secrets that ask first. */
+function startOptions(options: McpExtensionOptions, name: string, caller: McpCaller, context: Context): McpStartOptions {
+    const server = options.servers.get(name);
+    const command = server?.kind === "stdio" ? [server.command, ...server.args].join(" ") : (server?.kind === "http" ? server.url : name);
+
+    return {
+        ...(context.abortSignal === undefined ? {} : { signal: context.abortSignal }),
+        askSecrets: (names) =>
+            options.guard.ask(caller, { key: `start-${name}`, tool: `mcp server ${name}`, subject: command, reason: `Starts the MCP server ${name} with ${names.map((each) => `$${each}`).join(", ")}` }, context),
+    };
+}
+
 export type McpExtensionOptions = {
+    guard: McpGuard;
     servers: McpServers;
     cache: McpToolCache;
     manager: McpManager;
@@ -221,7 +269,7 @@ function mcpTools(options: McpExtensionOptions): { server: string; tool: ToolReg
     return options.servers
         .list()
         .filter((server) => server.enabled && server.approved)
-        .flatMap((server) => registrations(server, options.cache.tools(server.name) ?? [], options.manager, options.defaultCwd, taken).map((tool) => ({ server: server.name, tool })));
+        .flatMap((server) => registrations(server, options.cache.tools(server.name) ?? [], options, taken).map((tool) => ({ server: server.name, tool })));
 }
 
 /**
@@ -257,8 +305,9 @@ function scopedToolSearch(options: McpExtensionOptions): ToolRegistration {
         async execute(args, api, context) {
             const agent = await api.agent(context);
             const cwd = agent.cwd ?? options.defaultCwd();
-            const serving = options.servers.servingIn(cwd).map((server) => server.name);
-            const notes = await listFirst(options, serving.filter((name) => options.cache.tools(name) === undefined), cwd, context.abortSignal);
+            // A guest's or a teammate's message finds no MCP tool (`guard.refusal`).
+            const serving = options.guard.refusal(Number(api.conversationId)) === undefined ? options.servers.servingIn(cwd).map((server) => server.name) : [];
+            const notes = await listFirst(options, serving.filter((name) => options.cache.tools(name) === undefined), cwd, api, context);
             const all = mcpTools(options);
             const ours = new Set(all.map((each) => each.tool.name));
             const offered = new Set(agent.tools.map((tool) => tool.name));
@@ -276,7 +325,7 @@ function scopedToolSearch(options: McpExtensionOptions): ToolRegistration {
  * List the tools of the servers in scope that never listed them, at most `LIST_WAIT_MS`: they start for it. What did not
  * come is said, for the search to be made again.
  */
-async function listFirst(options: McpExtensionOptions, names: readonly string[], cwd: string, signal: AbortSignal | undefined): Promise<string[]> {
+async function listFirst(options: McpExtensionOptions, names: readonly string[], cwd: string, caller: McpCaller, context: Context): Promise<string[]> {
     let timer: NodeJS.Timeout | undefined;
     const late = new Promise<"late">((resolve) => {
         timer = setTimeout(() => resolve("late"), LIST_WAIT_MS);
@@ -285,7 +334,7 @@ async function listFirst(options: McpExtensionOptions, names: readonly string[],
     try {
         const listed = await Promise.all(
             names.map((name) =>
-                Promise.race([options.manager.tools(name, cwd, signal).then(() => undefined), late]).then(
+                Promise.race([options.manager.tools(name, cwd, startOptions(options, name, caller, context)).then(() => undefined), late]).then(
                     (outcome) => (outcome === "late" ? `The MCP server ${name} is still starting: search again in a moment to find its tools.` : undefined),
                     (error: unknown) => `The MCP server ${name} could not list its tools: ${defang(error instanceof Error ? error.message : String(error))}`,
                 ),

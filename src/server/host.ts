@@ -42,6 +42,7 @@ import type { DropInPackage } from "./drop-in-install.ts";
 import type { LibraryFiles, LibraryItem, LibraryKind, LibraryPin, LibraryVersion, PinView } from "./library.ts";
 import type { BrowserReport, PlacesReport } from "./extension-web.ts";
 import type { ExtensionInfo } from "./reload.ts";
+import type { McpServerForm } from "./mcp/admin.ts";
 
 export type { CommandEnvProvider, CommandRun, HiddenValue } from "./hidden.ts";
 
@@ -188,7 +189,9 @@ export interface ApprovalRequest {
          */
         | { type: "creator"; module: string; title: string; brief: string; places: string[]; next: boolean }
         /** Pi changes the owner's library of skills and commands (`extensions/library.ts`, PP-468): what Approve does. */
-        | LibraryForm;
+        | LibraryForm
+        /** Pi changes the owner's MCP servers (`mcp_server_set`, PP-527): the whole entry, its diff, the owner's to approve. */
+        | McpServerForm;
     createdAt: number;
     /** Who Pi was working for when the call asked: set by `Approvals`, not by the asker. */
     requestedBy?: string;

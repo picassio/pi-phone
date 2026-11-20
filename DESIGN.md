@@ -3418,6 +3418,18 @@ so Pi changes them through the settings tools; "the last session" is the one the
     Only mode keeps them deferred and unlisted (its listing leaves deferred tools out); there the section says
     scripts find them with `searchTools`. prompt-eval has 8 MCP scenarios on two new variants, `mcp` (a Godot project
     a GoPeak stand-in serves) and `mcp-loaded` (its scene tools loaded by a first turn).
+  - **Cards and who may use them** (`mcp/admin.ts`, PP-527): `mcp_servers` lists the servers (a value whose name
+    speaks of a key, token, secret, password or auth shows as `(set)` unless it is only `${NAME}`s) and `mcp_server_set`
+    saves, turns on or off, or removes one after a card (`form: { type: "mcp-server" }`, `web/mcp-card.js`) with the
+    whole entry, its diff for a change, where it runs, its folders and its secrets, and a warning for a package run
+    with npx, uvx and the like without a pinned version. Approve is the owner's alone (`answerApproval`); a Deny
+    changes nothing; only the owner's message may ask. Turning on an entry changed elsewhere approves what the card
+    showed. Both wait for tool_search. A secret set to ask is asked as the server starts, on a card in the session that
+    starts it (a call, or tool_search listing its tools), not at each call; `askEachCall` asks before each call, with
+    its arguments. MCP servers run as the owner, so a guest's message is refused (its tool_search finds none of their
+    tools, its prompt names none), and a teammate's only where the share lets Pi use the machines
+    (`teammateMayUseMachines`). Plan mode blocks every MCP tool but those the server marks read-only when the entry has
+    `planMode`.
 
 ## 5. Build
 
