@@ -82,6 +82,8 @@ function ServerForm({ server, machines, onDone }) {
     const [folders, setFolders] = useState((entry.folders ?? []).join("\n"));
     const [description, setDescription] = useState(entry.description ?? "");
     const [askEachCall, setAskEachCall] = useState(entry.askEachCall === true);
+    const [useOauth, setUseOauth] = useState(entry.oauth !== undefined);
+    const [clientId, setClientId] = useState(entry.oauth?.clientId ?? "");
     const [planMode, setPlanMode] = useState(entry.planMode === true);
     const [busy, setBusy] = useState(false);
     const isNew = server === undefined;
@@ -91,7 +93,7 @@ function ServerForm({ server, machines, onDone }) {
             setBusy(true);
 
             try {
-                const kept = Object.fromEntries(Object.entries(entry).filter(([key]) => ["timeout", "idleMinutes", "startTimeout", "hiddenTools", "cwd", "oauth", "enabled"].includes(key)));
+                const kept = Object.fromEntries(Object.entries(entry).filter(([key]) => ["timeout", "idleMinutes", "startTimeout", "hiddenTools", "cwd", "enabled"].includes(key)));
                 const common = {
                     ...kept,
                     ...(lines(folders).length === 0 ? {} : { folders: lines(folders) }),
@@ -102,7 +104,7 @@ function ServerForm({ server, machines, onDone }) {
                 const next =
                     kind === "stdio"
                         ? { command: command.trim(), ...(lines(args).length === 0 ? {} : { args: lines(args) }), ...(lines(env).length === 0 ? {} : { env: pairs(env, "=") }), ...(runs === "session" ? {} : { runs }), ...common }
-                        : { type: "http", url: url.trim(), ...(lines(headers).length === 0 ? {} : { headers: pairs(headers, ":") }), ...(runs.startsWith("machine:") ? { runs } : {}), ...common };
+                        : { type: "http", url: url.trim(), ...(lines(headers).length === 0 ? {} : { headers: pairs(headers, ":") }), ...(runs.startsWith("machine:") ? { runs } : {}), ...(useOauth ? { oauth: { ...(entry.oauth ?? {}), ...(clientId.trim() === "" ? {} : { clientId: clientId.trim() }) } } : {}), ...common };
 
                 store.set({ mcp: await api(`mcp/${encodeURIComponent(name)}`, { entry: next }, { method: "PUT" }) });
                 onDone();
@@ -171,6 +173,16 @@ function ServerForm({ server, machines, onDone }) {
                               options=${[{ value: "phone", label: t("This phone") }, ...machines.map((machine) => ({ value: `machine:${machine.id}`, label: t("{machine}, its localhost forwarded here", { machine: machine.name }) }))]}
                               onChange=${setRuns}
                           />
+                      </div>
+                      <div class="field">
+                          <label class="check">
+                              <input type="checkbox" checked=${useOauth} onChange=${(event) => setUseOauth(event.currentTarget.checked)} />
+                              ${t("Sign in with OAuth")}
+                          </label>
+                          ${
+                              useOauth &&
+                              html`<input class="mono" aria-label=${t("Client ID, if the server gave you one")} placeholder=${t("Client ID, if the server gave you one")} value=${clientId} onInput=${(event) => setClientId(event.currentTarget.value)} />`
+                          }
                       </div>`
         }
         <p class="muted small">${tx("Name a secret as {example}: its value goes in when the server starts, where the folder may use it.", { example: html`<span class="mono">\${NAME}</span>` })}</p>
@@ -225,6 +237,19 @@ function ServerRow({ server, machines }) {
             }
         });
     const remove = () => confirm(t("Remove the MCP server {name}?", { name: server.name })) && act("", undefined, { method: "DELETE" });
+    const [pasted, setPasted] = useState("");
+    const signIn = () =>
+        attempt(async () => {
+            setBusy(true);
+
+            try {
+                await api(`mcp/${encodeURIComponent(server.name)}/sign-in`, {});
+                store.set({ mcp: await api("mcp") });
+            } finally {
+                setBusy(false);
+            }
+        });
+    const finish = () => act("/sign-in/complete", { url: pasted });
 
     if (editing) {
         return html`<div class="provider mcp-server">
@@ -247,6 +272,21 @@ function ServerRow({ server, machines }) {
             </div>
             <div class=${`small mcp-state mcp-state-${state.tone}`}>${state.text}</div>
             ${server.unpinned && html`<div class="muted small">${t("{spec} names no version: what runs can change without a new card. Pin one, such as {spec}@1.2.3.", { spec: server.unpinned })}</div>`}
+            ${
+                server.oauth &&
+                html`<div class=${`small mcp-state mcp-state-${server.oauth.signedIn ? "ok" : "warn"}`}>${server.oauth.signedIn ? t("Signed in") : t("Not signed in")}</div>`
+            }
+            ${
+                server.oauth?.waiting &&
+                html`<div class="field mcp-sign-in">
+                    <a class="button small primary" href=${server.oauth.waiting} target="_blank" rel="noopener">${t("Open the sign-in page")}</a>
+                    <p class="muted small">${t("On this phone it finishes by itself. In another browser, paste the address it ended on:")}</p>
+                    <input class="mono" aria-label=${t("The address the browser ended on")} placeholder="http://127.0.0.1:…/callback?code=…" value=${pasted} onInput=${(event) => setPasted(event.currentTarget.value)} />
+                    <div class="sheet-actions">
+                        <button class="button small" disabled=${busy || pasted.trim() === ""} onClick=${finish}>${t("Finish signing in")}</button>
+                    </div>
+                </div>`
+            }
             ${server.instances
                 .filter((each) => each.failed !== undefined)
                 .map((each) => html`<div class="muted small">${each.failed}</div>`)}
@@ -274,6 +314,8 @@ function ServerRow({ server, machines }) {
             </label>
             <button class="button small" onClick=${() => setEditing(true)}>${t("Change")}</button>
             <button class="button small" onClick=${() => setTesting(!testing)}>${t("Test")}</button>
+            ${server.oauth && html`<button class="button small" disabled=${busy} onClick=${signIn}>${t("Sign in")}</button>`}
+            ${server.oauth?.signedIn && html`<button class="button small ghost" disabled=${busy} onClick=${() => act("/sign-out", {})}>${t("Sign out")}</button>`}
             ${server.instances.length > 0 && html`<button class="button small" disabled=${busy} onClick=${() => act("/reconnect", {})}>${t("Reconnect")}</button>`}
             ${server.instances.some((each) => each.state === "ready") && html`<button class="button small" disabled=${busy} onClick=${() => act("/stop", {})}>${t("Stop")}</button>`}
             <button class="button small ghost" onClick=${remove}>${t("Remove")}</button>

@@ -1774,6 +1774,34 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             },
         },
         {
+            id: "mcp.signIn",
+            area: "mcp",
+            title: "Sign in to an MCP server",
+            help: "An HTTP server with oauth: the address the owner opens to sign in (on this phone it completes by itself; elsewhere they paste where the browser ended in Settings › MCP servers).",
+            owner: true,
+            args: { name: "The server's name" },
+            describe: (args) => `Start a sign-in to the MCP server ${args.name ?? ""}`,
+            run: async (_user, args) => {
+                const started = await app.mcpPage.signIn(mcpServer(args.name).name);
+
+                return started.kind === "authorized" ? `${args.name}: signed in again with its stored sign-in.` : `Ask the owner to open this address and sign in: ${started.authorizationUrl}`;
+            },
+        },
+        {
+            id: "mcp.signOut",
+            area: "mcp",
+            title: "Sign out of an MCP server",
+            help: "Forget its OAuth tokens: it signs in again next time.",
+            owner: true,
+            args: { name: "The server's name" },
+            describe: (args) => `Sign out of the MCP server ${args.name ?? ""}`,
+            run: async (_user, args) => {
+                await app.mcpPage.signOut(mcpServer(args.name).name);
+
+                return `Signed out of ${args.name}.`;
+            },
+        },
+        {
             id: "mcp.test",
             area: "mcp",
             title: "Test an MCP server",

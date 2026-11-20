@@ -179,7 +179,9 @@ No Termux, no laptop, no cloud VM.
   with what bash gets there (a wrapper such as `xvfb-run` too), starting on first use and stopping after 30 idle
   minutes. A URL is reached over Streamable HTTP from the phone, or from a machine whose port the app forwards; a
   connect that meets a 5xx or 429 is tried twice more, a tool call never, and a session the server forgot is opened
-  again. Each tool is a tool of Pi's, `mcp__<server>__<tool>`, that waits for `tool_search` (a server of 111 tools
+  again. A URL that signs in with OAuth has **Sign in** on its row (action `mcp.signIn`): open its page; on this phone
+  the sign-in finishes by itself, in another browser paste the address it ended on. Its tokens stay in the app, hidden
+  like secrets, and are refreshed. Each tool is a tool of Pi's, `mcp__<server>__<tool>`, that waits for `tool_search` (a server of 111 tools
   adds one line to the prompt, none of its tools), only in the folders the server serves; codemode scripts call them
   too. Their answers come as data, pictures included. `${NAME}` in its env names one of your secrets; a secret that
   asks first is asked as the server starts. An entry changed outside the app does not run until you approve it again;

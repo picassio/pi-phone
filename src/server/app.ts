@@ -85,6 +85,7 @@ import { DEFERRED_EXTENSION, deferredToolsExtension } from "./deferred-tools.ts"
 import { McpServers } from "./mcp/config.ts";
 import { McpManager, type McpWhere } from "./mcp/manager.ts";
 import { mcpExtension, McpToolCache } from "./mcp/tools.ts";
+import { McpOAuth } from "./mcp/oauth.ts";
 import { mcpEnable, mcpImport, type McpPageHost, mcpSave, mcpTest, type McpView, mcpView } from "./mcp/page.ts";
 import { type ResolvedSubagentDefaults, resolveSubagentDefaults, SESSION, SUBAGENT_PARTS, type SubagentPart, untilText, withPart } from "./subagent-defaults.ts";
 import {
@@ -702,6 +703,7 @@ export class PocketApp {
     readonly mcpServers: McpServers;
     readonly mcp: McpManager;
     readonly mcpTools: McpToolCache;
+    readonly mcpOAuth: McpOAuth;
     /** Ports of machines opened here (`forwards.ts`). */
     readonly forwards: Forwards;
     /** Forwards the screenshot tools opened (`#machinePort`, PP-440): how many renders use each, by its id. */
@@ -815,10 +817,20 @@ export class PocketApp {
             where: (machineId) => this.#mcpWhere(machineId),
             // An HTTP server through a machine (PP-529): its port forwarded here as a render's is.
             forward: (machineId, host, port) => this.#machinePort(`machine:${machineId}:/`, host, port),
+            // An HTTP server's OAuth (PP-530): the stored token, refreshed; the owner signs in on the page.
+            authProvider: (server) => this.mcpOAuth.authProvider(server),
             notify: (message) => this.ownerNotice("warning", message),
             log: (line) => this.log(line),
         });
         this.mcpTools = new McpToolCache(options.dataDir, this.mcpServers, this.mcp, (line) => this.log(line));
+        this.mcpOAuth = new McpOAuth({
+            dataDir: options.dataDir,
+            servers: this.mcpServers,
+            hidden: this.hidden,
+            secret: (name) => this.secrets.value(name),
+            changed: () => this.#mcpChanged(),
+            log: (line) => this.log(line),
+        });
         // The owner's tabs read Settings › MCP servers again (PP-528).
         this.mcpServers.onChange(() => this.#mcpChanged());
         this.mcpTools.onChange(() => this.#mcpChanged());
@@ -8093,6 +8105,24 @@ export class PocketApp {
             await this.mcp.stop(name);
             this.#mcpChanged();
         },
+        // OAuth (PP-530): a new sign-in stops the instances that used the old tokens.
+        signIn: async (name: string) => {
+            const started = await this.mcpOAuth.start(name);
+
+            if (started.kind === "authorized") {
+                await this.mcp.reconnect(name);
+            }
+
+            return started;
+        },
+        completeSignIn: async (name: string, pasted: unknown) => {
+            await this.mcpOAuth.complete(name, pasted);
+            await this.mcp.reconnect(name);
+        },
+        signOut: async (name: string) => {
+            this.mcpOAuth.signOut(name);
+            await this.mcp.reconnect(name);
+        },
     };
 
     #mcpHost(): McpPageHost {
@@ -8100,6 +8130,7 @@ export class PocketApp {
             servers: this.mcpServers,
             manager: this.mcp,
             cache: this.mcpTools,
+            oauth: this.mcpOAuth,
             machines: () => this.machines.list().map((machine) => ({ id: machine.id, name: machine.name })),
             redact: (text) => this.secrets.redact(text),
         };
@@ -8208,6 +8239,7 @@ export class PocketApp {
                 this.forwards.closeAll();
                 await this.para.close();
                 await this.mcp.close();
+                await this.mcpOAuth.close();
                 await this.places.close(context);
                 await this.teamMachines.close();
                 this.sshAgent.stop();

@@ -1735,6 +1735,31 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 return json(response, 200, tested);
             }
 
+            // OAuth (PP-530): start a sign-in (its URL to open), complete it with the address the browser ended on, or sign out.
+            if (name !== undefined && method === "POST" && third === "sign-in") {
+                const fourth = parts[3];
+
+                try {
+                    if (fourth === "complete") {
+                        const body = await readJson<{ url?: unknown }>(request);
+
+                        await page.completeSignIn(name, body.url);
+
+                        return json(response, 200, page.view());
+                    }
+
+                    return json(response, 200, await page.signIn(name));
+                } catch (error) {
+                    throw error instanceof HttpError ? error : new HttpError(400, app.secrets.redact(error instanceof Error ? error.message : String(error)));
+                }
+            }
+
+            if (name !== undefined && method === "POST" && third === "sign-out") {
+                await page.signOut(name);
+
+                return json(response, 200, page.view());
+            }
+
             if (name !== undefined && method === "POST" && (third === "reconnect" || third === "stop")) {
                 await (third === "reconnect" ? page.reconnect(name) : page.stop(name));
 

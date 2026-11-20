@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { after, test } from "node:test";
 import { appSettings } from "../src/server/settings-registry.ts";
 import { createHandler } from "../src/server/http.ts";
+import { startOAuthStub, TAIL } from "./support/mcp-oauth-stub.ts";
 
 const STUB = join(import.meta.dirname, "support", "mcp-stub.ts");
 
@@ -112,6 +113,51 @@ test("the page's API, its events, and Pi's settings for MCP servers", async () =
     }
 
     const again = await openApp(scriptedModel(), join(root, "mcp-page-data"));
+    const stub = await startOAuthStub();
+    const oauthServer = createServer(createHandler({ app: again, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }));
+
+    await new Promise<void>((resolve) => oauthServer.listen(0, "127.0.0.1", resolve));
+    const oauthPort = (oauthServer.address() as { port: number }).port;
+    const post = async (path: string, body: unknown, token = again.config.ownerToken) => {
+        const response = await fetch(`http://127.0.0.1:${oauthPort}/api/${path}`, {
+            method: "POST",
+            headers: { authorization: `Bearer ${token}`, "x-pocket": "1", "content-type": "application/json" },
+            body: JSON.stringify(body),
+        });
+
+        return { status: response.status, body: (await response.json()) as Record<string, unknown> & { servers?: { name: string; oauth?: { signedIn: boolean; waiting?: string } }[] } };
+    };
+
+    // OAuth (PP-530): the page starts a sign-in, the owner pastes where the browser ended, and signs out; a guest may not.
+    try {
+        again.mcpPage.save("issues", { url: stub.url, oauth: {} });
+        assert.deepEqual(again.mcpPage.view().servers.find((each) => each.name === "issues")?.oauth, { signedIn: false });
+        assert.equal((await post("mcp/issues/sign-in", {}, again.config.addUser("Gus", "guest").token)).status, 403);
+
+        const started = await post("mcp/issues/sign-in", {});
+
+        assert.equal(started.body.kind, "redirect");
+        assert.match(String(started.body.authorizationUrl), new RegExp(`^${stub.base}/authorize\\?`));
+        assert.equal(again.mcpPage.view().servers.find((each) => each.name === "issues")?.oauth?.waiting, started.body.authorizationUrl);
+
+        const ended = (await fetch(String(started.body.authorizationUrl), { redirect: "manual" })).headers.get("location")!;
+        const done = await post("mcp/issues/sign-in/complete", { url: ended });
+
+        assert.deepEqual(done.body.servers?.find((each) => each.name === "issues")?.oauth, { signedIn: true });
+        assert.equal((await post("mcp/issues/test", { folder: work })).body.ok, true);
+        assert.ok(!JSON.stringify(again.mcpPage.view()).includes(TAIL), "no token on the page");
+
+        const action = appSettings(again).actions.find((each) => each.id === "mcp.signIn")!;
+
+        assert.match(await action.run(owner(again), { name: "issues" }), /signed in again with its stored sign-in/);
+        assert.deepEqual((await post("mcp/issues/sign-out", {})).body.servers?.find((each) => each.name === "issues")?.oauth, { signedIn: false });
+        assert.match(await action.run(owner(again), { name: "issues" }), new RegExp(`^Ask the owner to open this address and sign in: ${stub.base}/authorize`));
+    } finally {
+        oauthServer.closeAllConnections();
+        oauthServer.close();
+        await stub.close();
+    }
+
 
     try {
         const enabled = appSettings(again).settings.find((each) => each.id === "mcp.enabled")!;

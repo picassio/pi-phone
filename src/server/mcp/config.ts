@@ -335,12 +335,15 @@ export function fingerprint(server: McpServer): string {
     return createHash("sha256").update(canonical(entry)).digest("hex");
 }
 
-/** The secrets an entry names in its `env` and `headers`, each once. */
+/** The secrets an entry names in its `env`, or its `headers` and OAuth client secret, each once. */
 export function secretNames(server: McpServer): string[] {
-    const values = Object.entries(server.kind === "stdio" ? server.env : server.headers);
+    const values = Object.entries(server.kind === "stdio" ? server.env : { ...server.headers, ...(server.oauth?.clientSecret === undefined ? {} : { "oauth.clientSecret": server.oauth.clientSecret }) });
 
     return [...new Set(values.flatMap(([key, value]) => placeholders(value, `server "${server.name}": ${key}`)))];
 }
+
+/** The secrets one value names as `${NAME}`. */
+export const secretsIn = (value: string, where: string): string[] => placeholders(value, where);
 
 /** A value with its `${NAME}`s replaced by the secrets' values; every one must be in `values`. */
 export function fillPlaceholders(value: string, values: Readonly<Record<string, string>>): string {

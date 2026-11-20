@@ -33,6 +33,7 @@ import {
     StreamableHttpTransport,
     type Tool,
 } from "@earendil-works/pi-mcp";
+import { McpOAuthAuthorizationRequiredError } from "@earendil-works/pi-mcp/oauth";
 import { parsePlace } from "../places.ts";
 import type { Secrets } from "../secrets.ts";
 import { DEFAULT_START_TIMEOUT, fillPlaceholders, type McpHttpServer, type McpServerInfo, type McpServers, type McpStdioServer, secretNames, serves } from "./config.ts";
@@ -52,6 +53,13 @@ function retryable(error: unknown): boolean {
 
     // fetch says a network failure (refused, reset, DNS) as a TypeError.
     return error instanceof TypeError || error instanceof McpTimeoutError;
+}
+
+/** What a server that needs the owner's sign-in says. */
+function signInWords(name: string, server: McpServerInfo): string {
+    return server.kind === "http" && server.oauth !== undefined
+        ? `The MCP server ${name} needs the owner to sign in: Settings › MCP servers › Sign in (or app_action mcp.signIn, whose address the owner opens).`
+        : `The MCP server ${name} refused its credentials (HTTP 401): its headers' token, or an oauth entry to sign in with (Settings › MCP servers).`;
 }
 
 /** A program's stderr (the last 64 KB); an HTTP server has none. */
@@ -357,6 +365,11 @@ export class McpManager {
                 throw new Error(`The MCP server ${name} forgot its session twice: ${tool} was not run. Reconnect it (Settings › MCP servers).`);
             }
 
+            // Its token was refused and could not be refreshed: the request was not sent.
+            if (error instanceof McpOAuthAuthorizationRequiredError || error instanceof McpAuthRequiredError) {
+                throw new Error(`${signInWords(name, server)} ${tool} was not run.`);
+            }
+
             // Its status only: an error page's body is the server's text.
             if (error instanceof McpHttpError) {
                 throw new Error(`The MCP server ${name} answered HTTP ${error.status} to ${tool}: the tool may have run. The call is not sent again.`);
@@ -474,6 +487,11 @@ export class McpManager {
             } finally {
                 clearTimeout(timer);
             }
+        }
+
+        // A server that wants the owner to sign in is not dying: it waits for the sign-in (PP-530).
+        if (failure instanceof McpOAuthAuthorizationRequiredError || failure instanceof McpAuthRequiredError) {
+            throw new Error(signInWords(instance.server, server));
         }
 
         this.#died(instance, `it did not start: ${message(failure)}`);

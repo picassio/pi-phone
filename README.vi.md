@@ -181,7 +181,10 @@ dự án thật.</sub>
   `mcp.enabled`, action `mcp.test`, `mcp.reconnect`, `mcp.stop`). Lệnh chạy ở nơi phiên làm việc, trên điện thoại hoặc trên máy của
   phiên, với những gì bash có ở đó (kể cả lệnh bọc như `xvfb-run`). Nó khởi động ở lần dùng đầu và dừng sau 30 phút
   rảnh. Một URL được truy cập qua Streamable HTTP từ điện thoại, hoặc từ một máy mà ứng dụng chuyển cổng về; lần kết
-  nối gặp 5xx hay 429 được thử thêm hai lần, lời gọi tool thì không bao giờ, và phiên mà máy chủ quên được mở lại. Mỗi tool là một tool của Pi, `mcp__<máy chủ>__<tool>`, chờ `tool_search` nạp (một máy chủ 111 tool chỉ thêm một
+  nối gặp 5xx hay 429 được thử thêm hai lần, lời gọi tool thì không bao giờ, và phiên mà máy chủ quên được mở lại. Một URL
+  đăng nhập bằng OAuth có nút **Đăng nhập** trên dòng của nó (action `mcp.signIn`): mở trang của nó; trên điện thoại này việc
+  đăng nhập tự xong, ở trình duyệt khác thì dán địa chỉ mà trình duyệt dừng lại. Token của nó ở trong ứng dụng, được giấu như
+  bí mật, và được làm mới. Mỗi tool là một tool của Pi, `mcp__<máy chủ>__<tool>`, chờ `tool_search` nạp (một máy chủ 111 tool chỉ thêm một
   dòng vào prompt, không thêm tool nào), và chỉ có trong các thư mục máy chủ phục vụ; script codemode cũng gọi được. Kết
   quả của chúng đến dưới dạng dữ liệu, kèm cả hình. `${NAME}` trong env của nó trỏ tới một bí mật của bạn; bí mật đặt là
   hỏi trước sẽ được hỏi khi máy chủ khởi động. Một mục bị sửa ngoài ứng dụng sẽ không chạy cho tới khi bạn duyệt lại;

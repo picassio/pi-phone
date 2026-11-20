@@ -9,6 +9,7 @@ import { entryOf, type McpServerInfo, type McpServers, parseServer, runsText, se
 import { unpinnedPackage } from "./admin.ts";
 import type { McpInstanceStatus, McpManager } from "./manager.ts";
 import type { McpToolCache } from "./tools.ts";
+import type { McpOAuth } from "./oauth.ts";
 
 /** A server as the page shows it. */
 export type McpServerView = {
@@ -28,6 +29,8 @@ export type McpServerView = {
     toolNames?: string[];
     unpinned?: string;
     instances: McpInstanceStatus[];
+    /** An HTTP server that signs in with OAuth (PP-530): whether it holds tokens, and a sign-in's URL while one waits. */
+    oauth?: { signedIn: boolean; waiting?: string };
 };
 
 export type McpView = { servers: McpServerView[]; problems: { name: string; error: string }[]; machines: { id: string; name: string }[] };
@@ -36,6 +39,7 @@ export type McpPageHost = {
     servers: McpServers;
     manager: McpManager;
     cache: McpToolCache;
+    oauth: McpOAuth;
     machines: () => { id: string; name: string }[];
     redact: (text: string) => string;
 };
@@ -60,10 +64,17 @@ export function mcpView(host: McpPageHost): McpView {
             ...(tools === undefined ? {} : { tools: tools.length, toolNames: tools.map((tool) => tool.name) }),
             ...(unpinned === undefined ? {} : { unpinned }),
             instances: status.filter((each) => each.server === server.name).map((each) => ({ ...each, stderr: host.redact(each.stderr.slice(-4000)), ...(each.failed === undefined ? {} : { failed: host.redact(each.failed) }) })),
+            ...(server.kind === "http" && server.oauth !== undefined ? { oauth: oauthView(host, server.name) } : {}),
         };
     };
 
     return { servers: host.servers.list().map(view), problems: host.servers.problems(), machines: host.machines() };
+}
+
+function oauthView(host: McpPageHost, name: string): { signedIn: boolean; waiting?: string } {
+    const waiting = host.oauth.waiting(name);
+
+    return { signedIn: host.oauth.signedIn(name), ...(waiting === undefined ? {} : { waiting }) };
 }
 
 /** Save an entry from the page: checked, and approved as the owner wrote it. */

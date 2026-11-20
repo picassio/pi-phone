@@ -3450,6 +3450,18 @@ so Pi changes them through the settings tools; "the last session" is the one the
     (0.5, 1.5 s); a 401 is not. A tool call is never sent again (pi-mcp retries no POST), but for a session the server
     forgot (404 with our session id, `McpSessionExpiredError`): the call was not read, so a new session and the call once
     more. An HTTP error in a call says only its status (an error page's body is the server's text). No legacy SSE.
+  - **OAuth** (`mcp/oauth.ts`, PP-530, the owner's choice of v1; after pocket-mcp's oauth.ts): an HTTP entry with
+    `oauth` (pi-mcp's settings: client id, `${NAME}` client secret, scope, callback, registration, metadata URL). The
+    connection's auth provider is pi-mcp's `createMcpAuthProvider`: the stored access token, refreshed when it is
+    about to expire or refused (once for every request waiting, under a per-server lock), never a browser flow. A
+    server that wants a sign-in is not a death: the call says the owner must sign in (Settings › MCP servers › Sign
+    in, or `mcp.signIn`). The sign-in (`startMcpSignIn`): a refresh when the stored tokens allow, else the authorization
+    URL (PKCE S256, a client registered or the owner's) with a loopback callback on the phone for 10 minutes, which
+    the phone's own browser reaches by itself; from a browser elsewhere the owner pastes the address it ended on
+    (`responseFromRedirectUrl`: it must carry this sign-in's state). Tokens, client and discovery live in
+    `<data>/mcp/oauth.json` (0600, out of Pi's tools), never on the page or to Pi, and hidden from every output
+    (`HiddenValues`, `[mcp oauth <server>]`). Kept there, not as Secrets entries: a secret is usable by name in bash.
+    A new sign-in or a sign-out reconnects the server.
 
 ## 5. Build
 

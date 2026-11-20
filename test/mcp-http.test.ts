@@ -71,7 +71,8 @@ test("the bearer token comes from a secret, and calls run in the session the ser
     servers.save("nokey", { url: stub.url });
     const before = stub.seen.initializes;
 
-    await assert.rejects(manager.tools("nokey", work), /did not start/);
+    await assert.rejects(manager.tools("nokey", work), /refused its credentials \(HTTP 401\)/);
+    assert.equal(manager.status().find((each) => each.server === "nokey")?.deaths, 0, "a refused credential is no death");
     assert.equal(stub.seen.initializes - before, 0, "a 401 comes before the initialize is read");
     assert.equal(stub.seen.authorizations.filter((each) => each === "").length, 1, "asked once");
 });

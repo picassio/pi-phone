@@ -15,6 +15,7 @@ import { Browsers } from "./support/browser.ts";
 import { findBrowser } from "./support/browser/discovery.ts";
 import type { BrowserPage } from "./support/browser/page.ts";
 import { VIEWPORTS } from "./support/browser/viewport.ts";
+import { type OAuthStub, startOAuthStub } from "./support/mcp-oauth-stub.ts";
 
 const real = { skip: findBrowser() === undefined ? "no Chromium-based browser on this machine" : false } as const;
 const SHOTS = process.env.PHONE_SHOTS;
@@ -26,6 +27,7 @@ let server: Server;
 let browsers: Browsers;
 let page: BrowserPage;
 let base = "";
+let oauthStub: OAuthStub | undefined;
 
 async function until(check: () => Promise<boolean> | boolean, what: string, timeoutMs = 20_000): Promise<void> {
     const started = Date.now();
@@ -70,6 +72,9 @@ before(async () => {
     await app.close();
     app = await openApp(scriptedModel(), join(root, "mcp-sheet-data"));
     await app.mcp.tools("gopeak", work);
+    // One that signs in with OAuth (PP-530), against the stub authorization server.
+    oauthStub = await startOAuthStub();
+    app.mcpPage.save("issues", { url: oauthStub.url, oauth: {}, description: "The team's issue tracker" });
     server = createServer(createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }));
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
@@ -85,6 +90,7 @@ after(() =>
         () => server?.closeAllConnections(),
         () => server?.close(),
         () => app?.close(),
+        () => oauthStub?.close(),
         () => cleanUp(),
     ),
 );
@@ -141,6 +147,15 @@ for (const [viewport, label] of [[VIEWPORTS.mobile, "390"], [VIEWPORTS.desktop, 
         assert.match(await inPage<string>(`return JSON.stringify(document.querySelector('[data-mcp-server="gopeak"] .mcp-tested').innerText)`), /^9 tools in \d+\.\d s$/);
         report = await measure(`mcp-sheet-tested-${label}`, viewport.width);
         assert.deepEqual(await mustFix(report), [], describeLayout(report));
+
+        // Sign in to the OAuth one: its page to open, and the address to paste from a browser elsewhere.
+        assert.match(listed, /issues The team's issue tracker [^]*Not signed in/);
+        await page.evaluate(`[...document.querySelector('[data-mcp-server="issues"]').querySelectorAll("button")].find((each) => each.innerText.trim() === "Sign in").click(); return "true";`);
+        await present('[data-mcp-server="issues"] .mcp-sign-in a', "the sign-in page's link");
+        assert.match(await inPage<string>(`return JSON.stringify(document.querySelector('[data-mcp-server="issues"] .mcp-sign-in a').href)`), /\/authorize\?/);
+        report = await measure(`mcp-sheet-sign-in-${label}`, viewport.width);
+        assert.deepEqual(await mustFix(report), [], describeLayout(report));
+        await app.mcpOAuth.cancel("issues");
 
         // The Add form, then the Import form.
         await clickText(".sheet button", "Add a server");
