@@ -125,6 +125,20 @@ for (const [viewport, label] of [[VIEWPORTS.mobile, "390"], [VIEWPORTS.desktop, 
         await page.setViewport(viewport);
         await page.navigate(`${base}/`);
         await measure(`mcp-sheet-before-${label}`, viewport.width);
+
+        // The menu's row that opens it.
+        await page.evaluate(`(await import("/store.js")).openSheet({ type: "menu" }); return "true";`);
+        await until(async () => (await inPage<boolean>(`return JSON.stringify([...document.querySelectorAll(".sheet button, .sheet a")].some((each) => each.innerText.includes("MCP servers")))`)) === true, "the menu's row");
+        const menu = await measure(`mcp-sheet-menu-${label}`, viewport.width);
+
+        // The menu's own hints (muted, 4.0:1) are the app's, before this row; this row adds nothing cut, covered or small.
+        assert.deepEqual(
+            menu.found.filter((each) => each.kind !== "contrast" && /MCP servers|more tools for Pi/.test(each.what)),
+            [],
+            describeLayout(menu),
+        );
+        await page.evaluate(`[...document.querySelectorAll(".sheet button, .sheet a")].find((each) => each.innerText.includes("MCP servers")).click(); return "true";`);
+        await present('[data-mcp-server="gopeak"]', "the sheet from the menu");
         await page.navigate(`${base}/?sheet=mcp-servers`);
         await present('[data-mcp-server="gopeak"]', "the servers");
 
