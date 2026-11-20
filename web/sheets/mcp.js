@@ -123,8 +123,8 @@ function ServerForm({ server, machines, onDone }) {
             isNew &&
             html`<div class="field">
                 <div class="label">${t("Name")}</div>
-                <input autofocus class="mono" aria-label=${t("Server name")} placeholder="gopeak" value=${name} onInput=${(event) => setName(event.currentTarget.value.replace(/[^A-Za-z0-9_-]/g, "-"))} />
-                <p class="muted small">${tx("Its tools are named {pattern}.", { pattern: html`<span class="mono">mcp__${name || "name"}__…</span>` })}</p>
+                <input autofocus class="mono" aria-label=${t("Server name")} placeholder=${t("gopeak")} value=${name} onInput=${(event) => setName(event.currentTarget.value.replace(/[^A-Za-z0-9_-]/g, "-"))} />
+                <p class="muted small">${tx("Its tools are named {pattern}.", { pattern: html`<span class="mono">${t("mcp__{name}__…", { name: name || t("name") })}</span>` })}</p>
             </div>`
         }
         <div class="field">
@@ -143,7 +143,7 @@ function ServerForm({ server, machines, onDone }) {
             kind === "stdio"
                 ? html`<div class="field">
                           <div class="label">${t("Command")}</div>
-                          <input class="mono" aria-label=${t("Command")} placeholder="npx" value=${command} onInput=${(event) => setCommand(event.currentTarget.value)} />
+                          <input class="mono" aria-label=${t("Command")} placeholder=${t("npx")} value=${command} onInput=${(event) => setCommand(event.currentTarget.value)} />
                       </div>
                       <div class="field">
                           <div class="label">${t("Arguments, one per line")}</div>
@@ -159,7 +159,7 @@ function ServerForm({ server, machines, onDone }) {
                       </div>`
                 : html`<div class="field">
                           <div class="label">${t("URL")}</div>
-                          <input class="mono" aria-label=${t("URL")} placeholder="https://example.com/mcp" value=${url} onInput=${(event) => setUrl(event.currentTarget.value)} />
+                          <input class="mono" aria-label=${t("URL")} placeholder=${t("https://example.com/mcp")} value=${url} onInput=${(event) => setUrl(event.currentTarget.value)} />
                       </div>
                       <div class="field">
                           <div class="label">${t("Headers, Name: value per line")}</div>
@@ -185,7 +185,7 @@ function ServerForm({ server, machines, onDone }) {
                           }
                       </div>`
         }
-        <p class="muted small">${tx("Name a secret as {example}: its value goes in when the server starts, where the folder may use it.", { example: html`<span class="mono">\${NAME}</span>` })}</p>
+        <p class="muted small">${tx("Name a secret as {example}: its value goes in when the server starts, where the folder may use it.", { example: html`<span class="mono">${t("${NAME}")}</span>` })}</p>
         <div class="field">
             <div class="label">${t("Folders")}</div>
             <textarea rows="2" class="mono" aria-label=${t("Folders")} placeholder=${t("Every folder. Or one per line: /data/work/game, machine:…")} value=${folders} onInput=${(event) => setFolders(event.currentTarget.value)}></textarea>
@@ -281,7 +281,7 @@ function ServerRow({ server, machines }) {
                 html`<div class="field mcp-sign-in">
                     <a class="button small primary" href=${server.oauth.waiting} target="_blank" rel="noopener">${t("Open the sign-in page")}</a>
                     <p class="muted small">${t("On this phone it finishes by itself. In another browser, paste the address it ended on:")}</p>
-                    <input class="mono" aria-label=${t("The address the browser ended on")} placeholder="http://127.0.0.1:…/callback?code=…" value=${pasted} onInput=${(event) => setPasted(event.currentTarget.value)} />
+                    <input class="mono" aria-label=${t("The address the browser ended on")} placeholder=${t("http://127.0.0.1:…/callback?code=…")} value=${pasted} onInput=${(event) => setPasted(event.currentTarget.value)} />
                     <div class="sheet-actions">
                         <button class="button small" disabled=${busy || pasted.trim() === ""} onClick=${finish}>${t("Finish signing in")}</button>
                     </div>
@@ -381,7 +381,7 @@ export function McpSheet() {
 
     return html`<${Sheet} title=${t("MCP servers")} onClose=${closeSheet}>
         <p class="muted small">
-            ${tx("Programs and services that give Pi more tools. Each tool waits until Pi looks for it with {search}, and only in the folders its server serves. A command runs as you, where the session works or where you pin it; Pi asks you on a card before it adds or changes one.", { search: html`<span class="mono">tool_search</span>` })}
+            ${tx("Programs and services that give Pi more tools. Each tool waits until Pi looks for it with {search}, and only in the folders its server serves. A command runs as you, where the session works or where you pin it; Pi asks you on a card before it adds or changes one.", { search: html`<span class="mono">${t("tool_search")}</span>` })}
         </p>
         ${view === null && html`<${Loader} label=${t("Loading MCP servers")} />`}
         ${view !== null && view.servers.length === 0 && !adding && !importing && html`<p class="muted">${t("No MCP servers yet.")}</p>`}

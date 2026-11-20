@@ -4001,5 +4001,13 @@
     "Not signed in": "未登录",
     "On this phone it finishes by itself. In another browser, paste the address it ended on:": "在这部手机上会自动完成。在其他浏览器中，请粘贴它最后停留的地址：",
     "The address the browser ended on": "浏览器最后停留的地址",
-    "Finish signing in": "完成登录"
+    "Finish signing in": "完成登录",
+    "gopeak": "gopeak",
+    "mcp__{name}__…": "mcp__{name}__…",
+    "name": "名称",
+    "npx": "npx",
+    "https://example.com/mcp": "https://example.com/mcp",
+    "${NAME}": "${NAME}",
+    "http://127.0.0.1:…/callback?code=…": "http://127.0.0.1:…/callback?code=…",
+    "tool_search": "tool_search"
 }

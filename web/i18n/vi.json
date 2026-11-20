@@ -3981,5 +3981,13 @@
     "Not signed in": "Chưa đăng nhập",
     "On this phone it finishes by itself. In another browser, paste the address it ended on:": "Trên điện thoại này nó tự xong. Ở trình duyệt khác, hãy dán địa chỉ mà trình duyệt dừng lại:",
     "The address the browser ended on": "Địa chỉ trình duyệt dừng lại",
-    "Finish signing in": "Hoàn tất đăng nhập"
+    "Finish signing in": "Hoàn tất đăng nhập",
+    "gopeak": "gopeak",
+    "mcp__{name}__…": "mcp__{name}__…",
+    "name": "tên",
+    "npx": "npx",
+    "https://example.com/mcp": "https://example.com/mcp",
+    "${NAME}": "${NAME}",
+    "http://127.0.0.1:…/callback?code=…": "http://127.0.0.1:…/callback?code=…",
+    "tool_search": "tool_search"
 }
