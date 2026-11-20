@@ -39,7 +39,8 @@ test("every prompt says when to interview, how to research the web, and when to 
     const id = await newSession(app);
 
     await say(id, "hello");
-    assert.match(sections.asking ?? "", /call interview instead of writing the questions in chat/);
+    // At the end of a turn too (PP-522): next steps for the person to pick go in interview.
+    assert.match(sections.asking ?? "", /call interview instead of asking in chat, at the end of your work too/);
     assert.match(sections.web ?? "", /research with web_search, then read what you need with fetch_content/);
     assert.match(sections.plan_mode ?? "", /suggest that the person turn on plan mode/);
 
