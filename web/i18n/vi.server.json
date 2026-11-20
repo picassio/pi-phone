@@ -835,5 +835,9 @@
     "{1} has no host key to replace: accept its key instead.": "{1} chưa có host key nào để thay: hãy chấp nhận khóa của nó.",
     "subagentRetireDays must be one of {1} (0: never).": "subagentRetireDays phải là một trong {1} (0: không bao giờ).",
     "Give the days ({1}) or off.": "Hãy đưa số ngày ({1}) hoặc off.",
-    "The MCP servers are the owner's.": "Máy chủ MCP là của chủ sở hữu."
+    "The MCP servers are the owner's.": "Máy chủ MCP là của chủ sở hữu.",
+    "There is no MCP server {1}.": "Không có máy chủ MCP {1}.",
+    "enabled is true or false.": "enabled là true hoặc false.",
+    "There is no MCP server {1}. MCP servers: {2}.": "Không có máy chủ MCP {1}. Các máy chủ MCP: {2}.",
+    "{1} changed since it was approved: turn it on with mcp_server_set (action enable), whose card shows the entry.": "{1} đã đổi từ lúc được duyệt: bật nó bằng mcp_server_set (action enable), thẻ của lệnh đó hiện toàn bộ mục."
 }

@@ -1676,6 +1676,72 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, { ok: true });
         }
 
+        // Settings › MCP servers (PP-528): the owner's. Every change reaches the owner's tabs (`mcp-servers`).
+        if (first === "mcp") {
+            requireOwner(user);
+            const page = app.mcpPage;
+            const name = second === undefined ? undefined : decodeURIComponent(second);
+            const checked = <T>(run: () => T): T => {
+                try {
+                    return run();
+                } catch (error) {
+                    throw error instanceof HttpError ? error : new HttpError(400, error instanceof Error ? error.message : String(error));
+                }
+            };
+
+            if (method === "GET" && name === undefined) {
+                return json(response, 200, page.view());
+            }
+
+            if (method === "POST" && name === "import" && third === undefined) {
+                const body = await readJson<{ text?: unknown; replace?: unknown }>(request);
+
+                return json(response, 200, checked(() => page.importBlock(body.text, body.replace === true)));
+            }
+
+            if (name !== undefined && method === "PUT" && third === undefined) {
+                const body = await readJson<{ entry?: unknown }>(request);
+
+                checked(() => page.save(name, body.entry));
+
+                return json(response, 200, page.view());
+            }
+
+            if (name !== undefined && method === "DELETE" && third === undefined) {
+                await page.remove(name);
+
+                return json(response, 200, page.view());
+            }
+
+            if (name !== undefined && method === "POST" && third === "enabled") {
+                const body = await readJson<{ enabled?: unknown }>(request);
+
+                if (typeof body.enabled !== "boolean") {
+                    throw new HttpError(400, "enabled is true or false.");
+                }
+
+                checked(() => page.enable(name, body.enabled as boolean));
+
+                return json(response, 200, page.view());
+            }
+
+            if (name !== undefined && method === "POST" && third === "test") {
+                const body = await readJson<{ folder?: unknown }>(request);
+
+                const tested = await page.test(name, body.folder).catch((error: unknown) => {
+                    throw new HttpError(400, error instanceof Error ? error.message : String(error));
+                });
+
+                return json(response, 200, tested);
+            }
+
+            if (name !== undefined && method === "POST" && (third === "reconnect" || third === "stop")) {
+                await (third === "reconnect" ? page.reconnect(name) : page.stop(name));
+
+                return json(response, 200, page.view());
+            }
+        }
+
         // What the owner typed on one of Pi's browser's cards (sign-in, code) or did on the page: into the page, not to Pi.
         if (first === "browser" && second === "asks" && parts.length > 2 && method === "POST") {
             const body = await readJson<{ values?: unknown; remember?: unknown; useSaved?: unknown; done?: unknown }>(request);

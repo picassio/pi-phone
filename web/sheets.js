@@ -13,6 +13,7 @@ import { GitHubSheet } from "./sheets/github.js";
 import { MachinesSheet } from "./sheets/machines.js";
 import { SshKeysSheet } from "./sheets/ssh-keys.js";
 import { SecretsSheet } from "./sheets/secrets.js";
+import { McpSheet } from "./sheets/mcp.js";
 import { InterviewSheet } from "./sheets/interview.js";
 import { WebAccessSheet } from "./sheets/web-access.js";
 import { DesignSystemSheet } from "./sheets/design-system.js";
@@ -270,6 +271,10 @@ function sheetBody(sheet) {
             break;
         case "secrets":
             body = html`<${SecretsSheet} />`;
+            break;
+        // Settings › MCP servers (PP-528): the owner's.
+        case "mcp-servers":
+            body = store.state.me?.role === "owner" ? html`<${McpSheet} />` : null;
             break;
         case "github":
             body = html`<${GitHubSheet} />`;

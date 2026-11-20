@@ -85,6 +85,7 @@ import { DEFERRED_EXTENSION, deferredToolsExtension } from "./deferred-tools.ts"
 import { McpServers } from "./mcp/config.ts";
 import { McpManager, type McpWhere } from "./mcp/manager.ts";
 import { mcpExtension, McpToolCache } from "./mcp/tools.ts";
+import { mcpEnable, mcpImport, type McpPageHost, mcpSave, mcpTest, type McpView, mcpView } from "./mcp/page.ts";
 import { type ResolvedSubagentDefaults, resolveSubagentDefaults, SESSION, SUBAGENT_PARTS, type SubagentPart, untilText, withPart } from "./subagent-defaults.ts";
 import {
     ArtifactBodyDoc,
@@ -816,6 +817,9 @@ export class PocketApp {
             log: (line) => this.log(line),
         });
         this.mcpTools = new McpToolCache(options.dataDir, this.mcpServers, this.mcp, (line) => this.log(line));
+        // The owner's tabs read Settings › MCP servers again (PP-528).
+        this.mcpServers.onChange(() => this.#mcpChanged());
+        this.mcpTools.onChange(() => this.#mcpChanged());
         // The team server's machines this person may use (PP-82): into Machines, reached through its relay and agent.
         this.teamMachines = new TeamMachinesClient(this.#teamServer, sshDir, (line) => this.log(line), (entries, manage) => this.machines.setTeam(entries, manage));
         this.accounts = new Accounts(options.dataDir, () => this.models, options.accountProviders);
@@ -8057,6 +8061,55 @@ export class PocketApp {
         }
 
         return "Not for a guest's or a teammate's message: Pi uses the owner's MCP servers only for the owner (a share that allows the machines allows them too).";
+    }
+
+    /** Settings › MCP servers (PP-528): its methods, as the page, Pi's settings and the tests call them. */
+    readonly mcpPage = {
+        view: (): McpView => mcpView(this.#mcpHost()),
+        save: (name: unknown, entry: unknown) => mcpSave(this.#mcpHost(), name, entry),
+        enable: (name: string, enabled: boolean) => mcpEnable(this.#mcpHost(), name, enabled),
+        remove: async (name: string) => {
+            if (!this.mcpServers.remove(name)) {
+                throw new HttpError(404, `There is no MCP server ${name}.`);
+            }
+
+            await this.mcp.reconnect(name);
+        },
+        importBlock: (text: unknown, replace: boolean) => mcpImport(this.#mcpHost(), text, replace),
+        test: async (name: string, folder: unknown) => {
+            const result = await mcpTest(this.#mcpHost(), name, folder);
+
+            this.#mcpChanged();
+
+            return result;
+        },
+        reconnect: async (name: string) => {
+            await this.mcp.reconnect(name);
+            this.#mcpChanged();
+        },
+        stop: async (name: string) => {
+            await this.mcp.stop(name);
+            this.#mcpChanged();
+        },
+    };
+
+    #mcpHost(): McpPageHost {
+        return {
+            servers: this.mcpServers,
+            manager: this.mcp,
+            cache: this.mcpTools,
+            machines: () => this.machines.list().map((machine) => ({ id: machine.id, name: machine.name })),
+            redact: (text) => this.secrets.redact(text),
+        };
+    }
+
+    /** The owner's tabs hear that the MCP servers changed, and read them again. */
+    #mcpChanged(): void {
+        for (const client of this.#clients) {
+            if (client.user.role === "owner") {
+                client.send("mcp-servers", { at: Date.now() });
+            }
+        }
     }
 
     /** Where an MCP server runs (PP-524): the phone's daemon with the app's PATH, or a machine's; not Windows yet. */

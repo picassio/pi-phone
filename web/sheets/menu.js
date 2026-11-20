@@ -640,6 +640,7 @@ export function MenuSheet({ places = true }) {
                 me?.role === "owner" && !server?.gateway && (server?.onPhone || window.PiPhoneApp) && item("Assistant", () => openSheet({ type: "assistant" }), "hold the side key to talk to Pi")
             }
             ${me?.role === "owner" && allowed("secrets.use") && item("Secrets", () => openSheet({ type: "secrets" }), "keys Pi uses without seeing")}
+            ${me?.role === "owner" && !server?.gateway && item("MCP servers", () => openSheet({ type: "mcp-servers" }), "more tools for Pi, from programs and services")}
             ${extensionMenuItems().map((each) => item(each.label, each.run, each.hint))}
             ${me?.role === "owner" && allowed("settings.change") && (server?.gateway ? item("Backup", () => openSheet({ type: "phone" }), "your sessions and settings, in one file") : item("This phone", () => openSheet({ type: "phone" }), "notifications, screen off, backup"))}
             ${

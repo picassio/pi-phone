@@ -53,7 +53,7 @@ const CONTEXT_HELP: Record<ContextPart, string> = {
 const capital = (word: string) => `${word[0]!.toUpperCase()}${word.slice(1)}`;
 
 /** What a setting applies to, when it is not the app as a whole. */
-export type TargetKind = "session" | "person" | "secret" | "machine" | "ssh-key" | "device";
+export type TargetKind = "session" | "person" | "secret" | "machine" | "ssh-key" | "device" | "mcp-server";
 
 export type Setting = {
     /** As Pi names it: `area.name` (`models.default`). */
@@ -188,6 +188,15 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
 
         if (found === undefined) {
             throw new HttpError(404, `There is no machine ${target ?? ""}. Machines: ${app.machines.list().map((each) => each.name).join(", ") || "none"}.`);
+        }
+
+        return found;
+    };
+    const mcpServer = (target: string | undefined) => {
+        const found = app.mcpServers.get((target ?? "").trim());
+
+        if (found === undefined) {
+            throw new HttpError(404, `There is no MCP server ${target ?? ""}. MCP servers: ${app.mcpServers.list().map((each) => each.name).join(", ") || "none"}.`);
         }
 
         return found;
@@ -1618,6 +1627,28 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 app.secrets.set(secret(target).name, { machines: onOff(value) });
             },
         },
+        // ─── MCP servers (PP-528) ───
+        {
+            id: "mcp.enabled",
+            area: "mcp",
+            title: "An MCP server is on",
+            help: "on or off. Target: the server. An entry changed since approved: mcp_server_set (its card shows it).",
+            owner: true,
+            target: "mcp-server",
+            read: (target) => (mcpServer(target).enabled ? "on" : "off"),
+            choices: () => ["on", "off"],
+            apply: (_user, value, target) => {
+                const server = mcpServer(target);
+                const on = onOff(value);
+
+                // This card shows the value, not the entry: an entry changed elsewhere is approved on its own card.
+                if (on && !server.approved) {
+                    throw new HttpError(400, `${server.name} changed since it was approved: turn it on with mcp_server_set (action enable), whose card shows the entry.`);
+                }
+
+                app.mcpPage.enable(server.name, on);
+            },
+        },
         // ─── Machines and keys ───
         {
             id: "machines.name",
@@ -1712,6 +1743,48 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                       : " It had no data in extension-data.";
 
                 return `Removed ${done.file}: ${done.removed.join(", ") || "no files were left"}.${said}`;
+            },
+        },
+        {
+            id: "mcp.reconnect",
+            area: "mcp",
+            title: "Reconnect an MCP server",
+            help: "Stop it and forget its failures: the next call starts it.",
+            owner: true,
+            args: { name: "The server's name" },
+            describe: (args) => `Reconnect the MCP server ${args.name ?? ""}`,
+            run: async (_user, args) => {
+                await app.mcpPage.reconnect(mcpServer(args.name).name);
+
+                return `Reconnected ${args.name}: the next call starts it.`;
+            },
+        },
+        {
+            id: "mcp.stop",
+            area: "mcp",
+            title: "Stop an MCP server",
+            help: "Stop its running instances now.",
+            owner: true,
+            args: { name: "The server's name" },
+            describe: (args) => `Stop the MCP server ${args.name ?? ""}`,
+            run: async (_user, args) => {
+                await app.mcpPage.stop(mcpServer(args.name).name);
+
+                return `Stopped ${args.name}.`;
+            },
+        },
+        {
+            id: "mcp.test",
+            area: "mcp",
+            title: "Test an MCP server",
+            help: "Start it for a folder and list its tools.",
+            owner: true,
+            args: { name: "The server's name", folder: "A session's folder" },
+            describe: (args) => `Start the MCP server ${args.name ?? ""} for ${args.folder ?? ""} and list its tools`,
+            run: async (_user, args) => {
+                const result = await app.mcpPage.test(mcpServer(args.name).name, args.folder);
+
+                return result.ok ? `${args.name}: ${result.tools.length} tools in ${(result.ms / 1000).toFixed(1)} s: ${result.tools.join(", ")}` : `${args.name} did not answer: ${result.error}`;
             },
         },
         {
@@ -2139,6 +2212,7 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
         machine: () => app.machines.list().map((each) => each.name),
         "ssh-key": async () => (await app.sshKeys.list()).map((key) => `${key.id} (${key.name})`),
         device: () => app.webPush.list().map((each) => each.name),
+        "mcp-server": () => app.mcpServers.list().map((each) => each.name),
     };
 
     return { settings, actions, targets };

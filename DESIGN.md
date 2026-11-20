@@ -3430,6 +3430,18 @@ so Pi changes them through the settings tools; "the last session" is the one the
     tools, its prompt names none), and a teammate's only where the share lets Pi use the machines
     (`teammateMayUseMachines`). Plan mode blocks every MCP tool but those the server marks read-only when the entry has
     `planMode`.
+  - **Settings › MCP servers** (`web/sheets/mcp.js`, `mcp/page.ts`, PP-528; Menu › MCP servers, `/?sheet=mcp-servers`,
+    the owner's): each server with its command or URL, where it runs, its folders, tools' count and secrets by name, its
+    state (off; changed since approved; failed; running; on), and On, Change, Test, Reconnect, Stop, Remove. The form
+    takes a command, its arguments one per line (so `-screen 0 1280x800x24` stays one), env `KEY=value` lines, where it
+    runs (where the session works, the phone, or a machine), or a URL and header lines; folders, description, ask
+    before each call, trust read-only in plan mode. Import JSON takes an `mcpServers` block (or its inside) and saves
+    each valid server, a name already here only with Replace. The page is the owner's own hand: Save, On and Import
+    approve the entry as shown, with no card. Test starts the server for a folder the owner names (a secret that asks
+    first is allowed for that start) and says its tools' count and time. Routes `/api/mcp…`, owner only; every change
+    sends `mcp-servers` to the owner's tabs, which read the list again. Pi's side: `mcp.enabled` (target the server;
+    an entry changed since approved is turned on only through mcp_server_set, whose card shows it), `mcp.test`,
+    `mcp.reconnect`, `mcp.stop`. Not added to `show_screen` (it would grow every request).
 
 ## 5. Build
 

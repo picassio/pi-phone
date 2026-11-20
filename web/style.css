@@ -22321,3 +22321,53 @@ button.welcome-row:hover {
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
+
+/* Settings › MCP servers (PP-528): a row's command wraps anywhere; its state has a dot of its tone; its buttons go
+   under it, on every width, as a provider's family's. */
+.provider.mcp-server {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.provider.mcp-server .provider-actions {
+    justify-content: flex-start;
+    align-items: center;
+}
+
+.mcp-server-body {
+    min-width: 0;
+    display: grid;
+    gap: 4px;
+}
+
+.mcp-command {
+    overflow-wrap: anywhere;
+}
+
+.mcp-state::before,
+.mcp-tested::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+}
+
+.mcp-state-ok::before {
+    background: var(--ok);
+}
+
+.mcp-state-warn::before {
+    background: var(--warn);
+}
+
+.mcp-on {
+    min-height: 40px;
+    align-items: center;
+}
+
+.mcp-test {
+    margin-top: 8px;
+}

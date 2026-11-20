@@ -956,6 +956,8 @@ const LINKED_SHEETS = new Set([
     "images",
     "schedules",
     "secrets",
+    // `/?sheet=mcp-servers`: Settings › MCP servers (PP-528).
+    "mcp-servers",
     "shortcuts",
     "spend",
     "ssh-keys",

@@ -345,6 +345,13 @@ function actionItems() {
             icon: "key",
             run: () => openSheet({ type: "secrets" }),
         },
+        // Settings › MCP servers (PP-528).
+        me?.role === "owner" && {
+            label: t("MCP servers"),
+            detail: t("more tools for Pi, from programs and services"),
+            icon: "plus",
+            run: () => openSheet({ type: "mcp-servers" }),
+        },
         // The Android shell's bridge (android/.../MainActivity.java): only inside the app.
         me?.role === "owner" &&
             window.PiPhoneApp && {

@@ -124,6 +124,8 @@ export default function createSettings(host: PocketHost) {
 
                     return reply(
                         [
+                            // The areas first: the whole list runs past a tool's output limit (PP-528), and its end is cut.
+                            ...(args.area === undefined ? [`Areas: ${areas.join(", ")}. Ask for one with area to see it whole.`, ""] : []),
                             `Settings${args.area === undefined ? "" : ` in ${args.area}`} (change one with setting_change):`,
                             ...lines,
                             ...(targetLines.length === 0 ? [] : ["", "Targets:", ...targetLines]),
@@ -138,8 +140,7 @@ export default function createSettings(host: PocketHost) {
                                       ),
                                   ]),
                             "",
-                            "Also with their own tools: devices, secrets, schedules, project boards, board settings, machines (machine_run, machine_copy, machine_add, machine_tools), Pi sessions, phone control (phone_control; its Never list is the owner's alone, in Menu › Phone control), computer control (computer_control; its Never list is the owner's alone, in Menu › Computer control).",
-                            ...(args.area === undefined ? [`Areas: ${areas.join(", ")}.`] : []),
+                            "Also with their own tools: devices, secrets, schedules, project boards, board settings, machines (machine_run, machine_copy, machine_add, machine_tools), MCP servers (mcp_servers, mcp_server_set), Pi sessions, phone control (phone_control; its Never list is the owner's alone, in Menu › Phone control), computer control (computer_control; its Never list is the owner's alone, in Menu › Computer control).",
                         ].join("\n"),
                     );
                 } catch (error) {

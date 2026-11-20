@@ -132,6 +132,8 @@ export const store = {
         folderFavorites: [],
         /** The machines' ports open here (`forwards.ts`), once the Ports sheet loaded them or the server sent a change. */
         forwards: null,
+        /** Settings › MCP servers (PP-528), once its sheet loaded them; read again when the server says they changed. */
+        mcp: null,
         /** Pi using a phone (PP-141): each control session running, for its session's live line. The owner's tabs only. */
         phoneControl: [],
         /** Pi using computers (PP-178): each control session running; and each session's Computer panel, by its number. */
@@ -916,6 +918,8 @@ const handlers = {
     appearance: (data) => store.state.me && store.set({ me: { ...store.state.me, appearance: data.appearance } }),
     // The machines' ports open here changed: one opened, closed, or ended by itself (PP-108). The owner's tabs only.
     forwards: (data) => store.set({ forwards: data.forwards }),
+    // The MCP servers changed (PP-528), here, in another tab, or by Pi: read again where the sheet loaded them. The owner's tabs.
+    "mcp-servers": () => store.state.mcp !== null && attempt(async () => store.set({ mcp: await api("mcp") })),
     // A phone control session started or ended (PP-141).
     "phone-control": (data) => store.set({ phoneControl: data.sessions }),
     // A computer control session started or ended (PP-178); what its panel shows; a picture of its window (the tabs that watch).

@@ -171,9 +171,11 @@ No Termux, no laptop, no cloud VM.
   browser run, a screen, the Creator) and calls the rest from scripts. A test keeps pi-phone's own part of a new
   session's prompt under 85,000 characters. A picture Pi reads (often one you just sent) shows once, inside its `read`
   call when you open it; a picture a call makes (a screenshot, `fetch_content`'s image) shows under the call's line.
-- **MCP servers.** Ask Pi to add an MCP server (a Claude, Cursor or Pi `mcpServers` entry: a command, or a URL) and
-  approve its card, which shows the whole entry, where it runs, the folders it serves and the secrets it uses
-  (`mcp_server_set`; `mcp_servers` lists them). A command runs where the session works, on the phone or on its machine,
+- **MCP servers.** Menu › **MCP servers**: add one (a command and where it runs, or a URL; the folders it serves; its
+  env), turn it on or off, **Test** it for a folder (its tools' count), reconnect or stop it, or **Import JSON** (an
+  `mcpServers` block from Claude, Cursor or Pi). Or ask Pi and approve its card, which shows the whole entry, where it
+  runs, the folders it serves and the secrets it uses (`mcp_server_set`; `mcp_servers` lists them; settings
+  `mcp.enabled`, actions `mcp.test`, `mcp.reconnect`, `mcp.stop`). A command runs where the session works, on the phone or on its machine,
   with what bash gets there (a wrapper such as `xvfb-run` too), starting on first use and stopping after 30 idle
   minutes. Each tool is a tool of Pi's, `mcp__<server>__<tool>`, that waits for `tool_search` (a server of 111 tools
   adds one line to the prompt, none of its tools), only in the folders the server serves; codemode scripts call them
