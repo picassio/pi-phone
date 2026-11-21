@@ -194,6 +194,7 @@ const PAGES: Record<string, string> = {
     "/fixtures/zoomed-canvas": readFileSync(new URL("fixtures/layout/zoomed-canvas.html", import.meta.url), "utf8"),
     "/fixtures/entrance": readFileSync(new URL("fixtures/layout/entrance.html", import.meta.url), "utf8"),
     "/fixtures/entrance?stuck": readFileSync(new URL("fixtures/layout/entrance.html", import.meta.url), "utf8"),
+    "/fixtures/fixed-heights": readFileSync(new URL("fixtures/layout/fixed-heights.html", import.meta.url), "utf8"),
 };
 let server: Server;
 let port = 0;
@@ -484,6 +485,35 @@ test("under text zoom (Android's font scale), control heights are measured on th
         assert.equal(plain.textZoom, undefined);
         assert.doesNotMatch(describeLayout(plain), /Text zoom/);
         assert.equal(parseLayout(JSON.stringify({ ...report(390), textZoom: "108%" }), 390)?.textZoom, undefined);
+    } finally {
+        await engine.close();
+    }
+});
+
+test("under text zoom, a height CSS sets is measured as it is (auton-ui's 16 px CitationChip and 20 px ChipButton, a 40 px button), a button as tall as its lines still off the grid at 100 %; corners further in than the outer radius have nothing to follow (PP-537)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+
+        await page.init({ width: 390, height: 844, mobile: true });
+
+        const zoomed = await measured(page, "/fixtures/fixed-heights");
+        const short = (what: string) => what.replace(/ ".*$/, "");
+
+        assert.equal(zoomed.textZoom, 1.08);
+        // The phone on Build #516 read the chips as 14.8 (16 / 1.08) and 18.7 px.
+        assert.deepEqual(
+            of(zoomed, "off-grid")
+                .filter((find) => /height/.test(find.property))
+                .map((find) => [short(find.what), find.property, Math.round(find.value * 10) / 10]),
+            [["button#auto", "control height at 100 % text", 37.7]],
+        );
+        // A radius 8 tile 12 px into a radius 12 card: none. 4 px into a radius 20 one: wants 12.
+        assert.deepEqual(
+            of(zoomed, "concentric").map((find) => [short(find.what), short(find.in), find.inner, find.gap, find.border, find.outer, find.want]),
+            [["span.tile", "div#tight.card", 8, 4, 0, 20, 12]],
+        );
     } finally {
         await engine.close();
     }

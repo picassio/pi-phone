@@ -389,7 +389,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
   font size away from people who need it; leaving the reports; or this): the app keeps the person's font scale, and the
   layout check measures control heights as at 100 %. It reads the zoom from a probe (a 100 px font computes as 108),
   takes back the part of a height that lines of text make (a box of lines gives its content height unless it is taller
-  than its lines; a box of boxes, its rows, the tallest in each; a box taller than its children, none), tests that on
+  than its lines; a box of boxes, its rows, the tallest in each; a box taller than its children, none; a height CSS
+  sets, none: a `height`, a `min-height` that holds the box, a `max-height` that caps it, read from the computed value
+  (Typed OM) where `getComputedStyle` gives auto as px; PP-537, auton-ui's 16 px CitationChip read as 14.8), tests that on
   the grid ("control height at 100 % text"), and says the zoom in its report. The grid holds at 100 %, which the UI
   tests measure. A button laid over a box to make it one tap target (the top bar's `.title-open`, absolute, inset 0)
   has no lines of its own, so it takes the lines of the box it fills (PP-406: it was reported at 45.6 for 44).
@@ -1344,7 +1346,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
     1 to 12 px) must have, in each corner it sits in, outer radius = inner + gap + border within 2 px, radii as drawn
     (scaled down as CSS does when they do not fit, so a pill in a pill passes); children under 20 px, square inner
     corners, fixed children (absolute ones are checked since PP-432), corners of 4 px or less on both (PP-432: no curve
-    to see) and scaled boxes are left out. Corner bleed (`corner-bleed`, PP-432, auton-ui's definition): a painted
+    to see) and scaled boxes are left out, and so is a corner inset as far as the outer radius or further (gap +
+    border ≥ outer radius: the inner corner lies outside the outer curve, nothing to follow; PP-537, auton-ui's
+    ChoiceCards, radius 8 at 12 px in radius 12). Corner bleed (`corner-bleed`, PP-432, auton-ui's definition): a painted
     child of 20 x 20 px or more, less than 1 px from both edges of a rounded corner of its parent (after the parent's
     border), the parent's overflow visible, and parent radius minus parent border minus child radius over 2 px, radii
     as drawn: its corner pokes out of the curve, like a progress fill in a rounded bar. pi-phone adds one limit: the

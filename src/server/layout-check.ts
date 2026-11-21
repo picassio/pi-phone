@@ -36,7 +36,9 @@
  * an overlay with no words and no control. Since PP-433, under text zoom (Android's font scale in a WebView) control heights are measured on the grid as at 100 %.
  * Since PP-406, a layer laid over a box to make it one tap target is measured with that box's lines, and a control as
  * tall as its one picture at the picture's own shape (a lone thumbnail) is not measured on the grid: its height is the
- * picture's.
+ * picture's. Since PP-537, a height CSS sets (a height, a min-height that holds the box, a max-height that caps it) has
+ * no lines' part to take back, and nested corners are checked for concentric radii only when the inset is under the
+ * outer radius (further in, the inner corner lies outside the outer curve).
  *
  * Since PP-519, a target in a sentence is WCAG 2.5.8's inline exception: a link, button or chip laid out inline whose
  * line holds words that are not its own is no tap target under 40 px. A chip drawn as a box there (inline-flex or
@@ -580,6 +582,14 @@ ${PAGE_HELPERS}
   // its height is its own); a line clamp shows its count of lines. A box of boxes gives its children's rows: those side
   // by side give the tallest's (a 24 px icon beside a 21.6 px line makes the row, with no text part), the rows add up;
   // a box taller than its children's extent gives none. Pictures, fields and icons give none.
+  // A height CSS sets (PP-537): a height of its own (auton-ui's h-4 chip, 16 px), a min-height that holds the box, or a
+  // max-height that caps it. No lines make it, so text zoom takes nothing back from it (16 px read as 14.8 at 108 %).
+  // The computed value (Typed OM) keeps auto as auto, where getComputedStyle gives the px it resolves to.
+  const cssHeight = (e, s, r) => {
+    if (!e.computedStyleMap || s.display === 'inline') return false;
+    const m = e.computedStyleMap(), set = (p) => { const v = m.get(p); return v !== null && v !== undefined && !/^(auto|none|min-content|max-content|fit-content)/.test(String(v)); };
+    return set('height') || (set('min-height') && r.height <= px(s.minHeight) + 0.5) || (set('max-height') && r.height >= px(s.maxHeight) - 0.5);
+  };
   const lineRange = document.createRange();
   const boxKids = (e) => [...e.children].flatMap((c) => css(c).display === 'contents' ? boxKids(c) : [c]).filter((c) => css(c).display !== 'none' && !/absolute|fixed/.test(css(c).position));
   const textParts = new Map();
@@ -595,7 +605,7 @@ ${PAGE_HELPERS}
     const holder = s.position === 'absolute' && kids.length === 0 && !words ? e.offsetParent : null;
     const held = holder ? holder.getBoundingClientRect().height - px(css(holder).borderTopWidth) - px(css(holder).borderBottomWidth) : 0;
     if (holder && Math.abs(r.height - held) < 0.5) v = textPart(holder);
-    else if (REPLACED.test(e.tagName) || content < 1) v = 0;
+    else if (REPLACED.test(e.tagName) || content < 1 || cssHeight(e, s, r)) v = 0;
     else if ((words && kids.every((c) => css(c).display.startsWith('inline'))) || (kids.length > 0 && kids.every((c) => css(c).display === 'inline'))) {
       lineRange.selectNodeContents(e);
       let lines = 0, bottom = -1e9;
@@ -940,6 +950,7 @@ ${PAGE_HELPERS}
         if (pictured(e, r)) {
           // Its height is its picture's.
         } else if (TEXT_ZOOM === 1) offGrid(e, 'control height', r.height / zoom, zoom);
+        else if (textPart(e) === 0) offGrid(e, 'control height', r.height / zoom, zoom);
         else offGrid(e, 'control height at 100 % text', r1((r.height - textPart(e) * (1 - 1 / TEXT_ZOOM)) / zoom), zoom);
         if (style.pointerEvents !== 'none') {
           const by = coveredBy(e, r.left + r.width / 2, r.top + r.height / 2);
@@ -1012,6 +1023,9 @@ ${PAGE_HELPERS}
         const [s1, s2] = CORNER_SIDES[c];
         if (!near(d[s1]) || !near(d[s2]) || irad[c] < 1 || (orad[c] <= 4 && irad[c] <= 4)) continue;
         const b = (ob[s1] + ob[s2]) / 2, want = irad[c] + g + b;
+        // Inset as far as the outer radius or further, the inner corner lies outside the outer curve: nothing to follow
+        // (PP-537: auton-ui's ChoiceCards, a radius 8 tile 12 px into a radius 12 card).
+        if (g + b >= orad[c] - 0.01) continue;
         if (Math.abs(orad[c] - want) > 2) { group('concentric', sig(inner) + '|' + sig(outer) + '|' + Math.round(irad[c]) + '|' + Math.round(orad[c]), () => ({ what: name(inner), in: name(outer), inner: r1(irad[c]), gap: r1(g), border: r1(b), outer: r1(orad[c]), want: r1(want) })); break; }
       }
     }
@@ -1346,7 +1360,7 @@ function pageNotes(report: LayoutReport): string[] {
         ...(textZoom === undefined
             ? []
             : [
-                  `Text zoom ${Math.round(textZoom * 100)} % (the system's font size): control heights are measured on the 4 px grid as at 100 %, the part their lines of text make taken back to its size there.`,
+                  `Text zoom ${Math.round(textZoom * 100)} % (the system's font size): control heights are measured on the 4 px grid as at 100 %, the part their lines of text make taken back to its size there; a height CSS sets is measured as it is.`,
               ]),
         ...(scroller === undefined ? [] : [`The page scrolls inside ${scroller.what}: the picture shows ${scroller.shown} of its ${scroller.full} px, the rest is not in it.`]),
         ...(errors.length === 0 ? [] : [`The page threw: ${errors.join("; ")}`]),

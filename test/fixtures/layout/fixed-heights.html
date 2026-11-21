@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fixed heights under text zoom, and corners further in than the outer radius (PP-537)</title>
+<style>
+    /* Text zoom 108 % as an Android WebView computes it (PP-433): the check's 100 px probe as 108, and every px font size
+       and line height 8 % larger (14 px as 15.12, 20 as 21.6, 12 as 12.96, 16 as 17.28). */
+    [data-pi-text-zoom] { font-size: 108px !important; line-height: 108px !important; }
+    body { margin: 0; padding: 16px; font: 15.12px/21.6px sans-serif; color: #111; background: #fff; }
+    button { font: inherit; border: 0; margin: 0; background: #e8eefc; color: #123; box-sizing: border-box; }
+    .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0; }
+    /* auton-ui's CitationChip: h-4 (16 px) with a text-xs line (16 px, 17.28 at 108 %) in it. */
+    .cite { display: inline-flex; align-items: center; justify-content: center; height: 16px; min-width: 16px; padding: 0 4px; font-size: 12.96px; line-height: 17.28px; border-radius: 2px; }
+    /* auton-ui's ChipButton: h-5 (20 px) with a 1 px border round the same line. */
+    #filter { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border: 1px solid #9ab; border-radius: 999px; font-size: 12.96px; line-height: 17.28px; white-space: nowrap; }
+    #fixed { height: 40px; padding: 0 16px; }
+    #min { min-height: 40px; padding: 8px 16px; }
+    /* As tall as its line and its padding: 37.7 px at 100 % (20 + 2 × 8.85), 39.3 at 108 %. */
+    #auto { padding: 8.85px 16px; }
+    /* auton-ui's ChoiceCards: a radius 8 tile 12 px into a radius 12 card, its corner outside the card's curve. */
+    .card { display: flex; align-items: center; gap: 12px; width: 300px; background: #fff; box-shadow: 0 0 0 1px #ccd; }
+    .tile { width: 32px; height: 32px; flex: none; border-radius: 8px; background: #eef; }
+    #roomy { padding: 12px; border-radius: 12px; }
+    #tight { padding: 4px; border-radius: 20px; margin-top: 16px; }
+    #tight .tile { width: 40px; height: 40px; }
+</style>
+</head>
+<body>
+    <p>The gateway rejects a stale token<button class="cite" aria-label="Source 2">2</button> before it reaches the worker, so retry<button class="cite" aria-label="Source 1">1</button> after a 401.</p>
+    <div class="row">
+        <span>gmail.readonly</span>
+        <button id="filter">Filter</button>
+    </div>
+    <div class="row">
+        <button id="fixed">Fixed</button>
+        <button id="min">At least 40</button>
+        <button id="auto">Its lines</button>
+    </div>
+    <div class="card" id="roomy"><span class="tile"></span><span>A document</span></div>
+    <div class="card" id="tight"><span class="tile"></span><span>Upload CSV</span></div>
+</body>
+</html>
