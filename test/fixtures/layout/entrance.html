@@ -1,0 +1,56 @@
+<!doctype html>
+<!--
+  Entrances (PP-521), as auton-ui's Rail draws them with enter (apps/docs/_check/work.html?enter=1): a heading card
+  that fades in with a CSS animation, and a rail of three cards hidden until an IntersectionObserver says the rail is in
+  view, then staggered in. With ?stuck the page's IntersectionObserver never calls back, as in a renderer whose page
+  runs no observer: the rail's cards stay hidden. A tooltip (placed) and a hover action (a few letters) at opacity 0
+  are hidden on purpose.
+-->
+<html lang="en">
+<meta name="viewport" content="width=device-width">
+<title>Entrances</title>
+<script>
+  if (location.search.includes("stuck")) {
+    window.IntersectionObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords() { return []; }
+    };
+  }
+</script>
+<style>
+  body { margin: 0; font: 14px/20px sans-serif; color: #1a1a1a; }
+  main { display: flex; flex-direction: column; gap: 16px; width: 340px; margin: 24px; }
+  @keyframes rise { from { opacity: 0; transform: translateY(12px); } }
+  .card { padding: 16px; border: 1px solid #d4d4d4; border-radius: 12px; background: #ffffff; }
+  #intro { animation: rise 400ms ease-out both; }
+  .rail { display: flex; flex-direction: column; gap: 12px; }
+  .rail[data-enter="wait"] > .card { opacity: 0; }
+  .rail[data-enter="go"] > .card { animation: rise 240ms ease-out both; animation-delay: calc(var(--i) * 60ms); }
+  .row { position: relative; display: flex; justify-content: space-between; align-items: center; min-height: 40px; }
+  .row .edit { opacity: 0; min-width: 40px; height: 40px; }
+  .row:hover .edit { opacity: 1; }
+  .tip { position: absolute; left: 0; top: 40px; padding: 8px; background: #1a1a1a; color: #ffffff; opacity: 0; }
+</style>
+<main>
+  <div class="card" id="intro">This week: 24 tickets, 4 waiting on you.</div>
+  <div class="rail" id="rail">
+    <div class="card" style="--i: 0">Time to resolve: 12 min, down from 19.</div>
+    <div class="card" style="--i: 1">Solved without a person: 64 % this week.</div>
+    <div class="card" style="--i: 2">Cost per ticket: $0.42, up from $0.38.</div>
+  </div>
+  <div class="row">Ticket 4823 <button class="edit" type="button">Edit</button><span class="tip">Opens the ticket in a new pane</span></div>
+</main>
+<script>
+  const rail = document.getElementById("rail");
+  rail.dataset.enter = "wait";
+  const seen = new IntersectionObserver((entries) => {
+    if (entries.some((entry) => entry.isIntersecting)) {
+      rail.dataset.enter = "go";
+      seen.disconnect();
+    }
+  }, { threshold: 0.2 });
+  seen.observe(rail);
+</script>
+</html>

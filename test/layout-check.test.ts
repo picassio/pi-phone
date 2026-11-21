@@ -12,7 +12,10 @@ import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { ChromeEngine, PiBrowser } from "../src/server/browser/pi-browser.ts";
 import { BrowserPage } from "../src/server/browser/page.ts";
+import type { Cdp } from "../src/server/browser/cdp.ts";
 import { describeLayout, type LayoutFind, layoutCheck, type LayoutReport, parseLayout } from "../src/server/layout-check.ts";
+import { parseShot, renderRequest } from "../src/server/screenshots.ts";
+import { shootInTab } from "../src/server/tab-render.ts";
 import { head, radix } from "./dialog-fixtures.ts";
 
 after(() => cleanUp());
@@ -187,6 +190,8 @@ const PAGES: Record<string, string> = {
     // Fixture pages of their own (test/fixtures/layout/), which the screenshot tool can show too.
     "/fixtures/inline-targets": readFileSync(new URL("fixtures/layout/inline-targets.html", import.meta.url), "utf8"),
     "/fixtures/zoomed-canvas": readFileSync(new URL("fixtures/layout/zoomed-canvas.html", import.meta.url), "utf8"),
+    "/fixtures/entrance": readFileSync(new URL("fixtures/layout/entrance.html", import.meta.url), "utf8"),
+    "/fixtures/entrance?stuck": readFileSync(new URL("fixtures/layout/entrance.html", import.meta.url), "utf8"),
 };
 let server: Server;
 let port = 0;
@@ -735,6 +740,47 @@ test("what a zoomed canvas draws is measured at its own scale: nodes and icons o
         assert.deepEqual(of(canvas, "nested-cards"), []);
         assert.deepEqual(of(canvas, "small-target").map((find) => [short(find.what), find.size]), [["button#shrunk.pin", [28, 28]]]);
         assert.deepEqual(canvas.summary.icons, ["16x16", "11.19x11.19"]);
+    } finally {
+        await engine.close();
+    }
+});
+
+test("a render finishes the animations still running before its picture, so a page whose clock stands still is pictured where they end; words an entrance never showed are a finding, a tooltip and a hover action are not (PP-521)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+    // A page that runs no animation clock, as one drawn off screen did (2026-11-20): its tab's animations at rate 0.
+    const frozen = async (cdp: Cdp) => {
+        await cdp.send("Animation.enable");
+        await cdp.send("Animation.setPlaybackRate", { playbackRate: 0 });
+    };
+    const shoot = async (path: string, check?: string) => {
+        const request = renderRequest(`http://pi.test${path}`, { widths: [390], settleMs: 500, fullPage: false, ...(check === undefined ? {} : { check }) });
+
+        return parseShot(request, await shootInTab(engine, request, 390, frozen));
+    };
+    const opacities = "JSON.stringify([...document.querySelectorAll('.card')].map((e) => getComputedStyle(e).opacity))";
+
+    try {
+        // The clock stood still: the page's own state is a picture of nothing; the render's, every card shown.
+        const still = renderRequest("http://pi.test/fixtures/entrance", { widths: [390], settleMs: 500, fullPage: false });
+
+        assert.equal((await shootInTab(engine, { ...still, check: opacities }, 390, frozen)).check, '["0","0","0","0"]');
+        assert.equal((await shoot("/fixtures/entrance", opacities)).check, '["1","1","1","1"]');
+
+        const shown = (await shoot("/fixtures/entrance")).layout!;
+
+        assert.equal(shown.finished, 4);
+        assert.deepEqual(of(shown, "hidden"), []);
+        assert.match(describeLayout(shown), /\n4 animations were still running after the wait and finished before the picture, which shows where they end\.$/);
+
+        // An observer that never calls back: the rail's cards stay at opacity 0, three in one finding.
+        const stuck = (await shoot("/fixtures/entrance?stuck")).layout!;
+
+        assert.equal(stuck.finished, 1);
+        assert.deepEqual(
+            of(stuck, "hidden").map((find) => [find.what, find.opacity, find.animation, find.count]),
+            [['div.card "Time to resolve: 12 min, down "', 0, undefined, 3]],
+        );
+        assert.match(describeLayout(stuck), /\nWords hidden at the picture \(opacity 0\) \(3\):\n- div\.card "Time to resolve: 12 min, down ": opacity 0, no animation running: /);
     } finally {
         await engine.close();
     }

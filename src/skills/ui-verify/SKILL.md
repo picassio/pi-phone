@@ -56,7 +56,9 @@ Fix, then run steps 1 to 3 again, until these are zero:
 - emoji or symbol glyphs used as icons (line icons only; in pi-phone `ICONS` in `web/ui.js`);
 - tap targets under 40 px at a phone's width (a link or chip in a sentence is WCAG 2.5.8's inline exception and not
   one), and chips in a sentence under 24 px tall with no hit area;
-- broken images, skipped heading levels, and cards inside cards.
+- broken images, skipped heading levels, and cards inside cards;
+- words hidden at the picture (opacity 0): show the content by default and animate it in from there, never hide it
+  until an observer or a timer says so.
 
 Side-tab stripes, glows, pulsing dots, narrow justified text, tight leading, repeated words, corners not concentric or poking out,
 numbers without tabular figures, gradient surfaces and static CSS tells: fix them in what you made or changed unless

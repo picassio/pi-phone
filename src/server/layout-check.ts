@@ -45,6 +45,10 @@
  * Since PP-520, what a zoomed canvas draws (React Flow's viewport, scaled by a CSS transform) is measured at its own
  * scale: control heights and icons divided by the zoom, a finding that remains saying "at zoom 0.7"; a tap target as
  * drawn, its hit area at the zoom too; and what is drawn on a canvas is not a card inside the card that frames it.
+ *
+ * Since PP-521, a render finishes the animations still running after its wait before the page measures itself
+ * (`FINISH_ANIMATIONS`), and words at opacity 0 in flow and in view are a finding (`hidden`): an entrance an observer
+ * or a script never started leaves its content out of the picture, which a page drawn off screen showed.
  */
 
 /** One thing out of place: what it is, and the boxes that show it (x and width, CSS pixels). */
@@ -84,7 +88,9 @@ export type LayoutFind =
     | { kind: "corner-bleed"; what: string; in: string; inner: number; outer: number; count: number }
     | { kind: "tabular"; what: string; text: string; count: number }
     | { kind: "gradient"; what: string; area: number; image: string; count: number }
-    | { kind: "css-tell"; what: string; rule: string; count: number };
+    | { kind: "css-tell"; what: string; rule: string; count: number }
+    // PP-521: words at opacity 0 at the picture.
+    | { kind: "hidden"; what: string; opacity: number; animation?: string; count: number };
 
 export type LayoutFindKind = LayoutFind["kind"];
 
@@ -124,7 +130,26 @@ export type LayoutReport = {
      * are then measured on the grid as at 100 %.
      */
     textZoom?: number;
+    /**
+     * Animations still running when the page was measured, after the render's wait, that `FINISH_ANIMATIONS` finished
+     * first (PP-521): the picture shows where they end.
+     */
+    finished?: number;
 };
+
+/**
+ * Run by a render before its page's script (PP-521, `screenshots.ts` `renderRequest`): finish the page's finite
+ * animations still running after the render's wait (CSS animations and transitions, and the Web Animations scripts
+ * start, a stagger's delays too), so the picture and the measure show where they end, not a frame half faded. A page
+ * drawn off screen may run no animation clock (measured 2026-11-20: a rail's cards at 0.7 and 0 opacity after 2 s).
+ * Endless ones (a spinner, a pulse), paused ones and scroll-driven ones are left as they are. Keeps the count in
+ * `window.__piFinished`, which the layout check reports (`finished`). Never run on a live tab (browser_layout_check):
+ * finishing changes the page.
+ */
+export const FINISH_ANIMATIONS = String.raw`window.__piFinished = document.getAnimations().filter((a) => {
+  if (a.timeline !== document.timeline || a.playState !== 'running' || a.playbackRate === 0 || !a.effect) return false;
+  return Number.isFinite(a.effect.getComputedTiming().endTime);
+}).map((a) => a.finish()).length;`;
 
 /** An expression: whether a password field shows on the page (PP-500), for the layout check and the redlines' measure. */
 export const PASSWORD_SHOWN =
@@ -1068,6 +1093,25 @@ ${PAGE_HELPERS}
     }
   }
 
+  // Content hidden at the picture (PP-521): an element with words, in flow and in view, at opacity 0 of its own while
+  // its parent shows. An entrance that has not run (one an observer or a script starts, which a page drawn off screen
+  // may never start), or content a script has yet to show: the picture leaves it out, so it is a finding, never passed
+  // over as hidden on purpose. A layer (a menu, a tooltip, a dialog), a placed element (absolute or fixed: a hover
+  // card, a screen reader's text), one under 40 x 24 px or with fewer than 12 letters (a control shown on hover) are
+  // left out.
+  for (const e of measuredAll.slice(0, 4000)) {
+    const s = css(e);
+    if (Number(s.opacity) >= 0.05 || /absolute|fixed/.test(s.position) || s.visibility !== 'visible' || s.display === 'contents') continue;
+    const p = e.parentElement;
+    if (!p || opacityOf(p) < 0.05 || concealed(p) || e.closest(LAYER + ',[aria-hidden=true],[inert]')) continue;
+    const r = e.getBoundingClientRect();
+    if (r.width < 40 || r.height < 24 || r.right <= 0 || r.bottom <= 0 || r.left >= docW || empty(meet(inside(p), { l: r.left, t: r.top, r: r.right, b: r.bottom }))) continue;
+    if ((e.textContent || '').replace(/\s+/g, '').length < 12) continue;
+    const running = e.getAnimations().find((a) => a.playState !== 'finished' && a.effect && a.effect.getKeyframes().some((k) => 'opacity' in k));
+    const animation = running ? trim(running.animationName || running.id || 'an animation', 30) : undefined;
+    group('hidden', sig(e) + '|' + animation, () => Object.assign({ what: name(e), opacity: r2(Number(s.opacity)) }, animation === undefined ? {} : { animation }));
+  }
+
   // Long lines: characters a line in paragraphs of three lines or more.
   for (const e of long) {
     range.selectNodeContents(e);
@@ -1106,7 +1150,7 @@ ${PAGE_HELPERS}
     else if (Array.isArray(window.__piPageErrors) && window.__piPageErrors.some((x) => /\bdrawElementImage\b/.test(String(x)))) canvasUse = 'a call to drawElementImage';
   }
   const canvas = canvasUse ? { uses: canvasUse, chrome: (/Chrome\/(\d+)/.exec(navigator.userAgent) || [, 'unknown'])[1] } : undefined;
-  return JSON.stringify(Object.assign({ width: W, height: innerHeight, checked: Math.min(checked, 4000), issues, more, found, totals, summary }, modal ? { modal: name(modal) } : {}, TEXT_ZOOM !== 1 ? { textZoom: TEXT_ZOOM } : {}, shellBox ? { scroller: shellBox } : {}, errors.length ? { errors } : {}, canvas ? { canvas } : {}, ${PASSWORD_SHOWN} ? { password: true } : {}));
+  return JSON.stringify(Object.assign({ width: W, height: innerHeight, checked: Math.min(checked, 4000), issues, more, found, totals, summary }, modal ? { modal: name(modal) } : {}, TEXT_ZOOM !== 1 ? { textZoom: TEXT_ZOOM } : {}, shellBox ? { scroller: shellBox } : {}, errors.length ? { errors } : {}, canvas ? { canvas } : {}, ${PASSWORD_SHOWN} ? { password: true } : {}, window.__piFinished > 0 ? { finished: window.__piFinished } : {}));
 })()`;
 
 /** Each kind's heading, in the order the words give them. */
@@ -1137,6 +1181,7 @@ const KINDS: [LayoutFindKind, string][] = [
     ["tabular", "Numbers without tabular figures"],
     ["gradient", "Gradient surfaces"],
     ["css-tell", "Static CSS tells"],
+    ["hidden", "Words hidden at the picture (opacity 0)"],
 ];
 
 /** One finding in words, with its numbers. */
@@ -1195,6 +1240,8 @@ function findWords(find: LayoutFind): string {
             return `${find.what}: ${find.image} on ${find.area} px²${times}`;
         case "css-tell":
             return `${find.what}: ${find.rule}${times}`;
+        case "hidden":
+            return `${find.what}: opacity ${find.opacity}, ${find.animation === undefined ? "no animation running: an entrance waiting for an observer or a script that has not run, or content never shown" : `animation ${find.animation} not run`}; show it without the script, and animate it in from there${times}`;
     }
 }
 
@@ -1212,13 +1259,19 @@ function summaryWords(summary: LayoutSummary): string | undefined {
 }
 
 /**
- * The text zoom the page was measured under (PP-433); what the picture leaves out (PP-440): the rest of the box the page
- * scrolls in, and the errors the page threw; and HTML-in-Canvas the renderer lacks (PP-454).
+ * The animations finished before the picture (PP-521); the text zoom the page was measured under (PP-433); what the
+ * picture leaves out (PP-440): the rest of the box the page scrolls in, and the errors the page threw; and
+ * HTML-in-Canvas the renderer lacks (PP-454).
  */
 function pageNotes(report: LayoutReport): string[] {
-    const { scroller, errors = [], canvas, textZoom } = report;
+    const { scroller, errors = [], canvas, textZoom, finished } = report;
 
     return [
+        ...(finished === undefined
+            ? []
+            : [
+                  `${finished} animation${finished === 1 ? " was" : "s were"} still running after the wait and finished before the picture, which shows where ${finished === 1 ? "it ends" : "they end"}.`,
+              ]),
         ...(textZoom === undefined
             ? []
             : [
@@ -1340,6 +1393,10 @@ export function parseLayout(text: unknown, width: number): LayoutReport | undefi
 
         if (value.textZoom !== undefined && !(typeof value.textZoom === "number" && value.textZoom > 0)) {
             delete value.textZoom;
+        }
+
+        if (value.finished !== undefined && !(typeof value.finished === "number" && value.finished > 0)) {
+            delete value.finished;
         }
 
         if (value.width > width + 1 && !value.issues.some((issue) => issue.kind === "page-wider")) {

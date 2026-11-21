@@ -466,7 +466,10 @@ dự án thật.</sub>
   cần), sọc một bên vẽ bằng bóng inset hoặc thanh `::before`/`::after`, và các dấu hiệu CSS tĩnh (`transition: all`,
   line-height 1 trên chữ xuống dòng, ô nhập chữ dưới 16 px trên điện thoại, hộp thoại cuộn thiếu
   `overscroll-behavior: contain`, viewport chặn phóng to, `tnum` thay vì `tabular-nums`), gom nhóm kèm số đo, và báo khi trang dùng quá nhiều
-  cỡ chữ, màu chữ hoặc cỡ biểu tượng. Nội dung ẩn dành cho trình đọc màn hình (bảng dữ liệu của biểu đồ trong hộp 1 px)
+  cỡ chữ, màu chữ hoặc cỡ biểu tượng. Chữ nằm trong khung nhìn mà vẫn ở opacity 0 (hiệu ứng xuất hiện mà observer hoặc
+  script chưa bao giờ chạy) bị báo lỗi; trước khi chụp, bộ render cho các animation còn đang chạy sau thời gian chờ chạy
+  tới cuối, nên trang được vẽ khi không có đồng hồ animation vẫn ra ảnh ở trạng thái cuối, và báo cáo nói rõ bao nhiêu animation.
+  Nội dung ẩn dành cho trình đọc màn hình (bảng dữ liệu của biểu đồ trong hộp 1 px)
   được bỏ qua. Khi đang mở một hộp thoại modal (một `<dialog>` mở dạng modal, một hộp có `aria-modal`, hoặc một hộp mà phần trang quanh nó bị ẩn, inert, không nhận chạm hay bị một lớp phủ che như Radix, Headless UI và React Aria làm), chỉ hộp thoại được đo, và báo cáo nói rõ điều đó. Trình duyệt của Pi cho cùng phép kiểm tra đó với `browser_screenshot`, và riêng
   bằng `browser_layout_check`. Pi dựa vào các con số.
 - **Các bước trước khi chụp.** `screenshot` và `redline` nhận `steps` chạy trong trang trước ảnh và layout check của

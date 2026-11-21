@@ -1236,6 +1236,21 @@ so Pi changes them through the settings tools; "the last session" is the one the
     layout check names a box that still hides content (`scroller`: a fixed height, or the 4000 px cap). Tests:
     `chrome-renderer.test.ts` (shells, sandboxed storage and errors), `remote-session.test.ts` (localhost through a
     forward over the test sshd), `screenshot.test.ts`.
+  - **Entrances at the picture** (PP-521; measured 2026-11-20 in session #317051 on auton-ui's Rail and ZeroHop's
+    site: a render showed a whileInView stagger at 0.7 and 0 opacity after 2 s, and an observer-gated rail empty after
+    6 s, while Playwright's Chrome showed every card within 900 ms; the layout check said nothing, as opacity 0 was
+    no finding). Not reproduced on 2026-11-21: the phone's renderer in front ran rAF at 120 a second and its observer
+    fired, and a machine's headless Chrome's render tab was visible, at 60 a second; so what stops the clock is not
+    known, and the fix does not depend on it. Each request's `check` starts with `FINISH_ANIMATIONS` (`renderRequest`):
+    the page's finite animations still running after the wait (CSS animations and transitions, Web Animations, a
+    stagger's delays) are finished before the page measures itself, and the picture, drawn after the script, shows
+    where they end; endless, paused and scroll-driven ones stay. In the check, so every renderer does it, the app on
+    the phone as it is too, and never on a live tab (`browser_layout_check` runs `layoutCheck` alone): finishing
+    changes the page. The report counts them (`finished`), and words at opacity 0 of their own, in flow and in view,
+    40 x 24 px or more with 12 letters or more, outside a layer, are a finding (`hidden`): an entrance an observer or
+    a script never started leaves its content out of the picture. Test: `layout-check.test.ts` with the tab's clock
+    stopped (`Animation.setPlaybackRate` 0) on `test/fixtures/layout/entrance.html`; auton-ui's `work.html?enter=1`
+    with the clock stopped: the rail's cards 0 before, 1 after.
   - **The layout check's design rules** (PP-395, from the rules a script can measure, PP-394: the unslop, design-artifact
     and html skills and the owner's UI rules; wiki `resources/pi-phone-measurable-ui-rules`). Besides spills, it finds:
     text cut by the nearest box that hides its overflow (a text node's Range past that box: more than 2 px sideways, or

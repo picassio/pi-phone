@@ -13,7 +13,7 @@
  */
 
 /** What the service renders: an address on the app's server, or any http(s) page. */
-import { layoutCheck, type LayoutReport, parseLayout } from "./layout-check.ts";
+import { FINISH_ANIMATIONS, layoutCheck, type LayoutReport, parseLayout } from "./layout-check.ts";
 import { type RenderStep, stepsScript } from "./render-steps.ts";
 
 export type RenderRequest = {
@@ -28,7 +28,11 @@ export type RenderRequest = {
     maxHeight: number;
     /** Wait after the page loads, for scripts, fonts, and pictures from the network. */
     settleMs: number;
-    /** A script the page runs just before it is drawn (`layout-check.ts`): its JSON text comes back with the shot. */
+    /**
+     * A script the page runs just before it is drawn (`layout-check.ts`): its JSON text comes back with the shot. It
+     * starts by finishing the animations still running (`FINISH_ANIMATIONS`, PP-521), so the picture, drawn after it,
+     * shows where they end; this way every renderer does so, the app on the phone as it is too.
+     */
     check: string;
     /**
      * Steps run before each width's check and picture (PP-423, `render-steps.ts`): the script that runs them, "" for none,
@@ -74,7 +78,7 @@ export function renderRequest(
         fullPage,
         maxHeight,
         settleMs,
-        check,
+        check: `${FINISH_ANIMATIONS}\n${check}`,
         steps: steps.length === 0 ? "" : stepsScript(steps),
         stepCount: steps.length,
         height: PAGE_HEIGHT,

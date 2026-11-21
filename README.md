@@ -460,7 +460,9 @@ No Termux, no laptop, no cloud VM.
   `::before`/`::after` bar, and static CSS tells (`transition: all`, line height 1 on wrapping text, a field under 16 px
   on a phone, a scrolling dialog without `overscroll-behavior: contain`, a viewport that blocks zoom, `tnum` instead of
   `tabular-nums`), grouped with their numbers, and says when a page uses too many font sizes,
-  text colours or icon sizes. Content hidden for screen readers (a chart's data table in a 1 px box) is left out. With a
+  text colours or icon sizes. Words left at opacity 0 in view (an entrance an observer or a script never started) are a
+  finding, and a render finishes the animations still running after its wait before the picture, so a page drawn with
+  no animation clock is pictured where they end, and the report says how many. Content hidden for screen readers (a chart's data table in a 1 px box) is left out. With a
   modal dialog open (a `<dialog>` shown modal, one marked `aria-modal`, or one whose page around it is hidden, inert,
   out of a pointer's reach or under an overlay, as Radix, Headless UI and React Aria do), only the dialog is measured,
   and the report says so. Pi's browser gives the same check with `browser_screenshot`, and alone with
