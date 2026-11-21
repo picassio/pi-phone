@@ -581,7 +581,8 @@ ${PAGE_HELPERS}
   // with inline elements) gives its content height, unless it is taller than its lines (a min-height or a fixed height:
   // its height is its own); a line clamp shows its count of lines. A box of boxes gives its children's rows: those side
   // by side give the tallest's (a 24 px icon beside a 21.6 px line makes the row, with no text part), the rows add up;
-  // a box taller than its children's extent gives none. Pictures, fields and icons give none.
+  // a box taller than its children's extent gives none; words beside boxes count as a box of their lines (PP-538).
+  // Pictures and icons give none; fields their own line (fieldPart, PP-538).
   // A height CSS sets (PP-537): a height of its own (auton-ui's h-4 chip, 16 px), a min-height that holds the box, or a
   // max-height that caps it. No lines make it, so text zoom takes nothing back from it (16 px read as 14.8 at 108 %).
   // The computed value (Typed OM) keeps auto as auto, where getComputedStyle gives the px it resolves to.
@@ -591,6 +592,31 @@ ${PAGE_HELPERS}
     return set('height') || (set('min-height') && r.height <= px(s.minHeight) + 0.5) || (set('max-height') && r.height >= px(s.maxHeight) - 0.5);
   };
   const lineRange = document.createRange();
+  // The lines a range's words make: their count, and their first line's box (PP-538).
+  const linesOf = () => {
+    let lines = 0, bottom = -1e9, first = null;
+    for (const q of [...lineRange.getClientRects()].filter((q) => q.width > 0 && q.height > 0).sort((a, b) => a.top - b.top)) {
+      if (q.top >= bottom - 1) { lines++; bottom = q.bottom; if (!first) first = q; } else bottom = Math.max(bottom, q.bottom);
+    }
+    return { lines, first };
+  };
+  // A field's height its own line makes (PP-538): an input or a select as tall as its line (the playbook's title field,
+  // no padding: 20 px, 21.6 at 108 %), unless CSS sets its height or it is taller than its line (auton-ui's SearchInput,
+  // stretched to its frame's 36 px); a textarea as tall as whole lines, unless a stylesheet
+  // sets its height. A height its script writes in its style (an autosize: style.height = scrollHeight, auton-ui's
+  // MentionInput) is its lines' too, and a whole pixel (41.92 written as 42): its part is what text zoom added to the
+  // whole pixel it would be at 100 % (40), so the check takes back that.
+  const NO_LINE = /^(checkbox|radio|range|color|image|file|hidden)$/i;
+  const fieldPart = (e, s, r, content) => {
+    const pitch = px(s.lineHeight);
+    if (!/^textarea$/i.test(e.tagName)) return NO_LINE.test(e.type) || cssHeight(e, s, r) || (pitch > 0 && content > pitch + 1) ? 0 : content;
+    const lines = pitch > 0 ? Math.round(content / pitch) : 0;
+    if (lines < 1 || Math.abs(content - lines * pitch) > 1) return 0;
+    if (!cssHeight(e, s, r) || TEXT_ZOOM === 1) return content;
+    if (!e.style.height || Math.abs(e.scrollHeight - e.clientHeight) > 1) return 0;
+    const whole = Math.round(r.height - lines * pitch * (1 - 1 / TEXT_ZOOM));
+    return (r.height - whole) * TEXT_ZOOM / (TEXT_ZOOM - 1);
+  };
   const boxKids = (e) => [...e.children].flatMap((c) => css(c).display === 'contents' ? boxKids(c) : [c]).filter((c) => css(c).display !== 'none' && !/absolute|fixed/.test(css(c).position));
   const textParts = new Map();
   const textPart = (e) => {
@@ -605,21 +631,31 @@ ${PAGE_HELPERS}
     const holder = s.position === 'absolute' && kids.length === 0 && !words ? e.offsetParent : null;
     const held = holder ? holder.getBoundingClientRect().height - px(css(holder).borderTopWidth) - px(css(holder).borderBottomWidth) : 0;
     if (holder && Math.abs(r.height - held) < 0.5) v = textPart(holder);
-    else if (REPLACED.test(e.tagName) || content < 1 || cssHeight(e, s, r)) v = 0;
+    else if (content < 1) v = 0;
+    else if (/^(input|select|textarea)$/i.test(e.tagName)) v = fieldPart(e, s, r, content);
+    else if (REPLACED.test(e.tagName) || cssHeight(e, s, r)) v = 0;
     else if ((words && kids.every((c) => css(c).display.startsWith('inline'))) || (kids.length > 0 && kids.every((c) => css(c).display === 'inline'))) {
       lineRange.selectNodeContents(e);
-      let lines = 0, bottom = -1e9;
-      for (const q of [...lineRange.getClientRects()].filter((q) => q.width > 0 && q.height > 0).sort((a, b) => a.top - b.top)) {
-        if (q.top >= bottom - 1) { lines++; bottom = q.bottom; } else bottom = Math.max(bottom, q.bottom);
-      }
+      let { lines } = linesOf();
       const clamp = parseInt(s.webkitLineClamp, 10);
       if (clamp > 0) lines = Math.min(lines, clamp);
       const pitch = px(s.lineHeight);
       v = pitch > 0 && content > lines * pitch + 1 ? 0 : content;
     } else {
-      const boxes = kids.map((c) => { const q = c.getBoundingClientRect(), cs = css(c); return { c, t: q.top - px(cs.marginTop), b: q.bottom + px(cs.marginBottom) }; }).sort((a, b) => a.t - b.t);
+      const boxes = kids.map((c) => { const q = c.getBoundingClientRect(), cs = css(c); return { c, t: q.top - px(cs.marginTop), b: q.bottom + px(cs.marginBottom) }; });
+      // Words beside boxes are a box of lines of their own (PP-538): in a flex button, "Amount" beside the 14 px icon of
+      // auton-ui's DataTable sort makes the row (29.6 at 108 %, 28 at 100 %), though no element holds them.
+      for (const n of e.childNodes) {
+        if (n.nodeType !== 3 || n.textContent.trim() === '') continue;
+        lineRange.selectNodeContents(n);
+        const { lines, first } = linesOf();
+        if (!first) continue;
+        const pitch = px(s.lineHeight) || first.height, t = first.top - (pitch - first.height) / 2;
+        boxes.push({ c: null, part: lines * pitch, t, b: t + lines * pitch });
+      }
+      boxes.sort((a, b) => a.t - b.t);
       let sum = 0, row = [], end = -1e9;
-      const close = () => { if (row.length === 0) return; const h = Math.max(...row.map((k) => k.b - k.t)); sum += Math.max(...row.filter((k) => k.b - k.t >= h - 0.5).map((k) => textPart(k.c))); row = []; };
+      const close = () => { if (row.length === 0) return; const h = Math.max(...row.map((k) => k.b - k.t)); sum += Math.max(...row.filter((k) => k.b - k.t >= h - 0.5).map((k) => k.c ? textPart(k.c) : k.part)); row = []; };
       for (const k of boxes) { if (k.t >= end - 1) close(); row.push(k); end = Math.max(row.length === 1 ? -1e9 : end, k.b); }
       close();
       const extent = boxes.length === 0 ? 0 : Math.max(...boxes.map((k) => k.b)) - boxes[0].t;

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heights lines of text make, under text zoom: an autosized textarea, a sort button, a bare input (PP-538)</title>
+<style>
+    /* Text zoom 108 % as an Android WebView computes it (PP-433): the check's 100 px probe as 108, and every px font size
+       and line height 8 % larger (14 px as 15.12, 20 as 21.6, 16 as 17.28, 24 as 25.92). Pictures keep their size. */
+    [data-pi-text-zoom] { font-size: 108px !important; line-height: 108px !important; }
+    body { margin: 0; padding: 16px; font: 15.12px/21.6px sans-serif; color: #111; background: #fff; }
+    button, input, textarea { font: inherit; color: inherit; margin: 0; border: 0; background: #eef; box-sizing: border-box; }
+    svg { display: block; } /* Tailwind's preflight */
+    .row { display: flex; align-items: center; gap: 8px; margin: 16px 0; }
+    /* auton-ui's DataTable: a 48 px head cell, its sort button inline-flex py-1 px-2, the header's words beside a 14 px icon. */
+    table { border-collapse: collapse; }
+    th { height: 48px; padding: 0 16px; font-weight: 400; white-space: nowrap; text-align: left; }
+    .sort { display: inline-flex; align-items: center; gap: 4px; margin: 0 -8px; padding: 4px 8px; border-radius: 2px; cursor: pointer; }
+    /* auton-ui's MentionInput: py-2, a 16 px text-body on a 24 px line, min-h-10; its script sets style.height to its
+       scrollHeight (41.92, a whole pixel: 42). */
+    .composer { display: block; width: 100%; min-height: 40px; max-height: none; padding: 8px 12px; font-size: 17.28px; line-height: 25.92px; resize: none; }
+    /* The playbook page's title field: no padding, its height its line (20 px, 21.6 at 108 %). */
+    .bare { min-width: 0; flex: 1; padding: 0; background: transparent; }
+    /* auton-ui's SearchInput: the field stretched over its 36 px frame's border, taller than its line: as tall as the frame. */
+    .search { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border: 1px solid #9ab; border-radius: 8px; box-sizing: border-box; }
+    .stretch { margin: -1px 0; align-self: stretch; width: 100%; min-width: 0; padding: 0; background: transparent; }
+    /* Heights CSS sets, off the grid: reported as they are. */
+    .h42 { height: 42px; padding: 8px 12px; box-sizing: border-box; }
+    textarea.h42 { font-size: 17.28px; line-height: 25.92px; resize: none; display: block; width: 100%; }
+    #auto { padding: 8.85px 16px; }
+</style>
+</head>
+<body>
+    <table>
+        <thead><tr>
+            <th aria-sort="none"><button type="button" class="sort" id="sort">Amount<span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg></span></button></th>
+            <th>Customer</th>
+        </tr></thead>
+        <tbody><tr><td>120</td><td>Kestrel Freight</td></tr></tbody>
+    </table>
+    <textarea class="composer" id="composer" rows="1" aria-label="Message"></textarea>
+    <div class="row">
+        <input class="bare" id="title" aria-label="Playbook name" value="Refund over 500">
+    </div>
+    <label class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/></svg><input class="stretch" id="search" type="search" aria-label="Search steps" placeholder="Search steps"></label>
+    <div class="row">
+        <button class="h42" id="fixed">Fixed 42</button>
+        <div class="h42" id="box" role="button" tabindex="0">Box 42</div>
+        <button id="auto">Its lines</button>
+    </div>
+    <textarea class="h42" id="tall" rows="1" aria-label="Note"></textarea>
+    <script>
+        const t = document.getElementById("composer");
+        t.style.height = "auto";
+        t.style.height = `${t.scrollHeight}px`;
+    </script>
+</body>
+</html>

@@ -391,7 +391,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
   takes back the part of a height that lines of text make (a box of lines gives its content height unless it is taller
   than its lines; a box of boxes, its rows, the tallest in each; a box taller than its children, none; a height CSS
   sets, none: a `height`, a `min-height` that holds the box, a `max-height` that caps it, read from the computed value
-  (Typed OM) where `getComputedStyle` gives auto as px; PP-537, auton-ui's 16 px CitationChip read as 14.8), tests that on
+  (Typed OM) where `getComputedStyle` gives auto as px; PP-537, auton-ui's 16 px CitationChip read as 14.8; PP-538:
+  words beside boxes, as in a flex button's anonymous item, are a box of their lines, auton-ui's DataTable sort button
+  read as 29.59 for 28; an input or select as tall as its own line gives that line, not one stretched taller; a
+  textarea of whole lines gives them, and one its script sizes to its scrollHeight in its style gives what the zoom
+  added to the whole pixel it is at 100 %, the MentionInput composer read as 42 for 40), tests that on
   the grid ("control height at 100 % text"), and says the zoom in its report. The grid holds at 100 %, which the UI
   tests measure. A button laid over a box to make it one tap target (the top bar's `.title-open`, absolute, inset 0)
   has no lines of its own, so it takes the lines of the box it fills (PP-406: it was reported at 45.6 for 44).

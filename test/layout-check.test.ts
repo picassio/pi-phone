@@ -195,6 +195,7 @@ const PAGES: Record<string, string> = {
     "/fixtures/entrance": readFileSync(new URL("fixtures/layout/entrance.html", import.meta.url), "utf8"),
     "/fixtures/entrance?stuck": readFileSync(new URL("fixtures/layout/entrance.html", import.meta.url), "utf8"),
     "/fixtures/fixed-heights": readFileSync(new URL("fixtures/layout/fixed-heights.html", import.meta.url), "utf8"),
+    "/fixtures/text-heights": readFileSync(new URL("fixtures/layout/text-heights.html", import.meta.url), "utf8"),
 };
 let server: Server;
 let port = 0;
@@ -513,6 +514,34 @@ test("under text zoom, a height CSS sets is measured as it is (auton-ui's 16 px 
         assert.deepEqual(
             of(zoomed, "concentric").map((find) => [short(find.what), short(find.in), find.inner, find.gap, find.border, find.outer, find.want]),
             [["span.tile", "div#tight.card", 8, 4, 0, 20, 12]],
+        );
+    } finally {
+        await engine.close();
+    }
+});
+
+test("under text zoom, heights lines make are taken back: words beside an icon in a flex button (auton-ui's DataTable sort), a textarea its script sizes to its scrollHeight, a bare input's own line; a 42 px height CSS sets and a 37.7 px button are still findings (PP-538)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+
+        await page.init({ width: 390, height: 844, mobile: true });
+
+        const zoomed = await measured(page, "/fixtures/text-heights");
+        const short = (what: string) => what.replace(/ ".*$/, "");
+
+        assert.equal(zoomed.textZoom, 1.08);
+        // ZeroHop on Build #518 at 108 %: the sort button 29.59, the composer 42, the playbook's title 21.59.
+        assert.deepEqual(
+            of(zoomed, "off-grid")
+                .filter((find) => /height/.test(find.property))
+                .map((find) => [short(find.what), find.property, Math.round(find.value * 10) / 10, find.count])
+                .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+            [
+                ["button#auto", "control height at 100 % text", 37.7, 1],
+                ["button#fixed.h42", "control height", 42, 3],
+            ],
         );
     } finally {
         await engine.close();
