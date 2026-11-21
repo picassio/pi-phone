@@ -9,6 +9,9 @@ From a site's address, write a design system of the person's own: the same three
 (OpenDesign's DESIGN.md format and token schema), measured from the site itself, never guessed. The design-system
 skill then lists, applies and checks it like any other.
 
+A design about a real brand or product (or comparing several) needs its assets more than its tokens: the logo always,
+its product pictures or interface, then colours and type. Get them with `references/assets.md`.
+
 ## 1. Measure
 
 1. `browser_open` the address the person gave, then `browser_size` desktop: a brand's site shows its full type scale

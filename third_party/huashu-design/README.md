@@ -55,3 +55,17 @@ upstream's `references/design-styles.md` (92 styles: web 20, slides 20, infograp
 | `xhs.jpg` | `sheet-xhs.jpg`, rendered again (`scripts/build_specimens.py xhs`, Chrome) after every bird sticker in `xhs/_kit/stickers/` was replaced by a flat silhouette of the same size in its muted average colour | MIT. The stickers are PolyForm Shield 1.0.0 (huashu-bird-sticker): not one of their pixels ships |
 
 The 92 per-style specimens (`<section>/NN-name.{html,jpg}`, about 12 MB) are left out.
+
+**Beyond design-artifact (PP-547).** Four more references, each named by one line of its skill's body (no description
+changed):
+
+| pi-phone file | From upstream |
+|---|---|
+| `src/skills/ui-verify/references/look-pass.md` | `references/polish-loop.md` (look at real size, eight questions, the worst three per round, rounds by stage, stop at round 5, first and last shown) |
+| `src/skills/ui-verify/references/critique.md` | `references/critique-guide.md` (concept first with its cap at 6.0, five execution dimensions, weights by medium, ten common problems, the report) |
+| `src/design/skills/brand-extract/references/assets.md` | `references/brand-asset-protocol.md` (assets before tokens, the logo always; ask once, official places, svgl, Simple Icons and the site's icon; the 5-10-2-8 bar; `brand-spec.md`; what to do when something is missing) |
+| `third_party/effective-html/skills/html-prototype/references/app-paradigms.md` | `references/app-paradigms.md` (eight paradigms from the 2025 and 2026 App Store Awards finalists, three more, what was absent, watch, TV and spatial, store ids) and the presentation board of `references/app-prototype.md` |
+
+Upstream's scripts there (`polish.py`, `design_lint.py`, `appstore_shots.py`, `nano-banana-pro`) become `screenshot`
+with `save`, `media` crops and `read`; `web_search`, `fetch_content`, `curl` and Pi's browser; `image_generate` with a
+real reference.

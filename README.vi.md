@@ -529,7 +529,11 @@ dự án thật.</sub>
   mockup hoặc theo luật 4 px, `image_compare` với ảnh mẫu, sửa cho tới khi không còn chữ bị cắt, phần tử đè nhau, độ
   tương phản thấp, chữ dưới 12 px, icon emoji, vùng chạm nhỏ, ảnh hỏng, nhảy cấp tiêu đề hay thẻ lồng trong thẻ, rồi
   báo cáo kèm số đếm trước và sau cùng hình redline
-  hoặc hình khác biệt. Các skill HTML, design-system và unslop đều kết thúc bằng nó.
+  hoặc hình khác biệt. Các skill HTML, design-system và unslop đều kết thúc bằng nó. Trang có thiết kế sau đó được xem
+  lại bằng mắt (tám câu hỏi, mỗi vòng sửa ba lỗi nặng nhất, đặt vòng đầu và vòng cuối cạnh nhau), và khi bạn hỏi một
+  thiết kế có tốt không, Pi chấm điểm từ ý tưởng trước. Việc thiết kế cho một thương hiệu bắt đầu từ logo, ảnh sản phẩm
+  hoặc giao diện của nó rồi mới tới màu, còn prototype app bắt đầu từ tám mô thức của các ứng viên App Store Awards, bày
+  trên một bảng trình bày có bố cục. Ý tưởng từ [huashu-design](https://github.com/alchaincyf/huashu-design).
 - **Hook.** **Menu › Hook** liệt kê các bước kiểm tra pi-phone tự chạy quanh công việc của Pi, nên chúng vẫn diễn ra
   cả khi Pi quên, mỗi hook một công tắc (Pi bật hoặc tắt bằng `setting_change hooks.<id>`, sau khi bạn duyệt thẻ, và mở trang này
   cho bạn bằng `show_screen hooks`):

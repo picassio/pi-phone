@@ -23,5 +23,8 @@ beside it, `references/directions.md`, `borrowing.md`, `colour-type.md`, `materi
 overview sheets in `assets/sheets/`: pi-phone's own files, adapted from huashu-design (MIT; see
 `third_party/huashu-design/`, PP-544 and PP-546), not upstream's. Nothing else is changed.
 
-To update: copy upstream's `skills/` at a new commit here, add the same note, keep `design-artifact/references/` and
-`design-artifact/assets/`, and update the commit above.
+`html-prototype`'s note ends by pointing to `references/app-paradigms.md` beside it, pi-phone's too (huashu-design,
+PP-547).
+
+To update: copy upstream's `skills/` at a new commit here, add the same note, keep `design-artifact/references/`,
+`design-artifact/assets/` and `html-prototype/references/`, and update the commit above.

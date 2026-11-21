@@ -524,7 +524,11 @@ No Termux, no laptop, no cloud VM.
   system's tokens, the mockup or the 4 px rules, `image_compare` against a reference, fixing until there is no cut
   text, overlap, low contrast, text under 12 px, emoji icon, small tap target, broken image, skipped heading or card
   inside a card left, and a report with the counts
-  before and after and the redline or diff picture. The HTML, design-system and unslop skills end with it.
+  before and after and the redline or diff picture. The HTML, design-system and unslop skills end with it. A designed
+  page then gets a look pass by eye (eight questions, the worst three fixed each round, the first and last rounds shown
+  side by side), and asked whether a design is good, Pi scores it concept first. Brand work starts from the brand's
+  logo, product pictures or interface before its colours, and app prototypes from eight paradigms of the App Store
+  Awards finalists, shown on a composed board. Ideas from [huashu-design](https://github.com/alchaincyf/huashu-design).
 - **Hooks.** **Menu › Hooks** lists the checks pi-phone runs around Pi's work by itself, so they happen even when Pi
   forgets them, each with a switch (Pi turns one on or off with `setting_change hooks.<id>`, after your card, and opens the page for you with
   `show_screen hooks`). **Check

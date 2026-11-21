@@ -319,7 +319,7 @@
 - **界面完成前先检查。** 内置的 `ui-verify` 技能让 Pi 在说完成之前用数字检查每个 artifact、HTML 页面和 app 界面：
   390、1280 和 1920 px 的布局检查、按设计系统 token、设计稿或 4 px 规则的标注、与参考图的 `image_compare`，修改到没有被裁文字、
   重叠、低对比度、小于 12 px 的文字、emoji 图标、过小的点按区域、坏图、跳过的标题级别或卡片套卡片为止，并附上前后计数和标注图或差异图。HTML、design-system
-  和 unslop 技能最后都会用它。
+  和 unslop 技能最后都会用它。有设计感的页面随后还要用眼睛过一遍（八个问题，每轮只改最伤的三处，交付时把第一轮和最后一轮并排展示）；问到一个设计好不好时，Pi 先评概念再评执行。涉及具体品牌的设计先取它的 logo、产品图或界面，再谈颜色；App 原型从 App Store Awards 入围作品的八条范式出发，放在有构图的展示板上。思路来自 [huashu-design](https://github.com/alchaincyf/huashu-design)。
 - **钩子。** **菜单 › 钩子** 列出 pi-phone 围绕 Pi 的工作自动运行的检查，即使 Pi 忘了也会进行，每个都有开关（Pi 在你批准卡片后用
   `setting_change hooks.<id>` 开启或关闭，并可用 `show_screen hooks` 为你打开这个页面）。**发布时检查产物**：Pi 发布 HTML、SVG 或交互式产物时，app 以 390、1280 和 1920 px
   渲染它，artifact 工具自己的结果就带上布局检查的发现（被裁文字、重叠、过小的点按区域、低对比度），Pi 在同一次调用中就能看到；

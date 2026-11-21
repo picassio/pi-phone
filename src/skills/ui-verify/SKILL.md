@@ -83,6 +83,10 @@ changed unless the design asks for them (a pulse on a live state, a status strip
 
 Off-grid sizes and spec misses: fix the ones in what you changed; list the rest instead of rewriting a whole screen.
 
+A designed page (an artifact, a landing page, a deck, a prototype), once the numbers are clean, gets a look pass by eye:
+`references/look-pass.md` (eight questions, the worst three fixed per round, first and last shown); asked whether a
+design is good, score it with `references/critique.md` (concept first, which caps the rest).
+
 ## 5. Report
 
 Tell the person, with numbers: each kind's count before and after at 390, 1280 and 1920 (for example "contrast 6 → 0, tap

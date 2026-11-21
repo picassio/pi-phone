@@ -1546,7 +1546,15 @@ so Pi changes them through the settings tools; "the last session" is the one the
     a report with before/after counts and the redline or diff picture. The design skills' final checks point to it: a
     sentence in the pi-phone notes of Effective HTML's `html`, `html-prototype` and `design-artifact` and of unslop
     (its `NOTE` in `scripts/sync-unslop.ts`, so a sync keeps it; each vendoring README says so), and design-system's
-    step 5, ours. AGENTS.md asks the same counts of every UI change.
+    step 5, ours. AGENTS.md asks the same counts of every UI change. Two references from huashu-design (PP-547;
+    `third_party/huashu-design/`), named by one line of its body, its description unchanged: `look-pass.md`, for a
+    designed page once the numbers are clean (screenshots kept with `save`, cut into screens with `media` and read at
+    real size; eight questions; only the worst three fixed per round; one round per draft, 3 to 5 for the final; still
+    rebuilding in round 5 means the direction is wrong, so stop and ask; first and last shown), and `critique.md`, for
+    "is it good?" (concept first, capping the total at 6.0 when it scores 5 or less; five execution dimensions weighted
+    by medium; ten common problems; a report template). html-prototype's pi-phone note names
+    `references/app-paradigms.md` there (eight paradigms of the 2025 and 2026 App Store Awards finalists, each with "on
+    the web", and the presentation board for several screens).
   - **Hooks** (`src/server/hooks.ts`, PP-418/PP-419; the owner's ask of 2026-11-06: checks the agent cannot skip, each
     on or off): the prompt and the skill only ask; a hook is the app doing it. `HOOKS` is the registry (id, title, what
     it does, when it runs, default, owner-only); `config.hooks` keeps only what differs from the defaults
@@ -1954,7 +1962,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
     the schema from the measurements (the main buttons' fill is the accent, or the links' colour when buttons are
     neutral; spacing from the base unit the paddings share; hover states and absent status colours are mixed and said
     as chosen), writes the three files into the person's folder, runs `systems.ts check`, and shows a sample page with
-    `screenshot`. Values only, never logos or images. With browser_eval off it says so and stops (no guessing from a
+    `screenshot`. Values only, never logos or images. A design about a real brand needs its assets instead:
+    `references/assets.md` (PP-547, from huashu-design's brand-asset protocol; one line of the body names it) gets the
+    logo always (svgl's API, Simple Icons, the brand's own page, the header's inline SVG, the site's icon), the product
+    pictures or interface under a 5-10-2-8 bar, then colours with `measure.js`, into a `brand-spec.md` the design reads
+    from, each named product's logo in a comparison. With browser_eval off it says so and stops (no guessing from a
     picture). `measure.js`: computed styles of up to 4,000 visible elements; text colours weighted by characters,
     backgrounds and borders by area; headings, a paragraph, a link, the buttons; sizes, families, loaded faces;
     spacing, radii, shadows; the widest centred container's max-width; `:root` custom properties whose names say
