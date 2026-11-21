@@ -9,7 +9,7 @@ import type { Context } from "@earendil-works/chord/context";
 import { type Cursor, defineExtension, defineTool, GenerationTask, type HookApi, hook, section } from "@earendil-works/pi-durable";
 import type { PocketHost } from "../host.ts";
 import { compareImages, describeComparison, diffPathOf } from "../image-compare.ts";
-import { describeLayout } from "../layout-check.ts";
+import { describeLayout, LookMemory } from "../layout-check.ts";
 import { DEFAULT_WIDTHS, type RenderOptions, type Shot } from "../screenshots.ts";
 import { isPicturePath, NO_DOM, parseRedline, redlinePictures, redlineScript, specFrom } from "../redline.ts";
 import { isPng, markUp } from "../markup.ts";
@@ -253,6 +253,9 @@ export default function createScreenshot(host: PocketHost) {
         return reply(renderer.signIn && missing ? `${message}\n${STEP_SIGN_IN_NOTE}` : message, true);
     };
 
+    /** The skeletons of the pages each conversation shot (PP-545): a reskin of one shot before is named. */
+    const looks = new LookMemory();
+
     const screenshot = defineTool({
         name: "screenshot",
         description: DESCRIPTION,
@@ -352,17 +355,22 @@ export default function createScreenshot(host: PocketHost) {
                 page.close?.();
             }
 
+            const reskins = shots.map((shot) => (shot.layout?.look === undefined ? undefined : looks.note(String(api.conversationId), what, shot.width, shot.layout.look.skeleton)));
+
             return {
                 output: [
                     {
                         type: "text" as const,
                         text: `${what}, ${page.how}${steps.words}: ${shots.map((shot) => `${shot.width}×${shot.height}${shot.parts.length > 1 ? ` in ${shot.parts.length} pictures, top to bottom` : ""}`).join(", ")} (CSS pixels${shots.some((shot) => shot.height >= 4000) ? "; cut at 4000 px tall" : ""}).${modalNote(args.fullPage ?? true, shots)}${saved.length === 0 ? "" : ` Saved as ${saved.join(", ")}.`}${signInNote(page, shots.some((shot) => shot.layout?.password === true))}`,
                     },
-                    ...shots.flatMap((shot) => [
+                    ...shots.flatMap((shot, i) => [
                         ...shot.parts.map((part) => ({ type: "image" as const, data: part.toString("base64"), mimeType: "image/jpeg" })),
                         {
                             type: "text" as const,
-                            text: shot.layout === undefined ? `Layout check at ${shot.width} px: not measured (an older app).` : describeLayout(shot.layout),
+                            text:
+                                shot.layout === undefined
+                                    ? `Layout check at ${shot.width} px: not measured (an older app).`
+                                    : `${describeLayout(shot.layout)}${reskins[i] === undefined ? "" : `\n${reskins[i]}`}`,
                         },
                     ]),
                 ],

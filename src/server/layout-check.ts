@@ -57,6 +57,12 @@
  * text that shimmers (an endless animation of its background's position, auton-ui's "Thinking…") or sits under
  * [aria-busy=true], [role=status] or [data-allow-gradient] is a running state, not a gradient-text finding.
  *
+ * Since PP-545 it takes the facts of huashu-design's design lint (https://github.com/alchaincyf/huashu-design, commit
+ * c4cc219, Copyright alchaincyf, MIT; third_party/huashu-design/README.md): template decoration, a UI face as display
+ * type, pictures by a relative address and what a file page logs as errors, and the page's look (its ground, faces,
+ * look families, and the first screen's skeleton, which the screenshot tool compares to tell a reskin from a new
+ * layout).
+ *
  * Since PP-542, the page itself leads the report (`page`): an error page by its main document's HTTP status (the
  * renderer's `window.__piHttpStatus`, else Navigation Timing's), an error screen the app drew (a dev server's overlay, an
  * error boundary, a short error phrase as its most prominent text with little else), or a page that drew next to nothing.
@@ -102,6 +108,11 @@ export type LayoutFind =
     | { kind: "css-tell"; what: string; rule: string; count: number }
     // PP-521: words at opacity 0 at the picture.
     | { kind: "hidden"; what: string; opacity: number; animation?: string; count: number }
+    // PP-545, from huashu-design's design_lint (third_party/huashu-design/README.md): template decoration, a UI face as
+    // display type, a picture by a relative address in a single-file page.
+    | { kind: "decoration"; what: string; device: Decoration; text: string; count: number }
+    | { kind: "ui-display"; what: string; family: string; size: number; count: number }
+    | { kind: "relative-image"; what: string; src: string; count: number }
     // PP-542: the page is an error page (its HTTP status, an error screen it drew) or looks empty; PP-543: or is still
     // loading (a skeleton, a spinner, aria-busy over most of its main content). Leads the report.
     | {
@@ -119,6 +130,27 @@ export type LayoutFind =
       };
 
 export type LayoutFindKind = LayoutFind["kind"];
+
+/**
+ * Template decoration (PP-545): "A · B · C" labels, a trailing arrow on links and buttons, one accent word in a
+ * headline, 01/02/03 numbering, small monospace labels. Each is a small habit that costs nothing to drop.
+ */
+export type Decoration = "dot-connector" | "trailing-arrow" | "accent-word" | "numbering" | "mono-label";
+
+/**
+ * How the page looks (PP-545, huashu-design's fingerprint): its ground, display and body faces, the look families it
+ * falls in (not faults: a family matters when two drafts share it, or the last deliveries used it), and its first
+ * screen's skeleton, 32 × 20 cells of where boxes, pictures and words lie, centred and scaled, for telling a reskin from
+ * a new layout (`skeletonMatch`).
+ */
+export type LayoutLook = {
+    ground: string;
+    groundClass: string;
+    display?: { family: string; size: number; serif: boolean };
+    body?: string;
+    families: string[];
+    skeleton: number[];
+};
 
 /** What the page's visible text and icons use, for the summary line. */
 export type LayoutSummary = { fontSizes: number[]; colors: string[]; families: string[]; icons: string[]; strokes: string[] };
@@ -141,6 +173,10 @@ export type LayoutReport = {
     scroller?: { what: string; shown: number; full: number };
     /** The page's uncaught errors, as a file page keeps them (`file-pages.ts`'s `PAGE_SHIM`, PP-440). */
     errors?: string[];
+    /** What a file page logged as errors (PP-545): console.error calls, and scripts or stylesheets that failed to load. */
+    logged?: string[];
+    /** How the page looks (PP-545). */
+    look?: LayoutLook;
     /**
      * HTML-in-Canvas the page uses and the renderer lacks (PP-454): what showed it (`canvas[layoutsubtree]`,
      * `canvas[content=drawable]`, or `a call to drawElementImage`: the error a call threw, kept by a file page; a page that
@@ -816,6 +852,23 @@ ${PAGE_HELPERS}
   };
   const unscaled = (e, r) => Math.abs(r.width / (e.offsetWidth || r.width) - 1) <= 0.02;
   const surfaces = new Set();
+  // PP-545, from huashu-design's design_lint (MIT, third_party/huashu-design/README.md). The look: hairline boxes, square
+  // corners, cards of one radius and shadow, the fills, the largest words (the display face). Template decoration,
+  // counted on the walk and given when a page has enough of each to be a habit.
+  const look = { hairlines: 0, boxes: 0, square: 0, kits: new Map(), fills: new Map(), display: null, displaySize: 0 };
+  const deco = { dots: [], arrows: [], numbers: [], mono: [] };
+  // The first screen's skeleton: 32 x 20 cells over the top of the page, as wide as the page and as tall as a phone's
+  // screen (844 px) or a 16:9 desktop's, whatever the view, so the same page gives the same cells. A box, a picture or a
+  // control marks the cells its edges cross; words mark every cell their lines cover.
+  const SK_W = 32, SK_H = 20, SK_TOP = Math.max(1, Math.min(document.documentElement.scrollHeight, W <= ${PHONE_MAX} ? 844 : Math.round(W * 9 / 16)));
+  const skeleton = new Float64Array(SK_W * SK_H);
+  const skeletonBox = (q, fill) => {
+    const t = q.top + scrollY, b = q.bottom + scrollY;
+    if (b <= 0 || t >= SK_TOP || q.right <= 0 || q.left >= W || q.width < 1 || q.height < 1) return;
+    const cx = (x) => Math.max(0, Math.min(SK_W - 1, Math.floor(x / W * SK_W))), cy = (y) => Math.max(0, Math.min(SK_H - 1, Math.floor(y / SK_TOP * SK_H)));
+    const x0 = cx(q.left), x1 = cx(q.right - 0.01), y0 = cy(t), y1 = cy(b - 0.01);
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (fill || y === y0 || y === y1 || x === x0 || x === x1) skeleton[y * SK_W + x]++;
+  };
   // One colour drawn as a gradient (a tint over a fill, corner marks) is a fill, not a gradient.
   // A shimmer (PP-536): an endless animation running on where its background sits (background-position, its x or y, or
   // the background shorthand), a band sweeping over the words.
@@ -950,9 +1003,30 @@ ${PAGE_HELPERS}
     // Gradient surfaces (PP-430): a gradient of two colours or more on 1600 px² or more; [data-allow-gradient] marks one
     // the design asks for (a fade over folded content).
     else if (/gradient\(/.test(style.backgroundImage) && r.width * r.height >= 1600 && !e.hasAttribute('data-allow-gradient') && !flatGradient(style.backgroundImage)) group('gradient', sig(e), () => ({ what: name(e), area: Math.round(r.width * r.height), image: trim(style.backgroundImage, 60) }));
-    if (tag !== 'svg' && painted(style)) surfaces.add(e);
+    const paints = painted(style);
+    if (tag !== 'svg' && paints) surfaces.add(e);
     // Broken images: loaded, with nothing to draw.
     if (tag === 'img' && e.complete && e.naturalWidth === 0 && (e.currentSrc || e.getAttribute('src'))) group('broken-image', sig(e) + '|' + (e.currentSrc || e.getAttribute('src')), () => ({ what: name(e), src: trim(e.currentSrc || e.getAttribute('src'), 80) }));
+    // A picture by a relative address in a single-file page (PP-545): a file page or an artifact (window.__piFilePage,
+    // PAGE_SHIM) shows it from its folder, and loses it once the file travels alone.
+    else if (tag === 'img' && window.__piFilePage === true) {
+      const src = (e.getAttribute('src') || '').trim();
+      if (src && !/^(data:|blob:|https?:|\/\/)/i.test(src)) group('relative-image', sig(e) + '|' + src, () => ({ what: name(e), src: trim(src, 80) }));
+    }
+    // The look (PP-545): hairline boxes (a table's rules are its data's), square corners, and cards of one radius and
+    // one shadow (a phone frame is a device, not a card).
+    if (r.width > 200 && !/^(table|thead|tbody|tfoot|tr|td|th)$/.test(tag) && SIDE.some((k) => style['border' + k + 'Style'] !== 'none' && px(style['border' + k + 'Width']) > 0 && px(style['border' + k + 'Width']) <= 1)) look.hairlines++;
+    const rounding = corners(style);
+    if (r.width > 120 && r.height > 60 && paints) { look.boxes++; if (rounding.every((v) => v === 0)) look.square++; }
+    if (style.boxShadow !== 'none' && rounding.some((v) => v > 0) && !(r.width >= 160 && r.height / r.width >= 1.7 && r.height / r.width <= 2.4 && rounding[0] >= 24)) {
+      const kit = style.borderTopLeftRadius + '|' + style.boxShadow;
+      look.kits.set(kit, (look.kits.get(kit) || 0) + 1);
+    }
+    if (paints || /^(img|svg|canvas|video|picture|iframe)$/.test(tag)) skeletonBox(r, false);
+    if (paints && r.width * r.height >= 400 && !look.fills.has(style.backgroundColor)) {
+      const fill = colour(style.backgroundColor);
+      if (fill && fill[3] > 0.5) look.fills.set(style.backgroundColor, fill);
+    }
     if (/^h[1-6]$/.test(tag)) headings.push(e);
     const radii = corners(style);
     const circle = Math.abs(r.width - r.height) <= Math.max(r.width, r.height) * 0.1 && radii.every((v) => v >= Math.min(r.width, r.height) / 2 - 0.5);
@@ -1170,6 +1244,13 @@ ${PAGE_HELPERS}
     const size = parseFloat(s.fontSize);
     sizes.add(r1(size));
     families.add(s.fontFamily.split(',')[0].trim().replace(/^["']|["']$/g, ''));
+    // The look and template decoration (PP-545).
+    for (const q of rects) skeletonBox(q, true);
+    if (words.length > 1 && size > look.displaySize) { look.displaySize = size; look.display = p; }
+    if ((words.match(/\s·\s/g) || []).length >= 2 && words.length <= 80) deco.dots.push(p);
+    if (/→\s*$/.test(words) && (p.closest('a,button,[role=button],[role=link]') || s.cursor === 'pointer')) deco.arrows.push(p);
+    if (words.length <= 6 && /^0\d([\s./—-]|$)/.test(words) && !p.closest('ol,time,td,th,[role=cell],[role=gridcell],[role=timer],pre,code')) deco.numbers.push(p);
+    if (size <= 14 && words.length > 1 && MONO.test(s.fontFamily.split(',')[0]) && !p.closest('pre,code,kbd,samp,td,th,[role=cell],[role=gridcell]')) deco.mono.push(p);
     // Cut: the text runs past the nearest box that hides its overflow (a scroller is not a cut). Once a box: its
     // numbers are the box's and all of its words' (a title of several runs of words, the last one past the edge, is
     // one cut, not each run measured against the box).
@@ -1292,6 +1373,73 @@ ${PAGE_HELPERS}
     const chars = Math.round(e.textContent.replace(/\s+/g, ' ').trim().length / Math.max(1, lines));
     if (lines >= 3 && chars > 90) group('long-lines', sig(e), () => ({ what: name(e), chars }));
   }
+
+  // Template decoration (PP-545, huashu-design's design_lint): a label of three or more parts joined by " · ", a trailing
+  // arrow on two links or buttons or more, 01/02/03 on three short labels or more outside a list, a table or a time,
+  // small monospace labels (14 px or less) four times or more outside code and tables, and one accent word in a
+  // headline: up to three words and 40 % of an h1's or h2's text in another colour, style or face.
+  const habit = (list, min, device) => { if (list.length >= min) for (const e of list) group('decoration', sig(e) + '|' + device, () => ({ what: name(e), device, text: trim(e.textContent, 40) })); };
+  habit(deco.dots, 1, 'dot-connector');
+  habit(deco.arrows, 2, 'trailing-arrow');
+  habit(deco.numbers, 3, 'numbering');
+  habit(deco.mono, 4, 'mono-label');
+  for (const h of headings) {
+    if (!/^h[12]$/i.test(h.tagName)) continue;
+    const hs = css(h), total = (h.textContent || '').trim().length;
+    const accent = [...h.querySelectorAll('em,i,span,strong,b,mark')].find((c) => {
+      const n = (c.textContent || '').trim().length, cs = css(c);
+      return n > 0 && n <= total * 0.4 && (c.textContent || '').trim().split(/\s+/).length <= 3 && /\p{L}/u.test(c.textContent) && shows(c, c.getBoundingClientRect()) && (cs.color !== hs.color || cs.fontStyle !== hs.fontStyle || cs.fontFamily !== hs.fontFamily);
+    });
+    if (accent) group('decoration', sig(h) + '|accent-word', () => ({ what: name(h), device: 'accent-word', text: trim(accent.textContent, 40) }));
+  }
+  // A UI face as display type (PP-545): the page's largest words, 48 px or more (a docs page's 40 px title is a title), in
+  // a face drawn for small interface text (Inter, Roboto, Arial, Helvetica, Segoe UI, the system's; Inter Display is
+  // drawn for display).
+  const firstFamily = (e) => css(e).fontFamily.split(',')[0].trim().replace(/^["']|["']$/g, '');
+  const displayFace = look.display ? firstFamily(look.display) : '';
+  if (look.display && look.displaySize >= 48 && /^(inter( variable)?|roboto( flex)?|arial|helvetica( neue)?|system-ui|-apple-system|blinkmacsystemfont|segoe ui( variable)?|sans-serif)$/i.test(displayFace)) {
+    group('ui-display', sig(look.display), () => ({ what: name(look.display), family: displayFace, size: r1(look.displaySize) }));
+  }
+  // The look (PP-545, huashu-design's fingerprint): the ground (body's, else the root's, else white) by its class in
+  // oklch, the display and body faces, and the families a page falls in: warm paper with a serif display or a clay
+  // accent, a near-black ground with one vivid accent, hairline newspaper rules with square corners, a kit of cards of
+  // one radius and shadow repeated four times or more.
+  const toLab = (c) => {
+    const f = c.slice(0, 3).map((x) => { x /= 255; return x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); });
+    const l = Math.cbrt(0.4122214708 * f[0] + 0.5363325363 * f[1] + 0.0514459929 * f[2]), m = Math.cbrt(0.2119034982 * f[0] + 0.6806995451 * f[1] + 0.1073969566 * f[2]), q = Math.cbrt(0.0883024619 * f[0] + 0.2817188376 * f[1] + 0.6299787005 * f[2]);
+    return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * q, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * q, 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * q];
+  };
+  const lchOf = (c) => { const [L, a, b] = toLab(c); return [L, Math.hypot(a, b), (Math.atan2(b, a) * 180 / Math.PI + 360) % 360]; };
+  const labDistance = (x, y) => { const a = toLab(x), b = toLab(y); return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]); };
+  const groundClass = (c) => {
+    const [L, C, H] = lchOf(c);
+    if (L > 0.9) return C < 0.003 ? 'neutral white' : H >= 40 && H <= 110 ? 'warm paper' : 'tinted light';
+    if (L < 0.28) return C < 0.03 ? 'near black' : 'dark tinted';
+    if (L < 0.42 && C > 0.025) return 'dark tinted';
+    return C > 0.04 ? 'mid tinted' : 'mid grey';
+  };
+  const opaque = (e) => { const c = e && colour(css(e).backgroundColor); return c && c[3] > 0.5 ? c : null; };
+  const ground = opaque(document.body) || opaque(document.documentElement) || [255, 255, 255, 1];
+  const inks = [...colours].map((h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).concat([1])).concat([...look.fills.values()]);
+  const serif = !!displayFace && !/sans/i.test(displayFace) && /(^serif$|garamond|newsreader|serif|caslon|playfair|fraunces|cormorant|tiempos|lora|baskerville|didot|bodoni|georgia|times|songti|宋|明朝|mincho)/i.test(displayFace);
+  const lookFamilies = [];
+  const clay = inks.some((c) => labDistance(c, [0xD9, 0x77, 0x57]) < 0.07);
+  if (groundClass(ground) === 'warm paper' && (clay || serif)) lookFamilies.push('warm paper' + (serif ? ' + serif display' : '') + (clay ? ' + clay accent' : ''));
+  const vivid = [];
+  for (const c of inks) if (lchOf(c)[1] > 0.15 && !vivid.some((v) => labDistance(v, c) < 0.08)) vivid.push(c);
+  if (lchOf(ground)[0] < 0.2 && vivid.length === 1) lookFamilies.push('dark + one accent (' + hex(vivid[0]) + ')');
+  if (look.hairlines >= 8 && look.boxes > 0 && look.square / look.boxes > 0.9) lookFamilies.push('hairline newspaper (' + look.hairlines + ' hairlines, square corners)');
+  const kit = Math.max(0, ...look.kits.values());
+  if (kit >= 4) lookFamilies.push('card kit (one radius and shadow ×' + kit + ')');
+  const bodyText = [...document.querySelectorAll('p,li')].find((e) => (e.textContent || '').trim().length > 20 && shows(e, e.getBoundingClientRect()));
+  let sum = 0, squares = 0;
+  for (const v of skeleton) { sum += v; squares += v * v; }
+  const mean = sum / skeleton.length, sd = Math.sqrt(Math.max(0, squares / skeleton.length - mean * mean));
+  const lookOut = Object.assign(
+    { ground: hex(ground), groundClass: groundClass(ground), families: lookFamilies, skeleton: [...skeleton].map((v) => sd > 0 ? r2((v - mean) / sd) : 0) },
+    look.display ? { display: { family: displayFace, size: r1(look.displaySize), serif } } : {},
+    bodyText ? { body: firstFamily(bodyText) } : {},
+  );
 
   // The page itself (PP-542): an error page, or one that drew next to nothing, is no screen to judge, however clean its
   // layout (ZeroHop's Settings › Project crashed, Error 500, and was called clean). Its main document's HTTP status (the
@@ -1468,6 +1616,8 @@ ${PAGE_HELPERS}
     if (!shellBox || e.scrollHeight - e.clientHeight > shellBox.full - shellBox.shown) shellBox = { what: name(e), shown: e.clientHeight, full: e.scrollHeight };
   }
   const errors = Array.isArray(window.__piPageErrors) ? window.__piPageErrors.slice(0, 5).map((x) => String(x).slice(0, 300)) : [];
+  // What a file page logged as errors (PP-545, PAGE_SHIM): console.error calls, scripts and stylesheets that failed.
+  const logged = Array.isArray(window.__piConsoleErrors) ? window.__piConsoleErrors.slice(0, 5).map((x) => String(x).slice(0, 300)) : [];
   // HTML-in-Canvas (PP-454) that this renderer lacks: the page's canvases then show what it draws without it.
   let canvasUse;
   if (typeof CanvasRenderingContext2D === 'undefined' || typeof CanvasRenderingContext2D.prototype.drawElementImage !== 'function') {
@@ -1478,7 +1628,7 @@ ${PAGE_HELPERS}
     else if (Array.isArray(window.__piPageErrors) && window.__piPageErrors.some((x) => /\bdrawElementImage\b/.test(String(x)))) canvasUse = 'a call to drawElementImage';
   }
   const canvas = canvasUse ? { uses: canvasUse, chrome: (/Chrome\/(\d+)/.exec(navigator.userAgent) || [, 'unknown'])[1] } : undefined;
-  return JSON.stringify(Object.assign({ width: W, height: innerHeight, checked: Math.min(checked, 4000), issues, more, found, totals, summary }, modal ? { modal: name(modal) } : {}, TEXT_ZOOM !== 1 ? { textZoom: TEXT_ZOOM } : {}, shellBox ? { scroller: shellBox } : {}, errors.length ? { errors } : {}, canvas ? { canvas } : {}, ${PASSWORD_SHOWN} ? { password: true } : {}, window.__piFinished > 0 ? { finished: window.__piFinished } : {}));
+  return JSON.stringify(Object.assign({ width: W, height: innerHeight, checked: Math.min(checked, 4000), issues, more, found, totals, summary }, modal ? { modal: name(modal) } : {}, TEXT_ZOOM !== 1 ? { textZoom: TEXT_ZOOM } : {}, shellBox ? { scroller: shellBox } : {}, errors.length ? { errors } : {}, logged.length ? { logged } : {}, { look: lookOut }, canvas ? { canvas } : {}, ${PASSWORD_SHOWN} ? { password: true } : {}, window.__piFinished > 0 ? { finished: window.__piFinished } : {}));
 })()`;
 
 /** Each kind's heading, in the order the words give them. */
@@ -1511,7 +1661,18 @@ const KINDS: [LayoutFindKind, string][] = [
     ["gradient", "Gradient surfaces"],
     ["css-tell", "Static CSS tells"],
     ["hidden", "Words hidden at the picture (opacity 0)"],
+    ["relative-image", "Pictures by a relative address in a single-file page (lost when the file travels alone: embed them)"],
+    ["ui-display", "A UI face as display type"],
+    ["decoration", "Template decoration"],
 ];
+
+const DECORATION_WORDS: Record<Decoration, string> = {
+    "dot-connector": 'parts joined by " · "',
+    "trailing-arrow": "a trailing → on a link or button",
+    "accent-word": "one accent word in the headline",
+    numbering: "01/02/03 numbering: is the order real information?",
+    "mono-label": "a small monospace label",
+};
 
 /** One finding in words, with its numbers. */
 function findWords(find: LayoutFind): string {
@@ -1579,6 +1740,12 @@ function findWords(find: LayoutFind): string {
                     : `This page looks empty: ${find.words} word${find.words === 1 ? "" : "s"}, ${find.elements} element${find.elements === 1 ? "" : "s"} in view.`;
         case "hidden":
             return `${find.what}: opacity ${find.opacity}, ${find.animation === undefined ? "no animation running: an entrance waiting for an observer or a script that has not run, or content never shown" : `animation ${find.animation} not run`}; show it without the script, and animate it in from there${times}`;
+        case "relative-image":
+            return `${find.what}: ${find.src}${times}`;
+        case "ui-display":
+            return `${find.what}: ${find.family} at ${find.size} px, a face drawn for small interface text${times}`;
+        case "decoration":
+            return `${find.what}: ${DECORATION_WORDS[find.device]} ("${find.text}")${times}`;
     }
 }
 
@@ -1596,12 +1763,89 @@ function summaryWords(summary: LayoutSummary): string | undefined {
 }
 
 /**
+ * The look in a line (PP-545), for a page with display type (32 px or more) or a look family: its ground, display and
+ * body faces, and the families it falls in.
+ */
+function lookWords(look: LayoutLook | undefined): string | undefined {
+    if (look === undefined || (look.families.length === 0 && (look.display === undefined || look.display.size < 32))) {
+        return undefined;
+    }
+
+    const display = look.display === undefined ? "" : `; display ${look.display.family} ${look.display.size} px (${look.display.serif ? "serif" : "sans"})`;
+    const families = look.families.length === 0 ? "" : `; look families: ${look.families.join(", ")} (no fault alone: one when two drafts share it, or recent work used it)`;
+
+    return `Look: ${look.groundClass} ground ${look.ground}${display}${look.body === undefined ? "" : `; body ${look.body}`}${families}.`;
+}
+
+/** Cells in a look's skeleton (32 × 20). */
+export const SKELETON_CELLS = 640;
+/**
+ * The correlation of two pages' skeletons (PP-545, huashu-design's layout vector, from the DOM instead of edges in the
+ * picture): 1 for the same layout, near 0 for unrelated ones. At `RESKIN` or more, the second is the first in new
+ * colours and faces.
+ */
+export function skeletonMatch(a: number[], b: number[]): number {
+    if (a.length !== SKELETON_CELLS || b.length !== SKELETON_CELLS) {
+        throw new Error(`A skeleton has ${SKELETON_CELLS} cells, not ${a.length} and ${b.length}`);
+    }
+
+    return Math.round((a.reduce((sum, x, i) => sum + x * (b[i] ?? 0), 0) / SKELETON_CELLS) * 100) / 100;
+}
+
+/** A correlation of two skeletons from which the second page is a reskin of the first (PP-545; calibrated in its test). */
+export const RESKIN = 0.8;
+
+/**
+ * The skeletons of the pages a conversation shot (PP-545), so three drafts shot one after another are told apart from
+ * one layout in three skins: each page (by what it is) at each width, the newest 24 of a conversation, 50
+ * conversations.
+ */
+export class LookMemory {
+    private readonly byConversation = new Map<string, { what: string; width: number; skeleton: number[] }[]>();
+
+    /** Keeps this page's skeleton, and says which other page shot at this width it reskins, if one. */
+    note(conversation: string, what: string, width: number, skeleton: number[]): string | undefined {
+        const seen = this.byConversation.get(conversation) ?? [];
+        let best: { what: string; match: number } | undefined;
+
+        for (const other of seen) {
+            if (other.width !== width || other.what === what) {
+                continue;
+            }
+
+            const match = skeletonMatch(skeleton, other.skeleton);
+
+            if (match >= RESKIN && (best === undefined || match > best.match)) {
+                best = { what: other.what, match };
+            }
+        }
+
+        const kept = [...seen.filter((other) => other.what !== what || other.width !== width), { what, width, skeleton }].slice(-24);
+
+        this.byConversation.delete(conversation);
+        this.byConversation.set(conversation, kept);
+
+        for (const oldest of this.byConversation.keys()) {
+            if (this.byConversation.size <= 50) {
+                break;
+            }
+
+            this.byConversation.delete(oldest);
+        }
+
+        return best === undefined
+            ? undefined
+            : `Same first-screen skeleton as ${best.what} at ${width} px (correlation ${best.match}): the same layout in other colours and faces, not a direction of its own.`;
+    }
+}
+
+/**
  * The animations finished before the picture (PP-521); the text zoom the page was measured under (PP-433); what the
  * picture leaves out (PP-440): the rest of the box the page scrolls in, and the errors the page threw; and
  * HTML-in-Canvas the renderer lacks (PP-454).
  */
 function pageNotes(report: LayoutReport): string[] {
-    const { scroller, errors = [], canvas, textZoom, finished } = report;
+    const { scroller, errors = [], logged = [], canvas, textZoom, finished } = report;
 
     return [
         ...(finished === undefined
@@ -1616,6 +1860,7 @@ function pageNotes(report: LayoutReport): string[] {
               ]),
         ...(scroller === undefined ? [] : [`The page scrolls inside ${scroller.what}: the picture shows ${scroller.shown} of its ${scroller.full} px, the rest is not in it.`]),
         ...(errors.length === 0 ? [] : [`The page threw: ${errors.join("; ")}`]),
+        ...(logged.length === 0 ? [] : [`The page logged errors: ${logged.join("; ")}`]),
         ...(canvas === undefined
             ? []
             : [
@@ -1629,11 +1874,13 @@ export function describeLayout(report: LayoutReport): string {
     const head = `Layout check at ${report.width} px (${report.checked} elements${report.modal === undefined ? "" : `, measured inside the open dialog ${report.modal}; the page behind it is left out`})`;
     const total = report.issues.length + report.more + Object.values(report.totals).reduce((sum, n) => sum + (n ?? 0), 0);
     const summary = summaryWords(report.summary);
+    const look = lookWords(report.look);
 
     if (total === 0) {
         return [
             `${head}: nothing spills out of its box or its parent, the page is no wider than the screen, and no text is cut, covered, too small or too faint; tap targets and sizes are in order.`,
             ...(summary === undefined ? [] : [summary]),
+            ...(look === undefined ? [] : [look]),
             ...pageNotes(report),
         ].join("\n");
     }
@@ -1682,8 +1929,33 @@ export function describeLayout(report: LayoutReport): string {
         lines.push(summary);
     }
 
+    if (look !== undefined) {
+        lines.push(look);
+    }
+
     return [...lines, ...pageNotes(report)].join("\n");
 }
+
+const isLook = (value: unknown): value is LayoutLook => {
+    if (typeof value !== "object" || value === null) {
+        return false;
+    }
+
+    const look = value as Partial<LayoutLook>;
+    const display = look.display;
+
+    return (
+        typeof look.ground === "string" &&
+        typeof look.groundClass === "string" &&
+        Array.isArray(look.families) &&
+        look.families.every((each) => typeof each === "string") &&
+        Array.isArray(look.skeleton) &&
+        look.skeleton.length === SKELETON_CELLS &&
+        look.skeleton.every((each) => typeof each === "number") &&
+        (look.body === undefined || typeof look.body === "string") &&
+        (display === undefined || (typeof display === "object" && display !== null && typeof display.family === "string" && typeof display.size === "number" && typeof display.serif === "boolean"))
+    );
+};
 
 const isFind = (value: unknown): value is LayoutFind =>
     typeof value === "object" && value !== null && KINDS.some(([kind]) => kind === (value as { kind?: unknown }).kind) && typeof (value as { what?: unknown }).what === "string";
@@ -1722,6 +1994,14 @@ export function parseLayout(text: unknown, width: number): LayoutReport | undefi
 
         if (errors !== undefined && !(Array.isArray(errors) && errors.every((each) => typeof each === "string"))) {
             delete value.errors;
+        }
+
+        if (value.logged !== undefined && !(Array.isArray(value.logged) && value.logged.every((each) => typeof each === "string"))) {
+            delete value.logged;
+        }
+
+        if (value.look !== undefined && !isLook(value.look)) {
+            delete value.look;
         }
 
         if (value.canvas !== undefined && (typeof value.canvas?.uses !== "string" || typeof value.canvas.chrome !== "string")) {

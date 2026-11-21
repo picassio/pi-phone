@@ -1,0 +1,37 @@
+<!doctype html>
+<!-- PP-545: a designed page none of the template-decoration rules may find, adapted from huashu-design's
+     scripts/tests/fixtures/lint_clean.html (alchaincyf, MIT, commit c4cc219), its words in English: a two-column hero of
+     huge condensed type beside a dark panel, then a paragraph. Its skeleton is not huashu-slop's. ?file adds a picture by
+     a relative address and a page that logs errors, for the single-file rules (served with PAGE_SHIM, or without it). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>Screenshots, filed</title>
+<style>
+  body { margin: 0; background: #DCE6F0; color: #0F1E2E; font: 17px/1.7 Helvetica, Arial, sans-serif; }
+  .hero { display: grid; grid-template-columns: 2fr 1fr; min-height: 640px; }
+  .big { font: 900 140px/0.9 Impact, "Arial Black", sans-serif; padding: 60px; color: #0F1E2E; overflow-wrap: anywhere; }
+  .side { background: #0F1E2E; color: #DCE6F0; padding: 60px; }
+  p { max-width: 34em; margin: 0; }
+  img { display: block; width: 120px; height: 80px; }
+  @media (max-width: 600px) { .hero { grid-template-columns: 1fr; } .big { font-size: 88px; padding: 32px; } .side { padding: 32px; } }
+</style>
+</head>
+<body>
+<div class="hero"><div class="big">Filed<br>away</div><div class="side"><p>Four thousand eight hundred screenshots, sorted into thirty-seven folders. Each comes back with one sentence, all offline.</p></div></div>
+<div style="padding:60px 32px"><p>A second paragraph, long enough for the check to take it for body text and its face for the body's.</p></div>
+<script>
+  if (location.search === "?file") {
+    const img = document.createElement("img");
+    img.src = "pixel.svg";
+    img.alt = "A grey block";
+    document.body.append(img);
+    const missing = document.createElement("script");
+    missing.src = "missing.js";
+    document.head.append(missing);
+    console.error("Chart data failed:", new Error("no rows"));
+  }
+</script>
+</body>
+</html>

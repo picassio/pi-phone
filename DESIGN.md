@@ -1249,6 +1249,28 @@ so Pi changes them through the settings tools; "the last session" is the one the
   areas: a skeleton card beside real cards shares their rows and counts for nothing, and one skeleton card among a
   page's content covers a small share. An error screen comes before it, and it before "looks empty" (a lone spinner
   and "Loading…" is still loading).
+  huashu-design's facts (PP-545; owner's choice of 2026-11-21 after research PP-540: all four groups; alchaincyf's
+  `scripts/design_lint.py`, MIT, `c4cc219`, rules rewritten in the page script, its fixtures adapted): template
+  decoration (`decoration`: a label of three parts or more joined by " · ", up to 80 characters; a trailing → on two
+  links or buttons or more; 01/02/03 on three short labels or more outside `ol`, `time`, tables, timers and code; small
+  monospace labels, 14 px or less, four times or more outside code and tables; one accent word in an h1 or h2: up to
+  three words and 40 % of its text in another colour, style or face), a UI face as display type (`ui-display`: the
+  page's largest words, 48 px or more, in Inter, Roboto, Arial, Helvetica, Segoe UI or the system's), and in a file
+  page (`PAGE_SHIM` sets `window.__piFilePage`) pictures by a relative address (`relative-image`) and what it logs as
+  errors (`logged`: console.error, and a script or stylesheet that failed to load, kept in
+  `window.__piConsoleErrors`). All advisory but the errors. The report's `look`: the ground (body's, else the root's)
+  by its oklch class, the display face (the largest words) and the body's, and the look families as facts, not faults:
+  warm paper with a serif display or a clay accent (#D97757 within 0.07 in oklab), a near-black ground with one vivid
+  colour, hairline newspaper (8 boxes over 200 px with a 1 px side, outside tables, and 90 % square corners), a card
+  kit (one radius and shadow four times or more, a phone frame left out). Its `skeleton`: 32 × 20 cells over the first
+  screen (844 px at a phone's width, 16:9 on a desktop, whatever the view), each box, picture and control marking the
+  cells its edges cross and words the cells they cover, centred and scaled. The `screenshot` tool keeps each
+  conversation's skeletons (`LookMemory`: 24 pages, 50 conversations) and names a page whose skeleton correlates 0.8
+  or more with another page's at the same width: huashu's slop page and its reskin measure 0.96 at 390 and 1280, three
+  real drafts 0.12 to 0.32, unrelated sites up to 0.56. Measured on the devbox: react.dev, MDN, GitHub, HN, Vercel,
+  Stripe, Apple and noma.dk give none of the new findings; linear.app gives the decoration it uses (trailing arrows,
+  small monospace labels) and Inter at 64 px; the check costs 0 to 26 % more (linear.app at 390: 214 to 269 ms;
+  react.dev at 1280: 347 to 383 ms).
   Allowed in plan mode. A `seeing` prompt section asks Pi to look before calling an artifact done; Effective HTML's and
   OfficeCLI's pi-phone notes point to it.
   - **On a machine, app shells, file pages** (PP-440; reported from a session on tuanlh-devbox-01, 2026-11-07, proved there

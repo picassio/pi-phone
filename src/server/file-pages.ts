@@ -80,13 +80,21 @@ export function withBase(html: string, href: string): string {
  * What a file page runs before its own scripts (PP-440). The sandbox gives the page an origin of its own, where
  * `localStorage` and `sessionStorage` throw a SecurityError: an app that reads them outside a try (a single-file React
  * build) drew nothing, a blank screenshot. Here both are storage in memory, empty at each load, as on a first visit. The
- * page's uncaught errors are kept in `window.__piPageErrors`, which the layout check reports (`layout-check.ts`).
+ * page's uncaught errors are kept in `window.__piPageErrors`, which the layout check reports (`layout-check.ts`), and
+ * since PP-545 what it logs as errors (console.error, a script or stylesheet that failed to load) in
+ * `window.__piConsoleErrors`; `window.__piFilePage` tells the check the page is a single file, where a picture by a
+ * relative address is a finding.
  */
 export const PAGE_SHIM =
     "<script>(function(){var w=window,errors=w.__piPageErrors=[];" +
     'function say(x,m){if(errors.length<20)errors.push(x&&x.name?x.name+": "+x.message:String(m||x))}' +
     'w.addEventListener("error",function(e){if(e.target===w)say(e.error,e.message)});' +
     'w.addEventListener("unhandledrejection",function(e){say(e.reason,"Unhandled rejection")});' +
+    // PP-545: a file page (relative pictures are a finding there), and what it logs as errors: console.error, and a
+    // script or stylesheet that fails to load (a picture's failure is the layout check's broken image).
+    'w.__piFilePage=true;var logged=w.__piConsoleErrors=[];function log(m){if(logged.length<20)logged.push(String(m).slice(0,300))}' +
+    'var ce=console.error;console.error=function(){log(Array.prototype.map.call(arguments,function(a){return typeof a==="string"?a:a&&a.message?a.message:String(a)}).join(" "));return ce.apply(console,arguments)};' +
+    'w.addEventListener("error",function(e){var t=e.target;if(t&&t!==w&&t.tagName&&!/^IMG$/i.test(t.tagName))log("Failed to load "+t.tagName.toLowerCase()+" "+(t.src||t.href||""))},true);' +
     "function store(){var d=new Map();return{get length(){return d.size},key:function(i){var k=Array.from(d.keys())[i];return k===undefined?null:k}," +
     "getItem:function(k){k=String(k);return d.has(k)?d.get(k):null},setItem:function(k,v){d.set(String(k),String(v))}," +
     "removeItem:function(k){d.delete(String(k))},clear:function(){d.clear()}}}" +

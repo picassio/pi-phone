@@ -474,7 +474,12 @@ dự án thật.</sub>
   cần), sọc một bên vẽ bằng bóng inset hoặc thanh `::before`/`::after`, và các dấu hiệu CSS tĩnh (`transition: all`,
   line-height 1 trên chữ xuống dòng, ô nhập chữ dưới 16 px trên điện thoại, hộp thoại cuộn thiếu
   `overscroll-behavior: contain`, viewport chặn phóng to, `tnum` thay vì `tabular-nums`), gom nhóm kèm số đo, và báo khi trang dùng quá nhiều
-  cỡ chữ, màu chữ hoặc cỡ biểu tượng. Chữ nằm trong khung nhìn mà vẫn ở opacity 0 (hiệu ứng xuất hiện mà observer hoặc
+  cỡ chữ, màu chữ hoặc cỡ biểu tượng. Từ bộ design lint của [huashu-design](https://github.com/alchaincyf/huashu-design)
+  nó còn tìm các chi tiết trang trí kiểu mẫu (nhãn nối các phần bằng " · ", mũi tên đuôi trên link và nút, một chữ đổi màu
+  trong tiêu đề, đánh số 01/02/03, nhãn mono cỡ nhỏ), font giao diện như Inter dùng làm chữ display, ảnh dùng đường dẫn
+  tương đối trong trang một file, và lỗi mà trang file ghi ra console; trang có thiết kế được thêm một dòng Look (nền,
+  font và họ diện mạo: giấy kem với serif, nền tối một màu nhấn, kiểu báo kẻ mảnh, bộ card), và bản nháp có bộ khung màn
+  đầu giống một trang đã chụp trong phiên được gọi tên là bản thay áo của trang đó. Chữ nằm trong khung nhìn mà vẫn ở opacity 0 (hiệu ứng xuất hiện mà observer hoặc
   script chưa bao giờ chạy) bị báo lỗi; trước khi chụp, bộ render cho các animation còn đang chạy sau thời gian chờ chạy
   tới cuối, nên trang được vẽ khi không có đồng hồ animation vẫn ra ảnh ở trạng thái cuối, và báo cáo nói rõ bao nhiêu animation.
   Nội dung ẩn dành cho trình đọc màn hình (bảng dữ liệu của biểu đồ trong hộp 1 px)

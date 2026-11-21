@@ -25,8 +25,13 @@ numbers. Do every step on the real thing: the artifact, the file, or the live ap
   report counts, and "nothing out of place" never counts on such a page. Then read the rest: cut text, covered text or controls, tap targets, off-grid
   sizes, contrast, small text, emoji, type, and the tells of an assembled page (broken images, skipped headings, cards
   inside cards, side-tab stripes, glows, pulsing dots, narrow justified text, tight leading, repeated words, corners
-  not concentric or poking out of a rounded parent, numbers without tabular figures, gradient surfaces, static CSS tells). Then look at the picture for what numbers cannot say (alignment, balance).
+  not concentric or poking out of a rounded parent, numbers without tabular figures, gradient surfaces, static CSS tells,
+  template decoration, a UI face as display type, pictures by a relative address in a single file). Then look at the picture for what numbers cannot say (alignment, balance).
   When they disagree, find out why; never explain a number away.
+- A designed page gets a **Look** line: its ground, display and body faces, and the look families it falls in (warm
+  paper with a serif or clay, dark with one accent, hairline newspaper, a card kit). A family is no fault alone; avoid
+  two drafts in one family, and what recent work used. Shooting several drafts in one session, the check names a draft
+  whose first screen has the same skeleton as one shot before: the same layout reskinned, not a direction of its own.
 - A page in Pi's browser (a machine's dev server, a site): `browser_layout_check`, or `browser_screenshot` (its
   answer has the same check).
 
@@ -65,12 +70,16 @@ Fix, then run steps 1 to 3 again, until these are zero:
   one), and chips in a sentence under 24 px tall with no hit area;
 - broken images, skipped heading levels, and cards inside cards;
 - words hidden at the picture (opacity 0): show the content by default and animate it in from there, never hide it
-  until an observer or a timer says so.
+  until an observer or a timer says so;
+- what the page threw or logged as errors (console.error, a script or stylesheet that failed to load);
+- pictures by a relative address in a page that ships as one file (an artifact, a file to send): embed them as data
+  URIs or use full `https://` addresses.
 
 Side-tab stripes, glows, pulsing dots, narrow justified text, tight leading, repeated words, corners not concentric or poking out,
-numbers without tabular figures, gradient surfaces and static CSS tells: fix them in what you made or changed unless
-the design asks for them (a pulse on a live state, a status stripe the owner chose, a fade marked
-`data-allow-gradient`), and say which stay and why.
+numbers without tabular figures, gradient surfaces, static CSS tells, template decoration (" · " labels, trailing
+arrows, one accent word, 01/02/03, small monospace labels) and a UI face as display type: fix them in what you made or
+changed unless the design asks for them (a pulse on a live state, a status stripe the owner chose, a fade marked
+`data-allow-gradient`, numbers for a real sequence), and say which stay and why.
 
 Off-grid sizes and spec misses: fix the ones in what you changed; list the rest instead of rewriting a whole screen.
 

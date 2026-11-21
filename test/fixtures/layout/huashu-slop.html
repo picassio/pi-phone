@@ -1,0 +1,43 @@
+<!doctype html>
+<!-- PP-545: the page every template-decoration rule finds, adapted from huashu-design's
+     scripts/tests/fixtures/lint_slop.html (alchaincyf, MIT, commit c4cc219; third_party/huashu-design/README.md), its words
+     in English. A label of parts joined by " · ", one accent word in the headline, 01-04 on the cards, small monospace
+     labels, a trailing arrow on each link; warm cream, a serif display and a clay accent; four cards of one radius and
+     shadow. ?reskin is the same layout on navy with Impact and yellow: a reskin. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>Every cup has a history</title>
+<style>
+  body { margin: 0; background: #F4F1EA; color: #1C1A17; font: 16px/1.6 Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 60px 40px; }
+  .eyebrow { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: #6b6358; }
+  h1 { font: 400 76px/1.05 Georgia, serif; margin: 12px 0 24px; }
+  h1 em { color: #D97757; font-style: italic; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; margin-top: 40px; }
+  .card { background: #fff; border-radius: 14px; box-shadow: 0 2px 8px rgba(0, 0, 0, .1); padding: 24px; }
+  .num { font: 14px/1 Courier, monospace; color: #9a4a2f; }
+  a.cta { color: #9a4a2f; text-decoration: none; cursor: pointer; }
+  body.reskin { background: #1E3A5F; color: #F2F2F2; }
+  body.reskin .eyebrow { color: #C9D6E3; }
+  body.reskin h1 { font-family: Impact, sans-serif; }
+  body.reskin h1 em, body.reskin .num, body.reskin a.cta { color: #FFD23F; }
+  body.reskin .card { background: #2B4C74; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Origin · Process · Roast</div>
+  <h1>Every cup has a <em>history</em>.</h1>
+  <p>A paragraph long enough for the check to take it for body text, whatever it says about the coffee.</p>
+  <div class="grid">
+    <div class="card"><div class="num">01</div><div class="eyebrow">Step one</div><p>The first card's words, long enough to read as a sentence.</p><a class="cta">Learn more →</a></div>
+    <div class="card"><div class="num">02</div><div class="eyebrow">Step two</div><p>The second card's words, long enough to read as a sentence.</p><a class="cta">Learn more →</a></div>
+    <div class="card"><div class="num">03</div><div class="eyebrow">Step three</div><p>The third card's words, long enough to read as a sentence.</p><a class="cta">Learn more →</a></div>
+    <div class="card"><div class="num">04</div><div class="eyebrow">Step four</div><p>The fourth card's words, long enough to read as a sentence.</p><a class="cta">Learn more →</a></div>
+  </div>
+</div>
+<script>if (location.search === "?reskin") document.body.classList.add("reskin");</script>
+</body>
+</html>
