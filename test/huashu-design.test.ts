@@ -21,6 +21,17 @@ test("the credit folder holds upstream's MIT licence and a README naming the com
     for (const file of REFERENCES) {
         assert.ok(readme.includes(`design-artifact/references/${file}`), file);
     }
+    // PP-545: the layout check's rules from design_lint.py, and the fixtures adapted from its test pages.
+    for (const file of [
+        "src/server/layout-check.ts",
+        "src/server/file-pages.ts",
+        "src/server/extensions/screenshot.ts",
+        "src/skills/ui-verify/SKILL.md",
+        "test/fixtures/layout/huashu-slop.html",
+        "test/fixtures/layout/huashu-clean.html",
+    ]) {
+        assert.ok(readme.includes(`\`${file}`), file);
+    }
 
     assert.deepEqual(readdirSync(CREDIT).sort(), ["LICENSE", "README.md"], "no upstream file but its licence");
 });
