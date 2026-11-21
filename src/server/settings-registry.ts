@@ -1632,7 +1632,7 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             id: "mcp.enabled",
             area: "mcp",
             title: "An MCP server is on",
-            help: "on or off. Target: the server. An entry changed since approved: mcp_server_set (its card shows it).",
+            help: "on or off. Target: the server. An entry changed since approved: set_mcp_server (its card shows it).",
             owner: true,
             target: "mcp-server",
             read: (target) => (mcpServer(target).enabled ? "on" : "off"),
@@ -1643,7 +1643,7 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
 
                 // This card shows the value, not the entry: an entry changed elsewhere is approved on its own card.
                 if (on && !server.approved) {
-                    throw new HttpError(400, `${server.name} changed since it was approved: turn it on with mcp_server_set (action enable), whose card shows the entry.`);
+                    throw new HttpError(400, `${server.name} changed since it was approved: turn it on with set_mcp_server (action enable), whose card shows the entry.`);
                 }
 
                 app.mcpPage.enable(server.name, on);

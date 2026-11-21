@@ -840,5 +840,5 @@
     "There is no MCP server {1}.": "没有 MCP 服务器 {1}。",
     "enabled is true or false.": "enabled 为 true 或 false。",
     "There is no MCP server {1}. MCP servers: {2}.": "没有 MCP 服务器 {1}。MCP 服务器：{2}。",
-    "{1} changed since it was approved: turn it on with mcp_server_set (action enable), whose card shows the entry.": "{1} 自批准后已被修改：请用 mcp_server_set（action enable）开启，其卡片会显示整个条目。"
+    "{1} changed since it was approved: turn it on with set_mcp_server (action enable), whose card shows the entry.": "{1} 自批准后已被修改：请用 set_mcp_server（action enable）开启，其卡片会显示整个条目。"
 }

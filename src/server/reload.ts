@@ -31,6 +31,7 @@ import type { Extension, Registry } from "@earendil-works/pi-durable";
 import { describe } from "./errors.ts";
 import { ExtensionWebs, OLDEST_POCKET_API, POCKET_API } from "./extension-web.ts";
 import type { ExtensionModule, PocketHost, WebAccess } from "./host.ts";
+import { EXTRA_USAGE_REASON, extraUsageNames } from "./tool-names.ts";
 
 /**
  * How long a module may take to load (its import, and an async default export) before its load fails. At the server's
@@ -177,8 +178,8 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "wiki_migrate",
     "secrets_list",
     // The app's own MCP extension (`mcp/admin.ts`, PP-527); its servers' tools are mcp__<server>__<tool>.
-    "mcp_servers",
-    "mcp_server_set",
+    "list_mcp_servers",
+    "set_mcp_server",
     "secret_request",
     "secret_save",
     "interview",
@@ -380,6 +381,8 @@ export interface ExtensionInfo {
 /**
  * Why the app refused a drop-in rather than load it:
  * - `tool-names`: its tools have built-in tools' names (the built-in ones win, so the whole module is refused);
+ * - `extra-usage`: its tools are named `mcp_` and anything but a second `_`, which Anthropic bills as extra usage
+ *   (PP-533, `tool-names.ts`): offered once, they would fail every request of a session on a Claude subscription;
  * - `nothing`: it returned no extensions and added nothing, and `missing` are the host members it looked for that
  *   pi-phone does not have (pi-pocket's `host.browser`, say); empty when it is not known why;
  * - `typebox`: it builds its tool schemas with TypeBox, which drop-ins no longer get since Pi 1.5 (`typeBoxUse`), and
@@ -387,6 +390,7 @@ export interface ExtensionInfo {
  */
 export type Refusal =
     | { kind: "tool-names"; names: string[] }
+    | { kind: "extra-usage"; names: string[] }
     | { kind: "nothing"; missing: string[] }
     | { kind: "typebox"; uses: string };
 
@@ -435,11 +439,13 @@ export class Refused extends Error {
         super(
             refusal.kind === "tool-names"
                 ? `its tools ${refusal.names.join(", ")} have built-in tools' names, and the built-in ones win: rename them in the module`
-                : refusal.kind === "typebox"
-                  ? `${TYPEBOX_REFUSAL}: ${refusal.uses}`
-                  : refusal.missing.length > 0
-                    ? `it added nothing: it needs ${refusal.missing.map((name) => `host.${name}`).join(", ")}, which pi-phone does not have yet`
-                    : "it added nothing (it may need host.browser, which pi-phone does not have yet)",
+                : refusal.kind === "extra-usage"
+                  ? `its tools ${refusal.names.join(", ")} are named mcp_ and one underscore: ${EXTRA_USAGE_REASON}. Rename them in the module, not starting with mcp_`
+                  : refusal.kind === "typebox"
+                    ? `${TYPEBOX_REFUSAL}: ${refusal.uses}`
+                    : refusal.missing.length > 0
+                      ? `it added nothing: it needs ${refusal.missing.map((name) => `host.${name}`).join(", ")}, which pi-phone does not have yet`
+                      : "it added nothing (it may need host.browser, which pi-phone does not have yet)",
         );
         this.refusal = refusal;
     }
@@ -1195,6 +1201,13 @@ export class ExtensionLoader {
         // need the one that clashes.
         if (clashing.length > 0) {
             throw new Refused({ kind: "tool-names", names: [...new Set(clashing)] });
+        }
+
+        // Offered once, such a tool fails every request of the session on a Claude subscription (PP-533).
+        const billed = extraUsageNames(extensions.flatMap((extension) => (extension.tools ?? []).map((tool) => tool.name)));
+
+        if (billed.length > 0) {
+            throw new Refused({ kind: "extra-usage", names: billed });
         }
 
         for (const [other, installed] of this.#installed) {

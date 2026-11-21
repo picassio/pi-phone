@@ -177,7 +177,7 @@ dự án thật.</sub>
 - **Máy chủ MCP.** Menu › **Máy chủ MCP**: thêm một máy chủ (một lệnh và nơi nó chạy, hoặc một URL; các thư mục nó
   phục vụ; env của nó), bật hoặc tắt, **Thử** nó trong một thư mục (số tool), kết nối lại hay dừng nó, hoặc **Nhập
   JSON** (một khối `mcpServers` của Claude, Cursor hay Pi). Hoặc nhờ Pi rồi duyệt thẻ của nó; thẻ hiện toàn bộ mục, nơi
-  nó chạy, các thư mục nó phục vụ và các bí mật nó dùng (`mcp_server_set`; `mcp_servers` liệt kê chúng; setting
+  nó chạy, các thư mục nó phục vụ và các bí mật nó dùng (`set_mcp_server`; `list_mcp_servers` liệt kê chúng; setting
   `mcp.enabled`, action `mcp.test`, `mcp.reconnect`, `mcp.stop`). Lệnh chạy ở nơi phiên làm việc, trên điện thoại hoặc trên máy của
   phiên, với những gì bash có ở đó (kể cả lệnh bọc như `xvfb-run`). Nó khởi động ở lần dùng đầu và dừng sau 30 phút
   rảnh. Một URL được truy cập qua Streamable HTTP từ điện thoại, hoặc từ một máy mà ứng dụng chuyển cổng về; lần kết

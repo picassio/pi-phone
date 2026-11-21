@@ -220,7 +220,7 @@ function registrations(server: McpServerInfo, tools: readonly CachedTool[], opti
  * (PP-526): with a server that may run, the extension brings its own `tool_search`, Pi Durable's with the same
  * declaration, which searches only the MCP tools of the servers serving the session's folder, and first lists the tools
  * of those it has none of yet. Installed after `deferred-tools`, it is the one sessions use, also those whose tools are
- * all (no `deferred-tools` there). The section `mcp_servers` names the servers serving the folder, one line each, and is
+ * all (no `deferred-tools` there). The section `<mcp_servers>` names the servers serving the folder, one line each, and is
  * left out when none does: a session without MCP servers has the prompt it had.
  */
 export function mcpExtension(options: McpExtensionOptions): Extension {

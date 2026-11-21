@@ -190,7 +190,7 @@ export interface ApprovalRequest {
         | { type: "creator"; module: string; title: string; brief: string; places: string[]; next: boolean }
         /** Pi changes the owner's library of skills and commands (`extensions/library.ts`, PP-468): what Approve does. */
         | LibraryForm
-        /** Pi changes the owner's MCP servers (`mcp_server_set`, PP-527): the whole entry, its diff, the owner's to approve. */
+        /** Pi changes the owner's MCP servers (`set_mcp_server`, PP-527): the whole entry, its diff, the owner's to approve. */
         | McpServerForm;
     createdAt: number;
     /** Who Pi was working for when the call asked: set by `Approvals`, not by the asker. */

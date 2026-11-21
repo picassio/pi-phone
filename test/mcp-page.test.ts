@@ -177,7 +177,7 @@ test("the page's API, its events, and Pi's settings for MCP servers", async () =
         const enabled = appSettings(again).settings.find((each) => each.id === "mcp.enabled")!;
 
         assert.equal(again.mcpServers.get("docs")?.approved, false);
-        await assert.rejects(async () => enabled.apply(owner(again), "on", "docs"), /changed since it was approved: turn it on with mcp_server_set/);
+        await assert.rejects(async () => enabled.apply(owner(again), "on", "docs"), /changed since it was approved: turn it on with set_mcp_server/);
         assert.equal(again.mcpPage.enable("docs", true).approved, true, "the page is the owner's own hand");
         await again.mcpPage.remove("docs");
         assert.equal(again.mcpServers.get("docs"), undefined);

@@ -3425,18 +3425,18 @@ so Pi changes them through the settings tools; "the last session" is the one the
     MCP tools of the servers serving the session's folder only, as they are now: a server in scope that never listed
     its tools starts for it first (20 s at most; one later says it is still starting), and its tools are found in that
     same search. A tool of another folder's server called anyway (a script can) says the server does not serve this
-    folder; one not loaded says to load it with tool_search (`explainNotLoaded`). The section `mcp_servers` names the
+    folder; one not loaded says to load it with tool_search (`explainNotLoaded`). The section `<mcp_servers>` names the
     servers serving the folder, one line each (name, description, tool count, where it runs), and is left out when
     none does, so a session without MCP servers has the prompt it had (84,931 characters on 2026-11-20). One server of
     111 tools adds 271 characters (`test/prompt-budget.test.ts` holds it under 300), none of its tools. codemode's
     Only mode keeps them deferred and unlisted (its listing leaves deferred tools out); there the section says
     scripts find them with `searchTools`. prompt-eval has 8 MCP scenarios on two new variants, `mcp` (a Godot project
     a GoPeak stand-in serves) and `mcp-loaded` (its scene tools loaded by a first turn).
-  - **Cards and who may use them** (`mcp/admin.ts`, PP-527): `mcp_servers` lists the servers, never a value that may
+  - **Cards and who may use them** (`mcp/admin.ts`, PP-527): `list_mcp_servers` lists the servers, never a value that may
     be a key: `env` and `headers` by name alone (`DATABASE_URL` holds a password as well as `API_KEY`), a URL without
     its user, password, query and fragment (`maskedUrl`), an argument's value after `=` and the argument after a flag
     that speaks of a key, token, secret, password or auth (`maskedArgs`), unless they are only `${NAME}`s; `mcp.test`
-    shows the tools' names only in the characters a name has. `mcp_server_set`
+    shows the tools' names only in the characters a name has. `set_mcp_server`
     saves, turns on or off, or removes one after a card (`form: { type: "mcp-server" }`, `web/mcp-card.js`) with the
     whole entry, its diff for a change, where it runs, its folders and its secrets, and a warning for a package run
     with npx, uvx and the like without a pinned version. Approve is the owner's alone (`answerApproval`); a Deny
@@ -3447,6 +3447,14 @@ so Pi changes them through the settings tools; "the last session" is the one the
     tools, its prompt names none), and a teammate's only where the share lets Pi use the machines
     (`teammateMayUseMachines`). Plan mode blocks every MCP tool but those the server marks read-only when the entry has
     `planMode`.
+  - **No tool named `mcp_…`** (PP-533): Anthropic bills a subscription request that offers a tool whose name starts
+    with `mcp_` and anything but a second `_` as extra usage, so with none left every request fails with 400 "You're
+    out of extra usage" (the probe `~/work/pp328/probe-billing.ts`, 2026-11-21: the name alone does it, not the
+    description or the schema; `mcp__server__tool`, `set_mcp_server` pass). The admin tools were `mcp_servers` and
+    `mcp_server_set` until then: a session failed from the moment tool_search loaded them. `tool-names.ts` keeps the
+    rule (`MCP_UNDERSCORE_NAME`); `test/tool-names.test.ts` checks every tool the app registers (built-in, deferred,
+    an MCP server's), and a drop-in with such a tool is refused whole (`Refusal` kind `extra-usage`, and
+    `checkMade` for one Pi makes). The section tag `<mcp_servers>` and the `mcp_result` tags are no tool names.
   - **Settings › MCP servers** (`web/sheets/mcp.js`, `mcp/page.ts`, PP-528; Menu › MCP servers, `/?sheet=mcp-servers`,
     the owner's): each server with its command or URL, where it runs, its folders, tools' count and secrets by name, its
     state (off; changed since approved; failed; running; on), and On, Change, Test, Reconnect, Stop, Remove. The form
@@ -3457,7 +3465,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
     approve the entry as shown, with no card. Test starts the server for a folder the owner names (a secret that asks
     first is allowed for that start) and says its tools' count and time. Routes `/api/mcp…`, owner only; every change
     sends `mcp-servers` to the owner's tabs, which read the list again. Pi's side: `mcp.enabled` (target the server;
-    an entry changed since approved is turned on only through mcp_server_set, whose card shows it), `mcp.test`,
+    an entry changed since approved is turned on only through set_mcp_server, whose card shows it), `mcp.test`,
     `mcp.reconnect`, `mcp.stop`. Not added to `show_screen` (it would grow every request).
   - **Over HTTP** (`manager.ts`, PP-529): pi-mcp's `StreamableHttpTransport`, from the server Node on the phone, one
     instance per server (no folder). `headers` name secrets as `${NAME}` (a bearer token), filled at the connect,

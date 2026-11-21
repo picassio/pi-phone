@@ -18,6 +18,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, w
 import { dirname, join } from "node:path";
 import { type DropInPackage, packageFromPath } from "./drop-in-install.ts";
 import { BUILDER_SKILL } from "./extension-builder.ts";
+import { EXTRA_USAGE_REASON, extraUsageNames } from "./tool-names.ts";
 
 /** The prefix of every drop-in the Creator makes: no other way installs one. */
 export const MADE_PREFIX = "made-";
@@ -116,8 +117,9 @@ function toolNames(source: string): string[] {
 /**
  * Check a made drop-in's folder before it is installed, running none of its code: it is one module `made-<name>.ts` with
  * only its `.js` and its folder beside it (nothing left out), no symbolic link and no path out of it, at most
- * `MADE_MAX_BYTES` and `MADE_MAX_FILES`, no tool with a built-in tool's name, and the skill's `scripts/check.mjs` says ok
- * (erasable TypeScript, modules that parse, the owner's UI rules). The package is what installing would copy.
+ * `MADE_MAX_BYTES` and `MADE_MAX_FILES`, no tool with a built-in tool's name nor one named `mcp_` and one underscore
+ * (PP-533), and the skill's `scripts/check.mjs` says ok (erasable TypeScript, modules that parse, the owner's UI
+ * rules). The package is what installing would copy.
  */
 export function checkMade(folder: string, name: string, builtInTools: ReadonlySet<string>): { checks: MadeChecks; pkg?: DropInPackage } {
     const module = madeModule(name);
@@ -165,6 +167,12 @@ export function checkMade(folder: string, name: string, builtInTools: ReadonlySe
 
     if (clashing.length > 0) {
         problems.push(`its tools ${clashing.join(", ")} have built-in tools' names`);
+    }
+
+    const billed = extraUsageNames(toolNames(source));
+
+    if (billed.length > 0) {
+        problems.push(`its tools ${billed.join(", ")} are named mcp_ and one underscore: ${EXTRA_USAGE_REASON}`);
     }
 
     const run = spawnSync(process.execPath, [join(BUILDER_SKILL, "scripts", "check.mjs"), folder], { encoding: "utf8", timeout: 60_000 });

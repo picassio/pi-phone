@@ -2,7 +2,7 @@
 // P2: a shared instance checks the secrets for each calling session (its folder, the Machines switch where the
 // server runs) and asks a secret set to ask for each session; a start whose entry was turned off or changed
 // meanwhile starts nothing; a picture's type the server names stays out of Pi's reading; a server's words when it
-// fails to start or to list stay out of Pi's reading too; mcp_servers shows no value that may be a key.
+// fails to start or to list stay out of Pi's reading too; list_mcp_servers shows no value that may be a key.
 // P3: machine:<id>:/ is a folder; a listing of an entry since changed is not cached; the log and the owner's notice
 // hide the secrets; a broken oauth.json is moved aside; the descriptions inside a tool's schema are cleaned.
 import assert from "node:assert/strict";
@@ -212,7 +212,7 @@ test("P2-4: a server's words when it fails to list its tools, or an error page's
     });
 });
 
-test("P2-5: mcp_servers shows no value that may be a key: env and headers by name, URLs and flags masked", async () => {
+test("P2-5: list_mcp_servers shows no value that may be a key: env and headers by name, URLs and flags masked", async () => {
     const { servers, manager, work } = setup("list-values");
     const cache = new McpToolCache(work, servers, manager);
 
@@ -223,7 +223,7 @@ test("P2-5: mcp_servers shows no value that may be a key: env and headers by nam
     });
     servers.save("web", { url: "https://u:pw0rd@example.com/mcp?key=q5ecret#frag", headers: { "X-Api": "plain-value" } });
 
-    const list = mcpAdminTools(extensionOptions(servers, cache, manager)).find((tool) => tool.name === "mcp_servers")!;
+    const list = mcpAdminTools(extensionOptions(servers, cache, manager)).find((tool) => tool.name === "list_mcp_servers")!;
     const result = (await (list.execute as (args: unknown, api: unknown, context: unknown) => Promise<{ output: { text: string }[] }>)({}, { conversationId: 1 }, {})).output[0]!.text;
 
     for (const value of ["abc123secret", "pa55word", "k3y", "tok3n", "q5ecret", "plain-value", "pw0rd", "frag", "debug"]) {

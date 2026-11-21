@@ -17,6 +17,7 @@ import { join, relative } from "node:path";
 import { APP_ROOT } from "./config.ts";
 import type { BrowserReport, PlacesReport } from "./extension-web.ts";
 import { BUILT_IN_MODULES, type ExtensionInfo } from "./reload.ts";
+import { EXTRA_USAGE_REASON } from "./tool-names.ts";
 
 /** The names of the drop-in API, as the app's own files have them. */
 export type DropInApi = { kinds: string[]; members: string[]; icons: string[]; variables: string[]; themeTokens: string[] };
@@ -139,6 +140,7 @@ export function overview(modules: Modules, owner: boolean): string {
         "",
         "Names a drop-in may not take:",
         `- Tools (built-in; a drop-in with one is refused whole): ${[...builtIn].sort().join(", ")}.`,
+        `- Tools named mcp_ and one underscore (a drop-in with one is refused whole): ${EXTRA_USAGE_REASON}; mcp__<server>__<tool> is fine.`,
         `- Module files (a drop-in named like one is never loaded): ${[...BUILT_IN_MODULES].sort().map((name) => `${name}.ts`).join(", ")}.`,
         "- Extension names: pocket-… and coding-tools.",
         ...(theirs.length === 0 ? [] : [`- Tools other drop-ins have now: ${theirs.join(", ")}.`]),

@@ -110,6 +110,8 @@ without a tool description saying it. A section about one of its tools looks for
 ## Why a drop-in is refused or fails
 
 - A tool with a built-in tool's name: refused whole, naming the tools. Rename them.
+- A tool named `mcp_` and one underscore (`mcp_notes`): refused whole, as Anthropic bills a request offering such a
+  tool as extra usage. Use `<name>_<verb>`.
 - It returned nothing and added nothing (or looked for a host member pi-phone lacks): refused, naming it.
 - A file with a built-in module's name: never loaded.
 - A syntax error, `enum`, a missing import, a throw while it loads, or a load longer than the limit: it fails, with the

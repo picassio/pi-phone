@@ -4,7 +4,7 @@
 //
 // The folder holds one module <name>.ts at its top, and what belongs to it (<name>.js, a folder <name>/). It reads the
 // files and never runs them: the .ts parses with Node's type stripping (erasable syntax only, as pi-phone runs it), every
-// .js parses as a module, tool schemas are built with pi-schema (not TypeBox), no tool takes a built-in tool's name, and the browser part keeps the app's UI rules (no
+// .js parses as a module, tool schemas are built with pi-schema (not TypeBox), no tool takes a built-in tool's name or starts with mcp_, and the browser part keeps the app's UI rules (no
 // emoji or dingbats, no system <select>, icons by the app's names, whole pixels, the theme's colours). Exit 1 with each
 // problem on its own line; notes do not fail it.
 import { spawnSync } from "node:child_process";
@@ -127,6 +127,11 @@ function checkServer(path) {
     for (const match of source.matchAll(/defineTool\(\s*\{[^]*?\bname:\s*["'`]([^"'`]+)["'`]/g)) {
         if (builtInTools.has(match[1])) {
             problems.push(`${relative(folder, path)}: the tool ${match[1]} has a built-in tool's name: the drop-in would be refused; rename it`);
+        }
+
+        // As the app's loader refuses it (MCP_UNDERSCORE_NAME in src/server/tool-names.ts, PP-533).
+        if (/^mcp_(?!_)/.test(match[1])) {
+            problems.push(`${relative(folder, path)}: the tool ${match[1]} is named mcp_ and one underscore: Anthropic bills a request offering such a tool as extra usage, so the drop-in would be refused; rename it`);
         }
     }
 

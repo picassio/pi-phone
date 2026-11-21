@@ -1,4 +1,4 @@
-// Who may use the owner's MCP servers, and the cards that ask first (PP-527): mcp_server_set changes a server only
+// Who may use the owner's MCP servers, and the cards that ask first (PP-527): set_mcp_server changes a server only
 // after the owner approves a card with the whole entry and its diff (a Deny changes nothing); an entry changed
 // outside the app does not run until a card approves it again; a secret set to ask is asked for the session that calls;
 // askEachCall asks before each call; plan mode blocks a server's tools unless its entry trusts their read-only hints;
@@ -20,13 +20,13 @@ const STUB = join(import.meta.dirname, "support", "mcp-stub.ts");
 const entry = (extra: Record<string, unknown> = {}) => ({ command: process.execPath, args: [STUB], folders: [work], ...extra });
 
 const calls: Record<string, [string, Record<string, unknown>]> = {
-    add: ["mcp_server_set", { action: "save", name: "stub", entry: entry() }],
-    "add trusted": ["mcp_server_set", { action: "save", name: "trusted", entry: entry({ planMode: true }) }],
-    change: ["mcp_server_set", { action: "save", name: "stub", entry: entry({ env: { GODOT_PATH: "/opt/godot" } }) }],
-    "turn on": ["mcp_server_set", { action: "enable", name: "stub" }],
-    "turn off": ["mcp_server_set", { action: "disable", name: "stub" }],
-    remove: ["mcp_server_set", { action: "remove", name: "trusted" }],
-    list: ["mcp_servers", {}],
+    add: ["set_mcp_server", { action: "save", name: "stub", entry: entry() }],
+    "add trusted": ["set_mcp_server", { action: "save", name: "trusted", entry: entry({ planMode: true }) }],
+    change: ["set_mcp_server", { action: "save", name: "stub", entry: entry({ env: { GODOT_PATH: "/opt/godot" } }) }],
+    "turn on": ["set_mcp_server", { action: "enable", name: "stub" }],
+    "turn off": ["set_mcp_server", { action: "disable", name: "stub" }],
+    remove: ["set_mcp_server", { action: "remove", name: "trusted" }],
+    list: ["list_mcp_servers", {}],
     echo: ["codemode", { code: 'return await tools.mcp__stub__echo({ message: "hi" });' }],
     "trusted png": ["codemode", { code: "return await tools.mcp__trusted__png({});" }],
     "trusted echo": ["codemode", { code: 'return await tools.mcp__trusted__echo({ message: "hi" });' }],
@@ -78,16 +78,16 @@ async function turn(text: string, answers: boolean[] = [], user = owner(app)): P
     return { said: JSON.stringify(said?.content ?? ""), cards };
 }
 
-test("mcp_servers and mcp_server_set wait for tool_search", () => {
-    assert.ok(DEFERRED_TOOLS.includes("mcp_servers"));
-    assert.ok(DEFERRED_TOOLS.includes("mcp_server_set"));
+test("list_mcp_servers and set_mcp_server wait for tool_search", () => {
+    assert.ok(DEFERRED_TOOLS.includes("list_mcp_servers"));
+    assert.ok(DEFERRED_TOOLS.includes("set_mcp_server"));
 });
 
-test("mcp_server_set: a card with the whole entry; a Deny changes nothing, an Approve saves it approved", async () => {
+test("set_mcp_server: a card with the whole entry; a Deny changes nothing, an Approve saves it approved", async () => {
     const denied = await turn("add", [false]);
     const card = denied.cards[0]!;
 
-    assert.equal(card.tool, "mcp_server_set");
+    assert.equal(card.tool, "set_mcp_server");
     assert.equal(card.form?.type, "mcp-server");
     assert.equal(card.form?.action, "save");
     assert.equal(card.form?.diff, undefined, "a new server has no diff");

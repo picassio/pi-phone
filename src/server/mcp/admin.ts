@@ -1,8 +1,11 @@
 /**
  * Pi's tools for the owner's MCP servers (PP-527), as Settings › MCP servers does them (a tool for everything):
- * `mcp_servers` lists them and how they run (it only reads), and `mcp_server_set` adds, changes, turns on or off, or
- * removes one, after the owner approves a card with the whole entry and, for a change, its diff. Nothing changes on a
- * Deny. Both wait for tool_search (`DEFERRED_TOOLS`), and only the owner's message may change a server.
+ * `list_mcp_servers` lists them and how they run (it only reads), and `set_mcp_server` adds, changes, turns on or off,
+ * or removes one, after the owner approves a card with the whole entry and, for a change, its diff. Nothing changes on
+ * a Deny. Both wait for tool_search (`DEFERRED_TOOLS`), and only the owner's message may change a server.
+ *
+ * Their names start with a verb, not `mcp_`: Anthropic bills a subscription request that offers a tool named `mcp_`
+ * and anything but a second `_` as extra usage (PP-533; `MCP_UNDERSCORE_NAME` in `tool-names.ts`).
  *
  * The list never shows a value that may be a key: `env` and `headers` by their names alone, a URL without its user
  * and password, query and fragment, an argument's value after `=` (`--api-key=…`, `KEY=…`) and the argument after a
@@ -14,7 +17,7 @@ import { map, obj, oneOf, opt, str, unknown } from "@earendil-works/pi-schema";
 import { entryOf, type McpServer, type McpServerInfo, parseServer, secretNames } from "./config.ts";
 import type { McpExtensionOptions } from "./tools.ts";
 
-export const MCP_ADMIN_TOOLS = ["mcp_servers", "mcp_server_set"] as const;
+export const MCP_ADMIN_TOOLS = ["list_mcp_servers", "set_mcp_server"] as const;
 
 /** What the owner's card shows (`ApprovalRequest.form`), and what Approve does. */
 export type McpServerForm = {
@@ -130,9 +133,9 @@ export function mcpAdminTools(options: McpExtensionOptions): ToolRegistration[] 
 
     return [
         defineTool({
-            name: "mcp_servers",
+            name: "list_mcp_servers",
             description:
-                "The owner's MCP servers (Settings › MCP servers): each one's command or URL, where it runs, the folders it serves, its tools' count, whether it is on, and its running instances. Only reads; mcp_server_set changes one.",
+                "The owner's MCP servers (Settings › MCP servers): each one's command or URL, where it runs, the folders it serves, its tools' count, whether it is on, and its running instances. Only reads; set_mcp_server changes one.",
             parameters: obj({}, { open: true }),
             execute: async (_args, api) => {
                 const refused = guard.refusal(Number(api.conversationId));
@@ -146,14 +149,14 @@ export function mcpAdminTools(options: McpExtensionOptions): ToolRegistration[] 
 
                 return reply(
                     [
-                        list.length === 0 ? "No MCP servers yet. Add one with mcp_server_set (the owner approves it on a card), or in Settings › MCP servers." : list.map(line).join("\n"),
+                        list.length === 0 ? "No MCP servers yet. Add one with set_mcp_server (the owner approves it on a card), or in Settings › MCP servers." : list.map(line).join("\n"),
                         ...problems.map((problem) => `- ${problem.name}: not valid, out of use: ${problem.error}`),
                     ].join("\n"),
                 );
             },
         }) as unknown as ToolRegistration,
         defineTool({
-            name: "mcp_server_set",
+            name: "set_mcp_server",
             description:
                 "Add or change one of the owner's MCP servers, turn it on or off, or remove it, after the owner approves a card with the whole entry (and the diff for a change). The entry is the mcpServers shape (command, args, env, cwd; or url, headers, oauth) with pi-phone's fields: runs (session, phone or machine:<id>), folders, description, timeout, idleMinutes, askEachCall, planMode, hiddenTools. env and headers name the owner's secrets as ${NAME}. Pin package versions (gopeak@2.3.8, not @latest).",
             parameters: obj(
@@ -208,7 +211,7 @@ export function mcpAdminTools(options: McpExtensionOptions): ToolRegistration[] 
                         ...(unpinned === undefined ? {} : { unpinned }),
                     };
                     const verb = { save: before === undefined ? "Add" : "Change", enable: "Turn on", disable: "Turn off", remove: "Remove" }[args.action];
-                    const allowed = await guard.ask(api, { key: "server", tool: "mcp_server_set", subject: next, reason: `${verb} the MCP server ${args.name}`, form }, context);
+                    const allowed = await guard.ask(api, { key: "server", tool: "set_mcp_server", subject: next, reason: `${verb} the MCP server ${args.name}`, form }, context);
 
                     if (!allowed) {
                         return reply(`The owner did not approve: the MCP server ${args.name} is as it was.`, true);

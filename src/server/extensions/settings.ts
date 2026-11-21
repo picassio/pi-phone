@@ -140,7 +140,7 @@ export default function createSettings(host: PocketHost) {
                                       ),
                                   ]),
                             "",
-                            "Also with their own tools: devices, secrets, schedules, project boards, board settings, machines (machine_run, machine_copy, machine_add, machine_tools), MCP servers (mcp_servers, mcp_server_set), Pi sessions, phone control (phone_control; its Never list is the owner's alone, in Menu › Phone control), computer control (computer_control; its Never list is the owner's alone, in Menu › Computer control).",
+                            "Also with their own tools: devices, secrets, schedules, project boards, board settings, machines (machine_run, machine_copy, machine_add, machine_tools), MCP servers (list_mcp_servers, set_mcp_server), Pi sessions, phone control (phone_control; its Never list is the owner's alone, in Menu › Phone control), computer control (computer_control; its Never list is the owner's alone, in Menu › Computer control).",
                         ].join("\n"),
                     );
                 } catch (error) {

@@ -174,7 +174,7 @@ No Termux, no laptop, no cloud VM.
 - **MCP servers.** Menu › **MCP servers**: add one (a command and where it runs, or a URL; the folders it serves; its
   env), turn it on or off, **Test** it for a folder (its tools' count), reconnect or stop it, or **Import JSON** (an
   `mcpServers` block from Claude, Cursor or Pi). Or ask Pi and approve its card, which shows the whole entry, where it
-  runs, the folders it serves and the secrets it uses (`mcp_server_set`; `mcp_servers` lists them; settings
+  runs, the folders it serves and the secrets it uses (`set_mcp_server`; `list_mcp_servers` lists them; settings
   `mcp.enabled`, actions `mcp.test`, `mcp.reconnect`, `mcp.stop`). A command runs where the session works, on the phone or on its machine,
   with what bash gets there (a wrapper such as `xvfb-run` too), starting on first use and stopping after 30 idle
   minutes. A URL is reached over Streamable HTTP from the phone, or from a machine whose port the app forwards; a

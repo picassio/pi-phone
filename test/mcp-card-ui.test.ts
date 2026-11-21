@@ -1,4 +1,4 @@
-// mcp_server_set's card (PP-527) in a real browser at 390, 1280 and 1920 px: a new server's card shows the whole entry,
+// set_mcp_server's card (PP-527) in a real browser at 390, 1280 and 1920 px: a new server's card shows the whole entry,
 // where it runs, its folders and secrets, and warns of a package without a pinned version; a change's card shows the
 // diff and the whole entry a tap away; Approve (named for what it does) answers it. Nothing in it runs past the screen,
 // its text keeps its contrast and size, and its controls take a 40 px tap on a phone. With PHONE_SHOTS, screenshots and
@@ -119,7 +119,7 @@ function ask(which: keyof typeof FORMS): Promise<ApprovalAnswer> {
             conversationId: session,
             taskId: cards as never,
             callId: `call-${cards}`,
-            tool: "mcp_server_set",
+            tool: "set_mcp_server",
             subject: FORMS[which]!.entry,
             reason: `${which} the MCP server gopeak`,
             form: FORMS[which]!,

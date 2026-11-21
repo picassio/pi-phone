@@ -28,6 +28,12 @@ function refusalText(refused) {
         });
     }
 
+    if (refused.kind === "extra-usage") {
+        return t("Refused: its tools {names} are named mcp_ and one underscore, and Anthropic bills a request offering such a tool as extra usage. Rename them in the module, not starting with mcp_.", {
+            names: refused.names.join(", "),
+        });
+    }
+
     if (refused.kind === "typebox") {
         return t("Refused: it builds its tool schemas with TypeBox, which pi-phone no longer has since Pi 1.5. Rewrite them with @earendil-works/pi-schema: ask Pi, the Extension builder does it.");
     }

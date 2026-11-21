@@ -5710,7 +5710,7 @@ export class PocketApp {
             throw new HttpError(403, "The library of skills and commands is the owner's.");
         }
 
-        // Pi's mcp_server_set card (PP-527): what runs as the owner, on the phone or a machine, is the owner's to approve.
+        // Pi's set_mcp_server card (PP-527): what runs as the owner, on the phone or a machine, is the owner's to approve.
         if (allow && request.form?.type === "mcp-server" && user.role !== "owner") {
             throw new HttpError(403, "The MCP servers are the owner's.");
         }
