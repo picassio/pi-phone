@@ -1,0 +1,31 @@
+<!doctype html>
+<!--
+  Targets in a sentence (PP-519, WCAG 2.5.8's inline exception), as auton-ui draws them (apps/docs/_check/inline.html):
+  a RefChip and a CitationChip in a paragraph, 16 px tall with auton-ui's hit-area-inline (20 px, kept to the line), and
+  a plain link: none is a tap target under 40 px. The same chip alone in a table cell, or in a flex row (which makes it
+  a block), still is; so are two chips with no words around them and a 28 px button. A 16 px chip in a sentence with
+  no hit area is under WCAG's 24 px: an inline target finding.
+-->
+<html lang="en">
+<meta name="viewport" content="width=device-width">
+<title>Inline targets</title>
+<style>
+  body { margin: 0; font: 14px/24px sans-serif; color: #1a1a1a; }
+  main { width: 340px; margin: 0 24px; }
+  .chip { display: inline-flex; align-items: center; height: 16px; padding: 0 8px; border-radius: 4px; background: #e6efff; color: #1a1a1a; font-size: 12px; line-height: 16px; text-decoration: none; vertical-align: middle; }
+  .hit { position: relative; }
+  .hit::after { content: ""; position: absolute; inset-block: min(0px, calc(50% - 10px)); inset-inline: -2px; }
+  button.chip { border: 0; padding: 0 4px; font: inherit; font-size: 12px; }
+  .row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; }
+</style>
+<main>
+  <p id="prose">The customer opened <a id="ref" class="chip hit" href="#">#4823</a> after the gateway rejected a stale token
+    <button id="cite" class="chip hit" type="button" aria-label="Source 2">2</button> before it reached the worker; see
+    <a id="text-link" href="#">the runbook</a> for the retry.</p>
+  <p id="bare-prose">Retry with a fresh token <a id="bare" class="chip" href="#">ZD-4817</a> after a 401.</p>
+  <table><tbody><tr><td><a id="cell" class="chip hit" href="#">#4823</a></td></tr></tbody></table>
+  <div class="row">Kestrel Freight <a id="row" class="chip hit" href="#">ZD-4817</a></div>
+  <div id="pair"><a id="first" class="chip hit" href="#">#1</a> <a id="second" class="chip hit" href="#">#2</a></div>
+  <div><button id="small" type="button" style="width:28px;height:28px;padding:0">x</button></div>
+</main>
+</html>

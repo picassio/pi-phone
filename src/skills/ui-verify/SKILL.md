@@ -54,7 +54,8 @@ Fix, then run steps 1 to 3 again, until these are zero:
   hint between 3:1 and 4.5:1 too, which may stay when the report names it);
 - text under 12 px;
 - emoji or symbol glyphs used as icons (line icons only; in pi-phone `ICONS` in `web/ui.js`);
-- tap targets under 40 px at a phone's width;
+- tap targets under 40 px at a phone's width (a link or chip in a sentence is WCAG 2.5.8's inline exception and not
+  one), and chips in a sentence under 24 px tall with no hit area;
 - broken images, skipped heading levels, and cards inside cards.
 
 Side-tab stripes, glows, pulsing dots, narrow justified text, tight leading, repeated words, corners not concentric or poking out,

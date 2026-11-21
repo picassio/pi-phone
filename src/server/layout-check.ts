@@ -37,6 +37,10 @@
  * Since PP-406, a layer laid over a box to make it one tap target is measured with that box's lines, and a control as
  * tall as its one picture at the picture's own shape (a lone thumbnail) is not measured on the grid: its height is the
  * picture's.
+ *
+ * Since PP-519, a target in a sentence is WCAG 2.5.8's inline exception: a link, button or chip laid out inline whose
+ * line holds words that are not its own is no tap target under 40 px. A chip drawn as a box there (inline-flex or
+ * inline-block) under 24 px tall with no hit area of its own laid past it is its own kind, `inline-target`.
  */
 
 /** One thing out of place: what it is, and the boxes that show it (x and width, CSS pixels). */
@@ -52,6 +56,7 @@ export type LayoutFind =
     | { kind: "cut"; what: string; axis: "x" | "y"; shown: number; full: number; ellipsis: boolean; count: number }
     | { kind: "covered"; what: string; by: string; points: number; of: number; count: number }
     | { kind: "small-target"; what: string; size: [number, number]; count: number }
+    | { kind: "inline-target"; what: string; size: [number, number]; count: number }
     | { kind: "off-grid"; what: string; property: string; value: number; count: number }
     | { kind: "contrast"; what: string; color: string; background: string; ratio: number; needs: number; gradient?: string; count: number }
     | { kind: "small-text"; what: string; size: number; count: number }
@@ -128,6 +133,8 @@ const SHOWN = 3;
 /** The narrowest tap target at a phone's width, and the widest screen that is a phone's. */
 export const TAP_MIN = 40;
 export const PHONE_MAX = 480;
+/** WCAG 2.5.8's minimum, for a chip in a sentence with no hit area (PP-519). */
+export const INLINE_MIN = 24;
 /** The smallest text, in CSS pixels. */
 export const TEXT_MIN = 12;
 
@@ -658,6 +665,28 @@ ${PAGE_HELPERS}
   const FIELD = 'input:not([type]),input[type=text],input[type=search],input[type=email],input[type=url],input[type=tel],input[type=password],input[type=number],textarea,select';
   const SCROLL_LAYER = 'dialog,[role=dialog],[role=alertdialog],[aria-modal=true]';
   const tell = (e, rule) => group('css-tell', sig(e) + '|' + rule, () => ({ what: name(e), rule }));
+  // A target in a sentence (PP-519, WCAG 2.5.8's inline exception): laid out inline, its line holds words that are not
+  // its own (nor another control's). 'text' for one inline as words are (a link), 'box' for a chip drawn as a box
+  // (inline-flex, inline-block); null when it is not in a sentence (a chip alone in a cell, one in a flex row, which
+  // makes it a block).
+  const lineRangeOf = document.createRange();
+  const inSentence = (e, r) => {
+    const display = css(e).display;
+    if (!display.startsWith('inline')) return null;
+    let block = e.parentElement;
+    while (block && block !== document.body && /^(inline|contents)/.test(css(block).display)) block = block.parentElement;
+    if (!block) return null;
+    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+    let seen = 0;
+    for (let t = walker.nextNode(); t && seen < 400; t = walker.nextNode()) {
+      seen++;
+      const owner = t.parentElement, control = owner && owner.closest(CONTROL);
+      if (!owner || e.contains(t) || !/\S/.test(t.textContent) || (control && !control.contains(e)) || /^(script|style|noscript|template|textarea|option|title)$/i.test(owner.tagName)) continue;
+      lineRangeOf.selectNodeContents(t);
+      for (const q of lineRangeOf.getClientRects()) if (q.width > 0 && q.height > 0 && q.top < r.bottom - 1 && q.bottom > r.top + 1) return display === 'inline' ? 'text' : 'box';
+    }
+    return null;
+  };
 
   for (const e of measuredAll) {
     if (++checked > 4000) break;
@@ -766,13 +795,18 @@ ${PAGE_HELPERS}
     }
     if (['p', 'li', 'blockquote', 'dd'].includes(tag) && (e.textContent || '').length >= 200) long.push(e);
     if (e.matches(CONTROL)) {
-      const inline = tag === 'a' && style.display === 'inline' && [...(e.parentElement ? e.parentElement.childNodes : [])].some((n) => n.nodeType === 3 && n.textContent.trim() !== '');
       const nested = e.parentElement && e.parentElement.closest(CONTROL);
       const labelled = tag === 'input' && /checkbox|radio/.test(e.type) && e.labels && e.labels.length > 0;
-      if (!inline && !nested && !labelled) {
+      // A link in a sentence is as tall as its words: no tap target, grid or cover of its own (PP-519: any control, not
+      // only an a). A chip there keeps the rest of its checks.
+      const inline = nested || labelled ? null : inSentence(e, r);
+      if (!nested && !labelled && inline !== 'text') {
         if (PW <= ${PHONE_MAX} && !e.disabled && e.getAttribute('aria-disabled') !== 'true') {
           const hit = hitBox(e, r);
-          if (hit.width < ${TAP_MIN} - 0.01 || hit.height < ${TAP_MIN} - 0.01) group('small-target', sig(e) + '|' + Math.round(hit.width) + 'x' + Math.round(hit.height), () => ({ what: name(e), size: [r1(hit.width), r1(hit.height)] }));
+          // A chip in a sentence (PP-519): under 24 px tall with no hit area laid past its box is a finding of its own.
+          if (inline === 'box') {
+            if (hit.height < ${INLINE_MIN} - 0.01 && hit.height <= r.height + 0.5 && hit.width <= r.width + 0.5) group('inline-target', sig(e) + '|' + Math.round(hit.width) + 'x' + Math.round(hit.height), () => ({ what: name(e), size: [r1(hit.width), r1(hit.height)] }));
+          } else if (hit.width < ${TAP_MIN} - 0.01 || hit.height < ${TAP_MIN} - 0.01) group('small-target', sig(e) + '|' + Math.round(hit.width) + 'x' + Math.round(hit.height), () => ({ what: name(e), size: [r1(hit.width), r1(hit.height)] }));
         }
         // Under text zoom, as at 100 %: the part its lines make taken back to their size there (PP-433).
         if (pictured(e, r)) {
@@ -1039,6 +1073,7 @@ const KINDS: [LayoutFindKind, string][] = [
     ["cut", "Cut text"],
     ["covered", "Covered: an element on top of another's text or control"],
     ["small-target", `Tap targets under ${TAP_MIN} px`],
+    ["inline-target", `Chips in a sentence under ${INLINE_MIN} px tall with no hit area (WCAG 2.5.8)`],
     ["contrast", "Text under WCAG AA contrast"],
     ["small-text", `Text under ${TEXT_MIN} px`],
     ["off-grid", "Sizes off the 4 px grid or not whole pixels"],
@@ -1073,6 +1108,7 @@ function findWords(find: LayoutFind): string {
         case "covered":
             return `${find.what}: under ${find.by} (${find.points} of ${find.of} points)${times}`;
         case "small-target":
+        case "inline-target":
             return `${find.what}: ${find.size[0]}×${find.size[1]} px${times}`;
         case "off-grid":
             return `${find.property} ${find.value} px: ${find.count} element${find.count === 1 ? "" : "s"}, such as ${find.what}`;

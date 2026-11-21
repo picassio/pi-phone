@@ -8,6 +8,7 @@ import { cleanUp } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
+import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { ChromeEngine, PiBrowser } from "../src/server/browser/pi-browser.ts";
 import { BrowserPage } from "../src/server/browser/page.ts";
@@ -183,6 +184,8 @@ const PAGES: Record<string, string> = {
       <button id="fixed" aria-label="Picture"><img src="${picture}" alt="Picture" style="height:98px"></button>
       <button id="clamped" aria-label="Picture"><img src="${picture}" alt="Picture" style="height:auto;max-height:50px"></button>`,
     ...AUTON_PAGES,
+    // Fixture pages of their own (test/fixtures/layout/), which the screenshot tool can show too.
+    "/fixtures/inline-targets": readFileSync(new URL("fixtures/layout/inline-targets.html", import.meta.url), "utf8"),
 };
 let server: Server;
 let port = 0;
@@ -673,6 +676,33 @@ test("the layout check finds the static CSS tells a computed style shows, and si
         assert.match(describeLayout(tells), /- div#bar\.bar "Bar under": 2 px bottom ::after bar/);
         // At a desktop's width a small field is no tell.
         assert.ok(!of(await measured(page, "/tells", 1280), "css-tell").some((find) => find.what.startsWith("input")));
+    } finally {
+        await engine.close();
+    }
+});
+
+test("a target in a sentence is no tap target under 40 px (WCAG 2.5.8's inline exception); a chip alone in a cell or a row, chips with no words around them and a 28 px button still are, and a 16 px chip in a sentence with no hit area is an inline target under 24 px (PP-519)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+
+        await page.init({ width: 390, height: 844, mobile: true });
+
+        const inline = await rendered(page, "/fixtures/inline-targets");
+        const short = (what: string) => what.replace(/ ".*$/, "");
+
+        assert.deepEqual(
+            of(inline, "small-target").map((find) => [short(find.what), find.size, find.count]),
+            [
+                ["a#first.chip.hit", [33.4, 20], 2],
+                ["a#cell.chip.hit", [53.4, 20], 1],
+                ["a#row.chip.hit", [66.7, 20], 1],
+                ["button#small", [28, 28], 1],
+            ],
+        );
+        assert.deepEqual(of(inline, "inline-target").map((find) => [short(find.what), find.size[1]]), [["a#bare.chip", 16]]);
+        assert.match(describeLayout(inline), /\nChips in a sentence under 24 px tall with no hit area \(WCAG 2\.5\.8\) \(1\):\n- a#bare\.chip "ZD-4817": [\d.]+×16 px$/);
     } finally {
         await engine.close();
     }

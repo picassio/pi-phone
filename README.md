@@ -446,7 +446,8 @@ No Termux, no laptop, no cloud VM.
   page look unfinished: text cut by its box (an ellipsis, a clipped line), an element covering another's text or
   control, tap targets under 40 px on a phone (a hit area laid past a small control counts, and a stretched link takes its whole card, whose words under it are
   not covered; a phone page wider than the
-  screen still counts as a phone's), padding, gaps, corners and control heights off the 4 px grid or not
+  screen still counts as a phone's; a link or chip in a sentence is WCAG 2.5.8's inline exception, and a chip there under 24 px
+  tall with no hit area is a finding of its own), padding, gaps, corners and control heights off the 4 px grid or not
   whole pixels (under Android's font scale, control heights as at 100 %, a button laid over a title with that title's
   lines; a control as tall as its one picture at the picture's own shape is the picture's height and passes), text under WCAG AA contrast (over a gradient too, measured where the words sit) or under 12 px, emoji and symbols used as icons, gradient text, uppercase
   labels, tight tracking and long lines, and nine tells adapted from Impeccable's detector (broken images, skipped

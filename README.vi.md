@@ -451,7 +451,8 @@ dự án thật.</sub>
   trang trông chưa hoàn thiện: chữ bị khung cắt (dấu ba chấm, dòng bị xén), phần tử đè lên chữ hoặc nút của phần tử
   khác, vùng chạm nhỏ hơn 40 px trên điện thoại (tính cả lớp chạm phủ rộng ra ngoài nút nhỏ, và liên kết
   phủ cả thẻ (stretched link) được tính bằng cả thẻ, chữ trong thẻ nằm dưới lớp đó không bị coi là bị đè; trang điện thoại rộng hơn
-  màn hình vẫn được tính là trang điện thoại), padding, khoảng cách, bo góc và chiều cao nút lệch lưới 4 px hoặc
+  màn hình vẫn được tính là trang điện thoại; liên kết hoặc chip nằm trong câu văn được miễn theo ngoại lệ inline của WCAG 2.5.8,
+  còn chip trong câu thấp hơn 24 px mà không có vùng chạm riêng thì là một loại lỗi riêng), padding, khoảng cách, bo góc và chiều cao nút lệch lưới 4 px hoặc
   không tròn điểm ảnh (khi Android phóng cỡ chữ, chiều cao nút được đo như ở 100 %, nút phủ lên một tiêu đề được đo
   theo các dòng chữ của tiêu đề đó; nút cao đúng bằng một ảnh duy nhất giữ tỉ lệ của ảnh thì lấy chiều cao của ảnh, không
   bị tính là lệch lưới), chữ có độ tương phản dưới chuẩn WCAG AA (cả trên nền gradient, đo đúng chỗ chữ nằm) hoặc nhỏ hơn 12 px, emoji và ký hiệu dùng làm biểu

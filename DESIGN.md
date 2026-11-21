@@ -1246,8 +1246,14 @@ so Pi changes them through the settings tools; "the last session" is the one the
     layer over 40 % of the view; or a fixed, sticky or absolute bar that content scrolls under); tap targets under
     40 px at widths up to 480 (the page's own width: a phone page wider than its screen stretches `innerWidth` to its
     content, so without a width given the check goes by the root's `clientWidth`, which stays the screen's, PP-414;
-    inline links in sentences, controls inside controls, labelled check boxes and disabled
-    controls left out; PP-400: a control's hit area counts, its box with an absolutely placed ::before or ::after past
+    controls inside controls, labelled check boxes and disabled controls left out; PP-519: a target in a sentence is
+    WCAG 2.5.8's inline exception, a control laid out inline (inline, inline-flex, inline-block) whose line holds words
+    that are not its own nor another control's (text nodes of its nearest block whose Range rects meet its box's
+    height): a link inline as words gets no tap-target, grid or cover check, as before for an `a`; a chip drawn as a
+    box there gets no tap-target finding, but one under 24 px tall with no hit area laid past its box is its own kind
+    (`inline-target`). auton-ui's `hit-area-inline` is 20 px, kept inside its 24 px line on purpose, so a hit area of
+    its own passes, not 24 px; a chip alone in a cell, one in a flex row (blockified) and chips with only spaces
+    between them are not in a sentence; PP-400: a control's hit area counts, its box with an absolutely placed ::before or ::after past
     its edges and a field's label, so a small control that keeps its look with a hit layer passes; PP-436: a layer placed
     in a positioned ancestor counts when it lies over the control, so a stretched link, whose ::before or ::after is
     absolute with all four insets 0 over its card, takes the card's box; read from the computed style, never a class
