@@ -102,8 +102,21 @@ export type LayoutFind =
     | { kind: "css-tell"; what: string; rule: string; count: number }
     // PP-521: words at opacity 0 at the picture.
     | { kind: "hidden"; what: string; opacity: number; animation?: string; count: number }
-    // PP-542: the page is an error page (its HTTP status, an error screen it drew) or looks empty. Leads the report.
-    | { kind: "page"; what: string; state: "http" | "error" | "empty"; status?: number; text?: string; words?: number; elements?: number; count: number };
+    // PP-542: the page is an error page (its HTTP status, an error screen it drew) or looks empty; PP-543: or is still
+    // loading (a skeleton, a spinner, aria-busy over most of its main content). Leads the report.
+    | {
+          kind: "page";
+          what: string;
+          state: "http" | "error" | "empty" | "loading";
+          status?: number;
+          text?: string;
+          words?: number;
+          elements?: number;
+          /** PP-543: the share of the main content's rows a loading state covers, in percent, and what it is. */
+          cover?: number;
+          by?: "skeleton" | "spinner" | "busy";
+          count: number;
+      };
 
 export type LayoutFindKind = LayoutFind["kind"];
 
@@ -1351,7 +1364,90 @@ ${PAGE_HELPERS}
     else if (boundary) shown = { e: boundary, text: textIn(boundary) || 'an error boundary' };
     else if (phrase) shown = phrase;
     else if (alert) shown = { e: alert, text: textIn(alert) };
+    // Still loading (PP-543): in the main content (the largest main or [role=main] in view, else the body), leaving out
+    // the app's chrome (header, nav, footer, their roles, and what is fixed), each row of the view is marked by what
+    // shows on it: real content (words, controls, pictures), or a loading state: a skeleton's bones (wordless filled
+    // boxes under a skeleton, shimmer or pulse class or [data-skeleton], or running an endless animation), a spinner, a
+    // "Loading…" line, an [aria-busy=true] box with no real content in it. Rows with any real content are real. When
+    // the loading rows are 60 % of the marked ones or more (ZeroHop's Settings › Project at 3 s on the phone: six
+    // pulsing rows under a header and a bottom nav of 13 words, called clean), or the main content holds a loading
+    // marker and nothing real (an empty aria-busy box), the page is still loading. One skeleton card on a page of
+    // content, or a table refreshing under aria-busy with its rows still shown, is not.
+    let loading;
+    if (!shown) {
+      const areaIn = (r) => Math.max(0, Math.min(r.right, VW) - Math.max(r.left, 0)) * Math.max(0, Math.min(r.bottom, VH) - Math.max(r.top, 0));
+      const mains = [...document.querySelectorAll('main,[role=main]')].filter(seen).map((e) => [e, areaIn(e.getBoundingClientRect())]).sort((a, b) => b[1] - a[1]);
+      const main = mains.length ? mains[0][0] : document.body;
+      const mr = main === document.body ? { left: 0, top: 0, right: VW, bottom: VH } : main.getBoundingClientRect();
+      const top = Math.max(0, Math.floor(mr.top)), bottom = Math.min(VH, Math.ceil(mr.bottom));
+      const left = Math.max(0, mr.left), right = Math.min(VW, mr.right);
+      const rows = new Uint8Array(Math.max(0, VH) + 1);
+      const mark = (r, bit) => {
+        if (r.right <= left || r.left >= right) return false;
+        const a = Math.max(top, Math.floor(r.top)), b = Math.min(bottom, Math.ceil(r.bottom));
+        for (let y = a; y < b; y++) rows[y] |= bit;
+        return b > a;
+      };
+      const CHROME = 'header,nav,footer,[role=banner],[role=navigation],[role=contentinfo]';
+      const fixedAt = new Map();
+      const fixed = (e) => {
+        if (!e || e === main || e === document.body) return false;
+        let v = fixedAt.get(e);
+        if (v === undefined) { v = css(e).position === 'fixed' || fixed(e.parentElement); fixedAt.set(e, v); }
+        return v;
+      };
+      const chrome = (e) => { const c = e.closest(CHROME); return (c && c !== main && (main === document.body || main.contains(c))) || fixed(e); };
+      const loops = new Set(), turns = new Set();
+      for (const a of document.getAnimations ? document.getAnimations() : []) {
+        const t = a.effect && a.effect.target;
+        if (!t || a.playState !== 'running' || a.effect.getComputedTiming().iterations !== Infinity) continue;
+        loops.add(t);
+        if (/spin|rotat/i.test(a.animationName || '') || (a.effect.getKeyframes ? a.effect.getKeyframes() : []).some((k) => /rotate|matrix/.test(k.transform || '') || k.rotate)) turns.add(t);
+      }
+      const SKELETON = '[class*=skeleton],[class*=Skeleton],[data-skeleton],[class*=shimmer],.animate-pulse,.placeholder-glow,.placeholder-wave';
+      const SPINNER = /(^|[\s_-])(spinner|spin|loader|loading|throbber|progress-circular|animate-spin)([\s_-]|$)/i;
+      const LOADING_TEXT = /^(loading|please wait|đang tải|vui lòng chờ|加载中|載入中|正在加载|読み込み中)/i;
+      const inLoop = (e) => { for (let x = e, i = 0; x && x !== main && i < 6; x = x.parentElement, i++) if (loops.has(x)) return true; return false; };
+      const filled = (s) => s.backgroundImage !== 'none' || !/rgba\(.*, 0\)$|transparent/.test(s.backgroundColor);
+      const by = { skeleton: 0, spinner: 0, busy: 0 }, realIn = new Set();
+      let real = false;
+      const isReal = (e, r) => { if (mark(r, 2)) { real = true; const b = e.closest('[aria-busy=true]'); if (b) realIn.add(b); } };
+      const range = document.createRange();
+      const it = document.createTreeWalker(main, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, { acceptNode: (n) => n.nodeType === 1 && /^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT)$/.test(n.tagName) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+      for (let n = it.nextNode(), k = 0; n && k < 20000; n = it.nextNode(), k++) {
+        if (n.nodeType === 3) {
+          const p = n.parentElement;
+          if (!p || wordsOf(n.data) === 0 || !seen(p) || chrome(p)) continue;
+          range.selectNodeContents(n);
+          const r = range.getBoundingClientRect();
+          if (r.width < 2 || r.height < 2) continue;
+          const line = trim(blockOf(p).textContent, 60);
+          if (line.length <= 40 && LOADING_TEXT.test(line)) { if (mark(r, 1)) by.spinner++; } else isReal(p, r);
+          continue;
+        }
+        if (!seen(n) || chrome(n)) continue;
+        const r = n.getBoundingClientRect(), tag = n.tagName.toLowerCase();
+        if (/^(input|select|textarea)$/.test(tag) && n.type !== 'hidden') { isReal(n, r); continue; }
+        const bare = !/\S/.test(n.textContent || '');
+        const cls = typeof n.className === 'string' ? n.className : (n.getAttribute('class') || '');
+        const spinning = bare && r.width >= 8 && r.width <= 160 && r.height <= 160 && (turns.has(n) || SPINNER.test(cls) || (n.getAttribute('role') === 'progressbar' && !n.hasAttribute('aria-valuenow')));
+        if (spinning) { if (mark(r, 1)) by.spinner++; continue; }
+        if (/^(img|video|canvas|iframe|object|embed)$/.test(tag) && r.width >= 24 && r.height >= 24) { isReal(n, r); continue; }
+        if (tag === 'svg' && r.width >= 48 && r.height >= 48 && !n.closest(SKELETON)) { isReal(n, r); continue; }
+        if (bare && r.width >= 8 && r.height >= 6 && !n.querySelector('img,video,canvas,svg,input,select,textarea') && filled(css(n)) && (n.closest(SKELETON) || inLoop(n)) && mark(r, 1)) by.skeleton++;
+      }
+      for (const b of main.querySelectorAll('[aria-busy=true]')) {
+        if (realIn.has(b) || chrome(b)) continue;
+        by.busy++;
+        if (seen(b)) mark(b.getBoundingClientRect(), 1);
+      }
+      let busyRows = 0, realRows = 0;
+      for (let y = top; y < bottom; y++) { if (rows[y] & 2) realRows++; else if (rows[y] & 1) busyRows++; }
+      const cover = busyRows + realRows > 0 ? busyRows / (busyRows + realRows) : by.busy > 0 && !real ? 1 : 0;
+      if (cover >= 0.6 && (busyRows > 0 || by.busy > 0)) loading = { what: main === document.body ? 'the page' : name(main), cover: Math.round(cover * 100), by: by.skeleton ? 'skeleton' : by.spinner ? 'spinner' : 'busy' };
+    }
     if (shown) group('page', 'error', () => ({ what: name(shown.e), state: 'error', text: shown.text }));
+    else if (loading) group('page', 'loading', () => ({ what: loading.what, state: 'loading', cover: loading.cover, by: loading.by }));
     else if (words < 10 && elements < 10 && !pictured) group('page', 'empty', () => ({ what: 'the page', state: 'empty', words, elements }));
   }
 
@@ -1478,7 +1574,9 @@ function findWords(find: LayoutFind): string {
                 ? `This page is an error page: HTTP ${find.status}.`
                 : find.state === "error"
                   ? `This page shows an error: "${find.text}" (${find.what}).`
-                  : `This page looks empty: ${find.words} word${find.words === 1 ? "" : "s"}, ${find.elements} element${find.elements === 1 ? "" : "s"} in view.`;
+                  : find.state === "loading"
+                    ? `This page is still loading: ${find.by === "skeleton" ? "a skeleton covers" : find.by === "spinner" ? "a spinner covers" : "an aria-busy region covers"} ${find.cover} % of its main content (${find.what}); wait longer (settle) and look again.`
+                    : `This page looks empty: ${find.words} word${find.words === 1 ? "" : "s"}, ${find.elements} element${find.elements === 1 ? "" : "s"} in view.`;
         case "hidden":
             return `${find.what}: opacity ${find.opacity}, ${find.animation === undefined ? "no animation running: an entrance waiting for an observer or a script that has not run, or content never shown" : `animation ${find.animation} not run`}; show it without the script, and animate it in from there${times}`;
     }

@@ -1233,6 +1233,19 @@ so Pi changes them through the settings tools; "the last session" is the one the
   (a stack trace's `pre` and `code` are none), or as half the prose. Empty: under 10 words and 10 elements in view, no
   picture, canvas, video, frame or background image over half of it. Open shadow roots count; a document with no body
   (an SVG) is left out.
+  Still loading (PP-543; the same page at 3 s on the phone showed six pulsing skeleton rows under a header and a bottom
+  nav of 13 words, and was called clean): "This page is still loading: a skeleton covers 100 % of its main content
+  (main…)". The main content is the largest `main` or `[role=main]` in view, else the body, without the app's chrome
+  (header, nav, footer, their roles, what is fixed). Each row of the view in it is marked by what shows there: real
+  content (words, controls, pictures of 24 px and more, drawings of 48 px and more) or a loading state (a skeleton's
+  bones: wordless filled boxes under a skeleton, shimmer, `animate-pulse` or placeholder class, or `[data-skeleton]`,
+  or running an endless animation; a spinner: an endless turning animation, a spinner or loader class, a
+  `role=progressbar` without a value; a "Loading…" line in English, Vietnamese, Chinese or Japanese; an
+  `[aria-busy=true]` box with no real content in it). A row with any real content is real; loading rows at 60 % of the
+  marked ones or more, or a loading marker and nothing real (an empty `aria-busy` box), make the finding. Rows, not
+  areas: a skeleton card beside real cards shares their rows and counts for nothing, and one skeleton card among a
+  page's content covers a small share. An error screen comes before it, and it before "looks empty" (a lone spinner
+  and "Loading…" is still loading).
   Allowed in plan mode. A `seeing` prompt section asks Pi to look before calling an artifact done; Effective HTML's and
   OfficeCLI's pi-phone notes point to it.
   - **On a machine, app shells, file pages** (PP-440; reported from a session on tuanlh-devbox-01, 2026-11-07, proved there

@@ -19,8 +19,9 @@ numbers. Do every step on the real thing: the artifact, the file, or the live ap
   `steps: [{ click: "[data-part=wiki-capture-model] .choice" }, { wait: ".model-menu" }]`; a sheet opens by link
   (`/?sheet=<name>`, `/?sheet=<module>:<id>`).
 - Read each width's **layout check** before the picture. Its first line may be about the page itself: "This page is an
-  error page: HTTP 500", "shows an error: …" or "looks empty: … words, … elements in view". Then the page you
-  checked is not the screen: a crash, a 404, a sign-in it lacked, or a load that never finished. Nothing else in that
+  error page: HTTP 500", "shows an error: …", "is still loading: a skeleton covers … %" or "looks empty: … words,
+  … elements in view". Then the page you checked is not the screen: a crash, a 404, a sign-in it lacked, or a load
+  that never finished (for a skeleton or a spinner, look again with a longer `settle`). Nothing else in that
   report counts, and "nothing out of place" never counts on such a page. Then read the rest: cut text, covered text or controls, tap targets, off-grid
   sizes, contrast, small text, emoji, type, and the tells of an assembled page (broken images, skipped headings, cards
   inside cards, side-tab stripes, glows, pulsing dots, narrow justified text, tight leading, repeated words, corners

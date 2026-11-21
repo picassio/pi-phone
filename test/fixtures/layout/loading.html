@@ -1,0 +1,81 @@
+<!doctype html>
+<!-- PP-543: an app shell (a fixed header and a bottom nav, 16 words between them) whose main content is still loading.
+     The layout check says "This page is still loading"; on b1e14c92 it called each one clean, or empty. By the query:
+     (none)     ZeroHop's Settings › Project at 3 s on the phone: six pulsing skeleton rows under aria-busy, its markup;
+     ?busy      a moment before: an empty aria-busy box, nothing drawn in the main content yet;
+     ?spinner   a turning spinner and "Loading settings…";
+     ?static    a skeleton with no animation (prefers-reduced-motion), known by its class, and a page title over it;
+     Controls that must pass:
+     ?card      a real settings page with one small skeleton card among its cards;
+     ?refresh   a table refreshing under aria-busy, its rows still shown, and a small spinner by its title. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>ZeroHop</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/24px system-ui, sans-serif; color: #1d1d1d; background: #fff; }
+  .top { position: fixed; inset: 0 0 auto 0; height: 60px; display: flex; align-items: center; gap: 16px; padding: 0 16px; background: #fff; border-bottom: 1px solid #ddd; z-index: 2; }
+  .top a, .bottom a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; justify-content: center; text-decoration: none; }
+  .top a { color: #1d1d1d; }
+  .top { white-space: nowrap; }
+  .bottom { position: fixed; inset: auto 0 0 0; height: 64px; display: flex; justify-content: space-around; align-items: center; background: #fff; border-top: 1px solid #ddd; }
+  .bottom a { color: #444; font-size: 13px; text-decoration: none; }
+  main { position: fixed; inset: 0 0 64px 0; overflow-y: auto; padding: 72px 16px 16px; }
+  .rows > div { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid #eee; }
+  .bone { display: block; background: #eee; border-radius: 4px; height: 12px; }
+  .round { width: 36px; height: 36px; border-radius: 50%; flex: none; }
+  .col { display: flex; flex-direction: column; gap: 8px; flex: 1; padding-top: 4px; }
+  .animate-pulse { animation: pulse 2s cubic-bezier(.4, 0, .6, 1) infinite; }
+  @keyframes pulse { 50% { opacity: .5; } }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  .center { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 60vh; color: #555; }
+  .turn { animation: turn 1s linear infinite; }
+  @keyframes turn { to { transform: rotate(360deg); } }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+  .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; }
+  .card h3 { margin: 0 0 4px; font-size: 16px; }
+  .card p { margin: 0; color: #555; font-size: 14px; line-height: 20px; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #1a7f37; margin-right: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td, th { text-align: left; padding: 8px; border-bottom: 1px solid #eee; }
+</style>
+</head>
+<body>
+<header class="top"><strong>ZeroHop</strong><span>Kestrel Freight</span><a href="#">Settings</a><a href="#">Help</a></header>
+<main id="main"></main>
+<nav class="bottom"><a href="#">Inbox 7</a><a href="#">Sign-offs 2</a><a href="#">Overview</a><a href="#">Playbooks</a><a href="#">More</a></nav>
+<script>
+  const which = location.search.slice(1);
+  const main = document.getElementById("main");
+  const row = (w1, w2) => `<div><span aria-hidden="true" class="block animate-pulse bg-well bone round"></span><div class="col"><span aria-hidden="true" class="block animate-pulse bone" style="width:${w1}px"></span><span aria-hidden="true" class="block animate-pulse bone" style="width:${w2}%"></span></div><span aria-hidden="true" class="block animate-pulse bone" style="width:40px;margin-top:4px"></span></div>`;
+  const skeleton = `<div aria-busy="true" class="relative"><span role="status" class="sr-only">Loading</span><div aria-hidden="true" class="rows">${[[112, 75], [160, 66], [128, 83], [96, 50], [144, 70], [112, 80]].map(([a, b]) => row(a, b)).join("")}</div></div>`;
+  const card = (title, text) => `<div class="card"><h3>${title}</h3><p>${text}</p></div>`;
+  if (which === "busy") {
+    main.innerHTML = `<div aria-busy="true" class="relative"></div>`;
+  } else if (which === "spinner") {
+    main.innerHTML = `<div class="center" role="status"><svg class="turn" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 3a9 9 0 1 1-9 9" stroke="#888" stroke-width="3"/></svg><span>Loading settings…</span></div>`;
+  } else if (which === "static") {
+    main.innerHTML = `<h2 style="margin:0 0 8px">Project</h2>` + skeleton.replaceAll("animate-pulse", "skeleton");
+  } else if (which === "card") {
+    main.innerHTML = `<h2 style="margin:0 0 4px">Project</h2><p style="margin:0 0 16px;color:#555"><span class="dot"></span>Live · Kestrel Freight's support desk, set up on 12 March by Linh Tran.</p>
+      <div class="cards">
+        ${card("Name", "Kestrel Freight support. Shown to customers in every reply and in the portal's title.")}
+        ${card("Timezone", "Asia/Saigon (UTC+7). Business hours run 08:00 to 18:00, Monday to Saturday.")}
+        ${card("Languages", "Vietnamese and English. Replies follow the customer's language when it is known.")}
+        <div class="card" aria-busy="true"><span class="bone skeleton" style="width:40%"></span><span class="bone skeleton" style="width:80%;margin-top:8px"></span></div>
+        ${card("Escalation", "Tickets open over 4 hours go to the on-call lead; over 24 hours, to the account manager.")}
+        ${card("Retention", "Closed tickets are kept for 24 months, then their attachments are removed.")}
+      </div>`;
+  } else if (which === "refresh") {
+    main.innerHTML = `<h2 style="margin:0 0 8px;display:flex;align-items:center;gap:8px">Members <svg class="turn" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3a9 9 0 1 1-9 9" stroke="#888" stroke-width="3"/></svg></h2>
+      <table aria-busy="true"><thead><tr><th>Name</th><th>Role</th><th>Last seen</th></tr></thead><tbody>
+      ${[["Linh Tran", "Owner", "today"], ["Minh Pham", "Lead", "today"], ["Hoa Nguyen", "Agent", "yesterday"], ["Quang Le", "Agent", "2 days ago"], ["Thu Vo", "Agent", "last week"], ["An Do", "Viewer", "last month"], ["Bao Ho", "Agent", "today"], ["Chi Mai", "Agent", "today"]].map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}
+      </tbody></table>`;
+  } else {
+    main.innerHTML = skeleton;
+  }
+</script>
+</body>
+</html>

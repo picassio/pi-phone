@@ -203,6 +203,10 @@ const PAGES: Record<string, string> = {
     ),
     ...Object.fromEntries(["", "?spinner", "?picture"].map((query) => [`/fixtures/empty-root${query}`, readFileSync(new URL("fixtures/layout/empty-root.html", import.meta.url), "utf8")])),
     "/fixtures/real-page": readFileSync(new URL("fixtures/layout/real-page.html", import.meta.url), "utf8"),
+    // PP-543: an app shell whose main content is still loading, and two real pages with a little loading in them.
+    ...Object.fromEntries(
+        ["", "?busy", "?spinner", "?static", "?card", "?refresh"].map((query) => [`/fixtures/loading${query}`, readFileSync(new URL("fixtures/layout/loading.html", import.meta.url), "utf8")]),
+    ),
     "/fixtures/real-page?status=500": readFileSync(new URL("fixtures/layout/real-page.html", import.meta.url), "utf8"),
     // nginx's own page for a 500.
     "/fixtures/error-500": `<html><head><title>500 Internal Server Error</title></head><body><center><h1>500 Internal Server Error</h1></center><hr><center>nginx/1.24.0</center></body></html>`,
@@ -632,9 +636,10 @@ test("an error page and an empty one lead the report, never called clean: HTTP 5
 
             assert.deepEqual(pageOf(empty), [{ state: "empty", words: 0, elements: 0, what: "the page" }], `at ${width}`);
             assert.match(describeLayout(empty), /\nThis page looks empty: 0 words, 0 elements in view\.\nThis is not the screen to judge/);
+            // A lone spinner and "Loading…": still loading (PP-543), which says more than "looks empty".
             assert.deepEqual(
-                pageOf(await measured(page, "/fixtures/empty-root?spinner", width)).map(({ state, words }) => [state, words]),
-                [["empty", 1]],
+                of(await measured(page, "/fixtures/empty-root?spinner", width), "page").map(({ state, by, cover }) => [state, by, cover]),
+                [["loading", "spinner", 100]],
                 `at ${width}`,
             );
             assert.deepEqual(pageOf(await measured(page, "/fixtures/empty-root?picture", width)), [], `at ${width}`);
@@ -663,6 +668,60 @@ test("an error page and an empty one lead the report, never called clean: HTTP 5
 
             if (status !== undefined) {
                 assert.match(describeLayout(shot.layout!), /^Layout check at 390 px \(\d+ elements\): 1 out of place\.\nThis page is an error page: HTTP 500\.\n/);
+            }
+        }
+    } finally {
+        await engine.close();
+    }
+});
+
+test("a page still loading leads the report: a skeleton, an empty aria-busy box, a spinner and a still skeleton in the main content under a header and a nav; one skeleton card on a real page and a table refreshing under aria-busy give none (PP-543)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+
+        for (const width of [390, 1280]) {
+            await page.init({ width, height: width < 600 ? 844 : 800, mobile: width < 600 });
+
+            for (const [query, by, cover] of [
+                ["", "skeleton", 100],
+                ["?busy", "busy", 100],
+                ["?spinner", "spinner", 100],
+                ["?static", "skeleton", undefined],
+            ] as const) {
+                const report = await measured(page, `/fixtures/loading${query}`, width);
+                const found = of(report, "page");
+
+                assert.equal(found.length, 1, `${query} at ${width}: ${JSON.stringify(found)}`);
+                assert.equal(found[0]!.state, "loading", `${query} at ${width}`);
+                assert.equal(found[0]!.by, by, `${query} at ${width}`);
+                assert.ok(found[0]!.what.startsWith("main#main"), `${query} at ${width}: ${found[0]!.what}`);
+
+                if (cover === undefined) {
+                    // A page title over the skeleton: most of it, not all.
+                    assert.ok(found[0]!.cover! >= 60 && found[0]!.cover! < 100, `${query} at ${width}: ${found[0]!.cover}`);
+                } else {
+                    assert.equal(found[0]!.cover, cover, `${query} at ${width}`);
+                }
+
+                assert.match(
+                    describeLayout(report),
+                    /^Layout check at \d+ px \(\d+ elements\): \d+ out of place\.\nThis page is still loading: (a skeleton|a spinner|an aria-busy region) covers \d+ % of its main content \(main#main[^)]*\); wait longer \(settle\) and look again\.\nThis is not the screen to judge/,
+                    `${query} at ${width}`,
+                );
+                assert.doesNotMatch(describeLayout(report), /nothing spills out/);
+            }
+
+            // The controls: content with a little loading in it.
+            for (const query of ["?card", "?refresh"]) {
+                const report = await measured(page, `/fixtures/loading${query}`, width);
+
+                assert.deepEqual(of(report, "page"), [], `${query} at ${width}`);
+            }
+
+            for (const path of ["/fixtures/real-page", "/fixtures/empty-root?picture"]) {
+                assert.deepEqual(of(await measured(page, path, width), "page"), [], `${path} at ${width}`);
             }
         }
     } finally {
