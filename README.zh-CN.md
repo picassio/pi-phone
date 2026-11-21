@@ -262,7 +262,7 @@
   Pi 就会在网页、产物以及 Office 演示文稿和文档中使用它的颜色、字体和间距。**从网站生成你自己的：** 给 Pi 一个网址
   （“用 coral.example 做一个设计系统”），Pi 会在 Pi 的浏览器中打开它，用 `browser_eval` 测量颜色、字体、字号阶梯、间距、圆角和阴影，
   写入你自己的设计系统（排在最前），做一个示例页面给你看，并说明哪些值是它选的而不是测得的。
-- **设计方向。** 做新的落地页、网站、App 或演示文稿时，或者你想看几个方案时，Pi 可以从三个不同来源做出三份真实初稿（最适合这个需求的设计师、它看过的同类真实作品、随机抽到的风格），每份只借一种机制、不借外观，然后在卡片上让你挑；颜色和字体从题材本身推导，用真实或生成的图片代替表情符号和灰色占位块，并在 wiki 里记一本外观账，让下一个设计不重复上一个。思路来自 [huashu-design](https://github.com/alchaincyf/huashu-design)。
+- **设计方向。** 做新的落地页、网站、App 或演示文稿时，或者你想看几个方案时，Pi 可以从三个不同来源做出三份真实初稿（最适合这个需求的设计师、它看过的同类真实作品、随机抽到的风格），每份只借一种机制、不借外观，然后在卡片上让你挑；颜色和字体从题材本身推导，用真实或生成的图片代替表情符号和灰色占位块，并在 wiki 里记一本外观账，让下一个设计不重复上一个。随机抽取的风格来自一份 92 种风格的目录，分六类产出（网页、演示文稿、信息图、App、中文与东亚、小红书图文），每种写明出处、核心机制和纯 HTML 能还原到什么程度，每类配一张总览图供 Pi 查看。思路来自 [huashu-design](https://github.com/alchaincyf/huashu-design)。
 - **演示模板与动效。** 来自 [OpenDesign](https://github.com/nexu-io/open-design) 的五个 HTML 幻灯片模板和 GSAP 动画技能，
   各自采用 MIT 许可证：Pi 从其中一个模板开始制作演示文稿，并以产物形式发布。
 - **商业动效短片。** [Motion Video Kit](https://github.com/echris6/motion-video-kit) 的技能，用代码构建的动效（HTML、GSAP、Three.js）
@@ -804,7 +804,7 @@ pi-phone 大部分是别人的成果，只是为手机把它们组合在了一�
 - **[unslop](https://github.com/heydamir/unslop)**，作者 Damir Sokolovsky（[@heydamir](https://x.com/heydamir)，CC BY 4.0）：位于 `third_party/heydamir-unslop/` 的 `unslop` 技能，pi-phone 加了一条注释。
 - **[Impeccable](https://github.com/pbakaus/impeccable)**，作者 Paul Bakaus（Apache 2.0）：其检测器中的九条规则，在截图的布局检查里重新实现；其 craft floor 中的三条，改写后放入 unslop 的注释；许可证和清单位于 `third_party/impeccable/`。
 - **[jakubkrehel/skills](https://github.com/jakubkrehel/skills)**，作者 Jakub Krehel（MIT）：auton-ui 验证过的 better-ui 和 better-typography 检查（同心圆角、等宽数字、静态 CSS 迹象），与 unslop 的色条和渐变迹象一起在截图的布局检查里重新实现；许可证和清单位于 `third_party/jakubkrehel-skills/`。
-- **[huashu-design](https://github.com/alchaincyf/huashu-design)**，作者 alchaincyf（MIT）：三方向流程、借鉴方法、色彩与字体、素材，改写为 `design-artifact` 的参考文档；许可证和清单位于 `third_party/huashu-design/`。
+- **[huashu-design](https://github.com/alchaincyf/huashu-design)**，作者 alchaincyf（MIT）：三方向流程、借鉴方法、色彩与字体、素材和 92 种风格目录，改写为 `design-artifact` 的参考文档，附七张总览图；许可证和清单位于 `third_party/huashu-design/`。
 - **[pi-review](https://github.com/earendil-works/pi-review)**，作者 Earendil（MIT）：它的审查准则，原样保存在 `third_party/pi-review/`，`/review` 的子代理按它审查。
 - **[pi-better](https://github.com/nicobailon/pi-better)**，作者 Nico Bailon（MIT）：移植为 `/better`，其 `helper.md` 和 `brief.md` 原样保存在 `third_party/pi-better/`。helper.md 基于 [Felix Rieseberg](https://felixrieseberg.com/how-to-be-more-ambitious-a-tutorial-for-humans-with-models/#depth) 的 “How to be more ambitious: A tutorial for humans with models” 中的 “Depth” 提示。
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)**，作者 Lauren Tan（[@poteto](https://github.com/poteto)，

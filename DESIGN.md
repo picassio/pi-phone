@@ -1918,7 +1918,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
   `html-prototype`, `html-plan`, `html-diagram`, and `big-pics-little-words` (by name only). Built-in skills of every
   phone session (`SkillSources.builtIn`, first among the app's, after the owner's). Each gets one marked note: publish with
   the `artifact` tool, self-contained, phone widths first, say what could not be checked; `design-artifact`'s also
-  points to unslop's sign list (PP-327, below) and to four references pi-phone added beside it (huashu-design's ideas,
+  points to unslop's sign list (PP-327, below) and to five references pi-phone added beside it (huashu-design's ideas,
   below). Plan mode's prompt points long
   plans to `html-plan`, as an artifact beside the numbered list.
 - **OpenDesign** (`third_party/open-design/`, PP-238; owner's choice of 2026-10-29: options A + D of PP-182, the
@@ -2008,6 +2008,16 @@ so Pi changes them through the settings tools; "the last session" is the one the
   pairings, the overused faces) and `materials.md` (hero material first; `image_generate`, then Wikimedia Commons with
   credit, then saying what is missing; never emoji or grey blocks). No skill description changed. Only upstream's
   LICENSE is copied; the README lists each file's sources. Nothing to sync.
+  The style catalogue (PP-546; the owner's choice of the full 92 and the overview sheets): `styles.md` rewrites
+  upstream's `design-styles.md` in English, numbered as its sheets (W01–W20 web, P01–P20 slides, I01–I20 infographics,
+  A01–A12 app, E01–E12 East Asian, X01–X08 carousel): what each is known from and for, its one mechanism, cues, how to
+  build it, the share plain HTML carries, fonts, the `design-system` systems that match, and what to avoid;
+  `directions.md`'s random pick draws `S % N + 1` from the medium's section and from East Asian. The seven sheets are in
+  `design-artifact/assets/sheets/` (1,231,809 bytes of JPEG, about as much in `runtime.bin`, which gzip cannot shrink),
+  for Pi to `read`. Six are upstream's as they are (renders of its MIT specimens); the carousel sheet was rendered again
+  on the devbox with upstream's `build_specimens.py` after each PolyForm Shield bird sticker was replaced by a flat
+  silhouette of its size and muted colour, so none of their pixels ship. The 92 per-style specimens (about 12 MB) are
+  left out.
 - **Design & video** (`extensions/design.ts`, PP-247; owner's decision of 2026-10-29): the built-in extension that
   owns all of the above, so the owner can drop it in one switch (Settings › Extensions, or `extensions.design.ts` with
   `setting_change`). On by default. While on, `PocketApp.builtInSkills()` adds `DESIGN_SKILLS` (`src/design/skills/`,

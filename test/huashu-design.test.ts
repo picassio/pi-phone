@@ -9,7 +9,16 @@ import { APP_ROOT } from "../src/server/config.ts";
 
 const CREDIT = join(APP_ROOT, "third_party", "huashu-design");
 const SKILL = join(APP_ROOT, "third_party", "effective-html", "skills", "design-artifact");
-const REFERENCES = ["directions.md", "borrowing.md", "colour-type.md", "materials.md"];
+const REFERENCES = ["directions.md", "borrowing.md", "colour-type.md", "materials.md", "styles.md"];
+/** PP-546: the catalogue's sections, by sheet, with the letter and number of entries each has. */
+const SECTIONS = [
+    { sheet: "web", letter: "W", count: 20 },
+    { sheet: "ppt", letter: "P", count: 20 },
+    { sheet: "info", letter: "I", count: 20 },
+    { sheet: "app", letter: "A", count: 12 },
+    { sheet: "east", letter: "E", count: 12 },
+    { sheet: "xhs", letter: "X", count: 8 },
+];
 
 test("the credit folder holds upstream's MIT licence and a README naming the commit and every adapted file", () => {
     assert.match(readFileSync(join(CREDIT, "LICENSE"), "utf8"), /^MIT License\n\nCopyright \(c\) 2026 alchaincyf/);
@@ -66,4 +75,46 @@ test("the three directions stay optional and use pi-phone's tools", () => {
     }
 
     assert.ok(!/\b(python3|playwright|ref_board|ref_card|polish\.py|design_lint)\b/.test(directions), "no upstream scripts");
+});
+
+test("the style catalogue: 92 entries numbered as the seven sheets beside it, the random pick drawing from it, the sheets credited and the PolyForm stickers out (PP-546)", () => {
+    const styles = readFileSync(join(SKILL, "references", "styles.md"), "utf8");
+    const sheets = join(SKILL, "assets", "sheets");
+    let entries = 0;
+
+    for (const { sheet, letter, count } of SECTIONS) {
+        const numbers = [...styles.matchAll(new RegExp(`^### ${letter}(\\d\\d) `, "gm"))].map((each) => Number(each[1]));
+
+        assert.deepEqual(numbers, Array.from({ length: count }, (_, index) => index + 1), `${letter}01 to ${letter}${count}, in order`);
+        assert.ok(styles.includes(`\`assets/sheets/${sheet}.jpg\``), `${sheet}'s sheet is named`);
+        entries += count;
+    }
+    assert.equal(entries, 92);
+    assert.equal(styles.match(/^### /gm)?.length, 92, "no other entries");
+    assert.match(styles, /\b(bold|neutral|quiet) · \d+ %\n/, "temperature and fit");
+
+    const files = readdirSync(sheets).sort();
+    let bytes = 0;
+
+    assert.deepEqual(files, ["app.jpg", "east.jpg", "info.jpg", "paradigm.jpg", "ppt.jpg", "web.jpg", "xhs.jpg"], "the seven sheets and nothing else");
+    for (const file of files) {
+        const data = readFileSync(join(sheets, file));
+
+        assert.deepEqual([...data.subarray(0, 3)], [0xff, 0xd8, 0xff], `${file} is a JPEG`);
+        bytes += data.length;
+    }
+    assert.ok(bytes <= 1_400_000, `the sheets weigh ${bytes} bytes, under 1.4 MB`);
+
+    const directions = readFileSync(join(SKILL, "references", "directions.md"), "utf8");
+
+    assert.match(directions, /`S % N \+ 1` from the section of\s+`references\/styles\.md`[^]*East Asian section \(12\)/, "the random pick draws from the catalogue");
+    assert.ok(!directions.includes("systems.ts list"), "no longer from the design systems' list");
+
+    const readme = readFileSync(join(CREDIT, "README.md"), "utf8");
+
+    for (const file of files) {
+        assert.ok(readme.includes(`\`${file}\``), `the credit names ${file}`);
+    }
+    assert.match(readme, /`xhs\.jpg` \| [^|]*rendered again[^|]*silhouette[^|]*\| MIT\. The stickers are PolyForm Shield/, "the stickers replaced before the XHS sheet was rendered");
+    assert.match(styles, /every sticker is a plain silhouette/, "the catalogue says so too");
 });

@@ -413,8 +413,10 @@ dự án thật.</sub>
   phương án, Pi có thể làm ba bản nháp thật từ ba nguồn khác nhau (nhà thiết kế hợp nhất với đề bài, một tác phẩm thật
   cùng loại mà Pi đã xem, một phong cách bốc ngẫu nhiên), mỗi bản chỉ mượn một cơ chế chứ không mượn vẻ ngoài, rồi để bạn
   chọn trên một thẻ; Pi suy ra màu và chữ từ chính chủ đề, dùng ảnh thật hoặc ảnh tạo thay cho emoji hay khối xám, và
-  giữ một sổ diện mạo trong wiki để thiết kế sau không lặp lại thiết kế trước. Ý tưởng từ
-  [huashu-design](https://github.com/alchaincyf/huashu-design).
+  giữ một sổ diện mạo trong wiki để thiết kế sau không lặp lại thiết kế trước. Phong cách bốc ngẫu nhiên lấy từ một
+  danh mục 92 phong cách trong sáu loại sản phẩm (web, trình chiếu, infographic, app, Đông Á, ảnh carousel), mỗi phong
+  cách ghi nó nổi tiếng nhờ đâu, cơ chế chính của nó, và HTML thuần làm được tới đâu, kèm một tấm ảnh tổng quan cho mỗi
+  loại để Pi xem. Ý tưởng từ [huashu-design](https://github.com/alchaincyf/huashu-design).
 - **Mẫu trình chiếu và chuyển động.** Năm mẫu bản trình chiếu HTML và các skill hoạt ảnh GSAP từ
   [OpenDesign](https://github.com/nexu-io/open-design), mỗi cái theo giấy phép MIT riêng: Pi bắt đầu một bản trình chiếu
   từ một mẫu và xuất bản nó thành artifact.
@@ -1199,8 +1201,8 @@ pi-phone phần lớn là công sức của người khác, được ghép lại
   kiểm tra bố cục của ảnh chụp cùng các dấu hiệu sọc và gradient của unslop; giấy phép và danh sách trong
   `third_party/jakubkrehel-skills/`.
 - **[huashu-design](https://github.com/alchaincyf/huashu-design)** của alchaincyf (MIT): quy trình ba hướng, cách
-  mượn, màu và chữ, và chất liệu, viết lại thành các tài liệu tham khảo của `design-artifact`; giấy phép và danh sách
-  trong `third_party/huashu-design/`.
+  mượn, màu và chữ, chất liệu và danh mục 92 phong cách, viết lại thành các tài liệu tham khảo của `design-artifact`,
+  kèm bảy tấm ảnh tổng quan; giấy phép và danh sách trong `third_party/huashu-design/`.
 - **[pi-review](https://github.com/earendil-works/pi-review)** của Earendil (MIT): bộ tiêu chí review của nó, giữ nguyên, trong
   `third_party/pi-review/`, mà subagent của `/review` làm theo.
 - **[pi-better](https://github.com/nicobailon/pi-better)** của Nico Bailon (MIT): `/better`, được port, với `helper.md` và

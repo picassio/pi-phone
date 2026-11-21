@@ -9,8 +9,8 @@ MIT License since 2026-05-14 (see `LICENSE`, upstream's copy). One exception ups
 skills for every request, and most of its scripts need Playwright and Pillow, which the phone has not. Its ideas were
 rewritten in English, in pi-phone's words and tools, into skills pi-phone already ships (research PP-540, wiki
 `resources/huashu-design-research`; the owner's choices of 2026-11-21, interview ySX6N7Us). No skill description
-changed, so the prompt is the same size. No upstream file is copied except `LICENSE`; two of its test pages are adapted
-as fixtures (below).
+changed, so the prompt is the same size. No upstream file is copied except `LICENSE` and the overview sheets; two of
+its test pages are adapted as fixtures (both below).
 
 | pi-phone file | From upstream | Ticket |
 |---|---|---|
@@ -41,3 +41,17 @@ and its sibling-skill suggestions are left out. Each pi-phone file ends with a l
 **Updating.** There is nothing to sync: to take a later idea, read it in a clone of
 [alchaincyf/huashu-design](https://github.com/alchaincyf/huashu-design), rewrite it into the file above, and record
 the new commit here.
+
+**The style catalogue (PP-546).** `third_party/effective-html/skills/design-artifact/references/styles.md` rewrites
+upstream's `references/design-styles.md` (92 styles: web 20, slides 20, infographics 20, app 12, East Asian 12, carousel
+8; its colour protocol is in `colour-type.md` already) in English, numbered as upstream's sheets, with the
+`design-system` skill's matching systems named. `.../design-artifact/assets/sheets/` holds the seven overview sheets,
+1,231,809 bytes, the only upstream pictures pi-phone ships:
+
+| pi-phone file | From upstream | Licence |
+|---|---|---|
+| `web.jpg`, `ppt.jpg`, `info.jpg`, `app.jpg`, `east.jpg` | `assets/style-specimens/sheet-<same>.jpg`, as they are | MIT: renders of upstream's own HTML specimens, which load no picture (only Google Fonts and LXGW WenKai, SIL OFL) |
+| `paradigm.jpg` | `assets/style-specimens/sheet-paradigm.jpg`, as it is | MIT: two of its tiles show `paradigm/img/balcony.jpg` and `box.jpg`, added with upstream's image generator in `686ee9f` (v3.4.0) with no source of their own and no metadata, so under the repository's MIT like the rest |
+| `xhs.jpg` | `sheet-xhs.jpg`, rendered again (`scripts/build_specimens.py xhs`, Chrome) after every bird sticker in `xhs/_kit/stickers/` was replaced by a flat silhouette of the same size in its muted average colour | MIT. The stickers are PolyForm Shield 1.0.0 (huashu-bird-sticker): not one of their pixels ships |
+
+The 92 per-style specimens (`<section>/NN-name.{html,jpg}`, about 12 MB) are left out.

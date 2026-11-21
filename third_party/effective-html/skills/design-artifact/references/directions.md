@@ -72,11 +72,13 @@ First read what to avoid: the look ledger (below) and any taste notes the person
   page's colours, type and spacing with how much of the page uses each).
   When it can't be seen (blocked, a WebGL page that renders black), use a press page of the same work or ask the person
   for a screenshot; failing that, write "not seen" on the card. Never pretend.
-- **A random pick, twice.** Take the clock's seconds S (`date +%S`) and pick entry `S % N + 1` from a catalogue of
-  styles; until pi-phone ships its own, use the `design-system` skill's list (`systems.ts list`, N systems in their
-  listed order), and a second pick from a different category. Open what you picked and see it done well before writing
-  its card. A pick in the same look family as one of the last three deliveries moves to the next entry. The point of the
-  random pick is to take you somewhere you would not go by yourself.
+- **A random pick, twice.** Take the clock's seconds S (`date +%S`) and pick entry `S % N + 1` from the section of
+  `references/styles.md` for the medium you deliver (N entries: 20 for Web, Slides and Infographics, 12 for App, 8 for
+  Carousel), and a second the same way from its East Asian section (12). Open the section's overview sheet
+  (`assets/sheets/<section>.jpg`, with `read`) and see the pick done well before writing its card; the `design-system`
+  skill's tokens fit where the entry names a system. A pick in the same look family as one of the last three
+  deliveries moves to the next entry. The point of the random pick is to take you somewhere you would not go by
+  yourself.
 
 Every candidate with a source borrows one layer, not the whole: read `references/borrowing.md` before writing cards.
 

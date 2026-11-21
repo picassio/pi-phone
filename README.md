@@ -408,7 +408,9 @@ No Termux, no laptop, no cloud VM.
   three real drafts from three different sources (the best designer for the brief, a real work in the same medium it
   looked at, a randomly picked style), each borrowing one mechanism and none of the looks, and lets you pick on a card;
   it derives colours and type from the subject, gets real or generated images instead of emoji or grey blocks, and keeps
-  a look ledger in the wiki so the next design doesn't repeat the last. Ideas from
+  a look ledger in the wiki so the next design doesn't repeat the last. The random pick comes from a catalogue of 92
+  styles in six media (web, slides, infographics, app, East Asian, carousel), each with what it is known for, its one
+  mechanism, and what plain HTML can and cannot carry, with an overview sheet per medium that Pi looks at. Ideas from
   [huashu-design](https://github.com/alchaincyf/huashu-design).
 - **Deck templates and motion.** Five HTML slide deck templates and GSAP's animation skills from
   [OpenDesign](https://github.com/nexu-io/open-design), each under its own MIT licence: Pi starts a deck from one and
@@ -1177,8 +1179,8 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
   better-typography checks (concentric radii, tabular figures, static CSS tells) that auton-ui proved, reimplemented in
   the screenshot layout check with unslop's stripe and gradient signs; licence and list in `third_party/jakubkrehel-skills/`.
 - **[huashu-design](https://github.com/alchaincyf/huashu-design)** by alchaincyf (MIT): the three-direction process,
-  borrowing, colour and type, and materials, rewritten as references of `design-artifact`; licence and list in
-  `third_party/huashu-design/`.
+  borrowing, colour and type, materials and the 92-style catalogue, rewritten as references of `design-artifact`, with
+  its seven overview sheets; licence and list in `third_party/huashu-design/`.
 - **[pi-review](https://github.com/earendil-works/pi-review)** by Earendil (MIT): its review rubric, as written, in
   `third_party/pi-review/`, which `/review`'s subagent follows.
 - **[pi-better](https://github.com/nicobailon/pi-better)** by Nico Bailon (MIT): `/better`, ported, with its
