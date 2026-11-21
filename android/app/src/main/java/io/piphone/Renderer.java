@@ -261,6 +261,9 @@ final class Renderer {
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setMediaPlaybackRequiresUserGesture(true);
+        // Fresh every time (PP-539): the page and its files from the network, never the HTTP cache the app's WebViews
+        // share. A mockup rebuilt between two renders of its address was drawn from its old index.html.
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         stage.pages.addView(view, new ViewGroup.LayoutParams(width, viewport));
         layout(view, width, viewport);
         boolean[] settled = {false};

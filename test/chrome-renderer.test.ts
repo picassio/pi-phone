@@ -4,6 +4,7 @@
 import { cleanUp } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { createServer, type IncomingHttpHeaders, type Server } from "node:http";
 import { after, before, test } from "node:test";
 import { ChromeRenderer } from "../src/server/chrome-renderer.ts";
@@ -24,6 +25,8 @@ const chrome = ["google-chrome", "google-chrome-stable", "chromium", "chromium-b
     }
 });
 
+/** How many times the other site built its `/fresh` page. */
+let build = 0;
 /** What each server was asked, by path: the app's own, and another site a page loads from. */
 const seen: { app: Record<string, IncomingHttpHeaders>; other: Record<string, IncomingHttpHeaders> } = { app: {}, other: {} };
 let app: Server;
@@ -40,6 +43,18 @@ const listen = async (server: Server) => {
 before(async () => {
     other = createServer((request, response) => {
         seen.other[request.url ?? "/"] = request.headers;
+
+        // A page rebuilt between two renders (PP-539): its HTML and its script both say to keep them an hour.
+        if (request.url === "/fresh" || request.url === "/fresh.js") {
+            const page = request.url === "/fresh";
+
+            if (page) build++;
+            response.writeHead(200, { "content-type": page ? "text/html; charset=utf-8" : "text/javascript", "cache-control": "public, max-age=3600" });
+            response.end(page ? `<!doctype html><title>Build ${build}</title><p id="v">html ${build}</p><script src="/fresh.js"></script>` : `document.getElementById("v").textContent += ", script ${build}";`);
+
+            return;
+        }
+
         response.writeHead(200, { "content-type": "image/svg+xml" });
         response.end(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>`);
     });
@@ -220,6 +235,34 @@ test("a whole page that scrolls in its main area is pictured whole; a file page 
 
         assert.deepEqual(checked!.layout?.errors, ["TypeError: boom"]);
         assert.match(describeLayout(checked!.layout!), /The page threw: TypeError: boom/);
+    } finally {
+        await renderer.stop();
+    }
+});
+
+test("the phone's renderer loads every page without the HTTP cache, as this one does (PP-539: its WebView is checked on the phone after a build)", () => {
+    const java = readFileSync(new URL("../android/app/src/main/java/io/piphone/Renderer.java", import.meta.url), "utf8");
+
+    assert.match(java, /settings\.setCacheMode\(WebSettings\.LOAD_NO_CACHE\);/);
+});
+
+test("every render loads the page and its files fresh, whatever they say to cache: a page rebuilt between two renders of the same address shows its new build (PP-539)", { skip: chrome === undefined ? "no Chrome on this machine (CI runs it)" : false }, async () => {
+    const screenshots = new Screenshots();
+    const renderer = new ChromeRenderer(screenshots, { binary: chrome!, flags: ["--no-sandbox"], base: `http://127.0.0.1:${appPort}`, token: () => "owner-token", log: () => {} });
+
+    void renderer.run();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    try {
+        const url = `http://127.0.0.1:${otherPort}/fresh`;
+        const words = `document.getElementById("v").textContent`;
+        const before = build;
+        const [first] = await screenshots.render(url, { widths: [390], settleMs: 100, check: words });
+        const [second] = await screenshots.render(url, { widths: [390], settleMs: 100, check: words });
+
+        // ZeroHop on Build #519: the phone's renderer drew the old index.html after the mockup was rebuilt.
+        assert.equal(first!.check, `html ${before + 1}, script ${before + 1}`);
+        assert.equal(second!.check, `html ${before + 2}, script ${before + 2}`, "the second render asked for the page and its script again");
     } finally {
         await renderer.stop();
     }

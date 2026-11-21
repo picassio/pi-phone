@@ -196,6 +196,7 @@ const PAGES: Record<string, string> = {
     "/fixtures/entrance?stuck": readFileSync(new URL("fixtures/layout/entrance.html", import.meta.url), "utf8"),
     "/fixtures/fixed-heights": readFileSync(new URL("fixtures/layout/fixed-heights.html", import.meta.url), "utf8"),
     "/fixtures/text-heights": readFileSync(new URL("fixtures/layout/text-heights.html", import.meta.url), "utf8"),
+    "/fixtures/turned": readFileSync(new URL("fixtures/layout/turned.html", import.meta.url), "utf8"),
 };
 let server: Server;
 let port = 0;
@@ -543,6 +544,32 @@ test("under text zoom, heights lines make are taken back: words beside an icon i
                 ["button#fixed.h42", "control height", 42, 3],
             ],
         );
+    } finally {
+        await engine.close();
+    }
+});
+
+test("a turned icon or control is measured at its own size: a 16 px icon at 37°, a running spinner (in a canvas at zoom 0.7 too) and a 40 px button at 37° give no finding; a 17.5 px icon, turned or not, still does (PP-539)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+
+        for (const width of [390, 1280]) {
+            await page.init({ width, height: width < 600 ? 844 : 800, mobile: width < 600 });
+
+            const turned = await measured(page, "/fixtures/turned", width);
+
+            // ZeroHop on Build #519: auton-ui's spinner `svg.shrink-0.size-4` mid-turn as "icon width 19.2" (1280), 17.55 (1920).
+            assert.deepEqual(
+                of(turned, "off-grid")
+                    .filter((find) => /icon|height/.test(find.property))
+                    .map((find) => [find.what, find.property, find.value, find.count, find.zoom]),
+                [["svg#odd.odd", "icon width", 17.5, 2, undefined]],
+                `at ${width}`,
+            );
+            assert.deepEqual(turned.summary.icons, ["16x16", "17.5x17.5", "20x20"], `at ${width}`);
+        }
     } finally {
         await engine.close();
     }

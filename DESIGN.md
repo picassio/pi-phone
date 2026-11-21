@@ -1219,6 +1219,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
   token on its own pages; it posts JPEGs to `POST /api/phone/renders/<id>` and Pi gets them as images. Artifacts render
   at `/a/<conversation>/<id>/latest`, HTML and SVG files at `/a/file/<conversation>?path=` (artifact sandbox), Office files
   at `/a/office/`. Without the service polling (tests, a server not on the phone) a render fails at once, saying so.
+  Every render loads fresh (PP-539): the WebView with `LOAD_NO_CACHE`, a Chrome tab with `Network.setCacheDisabled`
+  (`tab-render.ts`), so a page rebuilt between two renders of its address is drawn new, not from its cached index.html.
   Allowed in plan mode. A `seeing` prompt section asks Pi to look before calling an artifact done; Effective HTML's and
   OfficeCLI's pi-phone notes point to it.
   - **On a machine, app shells, file pages** (PP-440; reported from a session on tuanlh-devbox-01, 2026-11-07, proved there
@@ -1287,7 +1289,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
     hairlines and nudges, pill corners pass, svg icons need whole pixels only; PP-520: in a zoomed canvas, as React
     Flow's viewport draws its nodes with `transform: matrix(0.7, …)`, control heights and icons are divided by the
     scale they are drawn at, their own transform's and their ancestors' multiplied (the computed matrix and `scale`),
-    and a finding that remains says "at zoom 0.7"; a tap target is measured as drawn, as a finger gets it, its hit
+    and a finding that remains says "at zoom 0.7"; PP-539: an element turned by its own or an ancestor's rotation or
+    skew, auton-ui's spinner mid-turn (16 px drawn 18.2 to 19.2), is measured at its laid-out size (its used width and
+    height, an SVG's too), which no transform changes; a tap target is measured as drawn, as a finger gets it, its hit
     layer's insets at the zoom of the box it is placed in, so a pin that keeps its size with 1 / zoom passes; what is
     drawn on a canvas, a scaled ancestor or `.react-flow` or `[data-canvas]`, is no card inside a card outside it, while
     a card inside a node still is: FlowCanvas's 42 px nodes and 11.2 px icons were 60 and 16 at zoom 1); text under WCAG AA contrast (4.5, 3

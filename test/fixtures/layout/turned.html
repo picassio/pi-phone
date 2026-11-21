@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Turned icons and controls: measured at their own size, not their turned box (PP-539)</title>
+<style>
+    body { margin: 0; padding: 16px; font: 14px/20px sans-serif; color: #111; background: #fff; }
+    svg { display: block; } /* Tailwind's preflight */
+    button { font: inherit; margin: 0; border: 0; padding: 0; background: #eef; display: inline-flex; align-items: center; justify-content: center; }
+    .row { display: flex; align-items: center; gap: 16px; margin: 16px 0; }
+    /* A 16 px icon turned 37°: its box drawn 22.4 px a side. */
+    .tilted { rotate: 37deg; }
+    .tilted-t { transform: rotate(37deg); }
+    /* auton-ui's spinner (animate-spin), running: so slow that it stands near 45° (22.6 px a side) while measured. */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin 3600s linear infinite; animation-delay: -450s; }
+    /* A 40 px button turned 37° (a dial): its height 40, drawn 56. */
+    .dial { width: 40px; height: 40px; border-radius: 4px; transform: rotate(37deg); }
+    /* A canvas at zoom 0.7 (PP-520) with a spinning 16 px icon in it: 16 at its own scale. */
+    .canvas { transform: scale(0.7); transform-origin: 0 0; }
+    /* Still findings: a 17.5 px icon, turned or not, and a 20 px one in the summary. */
+    .odd { width: 17.5px; height: 17.5px; }
+</style>
+</head>
+<body>
+    <div class="row">
+        <svg id="tilted" class="tilted" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h16"/></svg>
+        <svg id="tilted-t" class="tilted-t" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h16"/></svg>
+        <span role="status" aria-label="Working"><svg id="spinner" class="spin shrink-0 size-4" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg></span>
+        <button id="dial" class="dial" aria-label="Turn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16"/></svg></button>
+    </div>
+    <div class="row" style="height: 40px">
+        <div class="canvas"><svg id="in-canvas" class="spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg></div>
+    </div>
+    <div class="row">
+        <svg id="odd" class="odd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h16"/></svg>
+        <svg id="odd-turned" class="odd tilted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16"/></svg>
+        <svg id="wide" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg>
+    </div>
+</body>
+</html>

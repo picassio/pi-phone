@@ -35,6 +35,11 @@ export async function shootInTab(tabs: TabMaker, request: RenderRequest, width: 
         const viewport = width < 600 ? 844 : 800;
 
         await page.send("Page.enable");
+        // Fresh every time (PP-539): no HTTP cache for the page and its files, whatever they say. A page rebuilt between
+        // two renders of its address showed its old index.html, as the phone's WebView did (`Renderer.java` LOAD_NO_CACHE).
+        // Chrome keeps to it only while the tab's Network domain is on.
+        await page.send("Network.enable");
+        await page.send("Network.setCacheDisabled", { cacheDisabled: true });
         await page.send("Emulation.setDeviceMetricsOverride", { width, height: viewport, deviceScaleFactor: 1, mobile: width < 600 });
         await prepare?.(page);
         await load(page, request.url);

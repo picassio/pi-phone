@@ -258,6 +258,34 @@ export const PAGE_HELPERS = String.raw`
     if (v === undefined) { v = scaleOf(e.parentElement) * ownScale(css(e)); scales.set(e, v); }
     return v;
   };
+  // Turned (PP-539): a rotation or a skew of its own or an ancestor's (a running spinner mid-turn, matrix(0.15, -0.99,
+  // ...)), by transform or the rotate property. Its rect is the turned box's bounds, 19.2 px for a 16 px icon at 12°.
+  const ownTurn = (s) => {
+    if (s.rotate && s.rotate !== 'none' && parseFloat(s.rotate) % 360 !== 0) return true;
+    const m = /^matrix(3d)?\(([^)]*)\)$/.exec(s.transform);
+    if (!m) return false;
+    const v = m[2].split(',').map(Number);
+    return (m[1] ? [1, 2, 4, 6, 8, 9] : [1, 2]).some((i) => Math.abs(v[i]) > 1e-6);
+  };
+  const turns = new Map();
+  const turnedOf = (e) => {
+    if (!e || e.nodeType !== 1) return false;
+    let v = turns.get(e);
+    if (v === undefined) { v = turnedOf(e.parentElement) || ownTurn(css(e)); turns.set(e, v); }
+    return v;
+  };
+  // Its size at its own scale (PP-520), untransformed (PP-539): the drawn rect divided by the zoom, or, turned, its laid
+  // out border box (the used width and height, an SVG's too), which no transform changes.
+  const ownSize = (e, s, r, zoom) => {
+    if (!turnedOf(e)) return [r.width / zoom, r.height / zoom];
+    let w = parseFloat(s.width), h = parseFloat(s.height);
+    if (!Number.isFinite(w) || !Number.isFinite(h)) return e.offsetWidth === undefined ? [r.width / zoom, r.height / zoom] : [e.offsetWidth, e.offsetHeight];
+    if (s.boxSizing !== 'border-box') {
+      w += px(s.paddingLeft) + px(s.paddingRight) + px(s.borderLeftWidth) + px(s.borderRightWidth);
+      h += px(s.paddingTop) + px(s.paddingBottom) + px(s.borderTopWidth) + px(s.borderBottomWidth);
+    }
+    return [w, h];
+  };
   // A ::before or ::after that takes taps: shown, absolutely placed, its insets given.
   const tapLayers = (e) => ['::before', '::after'].map((which) => getComputedStyle(e, which)).filter((s) => s.content !== 'none' && s.content !== 'normal' && s.display !== 'none' && s.pointerEvents !== 'none' && s.position === 'absolute' && ![s.left, s.top, s.right, s.bottom].map(parseFloat).some(Number.isNaN));
   // A stretched link (PP-436): a control whose ::before or ::after is absolute with all four insets 0 over the box it
@@ -884,10 +912,12 @@ ${PAGE_HELPERS}
       if (v >= Math.min(r.width, r.height) / 2 - 0.5) continue;
       offGrid(e, 'radius', v);
     }
-    // Icons at their own scale (PP-520): a 16 px icon in a canvas at zoom 0.7 is drawn 11.2 px.
+    // Icons at their own scale (PP-520): a 16 px icon in a canvas at zoom 0.7 is drawn 11.2 px; a spinner mid-turn is
+    // 16 px, not its turned box (PP-539).
     const zoom = scaleOf(e);
-    if (tag === 'svg' && r.width / zoom <= 48 && r.height / zoom <= 48) {
-      const w = r.width / zoom, h = r.height / zoom;
+    const [ownW, ownH] = ownSize(e, style, r, zoom);
+    if (tag === 'svg' && ownW <= 48 && ownH <= 48) {
+      const w = ownW, h = ownH;
       icons.add(r2(w) + 'x' + r2(h));
       if (style.stroke !== 'none' && style.strokeWidth) strokes.add(style.strokeWidth);
       const at = Math.abs(zoom - 1) > 0.01 ? r2(zoom) : undefined;
@@ -985,9 +1015,9 @@ ${PAGE_HELPERS}
         // In a zoomed canvas, at its own scale (PP-520).
         if (pictured(e, r)) {
           // Its height is its picture's.
-        } else if (TEXT_ZOOM === 1) offGrid(e, 'control height', r.height / zoom, zoom);
-        else if (textPart(e) === 0) offGrid(e, 'control height', r.height / zoom, zoom);
-        else offGrid(e, 'control height at 100 % text', r1((r.height - textPart(e) * (1 - 1 / TEXT_ZOOM)) / zoom), zoom);
+        } else if (TEXT_ZOOM === 1) offGrid(e, 'control height', ownH, zoom);
+        else if (textPart(e) === 0) offGrid(e, 'control height', ownH, zoom);
+        else offGrid(e, 'control height at 100 % text', r1(ownH - textPart(e) * (1 - 1 / TEXT_ZOOM) / zoom), zoom);
         if (style.pointerEvents !== 'none') {
           const by = coveredBy(e, r.left + r.width / 2, r.top + r.height / 2);
           if (by) group('covered', sig(e) + '|' + sig(by), () => ({ what: name(e), by: name(by), points: 1, of: 1 }));
