@@ -90,7 +90,9 @@ No Termux, no laptop, no cloud VM.
   working), the title, the branch or task, and the status. The scope **Priority** sorts them by what they ask of you:
   Needs you (a call to answer, with Deny and Allow in its row; a failed run or failed subagents, with Dismiss), Ready to
   read (Mark all read), Working, and a folded Quiet; Dismiss and Mark all read say so in a notice that undoes them, and
-  the rail's Sessions button counts what needs you. Appearance › Session list opens on picks what shows when the app
+  a badge at the rail's Sessions button counts what needs you: amber when a session waits for your answer, red for
+  failures only, its label naming each kind, and a tap on it opens Priority (the sidebar unfolded; on a phone, the list).
+  Appearance › Session list opens on picks what shows when the app
   opens: the last view used on the device, All, or Priority (`sessions.listOpens`).
 - **Edits you can review.** Pi changes files with its edit and write tools, so every change shows as a diff; a bash
   command that writes project files by script (`sed -i`, `cat > file`, `writeFileSync`, `tee`) still runs, with a

@@ -94,8 +94,9 @@ dự án thật.</sub>
   cho biết nơi làm việc, thời gian (hoặc đã làm bao lâu), tiêu đề, nhánh hoặc tác vụ, và trạng thái. Phạm vi
   **Ưu tiên** xếp phiên theo việc chúng cần ở bạn: Cần bạn (một lệnh chờ trả lời, với Từ chối và Cho phép ngay trong
   dòng; một lượt chạy hoặc subagent thất bại, với Bỏ qua), Sẵn sàng để đọc (Đánh dấu tất cả đã đọc), Đang làm, và Yên
-  tĩnh thu gọn; Bỏ qua và Đánh dấu đã đọc báo bằng một thông báo có thể hoàn tác, và nút Phiên trên thanh bên đếm số việc cần
-  bạn. Giao diện › Danh sách phiên mở ở chọn cái hiện khi ứng dụng mở: chế độ xem dùng lần cuối trên thiết bị, Tất cả,
+  tĩnh thu gọn; Bỏ qua và Đánh dấu đã đọc báo bằng một thông báo có thể hoàn tác, và huy hiệu ở nút Phiên trên thanh bên đếm số việc
+  cần bạn: màu cam khi có phiên chờ bạn trả lời, màu đỏ khi chỉ có lỗi, nhãn nêu từng loại, và chạm vào nó mở Ưu tiên
+  (mở thanh bên đang thu gọn; trên điện thoại, về danh sách). Giao diện › Danh sách phiên mở ở chọn cái hiện khi ứng dụng mở: chế độ xem dùng lần cuối trên thiết bị, Tất cả,
   hoặc Ưu tiên (`sessions.listOpens`).
 - **Thay đổi có thể xem lại.** Pi sửa tệp bằng công cụ edit và write của nó, nên mọi thay đổi đều hiện thành diff; một
   lệnh bash ghi tệp dự án bằng script (`sed -i`, `cat > file`, `writeFileSync`, `tee`) vẫn chạy, kèm lời nhắc trong kết

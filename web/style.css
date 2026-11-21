@@ -823,7 +823,7 @@ kbd {
     .rail {
         gap: 2px;
     }
-    .rail > :is(span.rail-brand, span.rail-brand + .rail-gap, span.rail-button) {
+    .rail > :is(span.rail-brand, span.rail-brand + .rail-gap, .rail-slot:has(> span.rail-button)) {
         display: none;
     }
 }
@@ -21022,10 +21022,53 @@ pre.gallery-code {
     flex: none;
 }
 
-/* The rail's Sessions button: how many sessions need you (PP-346). */
-.rail-button .rail-needs {
+/* The rail's Sessions button: how many sessions need you (PP-346), a control of its own at its corner that opens Needs
+   you (PP-535): amber when one waits for an answer or an approval, red when only failures are counted. Its touch area
+   reaches past the dot with an empty ::after: 24 px up and out, clear of the Sessions button's middle, beside the
+   conversation; 40 px on a phone, where the Sessions button is no control. */
+.rail-slot {
+    position: relative;
+    flex: none;
+    display: grid;
+}
+
+button.rail-needs {
+    border: 0;
+    margin: 0;
+    cursor: pointer;
+}
+
+button.rail-needs::after {
+    content: "";
+    position: absolute;
+    inset: -8px -8px 0 0;
+}
+
+@media (max-width: 959px) {
+    button.rail-needs::after {
+        inset: -12px;
+    }
+}
+
+.rail-needs.asks {
     background: var(--warn);
     color: var(--bg);
+}
+
+.rail-needs.fails {
+    background: var(--err);
+    color: var(--bg);
+}
+
+@media (hover: hover) {
+    button.rail-needs:hover {
+        filter: brightness(1.08);
+    }
+}
+
+button.rail-needs:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
 /* Dragging with a mouse: where it would land, and what is carried. */

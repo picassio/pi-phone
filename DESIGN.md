@@ -3368,7 +3368,14 @@ so Pi changes them through the settings tools; "the last session" is the one the
   too long to show whole, or a card with more to answer, opens where it waits); Dismiss marks a failed run seen and
   dismisses failed subagents; Mark all read marks finished runs seen, clears marks and reads chat; both undo from their
   notice (`seenSnapshot`, `restoreSeen`, `setChatReadAt`). The open session stays in the group it was in as it opened
-  while it is read. The rail's Sessions button counts what needs you. `sessions.listOpens` (a person's: last, all,
+  while it is read. The rail's Sessions button counts what needs you, in a badge that is a control of its own beside it
+  (PP-535; `needsBadge`, `showNeeds`): amber (`--warn`) when a session waits for an answer or an approval, red (`--err`)
+  for failures only, its title and label naming the kinds ("1 needs you: 4 subagents failed in …"). A tap sets the scope
+  to Priority and sends `pocket:show-needs`, which every `AllSessions` hears (Priority, search cleared, Needs you open, from
+  the top); beside the conversation it unfolds a folded sidebar, on a phone it leaves the drawer for the list. Its touch
+  area is an empty `::after`: 24 px up and out, clear of the Sessions button's middle, and 40 px on a phone, where the
+  Sessions button is no control. Reported by the owner, 2026-11-21: a "1" he took for a question was 4 failed subagents
+  seen only under Priority. `sessions.listOpens` (a person's: last, all,
   priority; Appearance; tabs hear `list-opens`) picks the scope the list opens on, once per page load. Not taken:
   pocket's "Show N more" cut of Needs you, the call opening in place with keyboard focus, and the theme-surface parts.
 - **The composer's menu** (PP-383, GitHub #6; the owner merged Places and the / button into it): `ComposerMenu`

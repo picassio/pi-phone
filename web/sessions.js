@@ -330,6 +330,83 @@ export function needsYouCount(sessions = store.state.sessions, state = store.sta
     return sessions.reduce((sum, session) => sum + (!session.archived && needOf(session, state) ? 1 : 0), 0);
 }
 
+/** A session's title cut for a sentence: "Dựng game papertrails…". */
+const titleIn = (session) => {
+    const title = session.title ?? t("New session");
+
+    return title.length > 32 ? `${title.slice(0, 31).trimEnd()}…` : title;
+};
+
+/**
+ * What the rail's badge says (PP-535): how many sessions need you, whether one of them waits for an answer or an approval
+ * (`asks`: amber, else red for failures only), and a sentence naming the kinds: "1 needs you: 4 subagents failed in
+ * Dựng game…", "2 need you: 1 waits for your answer, 1 run failed". Null when nothing needs you.
+ */
+export function needsBadge(sessions = store.state.sessions, state = store.state) {
+    const needing = sessions.flatMap((session) => {
+        const need = session.archived ? null : needOf(session, state);
+
+        return need === null ? [] : [{ session, need }];
+    });
+
+    if (needing.length === 0) {
+        return null;
+    }
+
+    const of = (kind) => needing.filter(({ need }) => need === kind).length;
+    let what;
+
+    if (needing.length === 1) {
+        const [{ session, need }] = needing;
+        const title = titleIn(session);
+
+        what =
+            need === "ask"
+                ? t("{title} waits for your answer", { title })
+                : need === "failed"
+                  ? t("a run failed in {title}", { title })
+                  : tn(failing(session.subagents ?? {}), "{n} subagent failed in {title}", "{n} subagents failed in {title}", { title });
+    } else {
+        what = [
+            of("ask") > 0 && tn(of("ask"), "{n} waits for your answer", "{n} wait for your answer"),
+            of("failed") > 0 && tn(of("failed"), "{n} run failed", "{n} runs failed"),
+            of("agents") > 0 && tn(of("agents"), "{n} with failed subagents", "{n} with failed subagents"),
+        ]
+            .filter(Boolean)
+            .join(", ");
+    }
+
+    return { count: needing.length, asks: of("ask") > 0, label: tn(needing.length, "{n} needs you: {what}", "{n} need you: {what}", { what }) };
+}
+
+/** What the rail's badge sends the session lists: show Priority (PP-535). */
+const NEEDS_EVENT = "pocket:show-needs";
+
+/**
+ * The rail's badge tapped (PP-535): the session list shows Priority, from any scope or search. Beside the conversation
+ * the folded sidebar unfolds; on a phone it goes to the session list, out of the drawer.
+ */
+export function showNeeds() {
+    localStorage.setItem(SCOPE_KEY, "priority");
+    dispatchEvent(new CustomEvent(NEEDS_EVENT));
+
+    if (WIDE.matches) {
+        if (prefs().sidebar === "rail") {
+            setPrefs({ sidebar: "open" });
+        }
+
+        return;
+    }
+
+    if (store.state.drawer) {
+        store.set({ drawer: false });
+    }
+
+    if (store.state.conversationId !== null || store.state.board || store.state.page !== null) {
+        toSessions();
+    }
+}
+
 /**
  * Where a session goes in Priority: `needs`, `ready` (to read), `working`, or `quiet`. The first that holds wins. One that
  * waits on its linked sessions at work (`linked`, PP-337) works too.
@@ -1324,6 +1401,33 @@ function AllSessions({ compact = false }) {
         localStorage.setItem(SCOPE_KEY, next);
         clearSelection();
     };
+
+    // The rail's badge (PP-535): Priority at once, with no search hiding its groups, from the top, Needs you open.
+    useEffect(() => {
+        const show = () => {
+            setScope("priority");
+            setQuery("");
+            setClosed((closed) => {
+                if (!closed.has("priority:needs")) {
+                    return closed;
+                }
+
+                const next = new Set(closed);
+
+                next.delete("priority:needs");
+
+                return next;
+            });
+
+            if (list.current) {
+                list.current.scrollTop = 0;
+            }
+        };
+
+        addEventListener(NEEDS_EVENT, show);
+
+        return () => removeEventListener(NEEDS_EVENT, show);
+    }, []);
 
     // What changes the list's rows: the sessions and pins, the scope and the search, the folder groups, and the minute,
     // as sessions settle after a day idle. Worked out again only when one of them changes, not on every draw.
@@ -2347,9 +2451,23 @@ function Rail({ foldable = false, folded = false }) {
     );
     const live = agents.working + agents.waiting;
     const failed = failing(agents);
-    // How many sessions need you, as Priority's Needs you counts them (PP-346): on the Sessions button.
-    const needs = needsYouCount(sessions);
-    const needsBadge = needs > 0 && html`<span class="rail-count rail-needs" data-part="rail-needs" aria-hidden="true">${needs}</span>`;
+    // How many sessions need you, as Priority's Needs you counts them (PP-346), at the Sessions button's corner: a control
+    // of its own that opens Needs you, amber when one waits for an answer, red for failures only, named by kind (PP-535).
+    const need = needsBadge(sessions);
+    const needs = need?.count ?? 0;
+    const badge =
+        need !== null &&
+        html`<button
+            type="button"
+            class=${`rail-count rail-needs ${need.asks ? "asks" : "fails"}`}
+            data-part="rail-needs"
+            data-state=${need.asks ? "asks" : "fails"}
+            title=${need.label}
+            aria-label=${need.label}
+            onClick=${showNeeds}
+        >
+            ${needs}
+        </button>`;
     const keys = APPLE ? "⌘B" : "Ctrl+B";
     const fold = () => setPrefs({ sidebar: folded ? "open" : "rail" });
     const role = me?.role === "owner" ? "owner" : me?.role === "viewer" ? "view only" : "guest";
@@ -2369,7 +2487,7 @@ function Rail({ foldable = false, folded = false }) {
                 : html`<span class="rail-brand" data-part="brand-mark" aria-hidden="true"><img class="brand-icon" src="icon.svg" alt="" /></span>`
         }
         <span class="rail-gap"></span>
-        ${
+        <span class="rail-slot">${
             foldable
                 ? html`<button
                     class=${`rail-button ${folded ? "" : "on"}`}
@@ -2381,7 +2499,6 @@ function Rail({ foldable = false, folded = false }) {
                     onClick=${fold}
                 >
                     <${Icon} name="chat" size=${20} />
-                    ${needsBadge}
                 </button>`
                 : html`<span
                     class="rail-button on"
@@ -2391,9 +2508,8 @@ function Rail({ foldable = false, folded = false }) {
                     aria-current="page"
                 >
                     <${Icon} name="chat" size=${20} />
-                    ${needsBadge}
                 </span>`
-        }
+        }${badge}</span>
         ${!folded && html`<span class="rail-fill"></span>`}
         ${
             folded &&
