@@ -2008,10 +2008,14 @@ so Pi changes them through the settings tools; "the last session" is the one the
   person's design systems and the chosen id stay on disk while it is off.
 - **Formal checks** (`extensions/formal.ts`, `formal-checks.ts`, PP-316; owner's decisions of 2026-11-01 after research
   PP-301/PP-302, wiki `resources/statechart-and-pstack-research`): pstack's `statechart` skill (cursor/plugins
-  `pstack/skills/statechart/`, MIT, Lauren Tan) at `ae5650f`, copied by `scripts/sync-statechart.ts` into
-  `third_party/pstack-statechart/skills/statechart/` (SKILL.md, references/render.md, scripts/ without test/), with
-  statechart-art's four boba models (MIT, Kevin T. Ngo, at `09c959c`: order, day, counter, bug, each with the chart
-  and report /statechart wrote) as `examples/`. It checks a TLA+ model with TLC and writes `chart.mmd` (Mermaid, in the
+  `pstack/skills/statechart/`, MIT, Lauren Tan) at `0b46ec3` (pstack 0.15.46, PP-549; first at `ae5650f`), copied by
+  `scripts/sync-statechart.ts` into `third_party/pstack-statechart/skills/statechart/` (SKILL.md,
+  references/render.md, scripts/ without test/), with statechart-art's four boba models (MIT, Kevin T. Ngo, at
+  `09c959c`: order, day, counter, bug, each with the chart and report /statechart wrote) as `examples/`. The sync
+  runs the copied script on each example with TLC (so on a machine with the TLC tool): statechart-art's chart is kept
+  where it is byte for byte what this commit writes, and an example marked `redrawn` gets this commit's (day: since
+  pstack #1292 an arrow into a parent state ends at its border, and the parent starts at its first child); any other
+  difference stops it. A spec that does not parse is exit 2 with SANY's line and column, not a Java stack trace. It checks a TLA+ model with TLC and writes `chart.mmd` (Mermaid, in the
   reader's words), `report.md` (each broken rule with its shortest path) and `tlc.out`; exit 0 holds, 1 a rule breaks,
   2 an error. Needs Node 22.18+ (or Bun, Deno 2), Java 11+ and tla2tools.jar 1.7.4.
   - **pi-phone's changes** to SKILL.md: one marked note (run only where `TLA2TOOLS` is set, a machine with the TLC

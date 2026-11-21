@@ -1,9 +1,9 @@
 # pstack's /statechart skill, for pi-phone
 
-**The skill.** From [cursor/plugins](https://github.com/cursor/plugins) `pstack/skills/statechart/` (pstack 0.15.36 by
+**The skill.** From [cursor/plugins](https://github.com/cursor/plugins) `pstack/skills/statechart/` (pstack 0.15.46 by
 Lauren Tan, [@poteto](https://github.com/poteto); MIT, © 2026 Lauren Tan, see `LICENSE`), at commit
-`ae5650febf4320793844c12c4adaa937f417f8da`, in `skills/statechart/`: `SKILL.md`, `references/render.md` and `scripts/`
-(9.4k lines of TypeScript, no runtime dependencies). `scripts/test/` (3.6 MB of tests and a Java oracle) is left out.
+`0b46ec399d55f2829e88822998f53b84944837d3`, in `skills/statechart/`: `SKILL.md`, `references/render.md` and `scripts/`
+(4k lines of TypeScript, no runtime dependencies). `scripts/test/` (3.6 MB of tests and a Java oracle) is left out.
 It checks a TLA+ model with TLC (SANY, then TLC with one worker, each broken rule removed and run again, then TLC's
 state graph) and writes `chart.mmd` (a Mermaid statechart in the reader's words), `report.md` (each broken rule with the
 shortest path to it) and `tlc.out`. Exit codes: 0 every rule holds, 1 a rule breaks, 2 an error. It needs Node 22.18 or
@@ -13,6 +13,8 @@ later (or Bun, or Deno 2), Java 11 or later and tla2tools.jar 1.7.4.
 Ngo, see `skills/statechart/examples/LICENSE`), at commit `09c959c79e25767cc34a5beddf3df234b085636e`: the four boba
 models of `business/`, in `skills/statechart/examples/`, each its `Spec.tla` and `.cfg`, `view.mjs`, and the `chart/`
 (`chart.mmd`, `report.md`) that /statechart wrote. The art (the plates' layouts and drawing scripts) is left out.
+`day`'s `chart/` is redrawn by the skill at the commit above: statechart-art's was written by an older statechart, and
+since pstack #1292 an arrow into a parent state ends at its border and the parent starts at its first child.
 
 | Example | Shows |
 | --- | --- |
@@ -21,7 +23,9 @@ models of `business/`, in `skills/statechart/examples/`, each its `Spec.tla` and
 | `counter` | two parallel regions |
 | `bug` | a rule that breaks, and the shortest path to it (exit 1) |
 
-`scripts/sync-statechart.ts` copies both from clones at those commits (it refuses another commit or local changes).
+`scripts/sync-statechart.ts` copies both from clones at those commits (it refuses another commit or local changes),
+then runs the copied script on each example with TLC, so it runs on a machine with the TLC tool: it keeps
+statechart-art's chart where it is what this commit writes, writes day's, and stops on any other difference.
 
 ## Where pi-phone offers it
 

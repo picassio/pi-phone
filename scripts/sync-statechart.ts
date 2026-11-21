@@ -9,30 +9,42 @@
  * - skills/statechart/examples/: order, day, counter and bug, each its Spec.tla and .cfg, view.mjs and the chart/ that
  *   /statechart wrote (chart.mmd, report.md), with statechart-art's LICENSE. The art (layout.mmd, the plate scripts) is
  *   left out.
+ * - The charts: it runs the copied skill's script on each example with TLC (TLA2TOOLS and JAVA set: a machine with the
+ *   TLC tool). Where statechart-art's chart/ is what the skill at PSTACK_COMMIT writes, byte for byte, it is kept; an
+ *   example marked `redrawn` gets the chart this commit writes instead (statechart-art's was written by an older
+ *   statechart), and any other difference stops the sync.
  *
  *   git clone https://github.com/cursor/plugins /tmp/plugins && git -C /tmp/plugins checkout <PSTACK_COMMIT>
  *   git clone https://github.com/kevintngo/statechart-art /tmp/statechart-art && git -C /tmp/statechart-art checkout <ART_COMMIT>
  *   node scripts/sync-statechart.ts /tmp/plugins /tmp/statechart-art
  *
- * To move to newer commits: change them, run it, read the new SKILL.md against the note, run the smoke test on a machine
- * with Java (test/statechart.test.ts), and update the README.
+ * To move to newer commits: change them, run it on a machine with the TLC tool, read the new SKILL.md against the note,
+ * run test/statechart.test.ts there, and update the README.
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-export const PSTACK_COMMIT = "ae5650febf4320793844c12c4adaa937f417f8da";
+export const PSTACK_COMMIT = "0b46ec399d55f2829e88822998f53b84944837d3";
 export const ART_COMMIT = "09c959c79e25767cc34a5beddf3df234b085636e";
 export const TARGET = resolve(import.meta.dirname, "..", "third_party", "pstack-statechart");
 export const SKILL = join(TARGET, "skills", "statechart");
 
-/** statechart-art's boba models, by folder, with their spec's name: flat, parent states, regions, a rule that breaks. */
+/**
+ * statechart-art's boba models, by folder, with their spec's name: flat, parent states, regions, a rule that breaks.
+ * `redrawn`: its chart/ is the one the skill at PSTACK_COMMIT writes, not statechart-art's (day: pstack #1292 ends an
+ * arrow into a parent state at its border and starts the parent at its first child, PP-549).
+ */
 export const EXAMPLES = [
-    { folder: "order", spec: "Order", shows: "a flat chart with a branch and a loop" },
-    { folder: "day", spec: "Day", shows: "parent states" },
-    { folder: "counter", spec: "Counter", shows: "two parallel regions" },
-    { folder: "bug", spec: "Bug", shows: "a rule that breaks, and the shortest path to it" },
+    { folder: "order", spec: "Order", shows: "a flat chart with a branch and a loop", redrawn: false },
+    { folder: "day", spec: "Day", shows: "parent states", redrawn: true },
+    { folder: "counter", spec: "Counter", shows: "two parallel regions", redrawn: false },
+    { folder: "bug", spec: "Bug", shows: "a rule that breaks, and the shortest path to it", redrawn: false },
 ] as const;
+
+/** The chart files /statechart writes that the examples keep. */
+export const CHART_FILES = ["chart.mmd", "report.md"] as const;
 
 export const NOTE = [
     "<!-- pi-phone: added (third_party/pstack-statechart/README.md) -->",
@@ -117,9 +129,62 @@ function sync(plugins: string, art: string): void {
         }
     }
 
+    const redrawn = draw(examples);
     const scripts = readdirSync(join(SKILL, "scripts"), { recursive: true }).length;
 
-    console.log(`statechart at ${PSTACK_COMMIT} (${scripts} script entries) and ${EXAMPLES.length} examples at ${ART_COMMIT}`);
+    console.log(`statechart at ${PSTACK_COMMIT} (${scripts} script entries) and ${EXAMPLES.length} examples at ${ART_COMMIT}, redrawn: ${redrawn.join(", ") || "none"}`);
+}
+
+/** Runs the skill's script on each example: keeps statechart-art's chart/ where it matches, writes the redrawn ones. */
+function draw(examples: string): string[] {
+    if (process.env.TLA2TOOLS === undefined || process.env.TLA2TOOLS === "" || process.env.JAVA === undefined || process.env.JAVA === "") {
+        throw new Error("TLA2TOOLS and JAVA are not set: run the sync on a machine with pi-phone's TLC tool (Settings › Machines › Install tools).");
+    }
+
+    const redrawn: string[] = [];
+
+    for (const example of EXAMPLES) {
+        const folder = join(examples, example.folder);
+        const out = join(tmpdir(), `sync-statechart-${example.folder}-${process.pid}`);
+
+        rmSync(out, { recursive: true, force: true });
+
+        try {
+            const run = spawnSync("sh", [join(SKILL, "scripts", "statechart"), join(folder, `${example.spec}.tla`), "--view", join(folder, "view.mjs"), "--out", out], {
+                encoding: "utf8",
+                timeout: 300_000,
+            });
+
+            if (run.status !== (example.folder === "bug" ? 1 : 0)) {
+                throw new Error(`${example.folder}: the script exited ${run.status}\n${run.stdout}\n${run.stderr}`);
+            }
+
+            const same = CHART_FILES.every((file) => readFileSync(join(out, file), "utf8") === readFileSync(join(folder, "chart", file), "utf8"));
+
+            if (example.redrawn && same) {
+                throw new Error(`${example.folder}: statechart-art's chart/ is what the skill at ${PSTACK_COMMIT} writes now: mark it not redrawn.`);
+            }
+
+            for (const file of CHART_FILES) {
+                const drawn = readFileSync(join(out, file), "utf8");
+                const kept = join(folder, "chart", file);
+
+                if (example.redrawn) {
+                    writeFileSync(kept, drawn);
+                } else if (readFileSync(kept, "utf8") !== drawn) {
+                    throw new Error(`${example.folder}/chart/${file}: statechart-art's differs from what the skill at ${PSTACK_COMMIT} writes; read the difference, then mark the example redrawn.`);
+                }
+            }
+        } finally {
+            rmSync(out, { recursive: true, force: true });
+        }
+
+        if (example.redrawn) {
+            redrawn.push(example.folder);
+        }
+    }
+
+    return redrawn;
 }
 
 if (import.meta.main) {

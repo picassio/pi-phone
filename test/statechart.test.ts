@@ -7,7 +7,7 @@
 import { type App, cleanUp, context, lastText, modelTexts, newSession, openApp, owner, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
@@ -40,6 +40,17 @@ test("the skill ships with pstack's MIT licence, pi-phone's note, no tests, and 
 
     // The Bug model's chart marks its broken rule and the path to it, which the app colours (web/style.css).
     assert.match(readFileSync(join(SKILL, "examples", "bug", "chart", "chart.mmd"), "utf8"), /class s5 breaks\n {2}class s5 bugPath/);
+});
+
+test("only day's chart is redrawn at the pinned commit: its parent state starts at its first child, arrows end at its border", () => {
+    assert.equal(PSTACK_COMMIT, "0b46ec399d55f2829e88822998f53b84944837d3", "pstack 0.15.46 (PP-549)");
+    assert.deepEqual(EXAMPLES.filter((example) => example.redrawn).map((example) => example.folder), ["day"]);
+    assert.match(readFileSync(join(TARGET, "README.md"), "utf8"), /`day`'s `chart\/` is redrawn/);
+
+    const day = readFileSync(join(SKILL, "examples", "day", "chart", "chart.mmd"), "utf8");
+
+    assert.match(day, /state "open" as s2 \{[^}]*\n {4}\[\*\] --> s3\n {2}\}/, "the parent starts at its first child");
+    assert.match(day, /\n {2}s1 --> s2: tea and pearls ready\n/, "the arrow ends at the parent's border");
 });
 
 test("pi-phone's note goes after the front matter, and only disable-model-invocation leaves it", () => {
@@ -187,5 +198,24 @@ test("the skill's script checks the four boba models: Bug breaks its rule (exit 
         } finally {
             rmSync(out, { recursive: true, force: true });
         }
+    }
+});
+
+test("a spec that does not parse is an error (exit 2) at its line and column, not a Java stack trace", where, () => {
+    const dir = mkdtempSync(join(tmpdir(), "statechart-bad-"));
+
+    try {
+        // `+` needs EXTENDS Naturals: SANY cannot find it.
+        writeFileSync(join(dir, "Bad.tla"), "---- MODULE Bad ----\nVARIABLE x\nInit == x = 0\nNext == x' = x + 1\n====\n");
+        writeFileSync(join(dir, "Bad.cfg"), "INIT Init\nNEXT Next\n");
+
+        const run = spawnSync("sh", [join(SKILL, "scripts", "statechart"), join(dir, "Bad.tla"), "--out", join(dir, "out")], { encoding: "utf8", timeout: 180_000 });
+        const said = `${run.stdout}\n${run.stderr}`;
+
+        assert.equal(run.status, 2, said);
+        assert.match(said, /line 4, col \d+ to line 4, col \d+ of module Bad/);
+        assert.doesNotMatch(said, /\tat tla2sany\./, "no stack trace");
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
     }
 });

@@ -435,7 +435,7 @@ dự án thật.</sub>
   của pstack: Pi viết một mô hình TLA+ cho thứ chuyển qua lại giữa các trạng thái (một luồng thanh toán, một giao thức,
   một dịch vụ), TLC kiểm tra mọi quy tắc trong đó, và câu trả lời hiện nó thành một statechart Mermaid bằng lời của bạn,
   tô sáng đường ngắn nhất dẫn tới mỗi quy tắc bị vi phạm (exit 1 nghĩa là có quy tắc bị vi phạm, báo kèm đường đi đánh
-  số). Nó chạy ở nơi có Java: một máy có công cụ máy **TLC**, hoặc bản server. Trên điện thoại Pi chỉ phác một biểu đồ
+  số); một mô hình viết sai cú pháp được báo kèm dòng và cột chỗ sai. Nó chạy ở nơi có Java: một máy có công cụ máy **TLC**, hoặc bản server. Trên điện thoại Pi chỉ phác một biểu đồ
   chưa kiểm tra, nói rõ như vậy, và đề nghị kiểm tra trên một máy. Kèm bốn ví dụ mẫu (tiệm trà sữa của statechart-art).
   Là một tiện ích riêng, bật sẵn: tắt nó trong **Tiện ích** (hoặc nhờ Pi), thì không phiên nào liệt kê skill này.
 - **Pi nhìn thấy việc mình làm.** `screenshot` dựng một artifact, một tệp HTML hoặc Office, hay một trang web trong

@@ -430,7 +430,8 @@ No Termux, no laptop, no cloud VM.
 - **Formal checks.** pstack's [statechart](https://github.com/cursor/plugins/tree/main/pstack/skills/statechart)
   skill: Pi writes a TLA+ model of something that moves between states (a checkout, a protocol, a service), TLC
   checks every rule in it, and the reply shows it as a Mermaid statechart in your words, with the shortest path to each
-  broken rule highlighted (exit 1 is a broken rule, reported with its numbered path). It runs where Java is: a machine
+  broken rule highlighted (exit 1 is a broken rule, reported with its numbered path); a model that does not parse is
+  reported at its line and column. It runs where Java is: a machine
   with the **TLC** machine tool, or the server edition. On the phone Pi only sketches an unchecked chart, says so, and
   offers to check it on a machine. Four worked examples (statechart-art's boba shop) come with it. Its own extension,
   on by default: turn it off in **Extensions** (or ask Pi), and no session lists the skill.
