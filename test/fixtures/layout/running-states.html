@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Focusable boxes and running states (PP-536)</title>
+<style>
+    body { margin: 0; padding: 16px; font: 16px/24px sans-serif; color: #111; background: #fff; }
+    button { font: inherit; line-height: 24px; padding: 8px 12px; border: 0; box-sizing: border-box; }
+    [role=tablist] { display: flex; gap: 8px; }
+    [role=tab] { height: 40px; padding: 0 12px; }
+    /* A tabpanel takes the focus so the keyboard reaches it (WAI-ARIA's tabs pattern): its height is its content's. */
+    #panel { height: 301.3px; margin-top: 8px; }
+    #region { height: 61.3px; }
+    /* A scrolling box made focusable, no role: taller than 200 px, no control. */
+    #scroller { height: 250.5px; overflow: auto; }
+    #scroller > div { height: 600px; }
+    #inside { height: 33.3px; }
+    /* Still controls: a real button off the grid, a short focusable box, a slider. */
+    #odd { height: 37.7px; }
+    #chip { height: 30.5px; width: 120px; }
+    #slider { height: 22.5px; width: 160px; background: #ddd; }
+    .grad { background-image: linear-gradient(90deg, #6366f1, #ec4899); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    /* auton-ui's "Thinking…": a light band sweeping the words, endlessly. */
+    .text-shimmer {
+        background-image: linear-gradient(90deg, #777 0%, #777 40%, #111 50%, #777 60%, #777 100%);
+        background-size: 200% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        animation: shimmer 1.6s linear infinite;
+    }
+    @keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+    /* An endless fade is no shimmer: the gradient stays where it is. */
+    #fading { animation: fade 2s ease-in-out infinite; }
+    @keyframes fade { from { opacity: 1; } to { opacity: 0.6; } }
+</style>
+</head>
+<body>
+    <div role="tablist" aria-label="Pages">
+        <button role="tab" id="tab-pages" aria-selected="true" aria-controls="panel">Pages</button>
+        <button role="tab" id="tab-cases" aria-selected="false" aria-controls="panel-cases" tabindex="-1">Cases</button>
+    </div>
+    <div role="tabpanel" id="panel" tabindex="0" aria-labelledby="tab-pages">Search documents and solved tickets.</div>
+    <section role="region" id="region" tabindex="0" aria-label="Summary">Sign-offs take 73% of the time.</section>
+    <div id="scroller" tabindex="0">
+        <div><button id="inside">Open the case</button></div>
+    </div>
+    <button id="odd">Approve</button>
+    <div id="chip" tabindex="0">Filter</div>
+    <div id="slider" role="slider" tabindex="0" aria-valuenow="5" aria-valuemin="0" aria-valuemax="10" aria-label="Volume"></div>
+
+    <p><button type="button"><span class="text-shimmer" id="thinking">Thinking…</span></button></p>
+    <p role="status"><span class="grad" id="saving">Saving</span></p>
+    <p aria-busy="true"><span class="grad" id="loading">Loading</span></p>
+    <h2 class="grad" id="allowed" data-allow-gradient>The brand's own</h2>
+    <h1 class="grad" id="hype">Supercharge</h1>
+    <h2 class="grad" id="fading">Fades forever</h2>
+</body>
+</html>

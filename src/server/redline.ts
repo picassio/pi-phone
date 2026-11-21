@@ -92,7 +92,7 @@ ${PAGE_HELPERS}
       what: name(e), kind, box: box(r),
       padding: [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft].map((v) => r2(px(v))),
       border: [s.borderTopWidth, s.borderRightWidth, s.borderBottomWidth, s.borderLeftWidth].map((v) => r2(px(v))),
-      radius, pill: Math.max(...radius) >= Math.min(r.width, r.height) / 2 - 0.5, control: e.matches(CONTROL),
+      radius, pill: Math.max(...radius) >= Math.min(r.width, r.height) / 2 - 0.5, control: control(e),
     };
     // The gap to the next block: not across words between them (inline code in a sentence), and "auto" where the
     // layout spreads the space (justify-content, or an auto margin), as no spacing token sets it.
@@ -135,8 +135,8 @@ ${PAGE_HELPERS}
     for (const e of all) {
       const r = e.getBoundingClientRect();
       if (r.width < 16 || r.height < 12 || !shows(e, r) || e.closest('svg') || r.width * r.height > 0.9 * page) continue;
-      if (e.parentElement && e.parentElement.closest(CONTROL)) continue;
-      if (e.matches(CONTROL)) { controls.push(e); continue; }
+      if (e.parentElement && controlOf(e.parentElement)) continue;
+      if (control(e)) { controls.push(e); continue; }
       const s = css(e), bg = colour(s.backgroundColor), under = backdrop(e.parentElement);
       const own = bg && bg[3] > 0.05 && (!under || hex(over(bg, under)) !== hex(under));
       const lined = ['Top', 'Right', 'Bottom', 'Left'].some((side) => { const w = px(s['border' + side + 'Width']), c = colour(s['border' + side + 'Color']); return w >= 1 && c && c[3] > 0.05; });

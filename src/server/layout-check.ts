@@ -49,6 +49,11 @@
  * Since PP-521, a render finishes the animations still running after its wait before the page measures itself
  * (`FINISH_ANIMATIONS`), and words at opacity 0 in flow and in view are a finding (`hidden`): an entrance an observer
  * or a script never started leaves its content out of the picture, which a page drawn off screen showed.
+ *
+ * Since PP-536, a tabindex makes a control only with no role or a widget role, and with no role only up to 200 px tall:
+ * a focusable tabpanel, region or scrolling box is no control, so its height is no control height off the grid. Gradient
+ * text that shimmers (an endless animation of its background's position, auton-ui's "Thinking…") or sits under
+ * [aria-busy=true], [role=status] or [data-allow-gradient] is a running state, not a gradient-text finding.
  */
 
 /** One thing out of place: what it is, and the boxes that show it (x and width, CSS pixels). */
@@ -507,7 +512,16 @@ export const PAGE_HELPERS = String.raw`
     return paint === null ? null : paint[3] <= 0.001 ? base : over(paint, base);
   };
   const px = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
-  const CONTROL = 'a[href],button,input:not([type=hidden]),select,textarea,summary,[role=button],[role=link],[role=tab],[role=checkbox],[role=switch],[role=menuitem],[role=option],[role=radio],[tabindex]:not([tabindex="-1"])';
+  // Controls. A tabindex alone makes one only with no role or a widget role (PP-536): a tabpanel, a region, a dialog, an
+  // article or main takes the focus so the keyboard reaches it (WAI-ARIA's tabs pattern), and its height is its content's.
+  // Neither is one an element with a tabindex alone and no role taller than 200 px (a scrolling box made focusable);
+  // control(e) and controlOf(e) hold that rule, CONTROL is the selector without it.
+  const WIDGET_ROLES = ['button', 'checkbox', 'combobox', 'gridcell', 'link', 'listbox', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'option', 'radio', 'scrollbar', 'searchbox', 'slider', 'spinbutton', 'switch', 'tab', 'textbox', 'treeitem'];
+  const NATIVE_CONTROL = 'a[href],button,input:not([type=hidden]),select,textarea,summary,[role=button],[role=link],[role=tab],[role=checkbox],[role=switch],[role=menuitem],[role=option],[role=radio],' + WIDGET_ROLES.map((role) => '[tabindex]:not([tabindex="-1"])[role=' + role + ']').join(',');
+  const FOCUSABLE_BOX = '[tabindex]:not([tabindex="-1"]):not([role])';
+  const CONTROL = NATIVE_CONTROL + ',' + FOCUSABLE_BOX;
+  const control = (e) => e.matches(NATIVE_CONTROL) || (e.matches(FOCUSABLE_BOX) && e.getBoundingClientRect().height <= 200);
+  const controlOf = (e) => { for (let p = e; p; p = p.parentElement) if (control(p)) return p; return null; };
   // Open modal dialogs (PP-501), in the page's order, for the layout check and the redlines alike: a <dialog> opened
   // with showModal(), a dialog marked aria-modal, or a dialog whose page around it is shut (sealed), that shows.
   // Shut, any of three ways (a dialog with the page around it reachable, data-state=open alone, is no modal):
@@ -520,7 +534,7 @@ export const PAGE_HELPERS = String.raw`
   const shut = (e) => e.getAttribute('aria-hidden') === 'true' || e.hasAttribute('inert');
   const bare = (e, dialog) => {
     const text = e.contains(dialog) ? (e.textContent || '').replace(dialog.textContent || '', '') : e.textContent || '';
-    return !/\S/.test(text) && !e.matches(CONTROL) && ![...e.querySelectorAll(CONTROL)].some((c) => !dialog.contains(c));
+    return !/\S/.test(text) && !control(e) && ![...e.querySelectorAll(CONTROL)].some((c) => control(c) && !dialog.contains(c));
   };
   const sealed = (dialog) => {
     let top = dialog;
@@ -656,7 +670,7 @@ ${PAGE_HELPERS}
     if (x < 0 || y < 0 || x >= VW || y >= VH) return undefined;
     const hit = document.elementFromPoint(x, y);
     if (!hit || hit === target || target.contains(hit) || hit.contains(target)) return null;
-    const link = words ? hit.closest(CONTROL) : null;
+    const link = words ? controlOf(hit) : null;
     const over = link && stretchedOver(link);
     if (over && over.contains(target)) {
       const own = link.getBoundingClientRect();
@@ -710,6 +724,9 @@ ${PAGE_HELPERS}
   const unscaled = (e, r) => Math.abs(r.width / (e.offsetWidth || r.width) - 1) <= 0.02;
   const surfaces = new Set();
   // One colour drawn as a gradient (a tint over a fill, corner marks) is a fill, not a gradient.
+  // A shimmer (PP-536): an endless animation running on where its background sits (background-position, its x or y, or
+  // the background shorthand), a band sweeping over the words.
+  const shimmer = (e) => e.getAnimations().some((a) => a.playState === 'running' && a.effect && a.effect.getTiming().iterations === Infinity && a.effect.getKeyframes().some((k) => Object.keys(k).some((p) => /^background(Position[XY]?)?$/.test(p))));
   const flatGradient = (v) => splitTop(v).every((layer) => !/gradient\(/.test(layer) || new Set(layer.match(/(?:rgba?|color|oklab|oklch|hsla?|lab|lch)\([^()]*\)|transparent/g) || []).size <= 1);
   const MONO = /mono|menlo|consolas|courier/i;
   const TABULAR = 'td,th,[role=cell],[role=gridcell],[role=timer],[role=progressbar],[role=meter],output,[aria-live],[role=status]';
@@ -732,8 +749,8 @@ ${PAGE_HELPERS}
     let seen = 0;
     for (let t = walker.nextNode(); t && seen < 400; t = walker.nextNode()) {
       seen++;
-      const owner = t.parentElement, control = owner && owner.closest(CONTROL);
-      if (!owner || e.contains(t) || !/\S/.test(t.textContent) || (control && !control.contains(e)) || /^(script|style|noscript|template|textarea|option|title)$/i.test(owner.tagName)) continue;
+      const owner = t.parentElement, own = owner && controlOf(owner);
+      if (!owner || e.contains(t) || !/\S/.test(t.textContent) || (own && !own.contains(e)) || /^(script|style|noscript|template|textarea|option|title)$/i.test(owner.tagName)) continue;
       lineRangeOf.selectNodeContents(t);
       for (const q of lineRangeOf.getClientRects()) if (q.width > 0 && q.height > 0 && q.top < r.bottom - 1 && q.bottom > r.top + 1) return display === 'inline' ? 'text' : 'box';
     }
@@ -830,7 +847,11 @@ ${PAGE_HELPERS}
       const at = Math.abs(zoom - 1) > 0.01 ? r2(zoom) : undefined;
       if (Math.abs(w - Math.round(w)) > 0.01 || Math.abs(h - Math.round(h)) > 0.01) group('off-grid', 'icon|' + r2(w) + '|' + at, () => Object.assign({ what: name(e), property: 'icon width', value: r2(w) }, at === undefined ? {} : { zoom: at }));
     }
-    if ((style.webkitBackgroundClip === 'text' || style.backgroundClip === 'text') && /gradient\(/.test(style.backgroundImage)) group('gradient-text', sig(e), () => ({ what: name(e) }));
+    // A shimmer (PP-536: auton-ui's "Thinking…") is a running state, as a Live dot is: an endless animation of where the
+    // gradient sits, or words in a busy or status region, or [data-allow-gradient].
+    if ((style.webkitBackgroundClip === 'text' || style.backgroundClip === 'text') && /gradient\(/.test(style.backgroundImage)) {
+      if (!shimmer(e) && !e.closest('[aria-busy=true],[role=status],[data-allow-gradient]')) group('gradient-text', sig(e), () => ({ what: name(e) }));
+    }
     // Gradient surfaces (PP-430): a gradient of two colours or more on 1600 px² or more; [data-allow-gradient] marks one
     // the design asks for (a fade over folded content).
     else if (/gradient\(/.test(style.backgroundImage) && r.width * r.height >= 1600 && !e.hasAttribute('data-allow-gradient') && !flatGradient(style.backgroundImage)) group('gradient', sig(e), () => ({ what: name(e), area: Math.round(r.width * r.height), image: trim(style.backgroundImage, 60) }));
@@ -897,11 +918,11 @@ ${PAGE_HELPERS}
     // A control or a list item drawn as a card (a board's task button) is not a card that holds others.
     if (card(e)) {
       if (/^(div|section|article|aside|main|figure|form|fieldset|details|li)$/.test(tag)) containers.push(e);
-      if (!/^(blockquote|nav|a|button|label|li|span|pre|code|th|td|tr|input|textarea|select|img|video|canvas|picture)$/.test(tag) && !e.matches(CONTROL)) nestedCandidates.push(e);
+      if (!/^(blockquote|nav|a|button|label|li|span|pre|code|th|td|tr|input|textarea|select|img|video|canvas|picture)$/.test(tag) && !control(e)) nestedCandidates.push(e);
     }
     if (['p', 'li', 'blockquote', 'dd'].includes(tag) && (e.textContent || '').length >= 200) long.push(e);
-    if (e.matches(CONTROL)) {
-      const nested = e.parentElement && e.parentElement.closest(CONTROL);
+    if (control(e)) {
+      const nested = e.parentElement && controlOf(e.parentElement);
       const labelled = tag === 'input' && /checkbox|radio/.test(e.type) && e.labels && e.labels.length > 0;
       // A link in a sentence is as tall as its words: no tap target, grid or cover of its own (PP-519: any control, not
       // only an a). A chip there keeps the rest of its checks.

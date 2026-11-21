@@ -190,6 +190,7 @@ const PAGES: Record<string, string> = {
     // Fixture pages of their own (test/fixtures/layout/), which the screenshot tool can show too.
     "/fixtures/inline-targets": readFileSync(new URL("fixtures/layout/inline-targets.html", import.meta.url), "utf8"),
     "/fixtures/hit-areas": readFileSync(new URL("fixtures/layout/hit-areas.html", import.meta.url), "utf8"),
+    "/fixtures/running-states": readFileSync(new URL("fixtures/layout/running-states.html", import.meta.url), "utf8"),
     "/fixtures/zoomed-canvas": readFileSync(new URL("fixtures/layout/zoomed-canvas.html", import.meta.url), "utf8"),
     "/fixtures/entrance": readFileSync(new URL("fixtures/layout/entrance.html", import.meta.url), "utf8"),
     "/fixtures/entrance?stuck": readFileSync(new URL("fixtures/layout/entrance.html", import.meta.url), "utf8"),
@@ -736,6 +737,36 @@ test("a hit area that draws nothing (an empty absolute ::after, auton-ui's .hit-
             ["span.dot", 210, 196],
             ["div#both.box", 201, 120],
         ]);
+    } finally {
+        await engine.close();
+    }
+});
+
+test("a focusable tabpanel, region or tall scrolling box is no control, and a shimmer or gradient words in a status are no gradient text; a 37.7 px button, a short focusable box, a slider, a button in the scrolling box and static or fading gradient words still are findings (PP-536)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+
+        await page.init({ width: 390, height: 844, mobile: true });
+
+        const states = await rendered(page, "/fixtures/running-states");
+        const short = (what: string) => what.replace(/ ".*$/, "");
+        const heights = of(states, "off-grid")
+            .filter((find) => find.property === "control height")
+            // Chrome lays boxes out in 1/64 px: 37.7 is 37.69.
+            .map((find) => [short(find.what), Math.round(find.value * 10) / 10])
+            .sort((a, b) => Number(b[1]) - Number(a[1]));
+
+        // ZeroHop's #kb-panel-pages (2766.7 px) and #snap-panel-wait were "control heights"; the button inside the
+        // scrolling box was "nested" in it and went unmeasured.
+        assert.deepEqual(heights, [
+            ["button#odd", 37.7],
+            ["button#inside", 33.3],
+            ["div#chip", 30.5],
+            ["div#slider", 22.5],
+        ]);
+        assert.deepEqual(of(states, "gradient-text").map((find) => short(find.what)), ["h1#hype.grad", "h2#fading.grad"]);
     } finally {
         await engine.close();
     }

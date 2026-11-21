@@ -1356,7 +1356,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
     on 1600 px² or more, showing (opacity above 0.05); one colour drawn as a gradient is a fill, `data-allow-gradient`
     opts out. Side stripes, extended: an inset shadow `0 Ypx 0` along the top or bottom too, and a `::before`/`::after`
     bar (absolute, 4 px or thinner along half the box or more, coloured, on a rounded or painted box); tabs and
-    separators pass. Gradient text needs a gradient (not any background image). Static CSS tells (`css-tell`), only
+    separators pass. Gradient text needs a gradient (not any background image); a shimmer (an endless animation of the
+    background's position, auton-ui's "Thinking…") and words under `[aria-busy=true]`, `[role=status]` or
+    `[data-allow-gradient]` are a running state, not a finding (PP-536, ZeroHop's report). Controls, for tap targets,
+    control heights, covers and the redlines (`control`, `controlOf`): a tabindex makes one only with no role or a widget
+    role, and with no role only up to 200 px tall, so a focusable tabpanel, region or scrolling box is none, and the
+    controls inside it are measured on their own (PP-536). Static CSS tells (`css-tell`), only
     those a computed style or the document shows: `transition: all` with a duration; line height 1.05 or less on text
     of two lines or more (headings too; not code, and not twice with tight leading); a text field under 16 px on a
     phone; a scroller in a dialog without `overscroll-behavior: contain`; a viewport `maximum-scale` of 1 or less or
