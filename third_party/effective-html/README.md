@@ -18,6 +18,9 @@ design for phone widths first, and check the result with the `screenshot` tool (
 `references/signs.md` (`third_party/heydamir-unslop/`, listed while Design & video is on) and fix what it finds.
 The notes of `html`, `html-prototype` and `design-artifact` end by pointing to pi-phone's `ui-verify` skill
 (`src/skills/ui-verify/`, PP-405) as their final check: layout check numbers, redlines against a spec, pixel compare,
-and before/after counts in the report. Nothing else is changed.
+and before/after counts in the report. `design-artifact`'s note ends by pointing to four references pi-phone added
+beside it, `references/directions.md`, `borrowing.md`, `colour-type.md` and `materials.md`: pi-phone's own files,
+adapted from huashu-design (MIT; see `third_party/huashu-design/`, PP-544), not upstream's. Nothing else is changed.
 
-To update: copy upstream's `skills/` at a new commit here, add the same note, and update the commit above.
+To update: copy upstream's `skills/` at a new commit here, add the same note, keep `design-artifact/references/`,
+and update the commit above.

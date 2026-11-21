@@ -409,6 +409,12 @@ dự án thật.</sub>
   Pi địa chỉ một trang ("làm design system từ coral.example"), Pi mở trang đó trong Pi's browser, đo màu, phông chữ,
   thang cỡ chữ, khoảng cách, bo góc và đổ bóng bằng `browser_eval`, ghi hệ thống vào mục của bạn (hiện đầu danh sách),
   làm một trang mẫu để xem, và nói giá trị nào Pi tự chọn chứ không đo được.
+- **Hướng thiết kế.** Với một landing page, trang web, app hay bản trình chiếu mới, hoặc bất cứ khi nào bạn xin nhiều
+  phương án, Pi có thể làm ba bản nháp thật từ ba nguồn khác nhau (nhà thiết kế hợp nhất với đề bài, một tác phẩm thật
+  cùng loại mà Pi đã xem, một phong cách bốc ngẫu nhiên), mỗi bản chỉ mượn một cơ chế chứ không mượn vẻ ngoài, rồi để bạn
+  chọn trên một thẻ; Pi suy ra màu và chữ từ chính chủ đề, dùng ảnh thật hoặc ảnh tạo thay cho emoji hay khối xám, và
+  giữ một sổ diện mạo trong wiki để thiết kế sau không lặp lại thiết kế trước. Ý tưởng từ
+  [huashu-design](https://github.com/alchaincyf/huashu-design).
 - **Mẫu trình chiếu và chuyển động.** Năm mẫu bản trình chiếu HTML và các skill hoạt ảnh GSAP từ
   [OpenDesign](https://github.com/nexu-io/open-design), mỗi cái theo giấy phép MIT riêng: Pi bắt đầu một bản trình chiếu
   từ một mẫu và xuất bản nó thành artifact.
@@ -1173,6 +1179,9 @@ pi-phone phần lớn là công sức của người khác, được ghép lại
   và better-typography (bo góc đồng tâm, chữ số đều, dấu hiệu CSS tĩnh) mà auton-ui đã kiểm chứng, viết lại trong phép
   kiểm tra bố cục của ảnh chụp cùng các dấu hiệu sọc và gradient của unslop; giấy phép và danh sách trong
   `third_party/jakubkrehel-skills/`.
+- **[huashu-design](https://github.com/alchaincyf/huashu-design)** của alchaincyf (MIT): quy trình ba hướng, cách
+  mượn, màu và chữ, và chất liệu, viết lại thành các tài liệu tham khảo của `design-artifact`; giấy phép và danh sách
+  trong `third_party/huashu-design/`.
 - **[pi-review](https://github.com/earendil-works/pi-review)** của Earendil (MIT): bộ tiêu chí review của nó, giữ nguyên, trong
   `third_party/pi-review/`, mà subagent của `/review` làm theo.
 - **[pi-better](https://github.com/nicobailon/pi-better)** của Nico Bailon (MIT): `/better`, được port, với `helper.md` và

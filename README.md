@@ -404,6 +404,12 @@ No Termux, no laptop, no cloud VM.
   coral.example") and it opens the site in Pi's browser, measures its colours, fonts, type scale, spacing, radii and
   shadows with `browser_eval`, writes the system into your own (listed first), shows a sample page, and says which
   values it chose rather than measured.
+- **Design directions.** For a new landing page, site, app or deck, or whenever you ask for options, Pi can build
+  three real drafts from three different sources (the best designer for the brief, a real work in the same medium it
+  looked at, a randomly picked style), each borrowing one mechanism and none of the looks, and lets you pick on a card;
+  it derives colours and type from the subject, gets real or generated images instead of emoji or grey blocks, and keeps
+  a look ledger in the wiki so the next design doesn't repeat the last. Ideas from
+  [huashu-design](https://github.com/alchaincyf/huashu-design).
 - **Deck templates and motion.** Five HTML slide deck templates and GSAP's animation skills from
   [OpenDesign](https://github.com/nexu-io/open-design), each under its own MIT licence: Pi starts a deck from one and
   publishes it as an artifact.
@@ -1151,6 +1157,9 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
 - **[jakubkrehel/skills](https://github.com/jakubkrehel/skills)** by Jakub Krehel (MIT): the better-ui and
   better-typography checks (concentric radii, tabular figures, static CSS tells) that auton-ui proved, reimplemented in
   the screenshot layout check with unslop's stripe and gradient signs; licence and list in `third_party/jakubkrehel-skills/`.
+- **[huashu-design](https://github.com/alchaincyf/huashu-design)** by alchaincyf (MIT): the three-direction process,
+  borrowing, colour and type, and materials, rewritten as references of `design-artifact`; licence and list in
+  `third_party/huashu-design/`.
 - **[pi-review](https://github.com/earendil-works/pi-review)** by Earendil (MIT): its review rubric, as written, in
   `third_party/pi-review/`, which `/review`'s subagent follows.
 - **[pi-better](https://github.com/nicobailon/pi-better)** by Nico Bailon (MIT): `/better`, ported, with its

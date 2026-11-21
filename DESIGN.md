@@ -1883,7 +1883,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
   `html-prototype`, `html-plan`, `html-diagram`, and `big-pics-little-words` (by name only). Built-in skills of every
   phone session (`SkillSources.builtIn`, first among the app's, after the owner's). Each gets one marked note: publish with
   the `artifact` tool, self-contained, phone widths first, say what could not be checked; `design-artifact`'s also
-  points to unslop's sign list (PP-327, below). Plan mode's prompt points long
+  points to unslop's sign list (PP-327, below) and to four references pi-phone added beside it (huashu-design's ideas,
+  below). Plan mode's prompt points long
   plans to `html-plan`, as an artifact beside the numbered list.
 - **OpenDesign** (`third_party/open-design/`, PP-238; owner's choice of 2026-10-29: options A + D of PP-182, the
   content without the daemon): nexu-io/open-design (Apache-2.0) at commit `fa19ff40`, copied by
@@ -1962,6 +1963,16 @@ so Pi changes them through the settings tools; "the last session" is the one the
 - **jakubkrehel/skills' checks** (`third_party/jakubkrehel-skills/`, PP-430): no file copied; the better-ui and
   better-typography checks auton-ui proved, reimplemented in `src/server/layout-check.ts`, with upstream's MIT LICENSE
   and a README naming each rule and its source. Nothing to sync.
+- **huashu-design's ideas** (`third_party/huashu-design/`, PP-544; owner's choices of 2026-11-21 after research PP-540):
+  alchaincyf/huashu-design (MIT) at `c4cc219` is not bundled (its description would compete with every design skill
+  here, its scripts need Playwright and Pillow); its ideas are rewritten in English as pi-phone's own references of
+  Effective HTML's `design-artifact`: `directions.md` (an optional three-direction process: six candidates from three
+  logics, six cards, three real drafts shown as artifacts and chosen in an `interview`, run only for a new editorial
+  brief or when the person asks for options; a look ledger kept as a wiki page), `borrowing.md` (borrow a mechanism,
+  never the expression; the remake test), `colour-type.md` (colour derived in oklch, chroma by area, ten type
+  pairings, the overused faces) and `materials.md` (hero material first; `image_generate`, then Wikimedia Commons with
+  credit, then saying what is missing; never emoji or grey blocks). No skill description changed. Only upstream's
+  LICENSE is copied; the README lists each file's sources. Nothing to sync.
 - **Design & video** (`extensions/design.ts`, PP-247; owner's decision of 2026-10-29): the built-in extension that
   owns all of the above, so the owner can drop it in one switch (Settings › Extensions, or `extensions.design.ts` with
   `setting_change`). On by default. While on, `PocketApp.builtInSkills()` adds `DESIGN_SKILLS` (`src/design/skills/`,
