@@ -56,6 +56,10 @@
  * a focusable tabpanel, region or scrolling box is no control, so its height is no control height off the grid. Gradient
  * text that shimmers (an endless animation of its background's position, auton-ui's "Thinking…") or sits under
  * [aria-busy=true], [role=status] or [data-allow-gradient] is a running state, not a gradient-text finding.
+ *
+ * Since PP-542, the page itself leads the report (`page`): an error page by its main document's HTTP status (the
+ * renderer's `window.__piHttpStatus`, else Navigation Timing's), an error screen the app drew (a dev server's overlay, an
+ * error boundary, a short error phrase as its most prominent text with little else), or a page that drew next to nothing.
  */
 
 /** One thing out of place: what it is, and the boxes that show it (x and width, CSS pixels). */
@@ -97,7 +101,9 @@ export type LayoutFind =
     | { kind: "gradient"; what: string; area: number; image: string; count: number }
     | { kind: "css-tell"; what: string; rule: string; count: number }
     // PP-521: words at opacity 0 at the picture.
-    | { kind: "hidden"; what: string; opacity: number; animation?: string; count: number };
+    | { kind: "hidden"; what: string; opacity: number; animation?: string; count: number }
+    // PP-542: the page is an error page (its HTTP status, an error screen it drew) or looks empty. Leads the report.
+    | { kind: "page"; what: string; state: "http" | "error" | "empty"; status?: number; text?: string; words?: number; elements?: number; count: number };
 
 export type LayoutFindKind = LayoutFind["kind"];
 
@@ -1274,6 +1280,81 @@ ${PAGE_HELPERS}
     if (lines >= 3 && chars > 90) group('long-lines', sig(e), () => ({ what: name(e), chars }));
   }
 
+  // The page itself (PP-542): an error page, or one that drew next to nothing, is no screen to judge, however clean its
+  // layout (ZeroHop's Settings › Project crashed, Error 500, and was called clean). Its main document's HTTP status (the
+  // renderer's, window.__piHttpStatus, else Navigation Timing's); an error screen the app drew: a dev server's overlay
+  // (Vite's, Next's, webpack's), a [data-error-boundary], a role=alert holding most of the words, or a short error
+  // phrase as its most prominent text (a heading, or the largest type) with little else, or as most of its words; and a
+  // page with under 10 words and 10 elements in view and no picture over half of it (an empty #root, a spinner). Words
+  // in open shadow roots count; a stack trace's (pre, code) is no prose. A document with no body (an SVG) is left out.
+  if (document.body) {
+    const nav = performance.getEntriesByType ? performance.getEntriesByType('navigation')[0] : undefined;
+    const status = typeof window.__piHttpStatus === 'number' && window.__piHttpStatus > 0 ? window.__piHttpStatus : (nav && nav.responseStatus) || 0;
+    if (status >= 400) group('page', 'http', () => ({ what: 'the page', state: 'http', status }));
+    const seenAt = new Map();
+    const seen = (e) => {
+      let v = seenAt.get(e);
+      if (v === undefined) {
+        const r = e.getBoundingClientRect();
+        v = r.width >= 1 && r.height >= 1 && r.right > 0 && r.bottom > 0 && r.left < VW && r.top < VH && (!e.checkVisibility || e.checkVisibility({ opacityProperty: true, visibilityProperty: true }));
+        seenAt.set(e, v);
+      }
+      return v;
+    };
+    const WORD = /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]|[\p{L}\p{N}]+/gu;
+    const wordsOf = (t) => (t.match(WORD) || []).length;
+    const ERROR_TEXT = /\b(something went wrong|something has gone wrong|(an )?unexpected (application )?error( has)?( occurred)?|application error|internal server error|server error|an error (has )?occurred|error:? [45]\d\d|[45]\d\d:? (error|not found|forbidden|unauthori[sz]ed|bad request|bad gateway|service unavailable|gateway time-?out|internal server error)|page not found|not found|bad gateway|service unavailable|gateway time-?out|this page (isn.t|is not) working|unhandled runtime error|failed to compile|uncaught (runtime )?errors?|oops)\b|đã (xảy ra|có) lỗi|có lỗi xảy ra|lỗi (máy chủ|hệ thống)|không tìm thấy trang|出错了|发生(了)?错误|出现(了)?错误|服务器(内部)?错误|页面(不存在|未找到)|找不到页面/i;
+    const MEDIA = /^(img|canvas|video|iframe|object|embed|svg)$/i;
+    const view = VW * Math.max(1, Math.min(VH, document.documentElement.scrollHeight));
+    const blockOf = (e) => { let b = e; while (b.parentElement && css(b).display.startsWith('inline')) b = b.parentElement; return b; };
+    let words = 0, prose = 0, elements = 0, nodes = 0, largest = 0, pictured = false;
+    const blocks = new Set(), phrases = [];
+    const walk = (root) => {
+      const it = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, { acceptNode: (n) => n.nodeType === 1 && /^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT)$/.test(n.tagName) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+      for (let n = it.nextNode(); n && nodes < 20000; n = it.nextNode()) {
+        nodes++;
+        if (n.nodeType === 3) {
+          const p = n.parentElement || (n.parentNode && n.parentNode.host);
+          const w = wordsOf(n.data);
+          if (!p || w === 0 || !seen(p)) continue;
+          words += w;
+          if (!p.closest('pre,code')) prose += w;
+          largest = Math.max(largest, parseFloat(css(p).fontSize) || 0);
+          const b = blockOf(p);
+          if (blocks.has(b)) continue;
+          blocks.add(b);
+          const text = (b.textContent || '').replace(/\s+/g, ' ').trim();
+          if (text.length <= 80 && ERROR_TEXT.test(text)) phrases.push({ e: b, text, words: wordsOf(text), size: parseFloat(css(b).fontSize) || 0, heading: b.matches('h1,h2,h3,[role=heading]') });
+          continue;
+        }
+        if (n.shadowRoot) walk(n.shadowRoot);
+        if (!seen(n)) continue;
+        elements++;
+        if (!pictured && (MEDIA.test(n.tagName) || /url\(/.test(css(n).backgroundImage))) {
+          const r = n.getBoundingClientRect();
+          pictured = (Math.min(r.right, VW) - Math.max(r.left, 0)) * (Math.min(r.bottom, VH) - Math.max(r.top, 0)) >= view / 2;
+        }
+      }
+    };
+    walk(document.body);
+    const textIn = (e) => trim((e.shadowRoot ? e.shadowRoot.textContent : '') || e.innerText || e.textContent, 80);
+    let shown;
+    const vite = document.querySelector('vite-error-overlay');
+    const next = [...document.querySelectorAll('nextjs-portal')].find((e) => e.shadowRoot && (e.shadowRoot.querySelector('[data-nextjs-dialog]') || /Unhandled Runtime Error|Runtime Error|Build Error|Failed to compile/.test(e.shadowRoot.textContent || '')));
+    const pack = document.querySelector('#webpack-dev-server-client-overlay');
+    const boundary = [...document.querySelectorAll('[data-error-boundary]')].find(seen);
+    const alert = [...document.querySelectorAll('[role=alert]')].find((e) => seen(e) && wordsOf(e.textContent || '') >= Math.max(3, words / 2));
+    const phrase = phrases.find((p) => (p.heading || p.size >= largest * 0.9) && prose <= 120) || phrases.find((p) => prose > 0 && p.words >= prose / 2);
+    if (vite) shown = { e: vite, text: trim((vite.shadowRoot && vite.shadowRoot.querySelector('.message')) ? vite.shadowRoot.querySelector('.message').textContent : textIn(vite), 80) || "Vite's error overlay" };
+    else if (next) shown = { e: next, text: trim((next.shadowRoot.querySelector('[data-nextjs-dialog]') || next.shadowRoot).textContent, 80) || "Next.js's error overlay" };
+    else if (pack && seen(pack)) shown = { e: pack, text: "webpack's error overlay" };
+    else if (boundary) shown = { e: boundary, text: textIn(boundary) || 'an error boundary' };
+    else if (phrase) shown = phrase;
+    else if (alert) shown = { e: alert, text: textIn(alert) };
+    if (shown) group('page', 'error', () => ({ what: name(shown.e), state: 'error', text: shown.text }));
+    else if (words < 10 && elements < 10 && !pictured) group('page', 'empty', () => ({ what: 'the page', state: 'empty', words, elements }));
+  }
+
   const wide = document.documentElement.scrollWidth;
   if (wide > W + 1) add({ kind: 'page-wider', what: 'the page', box: [0, wide], limit: [0, W] });
   const totals = {}, kept = {}, found = [];
@@ -1306,6 +1387,7 @@ ${PAGE_HELPERS}
 
 /** Each kind's heading, in the order the words give them. */
 const KINDS: [LayoutFindKind, string][] = [
+    ["page", "The page itself"],
     ["cut", "Cut text"],
     ["covered", "Covered: an element on top of another's text or control"],
     ["small-target", `Tap targets under ${TAP_MIN} px`],
@@ -1391,6 +1473,12 @@ function findWords(find: LayoutFind): string {
             return `${find.what}: ${find.image} on ${find.area} px²${times}`;
         case "css-tell":
             return `${find.what}: ${find.rule}${times}`;
+        case "page":
+            return find.state === "http"
+                ? `This page is an error page: HTTP ${find.status}.`
+                : find.state === "error"
+                  ? `This page shows an error: "${find.text}" (${find.what}).`
+                  : `This page looks empty: ${find.words} word${find.words === 1 ? "" : "s"}, ${find.elements} element${find.elements === 1 ? "" : "s"} in view.`;
         case "hidden":
             return `${find.what}: opacity ${find.opacity}, ${find.animation === undefined ? "no animation running: an entrance waiting for an observer or a script that has not run, or content never shown" : `animation ${find.animation} not run`}; show it without the script, and animate it in from there${times}`;
     }
@@ -1457,8 +1545,16 @@ export function describeLayout(report: LayoutReport): string {
         "outside-parent": "sticks out of its parent",
         "page-wider": "is wider than the screen",
     };
+    // The page itself first (PP-542): on an error page or an empty one, no other number says the screen is right.
+    const page = report.found.filter((find) => find.kind === "page");
     const lines = [
         `${head}: ${total} out of place.`,
+        ...(page.length === 0
+            ? []
+            : [
+                  ...page.map(findWords),
+                  "This is not the screen to judge: fix the page (or open the right one, signed in, after it loaded), then check again; until then its layout counts for nothing.",
+              ]),
         ...report.issues.map(
             (issue) =>
                 `- ${issue.what}: ${words[issue.kind]} (${issue.kind === "spills" || issue.kind === "page-wider" ? `${issue.box[1]} px in ${issue.limit[1]}` : `x ${issue.box[0]}–${issue.box[0] + issue.box[1]} in x ${issue.limit[0]}–${issue.limit[0] + issue.limit[1]}`})`,
@@ -1470,7 +1566,7 @@ export function describeLayout(report: LayoutReport): string {
         const finds = report.found.filter((find) => find.kind === kind);
         const all = report.totals[kind] ?? 0;
 
-        if (finds.length === 0) {
+        if (finds.length === 0 || kind === "page") {
             continue;
         }
 

@@ -197,13 +197,24 @@ const PAGES: Record<string, string> = {
     "/fixtures/fixed-heights": readFileSync(new URL("fixtures/layout/fixed-heights.html", import.meta.url), "utf8"),
     "/fixtures/text-heights": readFileSync(new URL("fixtures/layout/text-heights.html", import.meta.url), "utf8"),
     "/fixtures/turned": readFileSync(new URL("fixtures/layout/turned.html", import.meta.url), "utf8"),
+    // PP-542: error pages and empty ones, and a real page about errors that is neither.
+    ...Object.fromEntries(
+        ["", "?router", "?marker", "?alert", "?vite", "?vi", "?zh"].map((query) => [`/fixtures/error-screens${query}`, readFileSync(new URL("fixtures/layout/error-screens.html", import.meta.url), "utf8")]),
+    ),
+    ...Object.fromEntries(["", "?spinner", "?picture"].map((query) => [`/fixtures/empty-root${query}`, readFileSync(new URL("fixtures/layout/empty-root.html", import.meta.url), "utf8")])),
+    "/fixtures/real-page": readFileSync(new URL("fixtures/layout/real-page.html", import.meta.url), "utf8"),
+    "/fixtures/real-page?status=500": readFileSync(new URL("fixtures/layout/real-page.html", import.meta.url), "utf8"),
+    // nginx's own page for a 500.
+    "/fixtures/error-500": `<html><head><title>500 Internal Server Error</title></head><body><center><h1>500 Internal Server Error</h1></center><hr><center>nginx/1.24.0</center></body></html>`,
 };
+/** Pages served with an HTTP status other than 200 (PP-542). */
+const STATUS: Record<string, number> = { "/fixtures/real-page?status=500": 500, "/fixtures/error-500": 500 };
 let server: Server;
 let port = 0;
 
 before(async () => {
     server = createServer((request, response) => {
-        response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        response.writeHead(STATUS[request.url ?? "/"] ?? 200, { "content-type": "text/html; charset=utf-8" });
         response.end(PAGES[request.url ?? "/"] ?? "");
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -569,6 +580,90 @@ test("a turned icon or control is measured at its own size: a 16 px icon at 37°
                 `at ${width}`,
             );
             assert.deepEqual(turned.summary.icons, ["16x16", "17.5x17.5", "20x20"], `at ${width}`);
+        }
+    } finally {
+        await engine.close();
+    }
+});
+
+test("an error page and an empty one lead the report, never called clean: HTTP 500 (from the render's Chrome and from the page's own timing), an error boundary in an app shell, React Router's error, a [data-error-boundary], a role=alert, Vite's overlay, Vietnamese and Chinese, an empty #root and a lone spinner; a real page about errors and a canvas over the view give none (PP-542)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+    const pageOf = (report: LayoutReport) => of(report, "page").map(({ state, status, text, words, elements, what }) => ({ state, ...(status === undefined ? {} : { status }), ...(text === undefined ? {} : { text }), ...(words === undefined ? {} : { words, elements }), what }));
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+
+        for (const width of [390, 1280]) {
+            await page.init({ width, height: width < 600 ? 844 : 800, mobile: width < 600 });
+
+            // Pi's browser: the status from the page's own Navigation Timing.
+            assert.deepEqual(pageOf(await measured(page, "/fixtures/real-page?status=500", width)), [{ state: "http", status: 500, what: "the page" }], `at ${width}`);
+            assert.deepEqual(
+                pageOf(await measured(page, "/fixtures/error-500", width)),
+                [
+                    { state: "http", status: 500, what: "the page" },
+                    { state: "error", text: "500 Internal Server Error", what: 'h1 "500 Internal Server Error"' },
+                ],
+                `at ${width}`,
+            );
+
+            for (const [query, text, what] of [
+                ["", "Something went wrong", 'h2 "Something went wrong"'],
+                ["?router", "Unexpected Application Error!", 'h2 "Unexpected Application Error!"'],
+                ["?marker", "We couldn't load your settings. Reload", "section"],
+                ["?alert", "Sorry. The workspace could not be opened right now, please try again in a minute.", "div"],
+                ["?vite", "[plugin:vite:react-babel] /src/features/settings/project-page.tsx: Unexpected token (42:7)", "vite-error-overlay"],
+                ["?vi", "Đã xảy ra lỗi", 'h2 "Đã xảy ra lỗi"'],
+                ["?zh", "页面出错了", 'h2 "页面出错了"'],
+            ] as const) {
+                const report = await measured(page, `/fixtures/error-screens${query}`, width);
+                const found = pageOf(report);
+
+                assert.equal(found.length, 1, `${query} at ${width}: ${JSON.stringify(found)}`);
+                assert.equal(found[0]!.state, "error", `${query} at ${width}`);
+                assert.equal(found[0]!.text, text.slice(0, 80), `${query} at ${width}`);
+                assert.ok(found[0]!.what.startsWith(what), `${query} at ${width}: ${found[0]!.what}`);
+                // The report leads with it, and never says the page is in order.
+                assert.match(describeLayout(report), /^Layout check at \d+ px \(\d+ elements\): \d+ out of place\.\nThis page shows an error: "/, `${query} at ${width}`);
+                assert.doesNotMatch(describeLayout(report), /nothing spills out/);
+            }
+
+            const empty = await measured(page, "/fixtures/empty-root", width);
+
+            assert.deepEqual(pageOf(empty), [{ state: "empty", words: 0, elements: 0, what: "the page" }], `at ${width}`);
+            assert.match(describeLayout(empty), /\nThis page looks empty: 0 words, 0 elements in view\.\nThis is not the screen to judge/);
+            assert.deepEqual(
+                pageOf(await measured(page, "/fixtures/empty-root?spinner", width)).map(({ state, words }) => [state, words]),
+                [["empty", 1]],
+                `at ${width}`,
+            );
+            assert.deepEqual(pageOf(await measured(page, "/fixtures/empty-root?picture", width)), [], `at ${width}`);
+
+            // The control: "error", an error phrase in a sentence, a status-code table and a small alert are content.
+            const real = await measured(page, "/fixtures/real-page", width);
+
+            assert.deepEqual(pageOf(real), [], `at ${width}`);
+            assert.equal(real.totals.page, undefined, `at ${width}`);
+        }
+
+        // A render (`shootInTab`, the server edition's and Pi's browser's): the status from the tab's Network events, set
+        // as window.__piHttpStatus. A page that hides its Navigation Timing still says it.
+        const hidden = async (cdp: Cdp) => {
+            await cdp.send("Page.addScriptToEvaluateOnNewDocument", { source: "performance.getEntriesByType = () => [];" });
+        };
+
+        for (const [path, status] of [
+            ["/fixtures/real-page?status=500", 500],
+            ["/fixtures/real-page", undefined],
+        ] as const) {
+            const request = renderRequest(`http://pi.test${path}`, { widths: [390], settleMs: 300, fullPage: false });
+            const shot = parseShot(request, await shootInTab(engine, request, 390, hidden));
+
+            assert.deepEqual(pageOf(shot.layout!), status === undefined ? [] : [{ state: "http", status, what: "the page" }], path);
+
+            if (status !== undefined) {
+                assert.match(describeLayout(shot.layout!), /^Layout check at 390 px \(\d+ elements\): 1 out of place\.\nThis page is an error page: HTTP 500\.\n/);
+            }
         }
     } finally {
         await engine.close();

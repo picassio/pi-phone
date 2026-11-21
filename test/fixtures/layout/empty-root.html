@@ -1,0 +1,39 @@
+<!doctype html>
+<!-- PP-542: a single-page app that drew next to nothing after its wait. The layout check says each "looks empty"; on
+     master it called them clean. Which one by the address's query:
+     (none)     an empty #root: its script failed before it rendered (a chunk that did not load);
+     ?spinner   only a loading spinner and "Loading…";
+     ?picture   a control that must pass: a canvas over the whole view (a map, a game), no words. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>ZeroHop</title>
+<style>
+  body { margin: 0; font: 16px/24px system-ui, sans-serif; }
+  .center { min-height: 100vh; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  const which = location.search.slice(1);
+  const root = document.getElementById("root");
+  if (which === "spinner") {
+    root.innerHTML = `<div class="center" role="status"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#888" stroke-width="3"/></svg><span>Loading…</span></div>`;
+  } else if (which === "picture") {
+    const canvas = document.createElement("canvas");
+    root.appendChild(canvas);
+    const context = canvas.getContext("2d");
+    canvas.width = innerWidth;
+    canvas.height = innerHeight;
+    context.fillStyle = "#2f6f4f";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  } else {
+    // A chunk that never came: the app renders nothing.
+    import("/assets/missing-chunk.js").then(() => {}, () => {});
+  }
+</script>
+</body>
+</html>

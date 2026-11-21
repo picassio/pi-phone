@@ -1,0 +1,63 @@
+<!doctype html>
+<!-- PP-542: screens an app draws when it crashed, as a single-page app draws them (its script, after load). The layout
+     check says each "shows an error" and leads with it. Which one by the address's query:
+     (none)    an app shell (top bar, a sidebar of links) with a React error boundary in its main area, as ZeroHop's
+               Settings › Project crashed (Error 500): a heading, a line, a button, and a stack trace in a <pre>;
+     ?router   React Router's default errorElement: "Unexpected Application Error!", the message, a long stack;
+     ?marker   a [data-error-boundary] with a message of its own ("We couldn't load your settings");
+     ?alert    a role=alert holding most of the page's words;
+     ?vite     Vite's error overlay, a <vite-error-overlay> with a shadow root;
+     ?vi       Vietnamese ("Đã xảy ra lỗi"), ?zh Chinese ("页面出错了"). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>ZeroHop</title>
+<style>
+  body { margin: 0; font: 16px/24px system-ui, sans-serif; color: #1f2328; background: #ffffff; }
+  header { height: 56px; display: flex; align-items: center; gap: 16px; padding: 0 24px; border-bottom: 1px solid #d0d7de; }
+  .shell { display: flex; }
+  nav { width: 240px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  nav a { color: #1f2328; text-decoration: none; padding: 8px 12px; border-radius: 8px; }
+  main { flex: 1; padding: 32px; min-width: 0; }
+  h1 { font-size: 24px; line-height: 32px; margin: 0; }
+  h2 { font-size: 28px; line-height: 36px; margin: 0 0 8px; }
+  pre { font: 12px/16px ui-monospace, monospace; background: #f6f8fa; padding: 12px; border-radius: 8px; overflow: auto; }
+  button { height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid #d0d7de; background: #f6f8fa; font: inherit; }
+  @media (max-width: 600px) { nav { display: none; } main { padding: 16px; } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  const stack = Array.from({ length: 14 }, (_, i) => `    at Component${i} (http://localhost:5173/src/features/settings/project-page.tsx:${40 + i}:17)`).join("\n");
+  const shell = (inner) => `<header><h1>ZeroHop</h1><span>Workspace</span></header>
+    <div class="shell"><nav><a href="#/">Home</a><a href="#/tickets">Tickets</a><a href="#/knowledge">Knowledge base</a><a href="#/reports">Reports</a><a href="#/settings">Settings</a><a href="#/settings/project">Project</a><a href="#/settings/members">Members</a></nav>
+    <main>${inner}</main></div>`;
+  const which = location.search.slice(1);
+  const root = document.getElementById("root");
+  if (which === "router") {
+    root.innerHTML = `<h2>Unexpected Application Error!</h2><h3 style="font-style:italic">Cannot read properties of undefined (reading 'members')</h3><pre>TypeError: Cannot read properties of undefined (reading 'members')\n${stack}\n${stack}</pre><p>💿 Hey developer 👋</p><p>You can provide a way better UX than this when your app throws errors by providing your own <code>ErrorBoundary</code> or <code>errorElement</code> prop on your route.</p>`;
+  } else if (which === "marker") {
+    root.innerHTML = shell(`<section data-error-boundary><p>We couldn't load your settings.</p><button>Reload</button></section>`);
+  } else if (which === "alert") {
+    root.innerHTML = `<div role="alert" style="padding:24px"><strong>Sorry.</strong> The workspace could not be opened right now, please try again in a minute.</div>`;
+  } else if (which === "vite") {
+    root.innerHTML = shell(`<p>Loading the project…</p>`);
+    customElements.define("vite-error-overlay", class extends HTMLElement {
+      constructor() {
+        super();
+        this.attachShadow({ mode: "open" }).innerHTML = `<div style="position:fixed;inset:0;background:rgba(0,0,0,.66)"><div class="window" style="margin:80px auto;max-width:800px;background:#181818;color:#d8d8d8;padding:24px"><pre class="message"><span class="plugin">[plugin:vite:react-babel]</span> <span class="message-body">/src/features/settings/project-page.tsx: Unexpected token (42:7)</span></pre><pre class="frame">${stack}</pre></div></div>`;
+      }
+    });
+    document.body.appendChild(document.createElement("vite-error-overlay"));
+  } else if (which === "vi") {
+    root.innerHTML = shell(`<h2>Đã xảy ra lỗi</h2><p>Vui lòng thử lại.</p><button>Thử lại</button>`);
+  } else if (which === "zh") {
+    root.innerHTML = shell(`<h2>页面出错了</h2><p>请稍后再试。</p><button>重试</button>`);
+  } else {
+    root.innerHTML = shell(`<h2>Something went wrong</h2><p>Error 500: the project could not be loaded.</p><button>Try again</button><pre>Error: Request failed with status code 500\n${stack}</pre>`);
+  }
+</script>
+</body>
+</html>

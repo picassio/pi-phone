@@ -20,6 +20,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.ValueCallback;
 import android.webkit.WebView;
@@ -267,7 +268,20 @@ final class Renderer {
         stage.pages.addView(view, new ViewGroup.LayoutParams(width, viewport));
         layout(view, width, viewport);
         boolean[] settled = {false};
+        // The main document's HTTP error status (PP-542) and its address: the page's script reads it as
+        // window.__piHttpStatus (layout-check.ts) while the page is that address (a step may load another; the error
+        // comes before onPageStarted, so it is matched by address, its fragment left out), so an error page (HTTP 500) is
+        // said to be one. Otherwise the page's Navigation Timing (responseStatus) says it.
+        int[] httpStatus = {0};
+        String[] httpUrl = {""};
         view.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onReceivedHttpError(WebView page, WebResourceRequest request, WebResourceResponse response) {
+                if (!request.isForMainFrame()) return;
+                httpStatus[0] = response.getStatusCode();
+                httpUrl[0] = withoutFragment(request.getUrl().toString());
+            }
+
             @Override
             public void onPageFinished(WebView page, String loaded) {
                 // The WebView's first, empty page finishing is not the page's (PP-112: a picture of nothing, 0 elements).
@@ -338,7 +352,8 @@ final class Renderer {
                             };
                             Runnable measure = () -> {
                                 if (check.isEmpty()) measured.onReceiveValue(null);
-                                else page.evaluateJavascript(check, measured);
+                                else page.evaluateJavascript((httpStatus[0] >= 400 && httpUrl[0].equals(withoutFragment(page.getUrl()))
+                                        ? "window.__piHttpStatus = " + httpStatus[0] + ";" : "") + check, measured);
                             };
                             remeasure[0] = measure;
                             // Steps before the shot (PP-423, render-steps.ts): what a person would tap first. A page a
@@ -483,6 +498,13 @@ final class Renderer {
         if (report == null || report.equals("null")) return false;
         String text = new JSONArray("[" + report + "]").optString(0, "");
         return text.startsWith("{") && new JSONObject(text).has("modal");
+    }
+
+    /** An address without its fragment ("#/settings"), which the request for it does not carry. */
+    private static String withoutFragment(String url) {
+        if (url == null) return "";
+        int hash = url.indexOf('#');
+        return hash < 0 ? url : url.substring(0, hash);
     }
 
     private static void layout(WebView view, int widthPx, int heightPx) {

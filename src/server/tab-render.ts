@@ -40,6 +40,17 @@ export async function shootInTab(tabs: TabMaker, request: RenderRequest, width: 
         // Chrome keeps to it only while the tab's Network domain is on.
         await page.send("Network.enable");
         await page.send("Network.setCacheDisabled", { cacheDisabled: true });
+        // The main document's HTTP status (PP-542), the last one loaded (a step may load another): the page's script
+        // reads it as window.__piHttpStatus, so an error page (HTTP 500) is said to be one.
+        const { frameTree } = (await page.send("Page.getFrameTree")) as { frameTree: { frame: { id: string } } };
+        let status = 0;
+        const offStatus = page.on("Network.responseReceived", (params) => {
+            const response = params.response as { status?: unknown } | undefined;
+
+            if (params.type === "Document" && params.frameId === frameTree.frame.id && typeof response?.status === "number") {
+                status = response.status;
+            }
+        });
         await page.send("Emulation.setDeviceMetricsOverride", { width, height: viewport, deviceScaleFactor: 1, mobile: width < 600 });
         await prepare?.(page);
         await load(page, request.url);
@@ -80,8 +91,17 @@ export async function shootInTab(tabs: TabMaker, request: RenderRequest, width: 
             }
         }
 
-        // The page measures itself just before it is pictured.
-        let check = await evaluate<string>(request.check);
+        // The page measures itself just before it is pictured, told its HTTP status.
+        const measure = async () => {
+            if (status > 0) {
+                await evaluate<number>(`window.__piHttpStatus = ${status}`);
+            }
+
+            return evaluate<string>(request.check);
+        };
+        let check = await measure();
+
+        offStatus();
 
         // An open modal in a whole-page picture (PP-501): position:fixed follows the view, laid out as tall as the page,
         // so the dialog sat mid-page (y 1650-2340 of 4000 on visa-dashboard). The view the person has is pictured, at the
@@ -89,7 +109,7 @@ export async function shootInTab(tabs: TabMaker, request: RenderRequest, width: 
         if (height !== viewport && modalOpen(check)) {
             height = viewport;
             await layOut(height);
-            check = await evaluate<string>(request.check);
+            check = await measure();
         }
 
         const parts: string[] = [];

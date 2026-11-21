@@ -1,0 +1,49 @@
+<!doctype html>
+<!-- PP-542's control: a real page that talks about errors. The word "error", an error phrase in a sentence, a table of
+     status codes ("500 Internal Server Error" in a cell) and a small role=alert are content here, not a crash: the
+     layout check must give it no "page" finding. Served with HTTP 500 (?status=500), the same page is an error page by
+     its status alone. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>Handling errors in forms</title>
+<style>
+  body { margin: 0; font: 16px/24px system-ui, sans-serif; color: #1f2328; background: #ffffff; }
+  article { max-width: 640px; margin: 0 auto; padding: 32px 16px; }
+  h1 { font-size: 32px; line-height: 40px; margin: 0 0 16px; }
+  h2 { font-size: 20px; line-height: 28px; margin: 32px 0 8px; }
+  p { margin: 0 0 16px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { text-align: left; padding: 8px; border-bottom: 1px solid #d0d7de; }
+  [role=alert] { padding: 8px 12px; border: 1px solid #d0d7de; border-radius: 8px; margin: 0 0 16px; }
+</style>
+</head>
+<body>
+<article>
+  <h1>Handling errors in forms</h1>
+  <div role="alert">Draft not synced yet.</div>
+  <p>Every form talks to a server, and every server fails now and then. When it does, the person filling in the form
+    should keep what they typed, learn what happened in plain words, and know what to do next. A message that only
+    says "Something went wrong" tells them none of that, so name the field, the reason, and the way out.</p>
+  <h2>Say which field</h2>
+  <p>Put the error next to the field it belongs to, in the same colour as the field's border, and move the focus there
+    when the person submits. A summary at the top of the form helps on long forms: it lists each problem as a link
+    to its field, so a keyboard or a screen reader reaches them in order.</p>
+  <h2>Status codes</h2>
+  <p>The server's answer decides the words. A validation error comes back with its field names; anything else is shown
+    once, above the button, with a way to try again.</p>
+  <table>
+    <thead><tr><th>Code</th><th>What the person reads</th></tr></thead>
+    <tbody>
+      <tr><td>422 Unprocessable</td><td>The fields to fix, each by its name</td></tr>
+      <tr><td>500 Internal Server Error</td><td>Saving failed on our side; your answers are kept, try again</td></tr>
+      <tr><td>503 Service Unavailable</td><td>We are updating; try again in a minute</td></tr>
+    </tbody>
+  </table>
+  <h2>Keep what they typed</h2>
+  <p>Never clear the form after an error. Keep every value, keep the scroll position, and keep the button enabled so
+    the person can send it again once the reason is gone.</p>
+</article>
+</body>
+</html>

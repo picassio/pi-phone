@@ -246,6 +246,13 @@ test("the phone's renderer loads every page without the HTTP cache, as this one 
     assert.match(java, /settings\.setCacheMode\(WebSettings\.LOAD_NO_CACHE\);/);
 });
 
+test("the phone's renderer tells the page its main document's HTTP error status, as this one does, while the page is still that address (PP-542: its WebView is checked on the phone after a build)", () => {
+    const java = readFileSync(new URL("../android/app/src/main/java/io/piphone/Renderer.java", import.meta.url), "utf8");
+
+    assert.match(java, /public void onReceivedHttpError\(WebView page, WebResourceRequest request, WebResourceResponse response\) \{\s+if \(!request\.isForMainFrame\(\)\) return;\s+httpStatus\[0\] = response\.getStatusCode\(\);/);
+    assert.match(java, /httpStatus\[0\] >= 400 && httpUrl\[0\]\.equals\(withoutFragment\(page\.getUrl\(\)\)\)\s+\? "window\.__piHttpStatus = " \+ httpStatus\[0\] \+ ";" : ""\) \+ check, measured\)/);
+});
+
 test("every render loads the page and its files fresh, whatever they say to cache: a page rebuilt between two renders of the same address shows its new build (PP-539)", { skip: chrome === undefined ? "no Chrome on this machine (CI runs it)" : false }, async () => {
     const screenshots = new Screenshots();
     const renderer = new ChromeRenderer(screenshots, { binary: chrome!, flags: ["--no-sandbox"], base: `http://127.0.0.1:${appPort}`, token: () => "owner-token", log: () => {} });

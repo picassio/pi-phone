@@ -1221,6 +1221,18 @@ so Pi changes them through the settings tools; "the last session" is the one the
   at `/a/office/`. Without the service polling (tests, a server not on the phone) a render fails at once, saying so.
   Every render loads fresh (PP-539): the WebView with `LOAD_NO_CACHE`, a Chrome tab with `Network.setCacheDisabled`
   (`tab-render.ts`), so a page rebuilt between two renders of its address is drawn new, not from its cached index.html.
+  The page itself (PP-542; ZeroHop's Settings › Project crashed with Error 500 and was called clean): the layout check's
+  `page` finding leads the report, "This page is an error page: HTTP 500", "shows an error: …" or "looks empty: 3 words,
+  5 elements in view", and the report then says its layout counts for nothing. The main document's status comes from
+  the renderer as `window.__piHttpStatus` (a Chrome tab's `Network.responseReceived` for the main frame's Document; the
+  WebView's `onReceivedHttpError` for the main frame, while the page is still that address, its fragment left out),
+  else from the page's Navigation Timing (`responseStatus`, Chrome 109 and later; Pi's browser's live tabs too). An
+  error screen is a dev server's overlay (Vite's `vite-error-overlay`, Next's `nextjs-portal` with its dialog,
+  webpack's), a `[data-error-boundary]`, a `role=alert` holding half the page's words, or a short error phrase (80
+  characters at most; English, Vietnamese, Chinese) as a heading or the largest type with at most 120 words of prose
+  (a stack trace's `pre` and `code` are none), or as half the prose. Empty: under 10 words and 10 elements in view, no
+  picture, canvas, video, frame or background image over half of it. Open shadow roots count; a document with no body
+  (an SVG) is left out.
   Allowed in plan mode. A `seeing` prompt section asks Pi to look before calling an artifact done; Effective HTML's and
   OfficeCLI's pi-phone notes point to it.
   - **On a machine, app shells, file pages** (PP-440; reported from a session on tuanlh-devbox-01, 2026-11-07, proved there

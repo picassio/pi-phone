@@ -18,7 +18,10 @@ numbers. Do every step on the real thing: the artifact, the file, or the live ap
   opened from another. `screenshot` and `redline` take `steps` that run before each shot, such as
   `steps: [{ click: "[data-part=wiki-capture-model] .choice" }, { wait: ".model-menu" }]`; a sheet opens by link
   (`/?sheet=<name>`, `/?sheet=<module>:<id>`).
-- Read each width's **layout check** before the picture: cut text, covered text or controls, tap targets, off-grid
+- Read each width's **layout check** before the picture. Its first line may be about the page itself: "This page is an
+  error page: HTTP 500", "shows an error: …" or "looks empty: … words, … elements in view". Then the page you
+  checked is not the screen: a crash, a 404, a sign-in it lacked, or a load that never finished. Nothing else in that
+  report counts, and "nothing out of place" never counts on such a page. Then read the rest: cut text, covered text or controls, tap targets, off-grid
   sizes, contrast, small text, emoji, type, and the tells of an assembled page (broken images, skipped headings, cards
   inside cards, side-tab stripes, glows, pulsing dots, narrow justified text, tight leading, repeated words, corners
   not concentric or poking out of a rounded parent, numbers without tabular figures, gradient surfaces, static CSS tells). Then look at the picture for what numbers cannot say (alignment, balance).
@@ -48,6 +51,9 @@ changed areas, not only the share.
 ## 4. Fix and rerun
 
 Fix, then run steps 1 to 3 again, until these are zero:
+- a page finding (an error page, an error screen, an empty page): fix the crash or open the right page first (its
+  route, signed in, after it loaded); an empty page or error screen you drew on purpose (a 404 page you are designing)
+  stays only when you say so;
 - cut text, unless the cut is intended (a long title with `…` in a list) and you say so;
 - elements covering text or controls;
 - text under WCAG AA contrast (4.5:1; 3:1 for large text and for muted hints, never lower: the check lists a muted
