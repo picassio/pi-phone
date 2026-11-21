@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { fauxAssistantMessage, fauxText } from "@earendil-works/pi-ai/providers/faux";
+import { PSTACK_MODULE } from "../src/server/pstack.ts";
 
 /** About 30,000 tokens (tool schemas and this prose run at about 2.75 characters a token). Raise it only on purpose. */
 const LIMIT = 85_000;
@@ -62,7 +63,10 @@ async function bigServer(app: Awaited<ReturnType<typeof openApp>>): Promise<void
 }
 
 test("a new session's sections and tool schemas fit the prompt budget", async (t) => {
-    const { items, total } = await firstRequest(join(root, "budget-none"));
+    // Measured with the app's default extensions, pstack commands among them (on by default, PP-551).
+    const { items, total } = await firstRequest(join(root, "budget-none"), async (app) => {
+        assert.equal(app.loader.enabled(PSTACK_MODULE), true, "pstack commands are on by default");
+    });
     const names = items.map(([name]) => name);
 
     // A change in the request's shape must fail here, not pass with nothing counted.

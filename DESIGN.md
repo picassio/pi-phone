@@ -2076,8 +2076,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
     extension switch turns them all on or off.
   - **Slash commands only.** Each keeps `disable-model-invocation: true`. Pi's `formatSkillsForPrompt` leaves such a
     skill out of the skills section, and `skillCommands` still lists it. So the prompt with the extension on is the
-    prompt with it off, character for character (`test/pstack.test.ts`), and `test/prompt-budget.test.ts` is
-    untouched. The prompt is at its 85,000 limit.
+    prompt with it off, character for character (`test/pstack.test.ts`, measured on from the default, then off),
+    and `test/prompt-budget.test.ts` measures with it on (it asserts so) and is unchanged. The prompt is at its
+    85,000 limit.
   - **Adapted, each part marked** (`<!-- pi-phone: adapted|added -->` … `<!-- /pi-phone -->`; the test fails on an
     unmarked added line). Cursor's Task tool, AskQuestion, arena and its model slugs become `subagent`, `interview`,
     `models` and the board, wiki, session and library tools.
@@ -2096,8 +2097,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
       so it does not depend on HyperFrames' audio. Before any voice or render, one `interview` card (Render or Not
       now) gives the machine, the slides and length, the voice's length, the render's time and the model's own time.
       Nothing is made before Render. The mp4 comes back to `videos/` and is embedded as Markdown.
-  - **The extension**, off by default (built that way; whether it should be on is the owner's call), a switch like
-    any (`extensions.pstack.ts`). While it is on, `builtInSkills()` adds `PSTACK_SKILLS` for phone and server
+  - **The extension**, on by default (the owner's choice of 2026-11-21, interview cUcyv9eu, PP-551; built off at
+    first, PP-550), a switch like any (`extensions.pstack.ts`): `reload.ts` leaves it out of `OFF_BY_DEFAULT`. While it is on, `builtInSkills()` adds `PSTACK_SKILLS` for phone and server
     sessions. They are not copied to machines.
   - **Not done**: `/tdd` (not chosen), arena, swarm and the other skills.
 - **Videos in replies** (`web/ui.js`, PP-551): the Markdown renderer turns an image whose path is a session's mp4, webm

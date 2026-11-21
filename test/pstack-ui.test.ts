@@ -1,5 +1,5 @@
-// pstack commands (PP-550) in Settings › Extensions: its row, off by default, with its title and description, at a
-// phone's, a desktop's and a large screen's width. The layout check finds nothing that must be fixed in the row.
+// pstack commands (PP-550) in Settings › Extensions: its row, on by default (PP-551), with its title and description,
+// at a phone's, a desktop's and a large screen's width. The layout check finds nothing that must be fixed in the row.
 // PHONE_SHOTS=<dir> saves each picture and the layout check's words, for the report's counts.
 import { type App, cleanUp, cleanUpAll, openApp, root, scriptedModel } from "./helpers.ts";
 import assert from "node:assert/strict";
@@ -67,7 +67,7 @@ after(() =>
 );
 
 for (const [viewport, label] of [[VIEWPORTS.mobile, "390"], [VIEWPORTS.desktop, "1280"], [LARGE, "1920"]] as const) {
-    test(`at ${label} px: Extensions lists pstack commands, off, with its description, and nothing to fix in its row`, real, async () => {
+    test(`at ${label} px: Extensions lists pstack commands, on, with its description, and nothing to fix in its row`, real, async () => {
         await page.setViewport(viewport);
         await page.navigate(`${base}/?sheet=extensions`);
         await until(() => inPage<boolean>(`return JSON.stringify(document.querySelectorAll(".sheet .extension").length > 10)`), "the extensions");
@@ -90,7 +90,7 @@ for (const [viewport, label] of [[VIEWPORTS.mobile, "390"], [VIEWPORTS.desktop, 
         const row = await inPage<{ off: boolean; text: string } | null>(`const row = ${ROW}; return JSON.stringify(row === undefined ? null : { off: row.classList.contains("off"), text: row.innerText })`);
 
         assert.ok(row !== null, "the row");
-        assert.equal(row.off, true, "off by default");
+        assert.equal(row.off, false, "on by default (the owner's choice, PP-551)");
         assert.match(row.text, /Slash commands from pstack: \/interrogate, \/blast-radius, \/ketchup, \/reflect, \/correct, \/why, \/how, \/teach and more\./);
         // What the check found in the row: none of the kinds that must be fixed.
         assert.deepEqual(report.found.filter((each) => MUST_FIX.includes(each.kind) && /pstack/.test(each.what)), [], describeLayout(report));

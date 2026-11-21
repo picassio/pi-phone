@@ -5,8 +5,8 @@
  * only (`disable-model-invocation: true`): sessions list them as `/skill:<name>`, and the system prompt names none of
  * them, so the extension adds nothing to it.
  *
- * The built-in extension `extensions/pstack.ts` owns them, off by default: while it is on, phone and server sessions
- * list them (`PSTACK_SKILLS`); off, none do.
+ * The built-in extension `extensions/pstack.ts` owns them, on by default (the owner's choice, PP-551): while it is on,
+ * phone and server sessions list them (`PSTACK_SKILLS`); off, none do.
  */
 import { join } from "node:path";
 import { APP_ROOT } from "./config.ts";

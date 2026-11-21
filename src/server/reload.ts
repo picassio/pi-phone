@@ -94,7 +94,7 @@ export const BUILT_IN_MODULES: ReadonlySet<string> = new Set(
  */
 const REQUIRED = new Set(["prompt.ts", "secrets.ts", "policy.ts"]);
 /** Built-in modules that stay off until the owner turns them on. Drop-ins all do. */
-const OFF_BY_DEFAULT = new Set(["guard.ts", "agent-teams.ts", "projects.ts", "pstack.ts"]);
+const OFF_BY_DEFAULT = new Set(["guard.ts", "agent-teams.ts", "projects.ts"]);
 const TITLES: Record<string, string> = {
     "prompt.ts": "System prompt",
     "artifacts.ts": "Artifacts",

@@ -456,7 +456,7 @@ dự án thật.</sub>
   - `/skill:teach`, `/skill:bro`, `/skill:in-your-own-words`, `/skill:unslop-writing` và
     `/skill:create-formal-verification-skill`.
 
-  Là một tiện ích riêng, **tắt sẵn**: bật nó trong **Tiện ích** (hoặc nhờ Pi).
+  Là một tiện ích riêng, **bật sẵn**: tắt nó trong **Tiện ích** (hoặc nhờ Pi), thì không phiên nào liệt kê các lệnh này.
 - **Video trong câu trả lời.** Pi có thể nhúng một tệp video của phiên vào câu trả lời, giống như nhúng một ảnh
   (`![nội dung](videos/clip.mp4)`, dạng mp4, webm hoặc mov). Video đó phát ngay trong cuộc trò chuyện, có dòng mô tả bên dưới.
 - **Pi nhìn thấy việc mình làm.** `screenshot` dựng một artifact, một tệp HTML hoặc Office, hay một trang web trong

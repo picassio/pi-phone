@@ -452,7 +452,7 @@ No Termux, no laptop, no cloud VM.
   - `/skill:teach`, `/skill:bro`, `/skill:in-your-own-words`, `/skill:unslop-writing`, and
     `/skill:create-formal-verification-skill`.
 
-  Its own extension, **off by default**: turn it on in **Extensions** (or ask Pi).
+  Its own extension, **on by default**: turn it off in **Extensions** (or ask Pi), and no session lists them.
 - **Videos in replies.** A video file of the session that Pi embeds in a reply the way it embeds a picture
   (`![what it shows](videos/clip.mp4)`: mp4, webm or mov) plays in the chat, with its description under it.
 - **Pi sees its work.** `screenshot` renders an artifact, an HTML or Office file, or a web page in the phone's own

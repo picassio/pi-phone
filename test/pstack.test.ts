@@ -1,7 +1,7 @@
 // pstack commands (PP-550, PP-551): thirteen of pstack's skills in third_party/pstack/, slash commands only, adapted to pi-phone's
-// tools by pi-phone.patch with each change marked; the extension, off by default, lists them as /skill: commands, and
-// with it on the system prompt is the same, character for character, as with it off (disable-model-invocation keeps
-// every one out of the skills section).
+// tools by pi-phone.patch with each change marked; the extension, on by default (PP-551), lists them as /skill:
+// commands, and with it on the system prompt is the same, character for character, as with it off
+// (disable-model-invocation keeps every one out of the skills section).
 import { type App, cleanUp, context, lastText, newSession, openApp, owner, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -174,38 +174,46 @@ async function turn(id: number, text: string, answer?: boolean): Promise<void> {
 /** The system prompt with each run of digits as N: sessions differ only in their numbers. */
 const same = (text: string) => text.replace(/\d+/g, "N");
 
-test("off by default; on, every session lists the thirteen as /skill: commands and the prompt gains not a character", async () => {
+test("on by default, every session lists the thirteen as /skill: commands and the prompt is the one with it off", async () => {
     app = await openApp(scriptedModel(route));
 
     const listed = (id: number) => app!.skillCommands(id as never).map((each) => each.name).filter((name) => names.includes(name)).sort();
-    const off = await newSession(app);
+    const on = await newSession(app);
 
     assert.equal(app.loader.list().find((module) => module.file === PSTACK_MODULE)?.title, "pstack commands");
-    assert.equal(app.loader.enabled(PSTACK_MODULE), false, "off by default");
-    assert.deepEqual(listed(off), []);
-    await turn(off, "hello");
+    assert.equal(app.loader.enabled(PSTACK_MODULE), true, "on by default (the owner's choice, PP-551)");
+    assert.deepEqual(listed(on), [...names].sort(), "each in the / list");
+    await turn(on, "hello");
 
-    const before = prompt;
+    const withIt = prompt;
+
+    assert.ok(withIt.length > 1000 && withIt.includes("<name>statechart</name>"), "the skills section is there, with the others");
+
+    for (const name of names) {
+        assert.doesNotMatch(withIt, new RegExp(`<name>${name}</name>`), name);
+    }
+
+    await turn(on, "pstack off", true);
+    assert.equal(app.loader.enabled(PSTACK_MODULE), false);
+
+    const off = await newSession(app);
+
+    assert.deepEqual(listed(off), [], "off: no session lists them");
+    await turn(off, "hello");
+    assert.equal(same(prompt), same(withIt), "the system prompt with the extension on is the one with it off");
 
     await turn(off, "pstack on", true);
     assert.equal(app.loader.enabled(PSTACK_MODULE), true);
 
-    const on = await newSession(app);
+    const again = await newSession(app);
 
-    assert.deepEqual(listed(on), [...names].sort(), "each in the / list");
-    await turn(on, "hello");
-    assert.equal(same(prompt), same(before), "the system prompt with the extension on is the one with it off");
-    assert.ok(prompt.length > 1000 && prompt.includes("<name>statechart</name>"), "the skills section is there, with the others");
-
-    for (const name of names) {
-        assert.doesNotMatch(prompt, new RegExp(`<name>${name}</name>`), name);
-    }
+    assert.deepEqual(listed(again), [...names].sort(), "on again, each in the / list again");
 
     // A command loads its adapted text into the message.
-    await turn(on, "/skill:why why is the day chart redrawn?");
+    await turn(again, "/skill:why why is the day chart redrawn?");
     assert.match(asked, /^<skill name="why" location="[^"]*third_party\/pstack\/skills\/why\/SKILL\.md">/);
     assert.match(asked, /In pi-phone the record also holds the wiki[^]*\n\nwhy is the day chart redrawn\?$/);
 
-    await turn(on, "pstack off", true);
+    await turn(again, "pstack off", true);
     assert.deepEqual(listed(await newSession(app)), []);
 });

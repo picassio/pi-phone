@@ -291,7 +291,7 @@
   - `/skill:teach`、`/skill:bro`、`/skill:in-your-own-words`、`/skill:unslop-writing` 和
     `/skill:create-formal-verification-skill`。
 
-  它是单独的扩展，**默认关闭**：在 **扩展** 中打开它（或让 Pi 打开）。
+  它是单独的扩展，**默认开启**：在 **扩展** 中关闭它（或让 Pi 关闭）后，任何会话都不再列出这些命令。
 - **回复中的视频。** Pi 可以像嵌入图片一样，在回复里嵌入会话中的视频文件
   （`![内容](videos/clip.mp4)`，mp4、webm 或 mov）。这样的视频直接在聊天中播放，下方附带说明。
 - **Pi 看得见自己的成果。** `screenshot` 在手机自己的 WebView 中，以手机、桌面和大屏三种宽度（390、1280 和 1920 px）渲染产物、HTML 或 Office 文件或网页，即使屏幕关闭也可以，
