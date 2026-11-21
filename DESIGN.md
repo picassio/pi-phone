@@ -1259,7 +1259,13 @@ so Pi changes them through the settings tools; "the last session" is the one the
     absolute with all four insets 0 over its card, takes the card's box; read from the computed style, never a class
     name, and words of that card under its layer are not covered, while a control under it still is);
     padding, gaps, corner radii and control heights off the 4 px grid or not whole pixels (0, 1 and 2 px pass as
-    hairlines and nudges, pill corners pass, svg icons need whole pixels only); text under WCAG AA contrast (4.5, 3
+    hairlines and nudges, pill corners pass, svg icons need whole pixels only; PP-520: in a zoomed canvas, as React
+    Flow's viewport draws its nodes with `transform: matrix(0.7, …)`, control heights and icons are divided by the
+    scale they are drawn at, their own transform's and their ancestors' multiplied (the computed matrix and `scale`),
+    and a finding that remains says "at zoom 0.7"; a tap target is measured as drawn, as a finger gets it, its hit
+    layer's insets at the zoom of the box it is placed in, so a pin that keeps its size with 1 / zoom passes; what is
+    drawn on a canvas, a scaled ancestor or `.react-flow` or `[data-canvas]`, is no card inside a card outside it, while
+    a card inside a node still is: FlowCanvas's 42 px nodes and 11.2 px icons were 60 and 16 at zoom 1); text under WCAG AA contrast (4.5, 3
     for large text) against its ancestors' background colours composited, with its own and its ancestors' opacity
     (PP-414: over a linear or radial gradient, its colour is worked out from the computed style where the words sit,
     at three points of the first line and the middle of the last, the lowest ratio kept and the finding naming the

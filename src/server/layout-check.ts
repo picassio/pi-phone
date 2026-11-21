@@ -41,6 +41,10 @@
  * Since PP-519, a target in a sentence is WCAG 2.5.8's inline exception: a link, button or chip laid out inline whose
  * line holds words that are not its own is no tap target under 40 px. A chip drawn as a box there (inline-flex or
  * inline-block) under 24 px tall with no hit area of its own laid past it is its own kind, `inline-target`.
+ *
+ * Since PP-520, what a zoomed canvas draws (React Flow's viewport, scaled by a CSS transform) is measured at its own
+ * scale: control heights and icons divided by the zoom, a finding that remains saying "at zoom 0.7"; a tap target as
+ * drawn, its hit area at the zoom too; and what is drawn on a canvas is not a card inside the card that frames it.
  */
 
 /** One thing out of place: what it is, and the boxes that show it (x and width, CSS pixels). */
@@ -57,7 +61,7 @@ export type LayoutFind =
     | { kind: "covered"; what: string; by: string; points: number; of: number; count: number }
     | { kind: "small-target"; what: string; size: [number, number]; count: number }
     | { kind: "inline-target"; what: string; size: [number, number]; count: number }
-    | { kind: "off-grid"; what: string; property: string; value: number; count: number }
+    | { kind: "off-grid"; what: string; property: string; value: number; zoom?: number; count: number }
     | { kind: "contrast"; what: string; color: string; background: string; ratio: number; needs: number; gradient?: string; count: number }
     | { kind: "small-text"; what: string; size: number; count: number }
     | { kind: "emoji"; what: string; glyphs: string; count: number }
@@ -207,6 +211,21 @@ export const PAGE_HELPERS = String.raw`
     }
     return null;
   };
+  // The scale an element is drawn at (PP-520): its own transform's and its ancestors', multiplied (React Flow's viewport,
+  // transform matrix(0.7, 0, 0, 0.7, x, y), draws its nodes at 0.7), along x, from the computed transform matrix and
+  // the scale property. Its rect is drawn at that scale; its computed lengths are not.
+  const ownScale = (s) => {
+    const m = /^matrix(3d)?\(([^)]*)\)$/.exec(s.transform);
+    const v = m ? m[2].split(',').map(Number) : null;
+    return (v ? Math.hypot(v[0], v[1]) : 1) * (s.scale && s.scale !== 'none' ? parseFloat(s.scale) : 1);
+  };
+  const scales = new Map();
+  const scaleOf = (e) => {
+    if (!e || e.nodeType !== 1) return 1;
+    let v = scales.get(e);
+    if (v === undefined) { v = scaleOf(e.parentElement) * ownScale(css(e)); scales.set(e, v); }
+    return v;
+  };
   // A ::before or ::after that takes taps: shown, absolutely placed, its insets given.
   const tapLayers = (e) => ['::before', '::after'].map((which) => getComputedStyle(e, which)).filter((s) => s.content !== 'none' && s.content !== 'normal' && s.display !== 'none' && s.pointerEvents !== 'none' && s.position === 'absolute' && ![s.left, s.top, s.right, s.bottom].map(parseFloat).some(Number.isNaN));
   // A stretched link (PP-436): a control whose ::before or ::after is absolute with all four insets 0 over the box it
@@ -229,9 +248,10 @@ export const PAGE_HELPERS = String.raw`
     }
     const block = css(e).pointerEvents !== 'none' ? placedIn(e) : null;
     if (block) {
-      const pb = padBox(block);
+      // Its insets are drawn at the scale of the box it is placed in (PP-520: a pin in a zoomed canvas).
+      const pb = padBox(block), k = scaleOf(block);
       for (const s of tapLayers(e)) {
-        const [L, T, R, B] = [s.left, s.top, s.right, s.bottom].map(parseFloat);
+        const [L, T, R, B] = [s.left, s.top, s.right, s.bottom].map((v) => parseFloat(v) * k);
         const q = { l: pb.l + L, t: pb.t + T, r: pb.r - R, b: pb.b - B };
         // Placed in an ancestor, a layer counts when it lies over the control (a stretched link's), not when it sits
         // elsewhere in that box (a badge).
@@ -584,7 +604,14 @@ ${PAGE_HELPERS}
   };
   const lum = (c) => { const f = c.slice(0, 3).map((x) => { x /= 255; return x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }); return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]; };
   const onGrid = (v) => v === 0 || v === 1 || v === 2 || (Math.abs(v - Math.round(v)) < 0.01 && Math.round(v) % 4 === 0);
-  const offGrid = (e, property, v) => { v = r2(v); if (!onGrid(v)) group('off-grid', property + '|' + v, () => ({ what: name(e), property, value: v })); };
+  // A size drawn at a zoom (PP-520) is measured at its own scale: the drawn size divided by the zoom, which the finding
+  // says.
+  const offGrid = (e, property, v, zoom = 1) => {
+    v = r2(v);
+    if (onGrid(v)) return;
+    const at = Math.abs(zoom - 1) > 0.01 ? r2(zoom) : undefined;
+    group('off-grid', property + '|' + v + '|' + at, () => Object.assign({ what: name(e), property, value: v }, at === undefined ? {} : { zoom: at }));
+  };
   const LAYER = 'dialog,[role=dialog],[role=alertdialog],[role=menu],[role=listbox],[role=tooltip],[aria-modal=true],[popover]';
   // Whether something at the point shows over the target: a background, a picture, a control's face or words of its own
   // (a transparent box laid over a title to make it one tap target hides nothing).
@@ -719,10 +746,14 @@ ${PAGE_HELPERS}
       if (v >= Math.min(r.width, r.height) / 2 - 0.5) continue;
       offGrid(e, 'radius', v);
     }
-    if (tag === 'svg' && r.width <= 48 && r.height <= 48) {
-      icons.add(r2(r.width) + 'x' + r2(r.height));
+    // Icons at their own scale (PP-520): a 16 px icon in a canvas at zoom 0.7 is drawn 11.2 px.
+    const zoom = scaleOf(e);
+    if (tag === 'svg' && r.width / zoom <= 48 && r.height / zoom <= 48) {
+      const w = r.width / zoom, h = r.height / zoom;
+      icons.add(r2(w) + 'x' + r2(h));
       if (style.stroke !== 'none' && style.strokeWidth) strokes.add(style.strokeWidth);
-      if (Math.abs(r.width - Math.round(r.width)) > 0.01 || Math.abs(r.height - Math.round(r.height)) > 0.01) group('off-grid', 'icon|' + r2(r.width), () => ({ what: name(e), property: 'icon width', value: r2(r.width) }));
+      const at = Math.abs(zoom - 1) > 0.01 ? r2(zoom) : undefined;
+      if (Math.abs(w - Math.round(w)) > 0.01 || Math.abs(h - Math.round(h)) > 0.01) group('off-grid', 'icon|' + r2(w) + '|' + at, () => Object.assign({ what: name(e), property: 'icon width', value: r2(w) }, at === undefined ? {} : { zoom: at }));
     }
     if ((style.webkitBackgroundClip === 'text' || style.backgroundClip === 'text') && /gradient\(/.test(style.backgroundImage)) group('gradient-text', sig(e), () => ({ what: name(e) }));
     // Gradient surfaces (PP-430): a gradient of two colours or more on 1600 px² or more; [data-allow-gradient] marks one
@@ -809,10 +840,11 @@ ${PAGE_HELPERS}
           } else if (hit.width < ${TAP_MIN} - 0.01 || hit.height < ${TAP_MIN} - 0.01) group('small-target', sig(e) + '|' + Math.round(hit.width) + 'x' + Math.round(hit.height), () => ({ what: name(e), size: [r1(hit.width), r1(hit.height)] }));
         }
         // Under text zoom, as at 100 %: the part its lines make taken back to their size there (PP-433).
+        // In a zoomed canvas, at its own scale (PP-520).
         if (pictured(e, r)) {
           // Its height is its picture's.
-        } else if (TEXT_ZOOM === 1) offGrid(e, 'control height', r.height);
-        else offGrid(e, 'control height at 100 % text', r1(r.height - textPart(e) * (1 - 1 / TEXT_ZOOM)));
+        } else if (TEXT_ZOOM === 1) offGrid(e, 'control height', r.height / zoom, zoom);
+        else offGrid(e, 'control height at 100 % text', r1((r.height - textPart(e) * (1 - 1 / TEXT_ZOOM)) / zoom), zoom);
         if (style.pointerEvents !== 'none') {
           const by = coveredBy(e, r.left + r.width / 2, r.top + r.height / 2);
           if (by) group('covered', sig(e) + '|' + sig(by), () => ({ what: name(e), by: name(by), points: 1, of: 1 }));
@@ -823,7 +855,14 @@ ${PAGE_HELPERS}
 
   // Cards inside cards (Impeccable's nested-cards): the innermost card, in flow, with words, at least 50 x 30, that is
   // not a one-line label, a field's box, or a band along its card's edges; the outer card is not a page frame (as tall
-  // as the view), a dialog or a layer over the page.
+  // as the view), a dialog or a layer over the page. A canvas is a surface (PP-520): what is drawn on it (a diagram's
+  // nodes in React Flow's viewport, scaled or not, or under [data-canvas]) is not a card inside the card that frames
+  // the canvas; a card inside a node still is.
+  const CANVAS = '.react-flow,[data-canvas]';
+  const canvasOf = (e) => {
+    for (let a = e.parentElement; a && a !== document.body; a = a.parentElement) if (a.matches(CANVAS) || Math.abs(ownScale(css(a)) - 1) > 0.01) return a;
+    return null;
+  };
   const nested = [];
   for (const e of nestedCandidates) {
     const st = css(e), r = e.getBoundingClientRect();
@@ -833,6 +872,8 @@ ${PAGE_HELPERS}
     let outer = null;
     for (let a = e.parentElement; a && a !== document.body; a = a.parentElement) if (nestedCandidates.includes(a)) { outer = a; break; }
     if (!outer || outer.matches(LAYER)) continue;
+    const canvas = canvasOf(e);
+    if (canvas && !canvas.contains(outer)) continue;
     const q = outer.getBoundingClientRect();
     if (q.height >= VH * 0.8 && q.width >= VW * 0.2) continue;
     const edges = [Math.abs(r.top - q.top), Math.abs(r.right - q.right), Math.abs(r.bottom - q.bottom), Math.abs(r.left - q.left)].filter((d) => d <= 2).length;
@@ -1111,7 +1152,7 @@ function findWords(find: LayoutFind): string {
         case "inline-target":
             return `${find.what}: ${find.size[0]}×${find.size[1]} px${times}`;
         case "off-grid":
-            return `${find.property} ${find.value} px: ${find.count} element${find.count === 1 ? "" : "s"}, such as ${find.what}`;
+            return `${find.property} ${find.value} px${find.zoom === undefined ? "" : ` at zoom ${find.zoom}`}: ${find.count} element${find.count === 1 ? "" : "s"}, such as ${find.what}`;
         case "contrast":
             return `${find.what}: ${find.color} on ${find.background}${find.gradient === undefined ? "" : ` (gradient on ${find.gradient})`}, ${find.ratio}:1 (needs ${find.needs})${times}`;
         case "small-text":

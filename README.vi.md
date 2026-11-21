@@ -455,7 +455,8 @@ dự án thật.</sub>
   còn chip trong câu thấp hơn 24 px mà không có vùng chạm riêng thì là một loại lỗi riêng), padding, khoảng cách, bo góc và chiều cao nút lệch lưới 4 px hoặc
   không tròn điểm ảnh (khi Android phóng cỡ chữ, chiều cao nút được đo như ở 100 %, nút phủ lên một tiêu đề được đo
   theo các dòng chữ của tiêu đề đó; nút cao đúng bằng một ảnh duy nhất giữ tỉ lệ của ảnh thì lấy chiều cao của ảnh, không
-  bị tính là lệch lưới), chữ có độ tương phản dưới chuẩn WCAG AA (cả trên nền gradient, đo đúng chỗ chữ nằm) hoặc nhỏ hơn 12 px, emoji và ký hiệu dùng làm biểu
+  bị tính là lệch lưới; những gì vẽ trong một canvas bị thu phóng như của React Flow được đo theo tỉ lệ riêng của nó, và
+  không bị coi là thẻ nằm trong thẻ khung), chữ có độ tương phản dưới chuẩn WCAG AA (cả trên nền gradient, đo đúng chỗ chữ nằm) hoặc nhỏ hơn 12 px, emoji và ký hiệu dùng làm biểu
   tượng, chữ gradient, nhãn viết hoa, giãn chữ âm và dòng quá dài, cùng chín dấu hiệu lấy từ bộ dò của Impeccable (ảnh
   hỏng, nhảy cấp tiêu đề, thẻ lồng trong thẻ, sọc nhấn một bên, bóng phát sáng, chấm nhấp nháy, chữ căn đều trong cột
   hẹp, dòng chữ quá sát và cùng một chữ lặp trong một thẻ; biểu tượng xoay không tính là chấm nhấp nháy), và các luật

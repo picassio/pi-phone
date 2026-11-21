@@ -1,0 +1,40 @@
+<!doctype html>
+<!--
+  A diagram canvas (PP-520), as React Flow and auton-ui-flow's FlowCanvas draw one (apps/docs/_check/rank.html): nodes
+  in a viewport scaled by a CSS transform (fitView picked 0.7), each a focusable node 264 x 60 holding a card with a
+  16 px icon, in a bordered frame. Measured at the canvas's own scale they are on the grid and no cards inside the
+  frame's card. Two pins in it: one that keeps its size (auton-ui-flow's --badge-scale, 1 / zoom) is 40 px to a finger,
+  one that does not is 28; a node 70 px tall is off the grid at its own scale too. Then a canvas at zoom 1 (React Flow's class) whose node is 42 px tall and whose icon is
+  11.2 px: those are real.
+-->
+<html lang="en">
+<meta name="viewport" content="width=device-width">
+<title>Zoomed canvas</title>
+<style>
+  body { margin: 0; font: 14px/20px sans-serif; color: #1a1a1a; }
+  .frame { position: relative; width: 340px; height: 240px; margin: 24px; overflow: hidden; border: 1px solid #d4d4d4; border-radius: 12px; background: #ffffff; }
+  .viewport { position: absolute; left: 0; top: 0; width: 480px; height: 320px; transform-origin: 0 0; }
+  .node { position: absolute; width: 264px; }
+  .card { position: relative; display: flex; align-items: center; gap: 8px; height: 100%; padding: 0 12px; border: 1px solid #d4d4d4; border-radius: 8px; background: #fafafa; }
+  .card svg { width: 16px; height: 16px; flex: none; }
+  .pin { position: absolute; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 12px; background: #2563eb; color: #ffffff; font-size: 12px; }
+  .pin::after { content: ""; position: absolute; inset: -8px; }
+</style>
+<div class="frame" id="scaled-frame">
+  <div class="viewport" id="scaled" style="transform: matrix(0.7, 0, 0, 0.7, 16, 16)">
+    <div class="node" id="zone" tabindex="0" style="height: 60px; transform: translate(16px, 16px)"><div class="card"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="#888888"/></svg>Is it one of our zones?</div></div>
+    <div class="node" id="guard" tabindex="0" style="height: 80px; transform: translate(16px, 112px)"><div class="card"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="#888888"/></svg>Never purge everything at once</div></div>
+    <div class="node" id="off" tabindex="0" style="height: 70px; transform: translate(16px, 208px)"><div class="card">Off the grid at any zoom</div></div>
+    <button class="pin" id="kept" type="button" aria-label="Kept pin" style="left: 300px; top: 24px; transform: scale(1.4285714)">3</button>
+    <button class="pin" id="shrunk" type="button" aria-label="Shrunk pin" style="left: 300px; top: 120px">4</button>
+  </div>
+</div>
+<div class="frame" id="flat-frame">
+  <div class="react-flow" style="position: absolute; inset: 0">
+    <div class="viewport" style="transform: matrix(1, 0, 0, 1, 16, 16)">
+      <div class="node" id="even" tabindex="0" style="height: 60px; transform: translate(0, 0)"><div class="card"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="#888888"/></svg>Step one of the purge</div></div>
+      <div class="node" id="odd" tabindex="0" style="height: 42px; transform: translate(0, 96px)"><div class="card"><svg viewBox="0 0 16 16" style="width: 11.2px; height: 11.2px"><circle cx="8" cy="8" r="6" fill="#888888"/></svg>Step two of the purge</div></div>
+    </div>
+  </div>
+</div>
+</html>

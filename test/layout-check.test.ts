@@ -186,6 +186,7 @@ const PAGES: Record<string, string> = {
     ...AUTON_PAGES,
     // Fixture pages of their own (test/fixtures/layout/), which the screenshot tool can show too.
     "/fixtures/inline-targets": readFileSync(new URL("fixtures/layout/inline-targets.html", import.meta.url), "utf8"),
+    "/fixtures/zoomed-canvas": readFileSync(new URL("fixtures/layout/zoomed-canvas.html", import.meta.url), "utf8"),
 };
 let server: Server;
 let port = 0;
@@ -703,6 +704,37 @@ test("a target in a sentence is no tap target under 40 px (WCAG 2.5.8's inline e
         );
         assert.deepEqual(of(inline, "inline-target").map((find) => [short(find.what), find.size[1]]), [["a#bare.chip", 16]]);
         assert.match(describeLayout(inline), /\nChips in a sentence under 24 px tall with no hit area \(WCAG 2\.5\.8\) \(1\):\n- a#bare\.chip "ZD-4817": [\d.]+×16 px$/);
+    } finally {
+        await engine.close();
+    }
+});
+
+test("what a zoomed canvas draws is measured at its own scale: nodes and icons on the grid, no cards inside the frame's card, a pin that keeps its size 40 px to a finger; a shrunk pin, a 42 px node and an 11.2 px icon at zoom 1 still are findings (PP-520)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+
+        await page.init({ width: 390, height: 844, mobile: true });
+
+        const canvas = await rendered(page, "/fixtures/zoomed-canvas");
+        const short = (what: string) => what.replace(/ ".*$/, "");
+
+        // Drawn at 0.7: #zone is 42 px tall, its icon 11.2 px; at its own scale 60 and 16.
+        assert.equal(await page.evaluate<number>(`Math.round(document.getElementById("zone").getBoundingClientRect().height * 100) / 100`), 42);
+        assert.deepEqual(
+            of(canvas, "off-grid").map((find) => [find.property, find.value, find.zoom, short(find.what)]),
+            [
+                ["control height", 70, 0.7, "div#off.node"],
+                ["control height", 42, undefined, "div#odd.node"],
+                // 11.2 px laid out in Chrome's 1/64 px units.
+                ["icon width", 11.19, undefined, "svg"],
+            ],
+        );
+        assert.match(describeLayout(canvas), /\n- control height 70 px at zoom 0\.7: 1 element, such as div#off\.node "Off the grid at any zoom"\n/);
+        assert.deepEqual(of(canvas, "nested-cards"), []);
+        assert.deepEqual(of(canvas, "small-target").map((find) => [short(find.what), find.size]), [["button#shrunk.pin", [28, 28]]]);
+        assert.deepEqual(canvas.summary.icons, ["16x16", "11.19x11.19"]);
     } finally {
         await engine.close();
     }
