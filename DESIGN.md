@@ -3454,7 +3454,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
     `mcp_server_set` until then: a session failed from the moment tool_search loaded them. `tool-names.ts` keeps the
     rule (`MCP_UNDERSCORE_NAME`); `test/tool-names.test.ts` checks every tool the app registers (built-in, deferred,
     an MCP server's), and a drop-in with such a tool is refused whole (`Refusal` kind `extra-usage`, and
-    `checkMade` for one Pi makes). The section tag `<mcp_servers>` and the `mcp_result` tags are no tool names.
+    `checkMade` for one Pi makes). The section tag `<mcp_servers>` and the `mcp_result` tags are no tool names. A session
+    that loaded the old tools kept failing after the rename: Pi Durable 1.5 sends a tool loaded mid-conversation as a
+    `tool_addition` block in a system message, and its removal as a `tool_removal`, and these stay in the history. So
+    the billing patch (`cc-patch.ts`) drops such blocks for names `MCP_UNDERSCORE_NAME` matches, and a system message
+    left empty (the probe: that history fails on #512, passes with the patch).
   - **Settings › MCP servers** (`web/sheets/mcp.js`, `mcp/page.ts`, PP-528; Menu › MCP servers, `/?sheet=mcp-servers`,
     the owner's): each server with its command or URL, where it runs, its folders, tools' count and secrets by name, its
     state (off; changed since approved; failed; running; on), and On, Change, Test, Reconnect, Stop, Remove. The form

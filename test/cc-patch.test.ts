@@ -57,6 +57,37 @@ test("replaces an older billing block and keeps metadata and cache control", () 
 	assert.deepEqual(payload.metadata, before.metadata);
 });
 
+test("a session that once loaded a tool named mcp_ (one underscore) sends its history without that tool's addition and removal (PP-533)", () => {
+	const definition = (name: string) => ({ name, description: "d", input_schema: { type: "object", properties: {} } });
+	const payload = {
+		model: "claude-opus-5-5",
+		system: [oauthIdentity],
+		messages: [
+			{ role: "user", content: "find the MCP tools" },
+			{
+				role: "system",
+				content: [
+					{ type: "tool_addition", tool: { type: "tool_definition", definition: definition("mcp_server_set") } },
+					{ type: "tool_addition", tool: { type: "tool_definition", definition: definition("machine_add") } },
+				],
+			},
+			{ role: "assistant", content: "ok" },
+			{ role: "system", content: [{ type: "tool_removal", tool: { type: "tool_reference", name: "mcp_servers" } }] },
+			{
+				role: "system",
+				content: [{ type: "tool_addition", tool: { type: "tool_definition", definition: definition("mcp__gopeak__scene_nodes") } }],
+			},
+			{ role: "user", content: "Say OK." },
+		],
+	};
+	patchClaudeCodePayload(payload, "anthropic", options);
+	const wire = JSON.stringify(payload.messages);
+	assert.doesNotMatch(wire, /"mcp_(?!_)/, "no mcp_ name with one underscore is left");
+	assert.match(wire, /machine_add/, "other additions in the same message stay");
+	assert.match(wire, /mcp__gopeak__scene_nodes/, "Claude Code's own mcp__server__tool form stays");
+	assert.equal(payload.messages.length, 5, "the removal's message, left empty, goes");
+});
+
 test("leaves direct Anthropic API-key payloads unchanged", () => {
 	const payload = {
 		model: "claude-opus-5",

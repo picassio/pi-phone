@@ -5,6 +5,8 @@
 // Pure: takes the provider payload pi-ai is about to send and returns the patched payload, or undefined when the
 // request is not a direct Anthropic OAuth request (API key, Bedrock, OpenRouter, other providers).
 
+import { MCP_UNDERSCORE_NAME } from "./tool-names.ts";
+
 export interface ClaudeCodeBillingOptions {
 	/** Claude Code version advertised in the billing header; bump when Anthropic raises the minimum. */
 	readonly version: string;
@@ -69,6 +71,35 @@ export function billingHeaderBlock(version: string): SystemBlock {
 	return { type: "text", text: `${BILLING_PREFIX}: cc_version=${version}.000; cc_entrypoint=cli;` };
 }
 
+/** The name a mid-conversation tool_addition or tool_removal block names, if it is one. */
+function changedToolName(block: unknown): string | undefined {
+	if (typeof block !== "object" || block === null) return undefined;
+	const { type, tool } = block as { type?: unknown; tool?: { name?: unknown; definition?: { name?: unknown } } };
+	if (type === "tool_removal" && typeof tool?.name === "string") return tool.name;
+	if (type === "tool_addition" && typeof tool?.definition?.name === "string") return tool.definition.name;
+	return undefined;
+}
+
+/**
+ * The history without the additions and removals of tools named `mcp_` and one underscore (MCP_UNDERSCORE_NAME), which
+ * make Anthropic bill the request as extra usage (PP-533). No tool of pi-phone's has such a name since build #512, but
+ * a session that loaded one before keeps Pi Durable's `tool_addition` (and the later `tool_removal`) in its history,
+ * and every request of it failed with "You're out of extra usage". Such a tool is offered no more, so the model loses
+ * nothing it could call; a system message left empty goes too.
+ */
+function withoutExtraUsageTools(messages: unknown[]): unknown[] {
+	return messages.flatMap((message) => {
+		const { role, content } = message as { role?: unknown; content?: unknown };
+		if (role !== "system" || !Array.isArray(content)) return [message];
+		const kept = content.filter((block) => {
+			const name = changedToolName(block);
+			return name === undefined || !MCP_UNDERSCORE_NAME.test(name);
+		});
+		if (kept.length === content.length) return [message];
+		return kept.length === 0 ? [] : [{ ...(message as object), content: kept }];
+	});
+}
+
 /**
  * Patch one provider payload in place and return it, or return undefined to leave it unchanged. Matches pi-ai's
  * `onPayload` contract.
@@ -95,6 +126,7 @@ export function patchClaudeCodePayload(
 		blocks.push({ ...block, text: sanitizeSystemPrompt(block.text) });
 	}
 	payload.system = blocks;
+	payload.messages = withoutExtraUsageTools(payload.messages);
 	if (payload.metadata === undefined) {
 		payload.metadata = { user_id: JSON.stringify({ device_id: "0", account_uuid: "", session_id: "0" }) };
 	}
