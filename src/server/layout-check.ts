@@ -740,6 +740,55 @@ ${PAGE_HELPERS}
     return null;
   };
 
+  // How wide a box's content is (PP-534). scrollWidth counts an absolute ::before or ::after, and auton-ui's .hit-area
+  // and .hit-area-inline widen a touch area with one that draws nothing: content "", no background, border, shadow or
+  // outline. Where there is one, the children's boxes and the words' lines say how wide the content is; a child whose
+  // pseudo-element draws (a badge, a dot) reaches as far as its own scrollWidth, and the box's own keeps scrollWidth.
+  const blankPseudo = (e, which) => {
+    const p = getComputedStyle(e, which);
+    if (p.content === 'none' || p.content === 'normal' || p.display === 'none') return null;
+    if (p.visibility === 'hidden' || parseFloat(p.opacity) < 0.05) return true;
+    const bg = colour(p.backgroundColor);
+    return (p.content === '""' || p.content === "''") && (p.backgroundColor === 'transparent' || (bg !== null && bg[3] < 0.05)) && p.backgroundImage === 'none' && p.boxShadow === 'none'
+      && ['Top', 'Right', 'Bottom', 'Left'].every((side) => p['border' + side + 'Style'] === 'none' || parseFloat(p['border' + side + 'Width']) === 0)
+      && (p.outlineStyle === 'none' || parseFloat(p.outlineWidth) === 0);
+  };
+  const widthRange = document.createRange();
+  const contentWidth = (e, r) => {
+    let blanks = 0, drawn = false, seen = 0, lo = Infinity, hi = -Infinity;
+    const reach = (q) => { if (q.width > 0 || q.height > 0) { lo = Math.min(lo, q.left); hi = Math.max(hi, q.right); } };
+    const pseudos = (d) => { let draws = false; for (const which of ['::before', '::after']) { const blank = blankPseudo(d, which); if (blank === true) blanks++; else if (blank === false) draws = true; } return draws; };
+    const visit = (node) => {
+      for (let c = node.firstChild; c && !drawn && seen < 400; c = c.nextSibling) {
+        if (c.nodeType === 3) {
+          if (!/\S/.test(c.textContent)) continue;
+          widthRange.selectNodeContents(c);
+          for (const q of widthRange.getClientRects()) reach(q);
+        } else if (c.nodeType === 1) {
+          seen++;
+          const s = css(c);
+          if (s.display === 'none' || s.position === 'fixed') continue;
+          if (c.shadowRoot) { drawn = true; return; }
+          const q = c.getBoundingClientRect();
+          if (s.display !== 'contents') reach(q);
+          if (clipsX(c) || /^(svg|img|canvas|video|iframe|object|embed|select|textarea|input)$/i.test(c.tagName)) continue;
+          if (pseudos(c) && s.display !== 'contents') {
+            const z = scaleOf(c), wide = c.scrollWidth * z;
+            if (s.direction === 'rtl') { const end = q.right - parseFloat(s.borderRightWidth) * z; reach({ left: end - wide, right: end, width: wide, height: 1 }); }
+            else { const start = q.left + c.clientLeft * z; reach({ left: start, right: start + wide, width: wide, height: 1 }); }
+          }
+          visit(c);
+        }
+      }
+    };
+    if (e.shadowRoot || pseudos(e)) return e.scrollWidth;
+    visit(e);
+    if (drawn || seen >= 400 || blanks === 0) return e.scrollWidth;
+    const zoom = scaleOf(e), left = r.left + e.clientLeft * zoom;
+    const wide = css(e).direction === 'rtl' ? left + e.clientWidth * zoom - lo : hi - left;
+    return lo === Infinity ? e.clientWidth : Math.max(e.clientWidth, Math.round(wide / zoom));
+  };
+
   for (const e of measuredAll) {
     if (++checked > 4000) break;
     const r = e.getBoundingClientRect();
@@ -751,7 +800,8 @@ ${PAGE_HELPERS}
     for (let a = e.parentElement; a && a !== document.body; a = a.parentElement) if (clipsX(a)) { sideways = true; break; }
     if (!sideways) {
       if (style.overflowX === 'visible' && e.scrollWidth > e.clientWidth + 1 && e.clientWidth > 0 && !['svg', 'img', 'canvas', 'video', 'iframe'].includes(tag)) {
-        add({ kind: 'spills', what: name(e), box: [Math.round(r.left), e.scrollWidth], limit: [Math.round(r.left), e.clientWidth] });
+        const wide = contentWidth(e, r);
+        if (wide > e.clientWidth + 1) add({ kind: 'spills', what: name(e), box: [Math.round(r.left), wide], limit: [Math.round(r.left), e.clientWidth] });
       }
       // Against the nearest ancestor with a box: one of display: contents has none (PP-501).
       let p = e.parentElement;

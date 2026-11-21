@@ -442,7 +442,8 @@ No Termux, no laptop, no cloud VM.
   idle) and after the server restarted (an app update), as the sign-in stays. A page shot without a sign-in that shows a password field says so, and how to see it
   signed in.
 - **Measured screenshots.** Every `screenshot` width comes with a layout check the page runs before it is drawn: what spills
-  out of its box or its parent, and whether the page is wider than the screen, with sizes. It also finds what makes a
+  out of its box or its parent (an empty `::after` that only widens a touch area spills nothing), and whether the page is
+  wider than the screen, with sizes. It also finds what makes a
   page look unfinished: text cut by its box (an ellipsis, a clipped line), an element covering another's text or
   control, tap targets under 40 px on a phone (a hit area laid past a small control counts, and a stretched link takes its whole card, whose words under it are
   not covered; a phone page wider than the

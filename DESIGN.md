@@ -1252,7 +1252,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
     stopped (`Animation.setPlaybackRate` 0) on `test/fixtures/layout/entrance.html`; auton-ui's `work.html?enter=1`
     with the clock stopped: the rail's cards 0 before, 1 after.
   - **The layout check's design rules** (PP-395, from the rules a script can measure, PP-394: the unslop, design-artifact
-    and html skills and the owner's UI rules; wiki `resources/pi-phone-measurable-ui-rules`). Besides spills, it finds:
+    and html skills and the owner's UI rules; wiki `resources/pi-phone-measurable-ui-rules`). A spill is `scrollWidth` past `clientWidth`, which counts absolute
+    pseudo-elements too: where an empty `::before`/`::after` that draws nothing widens a touch area (content "", no
+    background, border, shadow or outline: auton-ui's `.hit-area`, `.hit-area-inline`), the width is the children's
+    boxes and the words' lines instead, and a child whose pseudo-element draws reaches its own `scrollWidth` (PP-534,
+    reported by #317051 against Build #515: 10 false spills on auton-ui's `_check/inline.html` at 390). Besides spills, it finds:
     text cut by the nearest box that hides its overflow (a text node's Range past that box: more than 2 px sideways, or
     half its font size at the bottom; an ellipsis or line clamp said; a scroller is no cut; once per box, its size
     against the extent of all its words, as a title of several runs of words is one cut); an element over another's

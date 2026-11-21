@@ -1,0 +1,39 @@
+<!doctype html>
+<!--
+  Hit areas that draw nothing (PP-534), as auton-ui draws them (apps/docs/_check/inline.html): .hit-area and
+  .hit-area-inline widen a touch area with an absolute ::after of content "", no background, border or shadow. Its
+  width counts in scrollWidth, yet nothing shows outside the chip: a CitationChip and a RefChip in a sentence, a RefChip
+  alone in a list's row, and a ChipButton spill nothing. A long word, a wide picture and a red dot drawn by an ::after
+  still spill, and so does a long word in a box that holds a hit area too.
+-->
+<html lang="en">
+<meta name="viewport" content="width=device-width">
+<title>Hit areas</title>
+<style>
+  body { margin: 0; font: 14px/24px sans-serif; color: #1a1a1a; }
+  main { width: 342px; margin: 0 24px; }
+  .chip { display: inline-flex; align-items: center; height: 16px; padding: 0 8px; border-radius: 4px; background: #e6efff; color: #1a1a1a; font-size: 12px; line-height: 16px; text-decoration: none; vertical-align: middle; }
+  button.chip { border: 0; padding: 0 4px; font: inherit; font-size: 12px; }
+  .hit-area { position: relative; }
+  .hit-area::after { content: ""; position: absolute; inset: min(-8px, calc(50% - 20px)); }
+  .hit-area-inline { position: relative; }
+  .hit-area-inline::after { content: ""; position: absolute; inset-block: min(0px, calc(50% - 10px)); inset-inline: -2px; }
+  ul { margin: 0; padding: 0; list-style: none; }
+  li { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; }
+  .filter { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border: 1px solid #c4c4c4; border-radius: 12px; background: #ffffff; font: inherit; font-size: 12px; }
+  .box { width: 200px; margin-bottom: 8px; }
+  .dot { position: relative; display: inline-block; padding: 0 8px; }
+  .dot::after { content: ""; position: absolute; top: 0; right: -14px; width: 10px; height: 10px; border-radius: 5px; background: #d00000; }
+</style>
+<main>
+  <p id="prose">The customer opened <a id="ref" class="chip hit-area-inline" href="#">#4823</a> after the gateway rejected
+    a stale token <button id="cite" class="chip hit-area-inline" type="button" aria-label="Source 2">2</button> before it
+    reached the worker.</p>
+  <ul id="list"><li id="item">Kestrel Freight <a id="row" class="chip hit-area" href="#">ZD-4817</a></li></ul>
+  <div id="chips"><button id="filter" class="filter hit-area" type="button">Filter</button></div>
+  <div id="word" class="box" style="width:120px">Supercalifragilisticexpialidocious</div>
+  <div id="picture" class="box"><img alt="Wide" width="260" height="20" style="display:block" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='20'%3E%3Crect width='260' height='20' fill='%23888888'/%3E%3C/svg%3E"></div>
+  <div id="badge" class="box"><span class="dot" style="width:196px;box-sizing:border-box">Inbox</span></div>
+  <div id="both" class="box" style="width:120px"><a class="chip hit-area" href="#">#1</a> Supercalifragilisticexpialidocious</div>
+</main>
+</html>

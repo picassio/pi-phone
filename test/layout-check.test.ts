@@ -189,6 +189,7 @@ const PAGES: Record<string, string> = {
     ...AUTON_PAGES,
     // Fixture pages of their own (test/fixtures/layout/), which the screenshot tool can show too.
     "/fixtures/inline-targets": readFileSync(new URL("fixtures/layout/inline-targets.html", import.meta.url), "utf8"),
+    "/fixtures/hit-areas": readFileSync(new URL("fixtures/layout/hit-areas.html", import.meta.url), "utf8"),
     "/fixtures/zoomed-canvas": readFileSync(new URL("fixtures/layout/zoomed-canvas.html", import.meta.url), "utf8"),
     "/fixtures/entrance": readFileSync(new URL("fixtures/layout/entrance.html", import.meta.url), "utf8"),
     "/fixtures/entrance?stuck": readFileSync(new URL("fixtures/layout/entrance.html", import.meta.url), "utf8"),
@@ -709,6 +710,32 @@ test("a target in a sentence is no tap target under 40 px (WCAG 2.5.8's inline e
         );
         assert.deepEqual(of(inline, "inline-target").map((find) => [short(find.what), find.size[1]]), [["a#bare.chip", 16]]);
         assert.match(describeLayout(inline), /\nChips in a sentence under 24 px tall with no hit area \(WCAG 2\.5\.8\) \(1\):\n- a#bare\.chip "ZD-4817": [\d.]+×16 px$/);
+    } finally {
+        await engine.close();
+    }
+});
+
+test("a hit area that draws nothing (an empty absolute ::after, auton-ui's .hit-area and .hit-area-inline) spills nothing; a long word, a wide picture and a dot an ::after draws still spill, a long word next to a hit area too (PP-534)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+
+        await page.init({ width: 390, height: 844, mobile: true });
+
+        const hits = await rendered(page, "/fixtures/hit-areas");
+        const spills = hits.issues.filter((issue) => issue.kind === "spills").map((issue) => [issue.what.replace(/ ".*$/, ""), issue.box[1], issue.limit[1]]);
+
+        // scrollWidth counts the hit areas: the chips and the rows they are in are wider than their boxes by it.
+        assert.ok(await page.evaluate<boolean>(`["ref", "cite", "row", "item", "list", "filter"].every((id) => { const e = document.getElementById(id); return e.scrollWidth > e.clientWidth + 1; })`));
+        // What draws spills: the word, the picture, the red dot (in its box and its own), the word next to a hit area.
+        assert.deepEqual(spills, [
+            ["div#word.box", 201, 120],
+            ["div#picture.box", 260, 200],
+            ["div#badge.box", 210, 200],
+            ["span.dot", 210, 196],
+            ["div#both.box", 201, 120],
+        ]);
     } finally {
         await engine.close();
     }

@@ -447,7 +447,8 @@ dự án thật.</sub>
   phút) và sau khi máy chủ khởi động lại (một lần cập nhật ứng dụng), vì phiên đăng nhập vẫn còn. Một trang chụp khi chưa đăng nhập mà có ô mật khẩu
   thì câu trả lời nói rõ điều đó, và cách để thấy nó khi đã đăng nhập.
 - **Ảnh chụp có số đo.** Mỗi độ rộng của `screenshot` đi kèm một lượt kiểm tra bố cục mà trang chạy trước khi vẽ: thứ
-  gì tràn khỏi khung hoặc khung cha, và trang có rộng hơn màn hình không, kèm kích thước. Nó còn tìm những thứ khiến
+  gì tràn khỏi khung hoặc khung cha (một `::after` rỗng chỉ để nới vùng chạm thì không tính là tràn), và trang có rộng
+  hơn màn hình không, kèm kích thước. Nó còn tìm những thứ khiến
   trang trông chưa hoàn thiện: chữ bị khung cắt (dấu ba chấm, dòng bị xén), phần tử đè lên chữ hoặc nút của phần tử
   khác, vùng chạm nhỏ hơn 40 px trên điện thoại (tính cả lớp chạm phủ rộng ra ngoài nút nhỏ, và liên kết
   phủ cả thẻ (stretched link) được tính bằng cả thẻ, chữ trong thẻ nằm dưới lớp đó không bị coi là bị đè; trang điện thoại rộng hơn
