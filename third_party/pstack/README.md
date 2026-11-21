@@ -2,7 +2,7 @@
 
 From [cursor/plugins](https://github.com/cursor/plugins) `pstack/skills/` (pstack 0.15.46 by Lauren Tan,
 [@poteto](https://github.com/poteto); MIT, © 2026 Lauren Tan, see `LICENSE`), at commit
-`0b46ec399d55f2829e88822998f53b84944837d3`: the twelve skills the owner chose (PP-541, PP-550), each its `SKILL.md`
+`0b46ec399d55f2829e88822998f53b84944837d3`: the thirteen skills the owner chose (PP-541, PP-550, PP-551), each its `SKILL.md`
 only. Each keeps pstack's `disable-model-invocation: true`. It is a slash command (`/skill:<name>`) that runs when
 someone types it, and no session's system prompt names it.
 
@@ -11,6 +11,7 @@ someone types it, and no session's system prompt names it.
 | `interrogate` | Adversaries on models the owner picks try to break a change; only findings whose command fails when rerun survive |
 | `blast-radius` | What a change could break elsewhere, with the one fact it is safe because of proven by a run |
 | `ketchup` | Catch the owner up since their last message, with every call waiting on them |
+| `ketchup-video` | The same catch-up as a short narrated video of slides, rendered on a machine after the owner's card |
 | `reflect` | Learnings from this chat, routed to edits of skills (the library) or to the wiki |
 | `correct` | Make the mistakes agents repeat in a repo impossible: architecture, types, lints, tests, then docs |
 | `why` | Why something is the way it is, from the record: commits, pull requests, the wiki, the board |
@@ -54,6 +55,11 @@ system prompt is the same, character for character, as with it off (`test/pstack
 - `ketchup` reads the board, subagents and sessions for the current state. A task in Review, and a branch not merged,
   count as calls waiting on the owner. It puts the calls waiting on the owner on
   one async `interview` card, and draws charts as Mermaid in place of `/visualize`.
+- `ketchup-video` is narrated, where pstack's is silent:
+  - Each subtitle is also the spoken line, one `audio_speak` file per slide.
+  - It renders with the HyperFrames machine tool on a machine, and lays in the voice with ffmpeg.
+  - It states the cost and the time on an `interview` card, and makes nothing before the owner picks Render.
+  - The mp4 is embedded in the reply as Markdown, which the app plays.
 - `reflect` saves skill edits to the owner's library with `skill_save` (the owner's card), never into the app's files,
   and puts durable facts in the wiki.
 - `why` also reads the wiki, board tasks and DESIGN.md.

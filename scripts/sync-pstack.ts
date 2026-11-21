@@ -30,6 +30,8 @@ export const BUNDLED: readonly { readonly name: string; readonly upstream?: stri
     { name: "interrogate" },
     { name: "blast-radius" },
     { name: "ketchup" },
+    // Narrated, rendered on a machine with HyperFrames, after the owner's card (PP-551).
+    { name: "ketchup-video" },
     { name: "reflect" },
     { name: "correct" },
     { name: "why" },

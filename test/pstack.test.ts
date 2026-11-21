@@ -1,4 +1,4 @@
-// pstack commands (PP-550): twelve of pstack's skills in third_party/pstack/, slash commands only, adapted to pi-phone's
+// pstack commands (PP-550, PP-551): thirteen of pstack's skills in third_party/pstack/, slash commands only, adapted to pi-phone's
 // tools by pi-phone.patch with each change marked; the extension, off by default, lists them as /skill: commands, and
 // with it on the system prompt is the same, character for character, as with it off (disable-model-invocation keeps
 // every one out of the skills section).
@@ -19,11 +19,11 @@ const fileOf = (name: string) => join(SKILLS, name, "SKILL.md");
 /** What a skill written for Cursor would say, which pi-phone's adapted text must not. */
 const CURSOR = /subagent_type|generalPurpose|AskQuestion|readonly: true|\.cursor\/|plugins\/cache|claude-(opus|fable)|gemini-\d|\barena\b|\/visualize|Task subagent|Task tool|Bugbot/;
 
-test("the twelve skills, with pstack's MIT licence, each a slash command only, named as its folder", () => {
+test("the thirteen skills, with pstack's MIT licence, each a slash command only, named as its folder", () => {
     assert.match(readFileSync(join(TARGET, "LICENSE"), "utf8"), /^MIT License\n\nCopyright \(c\) 2026 Lauren Tan/);
     assert.ok(readFileSync(join(TARGET, "README.md"), "utf8").includes(PSTACK_COMMIT), "the README names the commit");
     assert.deepEqual(readdirSync(SKILLS).sort(), [...names].sort());
-    assert.equal(names.length, 12);
+    assert.equal(names.length, 13);
 
     for (const name of names) {
         const { frontmatter, body } = parseFrontmatter(readFileSync(fileOf(name), "utf8")) as { frontmatter: Record<string, unknown>; body: string };
@@ -115,6 +115,12 @@ test("the adapted skills use pi-phone's tools: interview for models and calls, s
 
     assert.match(text("how"), /`subagent` with action `spawn`[^\n]*`tools: \["read", "bash"\]`\. Pass no `model`/);
     assert.match(text("ketchup"), /one `interview` card with `async: true`/);
+    // The video (PP-551): narrated, on a machine with HyperFrames, only after the owner picks Render on a card.
+    assert.match(text("ketchup-video"), /ask the owner on one `interview` card, a `single` question with the options Render and Not now/);
+    assert.match(text("ketchup-video"), /Make nothing before the owner picks Render\./);
+    assert.match(text("ketchup-video"), /Make one `audio_speak` file per slide/);
+    assert.match(text("ketchup-video"), /`hyperframes render <folder> -o <file>\.mp4`/);
+    assert.match(text("ketchup-video"), /!\[what it shows\]\(videos\/<name>\.mp4\)/);
     assert.match(text("reflect"), /save each edit with `skill_save`/);
     assert.match(text("reflect"), /goes to the wiki instead/);
     assert.match(text("blast-radius"), /`unslop-writing`/);
@@ -168,7 +174,7 @@ async function turn(id: number, text: string, answer?: boolean): Promise<void> {
 /** The system prompt with each run of digits as N: sessions differ only in their numbers. */
 const same = (text: string) => text.replace(/\d+/g, "N");
 
-test("off by default; on, every session lists the twelve as /skill: commands and the prompt gains not a character", async () => {
+test("off by default; on, every session lists the thirteen as /skill: commands and the prompt gains not a character", async () => {
     app = await openApp(scriptedModel(route));
 
     const listed = (id: number) => app!.skillCommands(id as never).map((each) => each.name).filter((name) => names.includes(name)).sort();

@@ -20,6 +20,7 @@ import { findBrowser } from "./support/browser/discovery.ts";
 import type { BrowserPage } from "./support/browser/page.ts";
 import { VIEWPORTS } from "./support/browser/viewport.ts";
 import { createHandler } from "../src/server/http.ts";
+import { describeLayout, layoutCheck, parseLayout } from "../src/server/layout-check.ts";
 
 const { PocketApp } = await import("../src/server/app.ts");
 
@@ -102,6 +103,10 @@ before(async () => {
     await new Promise<void>((resolve) => stub.listen(0, "127.0.0.1", resolve));
     const route: FauxResponseStep = (request) => {
         const { role, text } = lastText(request as never);
+
+        if (role === "user" && text.endsWith("show the clip")) {
+            return fauxAssistantMessage([fauxText("The catch-up:\n\n![The boat clip, three seconds](clip.mp4)\n\nAnd a picture: ![a still](still.png)")]);
+        }
 
         return role === "user" && text.endsWith("make a boat")
             ? fauxAssistantMessage([fauxToolCall("video_generate", { prompt: "A paper boat on a calm pond", duration: 8 })], { stopReason: "toolUse" })
@@ -235,3 +240,59 @@ test("a video video_generate made plays in the chat under its line, with its fil
         writeFileSync(join(SHOTS, "video-made-390.jpg"), Buffer.from((await page.screenshot()).data, "base64"));
     }
 });
+
+// PP-551: a reply that embeds a session's video as `![alt](clip.mp4)` gets the player, through the video route; an
+// image stays an image. The layout check's must-fix kinds, at each width, go to PHONE_SHOTS for the report.
+for (const [viewport, label] of [[VIEWPORTS.mobile, "390"], [VIEWPORTS.desktop, "1280"], [{ width: 1920, height: 1080, scale: 1, mobile: false }, "1920"]] as const) {
+    test(`at ${label} px: a video embedded in a reply's Markdown plays in the chat, its alt text the caption`, { skip: real.skip || (engine === undefined ? "no ffmpeg in native/" : false) }, async () => {
+        execFileSync(engine!.ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=duration=3:size=320x240:rate=10", "-c:v", "libx264", "-pix_fmt", "yuv420p", join(work, "clip.mp4")]);
+        execFileSync(engine!.ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=160x120", "-frames:v", "1", join(work, "still.png")]);
+
+        const id = await newSession(app);
+        const { submissionId } = await app.commands.submit(id, owner(app), { text: "show the clip", requestId: crypto.randomUUID() });
+
+        await (await app.harness.submission(submissionId, context))!.wait(context);
+        await page.setViewport(viewport);
+        await page.navigate(`${base}/login?token=${encodeURIComponent(app.config.ownerToken)}`);
+        await see(`return JSON.stringify((await import("/store.js")).store.state.me?.role === "owner")`, "signed in");
+        await page.evaluate(`(await import("/store.js")).navigate(${id}); return "true";`);
+        await see(`return JSON.stringify(document.querySelector('[data-part="md-video"] video') !== null)`, "the player in the reply");
+        await page.evaluate(`document.querySelector('[data-part="md-video"]').scrollIntoView({ block: "center" }); return "null"`);
+        await new Promise((resolve) => setTimeout(resolve, 600));
+
+        const report = parseLayout(JSON.parse(await page.evaluate(`return JSON.stringify(${layoutCheck(viewport.width)})`)), viewport.width);
+        const MUST_FIX = ["cut", "covered", "contrast", "small-text", "emoji", "small-target", "nested-cards", "spill"];
+
+        assert.ok(report !== undefined, "the layout check answered");
+
+        if (SHOTS !== undefined) {
+            const counts = Object.fromEntries(MUST_FIX.map((kind) => [kind, report.found.filter((each) => each.kind === kind).length]));
+
+            mkdirSync(SHOTS, { recursive: true });
+            writeFileSync(join(SHOTS, `md-video-${label}.jpg`), Buffer.from((await page.screenshot()).data, "base64"));
+            writeFileSync(join(SHOTS, `md-video-${label}.layout.txt`), `${describeLayout(report)}\nCOUNTS ${JSON.stringify(counts)}\nRAW ${JSON.stringify(report.found)}\n`);
+        }
+
+        const shown = await inPage<{ src: string; caption: string; label: string; controls: boolean; ranged: boolean; image: boolean }>(`
+            const video = document.querySelector('[data-part="md-video"] video');
+            const part = await fetch(video.src, { headers: { range: "bytes=0-99" } });
+
+            return JSON.stringify({
+                src: video.getAttribute("src"),
+                caption: document.querySelector('[data-part="md-video"] figcaption').textContent,
+                label: video.getAttribute("aria-label"),
+                controls: video.controls && video.playsInline,
+                ranged: part.status === 206 && (await part.arrayBuffer()).byteLength === 100 && part.headers.get("content-type") === "video/mp4",
+                image: [...document.querySelectorAll(".md img")].some((image) => image.getAttribute("alt") === "a still" && image.getAttribute("src").includes("file?path=still.png")),
+            });
+        `);
+
+        assert.equal(shown.src, `api/c/${id}/video?path=clip.mp4`);
+        assert.equal(shown.caption, "The boat clip, three seconds");
+        assert.equal(shown.label, "The boat clip, three seconds");
+        assert.equal(shown.controls, true);
+        assert.equal(shown.ranged, true, "served as a player asks, a range");
+        assert.equal(shown.image, true, "an image stays an image");
+        assert.deepEqual(report.found.filter((each) => MUST_FIX.includes(each.kind) && /md-video|video/.test(each.what)), [], describeLayout(report));
+    });
+}

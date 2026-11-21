@@ -9869,6 +9869,11 @@ pre.diff .del {
     background: #000;
 }
 
+/* A video embedded in a reply's Markdown (PP-551): the same frame, its alt text as the caption. */
+.md .md-video {
+    margin: 8px 0;
+}
+
 .made-video figcaption {
     display: flex;
     justify-content: space-between;

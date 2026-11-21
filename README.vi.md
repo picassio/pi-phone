@@ -440,12 +440,15 @@ dự án thật.</sub>
   số); một mô hình viết sai cú pháp được báo kèm dòng và cột chỗ sai. Nó chạy ở nơi có Java: một máy có công cụ máy **TLC**, hoặc bản server. Trên điện thoại Pi chỉ phác một biểu đồ
   chưa kiểm tra, nói rõ như vậy, và đề nghị kiểm tra trên một máy. Kèm bốn ví dụ mẫu (tiệm trà sữa của statechart-art).
   Là một tiện ích riêng, bật sẵn: tắt nó trong **Tiện ích** (hoặc nhờ Pi), thì không phiên nào liệt kê skill này.
-- **Lệnh pstack.** Mười hai skill của pstack. Chúng là lệnh gạch chéo, chỉ chạy khi bạn gõ, nên không thêm gì vào prompt
+- **Lệnh pstack.** Mười ba skill của pstack. Chúng là lệnh gạch chéo, chỉ chạy khi bạn gõ, nên không thêm gì vào prompt
   của Pi:
   - `/skill:interrogate`: các đối thủ chạy trên những model bạn tick trên một thẻ, mỗi đối thủ trong một git worktree
     riêng, tìm cách làm hỏng một thay đổi. Pi chạy lại lệnh của từng lỗi và chỉ giữ lỗi nào chạy lại vẫn hỏng.
   - `/skill:blast-radius`: một thay đổi có thể làm hỏng gì ở chỗ khác.
   - `/skill:ketchup`: tóm tắt những gì xảy ra từ tin nhắn cuối của bạn, kèm các việc chờ bạn quyết trên một thẻ.
+  - `/skill:ketchup-video`: vẫn bản tóm tắt đó, làm thành một video ngắn gồm các slide có phụ đề và giọng đọc. Video được
+    render bằng HyperFrames trên một máy của bạn, giọng đọc làm bằng `audio_speak`. Pi nói trước chi phí và thời gian,
+    và chưa làm gì cho tới khi bạn chọn Render trên thẻ. Video phát ngay trong cuộc trò chuyện.
   - `/skill:reflect`: bài học rút ra từ cuộc trò chuyện. Chúng thành bản sửa skill trong thư viện của bạn (bạn duyệt
     trên thẻ) hoặc thành trang wiki.
   - `/skill:correct`: làm cho một lỗi hay lặp lại trong repo không thể xảy ra nữa.
@@ -454,6 +457,8 @@ dự án thật.</sub>
     `/skill:create-formal-verification-skill`.
 
   Là một tiện ích riêng, **tắt sẵn**: bật nó trong **Tiện ích** (hoặc nhờ Pi).
+- **Video trong câu trả lời.** Pi có thể nhúng một tệp video của phiên vào câu trả lời, giống như nhúng một ảnh
+  (`![nội dung](videos/clip.mp4)`, dạng mp4, webm hoặc mov). Video đó phát ngay trong cuộc trò chuyện, có dòng mô tả bên dưới.
 - **Pi nhìn thấy việc mình làm.** `screenshot` dựng một artifact, một tệp HTML hoặc Office, hay một trang web trong
   WebView của chính điện thoại, ở độ rộng điện thoại, máy tính và màn hình lớn (390, 1280 và 1920 px), kể cả khi tắt
   màn hình, nên Pi kiểm tra trang trước khi coi là xong. Một tệp HTML tải stylesheet, script và hình ảnh từ chính thư mục của nó, nên trang liên kết tới CSS của
@@ -1215,7 +1220,7 @@ pi-phone phần lớn là công sức của người khác, được ghép lại
   [Felix Rieseberg](https://felixrieseberg.com/how-to-be-more-ambitious-a-tutorial-for-humans-with-models/#depth).
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)** của Lauren Tan ([@poteto](https://github.com/poteto),
   MIT): skill `statechart` trong `third_party/pstack-statechart/`, với bốn mô hình tiệm trà sữa của
-  **[statechart-art](https://github.com/kevintngo/statechart-art)** của Kevin T. Ngo (MIT) làm ví dụ, và mười hai
+  **[statechart-art](https://github.com/kevintngo/statechart-art)** của Kevin T. Ngo (MIT) làm ví dụ, và mười ba
   skill của nó làm lệnh pstack trong `third_party/pstack/`.
 - **[TLA+ tools](https://github.com/tlaplus/tlaplus)** (MIT): TLC, và **[Eclipse Temurin](https://adoptium.net)** (GPLv2
   kèm Classpath Exception): Java của nó, cài lên các máy từ bản phát hành của chúng và có sẵn trong image của bản server.

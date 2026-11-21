@@ -170,6 +170,48 @@ purify.setConfig(PURIFY);
 /** Images the app serves for a conversation (files, stored images, artifacts), or inline data. Nothing else loads. */
 const localImage = (src) => APP_IMAGE.test(src) || /^data:image\//i.test(src);
 
+/** The kinds of video `![...](clip.mp4)` plays in the chat: the video route's, without its sound-only ones. */
+const VIDEO_FILE = /\.(mp4|webm|mov)$/i;
+
+/** A session file's address (`api/c/<id>/file?path=…`) that names a video: the video route's for it, else null. */
+function videoOf(src) {
+    const match = /^\/?api\/c\/(\d+)\/file\?path=([^&]*)$/.exec(src);
+
+    if (match === null) {
+        return null;
+    }
+
+    let path;
+
+    try {
+        path = decodeURIComponent(match[2]);
+    } catch {
+        return null;
+    }
+
+    return VIDEO_FILE.test(path) ? { url: videoUrl(path, match[1]), path } : null;
+}
+
+/** A player for a video embedded in Markdown, its alt text under it as its caption. */
+function videoFigure(video, alt) {
+    const figure = document.createElement("figure");
+    const player = document.createElement("video");
+    const caption = document.createElement("figcaption");
+
+    figure.className = "made-video md-video";
+    figure.dataset.part = "md-video";
+    player.src = video.url;
+    player.controls = true;
+    player.playsInline = true;
+    player.preload = "metadata";
+    player.setAttribute("aria-label", alt || t("Video"));
+    caption.className = "muted small";
+    caption.textContent = alt || video.path.split("/").slice(-2).join("/");
+    figure.append(player, caption);
+
+    return figure;
+}
+
 /** Code blocks past this size show without colors: coloring them would hold up the conversation. */
 export const COLOR_LIMIT = 200_000;
 /** Code blocks longer than this many lines fold to their first lines, once they are written whole. */
@@ -308,6 +350,13 @@ function sanitize(html, fold) {
 
     for (const image of fragment.querySelectorAll("img")) {
         const src = image.getAttribute("src") ?? "";
+        const video = videoOf(src);
+
+        // A session's video embedded as an image plays in the chat (PP-551), through the route that answers ranges.
+        if (video !== null) {
+            image.replaceWith(videoFigure(video, image.getAttribute("alt") ?? ""));
+            continue;
+        }
 
         if (localImage(src)) {
             continue;

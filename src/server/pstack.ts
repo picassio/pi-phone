@@ -1,6 +1,6 @@
 /**
  * pstack commands (PP-550; the owner's decisions of 2026-11-21 after research PP-541, wiki
- * `resources/pstack-update-2026-11`): twelve of pstack's skills (cursor/plugins `pstack/skills/`, MIT, Lauren Tan) in
+ * `resources/pstack-update-2026-11`): thirteen of pstack's skills (cursor/plugins `pstack/skills/`, MIT, Lauren Tan) in
  * `third_party/pstack/`, adapted to pi-phone's tools by `scripts/sync-pstack.ts` and its patch. Each is a slash command
  * only (`disable-model-invocation: true`): sessions list them as `/skill:<name>`, and the system prompt names none of
  * them, so the extension adds nothing to it.

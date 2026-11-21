@@ -2067,8 +2067,8 @@ so Pi changes them through the settings tools; "the last session" is the one the
     upstream's commit), a machine-tools install tool for Pi (Install tools is the owner's, in Settings › Machines).
     Twelve of pstack's other skills came later, as the pstack commands below (PP-550).
 - **pstack commands** (`extensions/pstack.ts`, `pstack.ts`, PP-550; owner's decisions of 2026-11-21 after research
-  PP-541, interview e4JC4GXj, wiki `resources/pstack-update-2026-11`): twelve pstack skills at `0b46ec3`
-  (interrogate, blast-radius, ketchup, reflect, correct, why, how, bro, in-your-own-words,
+  PP-541, interview e4JC4GXj, wiki `resources/pstack-update-2026-11`): thirteen pstack skills at `0b46ec3`
+  (interrogate, blast-radius, ketchup, ketchup-video (PP-551), reflect, correct, why, how, bro, in-your-own-words,
   create-formal-verification-skill, unslop as `unslop-writing`, teach) in `third_party/pstack/skills/`, copied by
   `scripts/sync-pstack.ts`. The script applies `third_party/pstack/pi-phone.patch`, which must apply cleanly, so a
   newer upstream it does not fit is adapted again by hand (`--write-patch`).
@@ -2090,11 +2090,22 @@ so Pi changes them through the settings tools; "the last session" is the one the
     - `/ketchup` puts the calls waiting on the owner on an async `interview` card. `/reflect` edits skills through
       `skill_save` (the owner's card), never the app's files, and puts facts in the wiki.
     - `unslop` is renamed, as heydamir's `unslop` (Design & video) is the UI skill of that name.
+    - `/ketchup-video` (PP-551) is narrated: pstack's is silent. Each slide's subtitle is its spoken line, one
+      `audio_speak` file per slide, and a slide holds at least its line plus half a second. The video is rendered with
+      the HyperFrames machine tool on a machine. The voice is laid in with ffmpeg (`adelay`, `amix`) and muxed as AAC,
+      so it does not depend on HyperFrames' audio. Before any voice or render, one `interview` card (Render or Not
+      now) gives the machine, the slides and length, the voice's length, the render's time and the model's own time.
+      Nothing is made before Render. The mp4 comes back to `videos/` and is embedded as Markdown.
   - **The extension**, off by default (built that way; whether it should be on is the owner's call), a switch like
     any (`extensions.pstack.ts`). While it is on, `builtInSkills()` adds `PSTACK_SKILLS` for phone and server
     sessions. They are not copied to machines.
-  - **Not done**: the video catch-up (`ketchup-video`, PP-551), `/tdd` (not chosen), arena, swarm and the other
-    skills.
+  - **Not done**: `/tdd` (not chosen), arena, swarm and the other skills.
+- **Videos in replies** (`web/ui.js`, PP-551): the Markdown renderer turns an image whose path is a session's mp4, webm
+  or mov (`![alt](videos/clip.mp4)`, which `imageSource` makes `api/c/<id>/file?path=…`) into the chat's video
+  player, `figure.made-video.md-video` with the alt text as its caption. It plays through the video route
+  (`api/c/<id>/video`, PP-298), which answers ranges, here or on the session's machine. The element is built after
+  the sanitizer, which still forbids `video` in Markdown's own HTML. Other images stay images. Checked in
+  `test/videos-ui.test.ts` at 390, 1280 and 1920 px.
 - **Extension builder** (`extensions/extension-builder.ts`, `extension-builder.ts`, PP-367; owner's decisions of
   2026-11-03 after research PP-365, wiki `resources/deepseek-harness-creator-mode-research`): Pi makes a drop-in from
   a chat request. A built-in extension like Formal checks, **on by default** (the owner's choice), a switch like any

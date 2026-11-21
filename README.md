@@ -437,12 +437,15 @@ No Termux, no laptop, no cloud VM.
   with the **TLC** machine tool, or the server edition. On the phone Pi only sketches an unchecked chart, says so, and
   offers to check it on a machine. Four worked examples (statechart-art's boba shop) come with it. Its own extension,
   on by default: turn it off in **Extensions** (or ask Pi), and no session lists the skill.
-- **pstack commands.** Twelve of pstack's skills, as slash commands that run only when you type them, so they add
+- **pstack commands.** Thirteen of pstack's skills, as slash commands that run only when you type them, so they add
   nothing to Pi's prompt:
   - `/skill:interrogate`: adversaries on the models you tick on a card try to break a change, each in its own git
     worktree. Only findings whose command fails again when Pi reruns it are kept.
   - `/skill:blast-radius`: what a change could break elsewhere.
   - `/skill:ketchup`: a catch-up since your last message, with the calls waiting on you on a card.
+  - `/skill:ketchup-video`: the same catch-up as a short narrated video of slides with subtitles. It is rendered with
+    HyperFrames on one of your machines, and voiced with `audio_speak`. It says what that costs and how long it takes,
+    and makes nothing until you pick Render on its card. The video plays in the chat.
   - `/skill:reflect`: lessons from the chat, as edits to your library skills (on your card) or wiki pages.
   - `/skill:correct`: make a repeated mistake impossible in a repo.
   - `/skill:why` and `/skill:how`: why something is so (from commits, the wiki and the board) and how it works.
@@ -450,6 +453,8 @@ No Termux, no laptop, no cloud VM.
     `/skill:create-formal-verification-skill`.
 
   Its own extension, **off by default**: turn it on in **Extensions** (or ask Pi).
+- **Videos in replies.** A video file of the session that Pi embeds in a reply the way it embeds a picture
+  (`![what it shows](videos/clip.mp4)`: mp4, webm or mov) plays in the chat, with its description under it.
 - **Pi sees its work.** `screenshot` renders an artifact, an HTML or Office file, or a web page in the phone's own
   WebView, at a phone's, a desktop's and a large screen's width (390, 1280 and 1920 px), even with the screen off,
   so Pi checks a page before calling it done. An HTML file loads its stylesheets, scripts and pictures from its own folder, so a page linking the app's CSS shows styled.
@@ -1193,7 +1198,7 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
   "How to be more ambitious: A tutorial for humans with models".
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)** by Lauren Tan ([@poteto](https://github.com/poteto),
   MIT): the `statechart` skill in `third_party/pstack-statechart/`, with the four boba models of
-  **[statechart-art](https://github.com/kevintngo/statechart-art)** by Kevin T. Ngo (MIT) as its examples, and twelve
+  **[statechart-art](https://github.com/kevintngo/statechart-art)** by Kevin T. Ngo (MIT) as its examples, and thirteen
   of its skills as the pstack commands in `third_party/pstack/`.
 - **[TLA+ tools](https://github.com/tlaplus/tlaplus)** (MIT): TLC, and **[Eclipse Temurin](https://adoptium.net)** (GPLv2
   with the Classpath Exception): its Java, installed on machines from their releases and built into the server
