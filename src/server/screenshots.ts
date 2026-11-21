@@ -120,14 +120,60 @@ export function parseShot(request: RenderRequest, shot: unknown): Shot {
 }
 
 /**
+ * Keeps a document that scrolls itself as it is in the view it was measured in (PP-552), before it is laid out as tall as
+ * its picture: what the view's height sizes is turned into pixels at that height. Lengths in vh, svh, lvh, dvh, vb, vmin
+ * and vmax in its style sheets (those it may read: another site's are left), shadow roots' and adopted ones, and style
+ * attributes; media queries on the view's height, aspect ratio or orientation are held to what they matched; and an
+ * html as tall as the view by a percentage keeps that height. Once per page; `window.__piViewKept` keeps the view's
+ * height, so the layout check says when the page grew anyway (`grown`: a script that sizes it from innerHeight on
+ * resize, as a --vh property does, or another site's style sheet).
+ */
+const FREEZE_VIEW = `(() => {
+    if (window.__piViewKept) return;
+    const H = innerHeight, W = innerWidth, units = { vh: H, vb: H, vmin: Math.min(W, H), vmax: Math.max(W, H) };
+    const length = /(-?(?:\\d+\\.?\\d*|\\.\\d+)(?:e[+-]?\\d+)?)[sld]?(vh|vb|vmin|vmax)(?![\\w-])/gi;
+    const px = (text) => text.replace(length, (all, n, unit) => +(Number(n) * units[unit.toLowerCase()] / 100).toFixed(3) + 'px');
+    const keep = (style) => { const text = style.cssText; length.lastIndex = 0; if (length.test(text)) style.cssText = px(text); };
+    const sized = /height|aspect-ratio|orientation/i;
+    const rules = (list) => {
+        for (const rule of Array.from(list)) {
+            if (rule.media && rule.type === 4 && sized.test(rule.media.mediaText)) rule.media.mediaText = matchMedia(rule.media.mediaText).matches ? 'all' : 'not all';
+            if (rule.style) keep(rule.style);
+            if (rule.cssRules) rules(rule.cssRules);
+        }
+    };
+    const sheet = (s) => { try { rules(s.cssRules); } catch {} };
+    const root = (doc) => {
+        for (const s of Array.from(doc.styleSheets || [])) sheet(s);
+        for (const s of doc.adoptedStyleSheets || []) sheet(s);
+        for (const e of doc.querySelectorAll('*')) {
+            if (e.hasAttribute('style')) keep(e.style);
+            if (e.shadowRoot) root(e.shadowRoot);
+        }
+    };
+    const html = document.documentElement, was = html.getAttribute('style'), now = html.getBoundingClientRect().height;
+    html.style.setProperty('height', 'auto', 'important');
+    html.style.setProperty('min-height', '0', 'important');
+    const auto = html.getBoundingClientRect().height;
+    if (was === null) html.removeAttribute('style'); else html.setAttribute('style', was);
+    root(document);
+    if (Math.abs(now - H) < 1 && Math.abs(auto - now) >= 1) html.style.setProperty('height', H + 'px', 'important');
+    window.__piViewKept = H;
+})()`;
+
+/**
  * How tall the whole page is, in CSS pixels, for a full-page picture (PP-440): the document's height; or for a page that
  * does not scroll itself but inside a box of half the view or more (an app shell's main area), the view's height plus
  * what that box hides below. Laid out that tall, a box sized by the view (100vh, a flex column) shows all of it; the
  * layout check says what one of a fixed height still hides.
+ *
+ * A document that scrolls itself keeps the view it was measured in (PP-552, `FREEZE_VIEW`): laid out as tall as the
+ * picture, its 100svh first screen grew by as much and pushed the rest out of the picture (a 1018 px picture of the
+ * first screen only).
  */
 export const PAGE_HEIGHT =
     "(() => { const root = Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0); let hidden = 0; " +
-    "if (root > innerHeight + 1) return Math.ceil(root); " +
+    `if (root > innerHeight + 1) { ${FREEZE_VIEW}; return Math.ceil(Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0)); } ` +
     "for (const e of document.body ? document.body.querySelectorAll('*') : []) { " +
     "if (e.clientHeight < innerHeight / 2 || e.clientWidth < innerWidth / 2 || e.scrollHeight <= e.clientHeight || !/^(auto|scroll|overlay)$/.test(getComputedStyle(e).overflowY)) continue; " +
     "hidden = Math.max(hidden, e.scrollHeight - e.clientHeight); } " +

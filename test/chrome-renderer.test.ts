@@ -69,7 +69,7 @@ before(async () => {
             return;
         }
 
-        const shell = SHELLS[request.url ?? ""];
+        const shell = SHELLS[request.url ?? ""] ?? HEROES[request.url ?? ""];
 
         if (shell !== undefined) {
             response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
@@ -126,6 +126,27 @@ html,body{margin:0;height:100%;overflow:hidden;font:16px/24px sans-serif}.shell{
 header{height:48px;flex:none}main{${main};overflow-y:auto}.row{height:96px}</style>
 <div class="shell"><header>App</header><main id="m">${Array.from({ length: 30 }, (_, i) => `<div class="row">Row ${i + 1}</div>`).join("")}</main></div>`;
 const SHELLS: Record<string, string> = { "/shell": shellPage("flex:1"), "/fixed-shell": shellPage("height:600px;flex:none") };
+
+/**
+ * Landing pages whose first screen the view's height sizes, then a 174 px section (PP-552): laid out as tall as the
+ * picture, the first screen grew by as much and the section fell out of it. In units, from a script's --vh, through html
+ * and body at 100%, past a media query on the view's height, and a first block 18vh down.
+ */
+const heroPage = (style: string, script = "") => `<!doctype html><meta name="viewport" content="width=device-width"><style>
+body{margin:0;font:16px/24px sans-serif}h1,h2{margin:0}.hero{background:#ecd}.after{height:174px;background:#235;color:#fff}${style}</style>
+<section class="hero"><h1>First screen</h1></section><section class="after"><h2>After the first screen</h2></section>${script}`;
+const HEROES: Record<string, string> = {
+    "/hero-svh": heroPage(".hero{min-height:100svh}"),
+    "/hero-dvh-calc": heroPage(".hero{height:calc(100dvh - 0px);--top:50vh}"),
+    "/hero-var": heroPage(".hero{height:calc(var(--vh) * 100)}", `<script>const size = () => document.documentElement.style.setProperty("--vh", innerHeight / 100 + "px"); size(); addEventListener("resize", size);</script>`),
+    "/hero-percent": heroPage("html,body{height:100%}.hero{height:100%}"),
+    "/hero-media": heroPage(".hero{min-height:100vh}@media (min-height: 1000px), (min-width: 600px) and (orientation: portrait){.after{display:none}}"),
+    "/hero-inline": heroPage("").replace('class="hero"', 'class="hero" style="height: 100lvh"'),
+    "/hero-margin": heroPage(".hero{margin-top:18vh;height:800px}"),
+};
+
+/** Where the first screen and the section after it are once laid out as tall as the picture. */
+const HERO_PLACES = `(() => { const box = (s) => document.querySelector(s).getBoundingClientRect(); return JSON.stringify({ hero: box(".hero").height, top: box(".hero").top, bottom: box(".after").bottom, shown: getComputedStyle(document.querySelector(".after")).display !== "none" }); })()`;
 
 /** A module that awaits, then reads localStorage outside a try, as a single-file React build does; then an error later. */
 const STORAGE_PAGE = `<!doctype html><html><head><meta name="viewport" content="width=device-width"></head><body><h1 id="a">before</h1>
@@ -235,6 +256,58 @@ test("a whole page that scrolls in its main area is pictured whole; a file page 
 
         assert.deepEqual(checked!.layout?.errors, ["TypeError: boom"]);
         assert.match(describeLayout(checked!.layout!), /The page threw: TypeError: boom/);
+    } finally {
+        await renderer.stop();
+    }
+});
+
+test("a whole page whose first screen the view's height sizes keeps that screen at the view's height: the section after it is in the picture, at each width (PP-552)", { skip: chrome === undefined ? "no Chrome on this machine (CI runs it)" : false }, async () => {
+    const screenshots = new Screenshots();
+    const renderer = new ChromeRenderer(screenshots, { binary: chrome!, flags: ["--no-sandbox"], base: `http://127.0.0.1:${appPort}`, token: () => "owner-token", log: () => {} });
+
+    void renderer.run();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    try {
+        for (const path of ["/hero-svh", "/hero-dvh-calc", "/hero-percent", "/hero-media", "/hero-inline"]) {
+            const shots = await screenshots.render(`http://127.0.0.1:${appPort}${path}`, { widths: [390, 1280, 1920], settleMs: 100, check: HERO_PLACES });
+
+            for (const shot of shots) {
+                const view = shot.width < 600 ? 844 : 800;
+
+                // Build #525, the phone: a 1018 px picture of the first screen alone at 390.
+                assert.deepEqual(JSON.parse(shot.check!), { hero: view, top: 0, bottom: view + 174, shown: true }, `${path} at ${shot.width}`);
+                assert.equal(shot.height, view + 174, `${path} at ${shot.width}: the picture ends with the section`);
+            }
+        }
+
+        const shots = await screenshots.render(`http://127.0.0.1:${appPort}/hero-margin`, { widths: [390, 1280], settleMs: 100, check: HERO_PLACES });
+
+        for (const shot of shots) {
+            const view = shot.width < 600 ? 844 : 800;
+            const places = JSON.parse(shot.check!) as { top: number; bottom: number };
+
+            assert.ok(Math.abs(places.top - view * 0.18) < 0.5, `18vh down at ${shot.width}: ${places.top}`);
+            assert.equal(shot.height, Math.ceil(places.bottom), `the last section in the picture at ${shot.width}`);
+        }
+
+        // A script that sizes the first screen from innerHeight on resize does it again, past what the render can keep:
+        // the picture shows the page as measured, and says what it leaves out.
+        const [grew] = await screenshots.render(`http://127.0.0.1:${appPort}/hero-var`, { widths: [390], settleMs: 100 });
+
+        assert.equal(grew!.height, 844 + 174);
+        assert.deepEqual(grew!.layout?.grown, { shown: 1018, full: 1018 + 174 });
+        assert.match(describeLayout(grew!.layout!), /The page grew when laid out as tall as its picture \(a script that sizes it from the view's height, or a style sheet from another site\): the picture shows 1018 of its 1192 px, the rest is not in it\./);
+
+        // Nothing grew: nothing said.
+        const [kept] = await screenshots.render(`http://127.0.0.1:${appPort}/hero-svh`, { widths: [390], settleMs: 100 });
+
+        assert.equal(kept!.layout?.grown, undefined);
+
+        // An app shell still grows to show its main area whole (PP-440).
+        const [shell] = await screenshots.render(`http://127.0.0.1:${appPort}/shell`, { widths: [390], settleMs: 100 });
+
+        assert.equal(shell!.height, 2928);
     } finally {
         await renderer.stop();
     }

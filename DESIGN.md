@@ -1303,6 +1303,20 @@ so Pi changes them through the settings tools; "the last session" is the one the
     layout check names a box that still hides content (`scroller`: a fixed height, or the 4000 px cap). Tests:
     `chrome-renderer.test.ts` (shells, sandboxed storage and errors), `remote-session.test.ts` (localhost through a
     forward over the test sshd), `screenshot.test.ts`.
+  - **A first screen sized by the view** (PP-552; found 2026-11-21 in PP-544's run, on the phone: a `min-height:
+    100svh` first screen and a 174 px section gave a 1018 px picture of the first screen alone, and an 18vh margin cut
+    a menu's last row). Laid out as tall as the picture, the view's lengths grew with it. Decided: keep laying out
+    tall (the phone's renderer draws only what is laid out, and entrances and lazy pictures need the page in view) and
+    keep the view a document was measured in: `PAGE_HEIGHT`'s `FREEZE_VIEW`, for a document that scrolls itself only
+    (an app shell still grows, PP-440), turns vh, svh, lvh, dvh, vb, vmin and vmax in its readable style sheets,
+    shadow roots, adopted sheets and style attributes into pixels at the view's height, holds media queries on height,
+    aspect ratio and orientation to what they matched, and keeps an html as tall as the view by a percentage. Stopping
+    the window's resize events was tried and dropped: Chrome runs a window's earlier bubble listeners before a later
+    capture one (a --vh script sized the screen again). What still grows is said: the layout check's `grown` ("The
+    page grew when laid out as tall as its picture … the picture shows 1018 of its 1192 px"). Real sites (vercel.com,
+    linear.app, framer.com, tailwindcss.com, astro.build, supabase.com at 390 and 1280) give the same heights as before.
+    Tests: `chrome-renderer.test.ts` (svh, dvh in calc, html and body at 100 %, a media query on height and
+    orientation, a style attribute, an 18vh margin, at 390, 1280 and 1920; the --vh script; a shell).
   - **Entrances at the picture** (PP-521; measured 2026-11-20 in session #317051 on auton-ui's Rail and ZeroHop's
     site: a render showed a whileInView stagger at 0.7 and 0 opacity after 2 s, and an observer-gated rail empty after
     6 s, while Playwright's Chrome showed every card within 900 ms; the layout check said nothing, as opacity 0 was

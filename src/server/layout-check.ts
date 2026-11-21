@@ -172,6 +172,11 @@ export type LayoutReport = {
      * shows `shown` of its `full` CSS pixels.
      */
     scroller?: { what: string; shown: number; full: number };
+    /**
+     * A document that scrolls itself and grew once laid out as tall as its picture (PP-552), though its view's lengths were
+     * kept (`screenshots.ts` FREEZE_VIEW): the picture shows `shown` of its `full` CSS pixels.
+     */
+    grown?: { shown: number; full: number };
     /** The page's uncaught errors, as a file page keeps them (`file-pages.ts`'s `PAGE_SHIM`, PP-440). */
     errors?: string[];
     /** What a file page logged as errors (PP-545): console.error calls, and scripts or stylesheets that failed to load. */
@@ -1667,6 +1672,10 @@ ${PAGE_HELPERS}
     if (e.clientHeight < Math.min(VH, 800) / 2 || e.clientWidth < W / 2 || e.scrollHeight <= e.clientHeight + 2 || !/^(auto|scroll|overlay)$/.test(css(e).overflowY)) continue;
     if (!shellBox || e.scrollHeight - e.clientHeight > shellBox.full - shellBox.shown) shellBox = { what: name(e), shown: e.clientHeight, full: e.scrollHeight };
   }
+  // A document laid out as tall as its picture that grew past it all the same (PP-552): a script sized it again from the
+  // view's new height, or a style sheet the render could not read did. Under the 4000 px a picture is cut at.
+  const rootFull = Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0);
+  const grown = window.__piViewKept > 0 && innerHeight > window.__piViewKept && innerHeight < 4000 && rootFull > innerHeight + 1 ? { shown: innerHeight, full: Math.ceil(rootFull) } : undefined;
   const errors = Array.isArray(window.__piPageErrors) ? window.__piPageErrors.slice(0, 5).map((x) => String(x).slice(0, 300)) : [];
   // What a file page logged as errors (PP-545, PAGE_SHIM): console.error calls, scripts and stylesheets that failed.
   const logged = Array.isArray(window.__piConsoleErrors) ? window.__piConsoleErrors.slice(0, 5).map((x) => String(x).slice(0, 300)) : [];
@@ -1680,7 +1689,7 @@ ${PAGE_HELPERS}
     else if (Array.isArray(window.__piPageErrors) && window.__piPageErrors.some((x) => /\bdrawElementImage\b/.test(String(x)))) canvasUse = 'a call to drawElementImage';
   }
   const canvas = canvasUse ? { uses: canvasUse, chrome: (/Chrome\/(\d+)/.exec(navigator.userAgent) || [, 'unknown'])[1] } : undefined;
-  return JSON.stringify(Object.assign({ width: W, height: innerHeight, checked: Math.min(checked, 4000), issues, more, found, totals, summary }, modal ? { modal: name(modal) } : {}, TEXT_ZOOM !== 1 ? { textZoom: TEXT_ZOOM } : {}, shellBox ? { scroller: shellBox } : {}, errors.length ? { errors } : {}, logged.length ? { logged } : {}, { look: lookOut }, canvas ? { canvas } : {}, ${PASSWORD_SHOWN} ? { password: true } : {}, window.__piFinished > 0 ? { finished: window.__piFinished } : {}));
+  return JSON.stringify(Object.assign({ width: W, height: innerHeight, checked: Math.min(checked, 4000), issues, more, found, totals, summary }, modal ? { modal: name(modal) } : {}, TEXT_ZOOM !== 1 ? { textZoom: TEXT_ZOOM } : {}, shellBox ? { scroller: shellBox } : {}, grown ? { grown } : {}, errors.length ? { errors } : {}, logged.length ? { logged } : {}, { look: lookOut }, canvas ? { canvas } : {}, ${PASSWORD_SHOWN} ? { password: true } : {}, window.__piFinished > 0 ? { finished: window.__piFinished } : {}));
 })()`;
 
 /** Each kind's heading, in the order the words give them. */
@@ -1897,7 +1906,7 @@ export class LookMemory {
  * HTML-in-Canvas the renderer lacks (PP-454).
  */
 function pageNotes(report: LayoutReport): string[] {
-    const { scroller, errors = [], logged = [], canvas, textZoom, finished } = report;
+    const { scroller, grown, errors = [], logged = [], canvas, textZoom, finished } = report;
 
     return [
         ...(finished === undefined
@@ -1911,6 +1920,11 @@ function pageNotes(report: LayoutReport): string[] {
                   `Text zoom ${Math.round(textZoom * 100)} % (the system's font size): control heights are measured on the 4 px grid as at 100 %, the part their lines of text make taken back to its size there; a height CSS sets is measured as it is.`,
               ]),
         ...(scroller === undefined ? [] : [`The page scrolls inside ${scroller.what}: the picture shows ${scroller.shown} of its ${scroller.full} px, the rest is not in it.`]),
+        ...(grown === undefined
+            ? []
+            : [
+                  `The page grew when laid out as tall as its picture (a script that sizes it from the view's height, or a style sheet from another site): the picture shows ${grown.shown} of its ${grown.full} px, the rest is not in it.`,
+              ]),
         ...(errors.length === 0 ? [] : [`The page threw: ${errors.join("; ")}`]),
         ...(logged.length === 0 ? [] : [`The page logged errors: ${logged.join("; ")}`]),
         ...(canvas === undefined
@@ -2038,10 +2052,14 @@ export function parseLayout(text: unknown, width: number): LayoutReport | undefi
             return undefined;
         }
 
-        const { scroller, errors } = value;
+        const { scroller, grown, errors } = value;
 
         if (scroller !== undefined && (typeof scroller?.what !== "string" || typeof scroller.shown !== "number" || typeof scroller.full !== "number")) {
             delete value.scroller;
+        }
+
+        if (grown !== undefined && (typeof grown?.shown !== "number" || typeof grown.full !== "number")) {
+            delete value.grown;
         }
 
         if (errors !== undefined && !(Array.isArray(errors) && errors.every((each) => typeof each === "string"))) {
