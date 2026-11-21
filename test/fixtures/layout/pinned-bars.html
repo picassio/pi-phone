@@ -1,0 +1,47 @@
+<!doctype html>
+<!-- PP-554: a bottom tab bar over a field that scrolls on under it, as ZeroHop's #/settings/network showed on the
+     phone's first screen (its Domains field "under svg.lucide-layout-dashboard", the tab bar's Overview icon). Which
+     one by the address's query:
+     (none)    ZeroHop's shell: a column as tall as the view, its main scrolls (overflow auto), and the 64 px tab bar comes
+               after it (in flow, not fixed); the field straddles the main's bottom edge, its middle 2 px past it, where
+               the bar is: scrolled out of the main, not covered;
+     ?fixed    the page scrolls inside its main, and the bar is fixed inside the main, over the field 50 px from the
+               view's bottom;
+     ?doc      the document scrolls, the bar is fixed in the body, over the field;
+   the last two have more below the field, so it scrolls clear of the bar: not covered. And
+     ?end      the page ends with the field under the fixed bar, with nothing left to scroll: covered. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>Network</title>
+<style>
+  body { margin: 0; font: 14px/20px system-ui, sans-serif; color: #1d1d1d; background: #ffffff; }
+  .shell main { height: 100vh; overflow-y: auto; }
+  .column { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  .column main { flex: 1; min-height: 0; overflow-y: auto; }
+  .column .spacer { height: calc(100vh - 64px - 10px); }
+  .column .bottom { position: relative; flex-shrink: 0; }
+  .spacer { height: calc(100vh - 50px); padding: 16px; box-sizing: border-box; }
+  .field { display: flex; align-items: center; gap: 8px; margin: 0 16px; }
+  input { flex: 1; height: 24px; padding: 0 4px; border: 0; font: inherit; background: transparent; }
+  .more { height: 600px; padding: 16px; }
+  .bottom { position: fixed; bottom: 0; left: 0; right: 0; height: 64px; display: flex; justify-content: space-around; align-items: center; background: #ffffff; border-top: 1px solid #e5e5e5; }
+  .bottom a { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; min-width: 64px; min-height: 48px; color: #1d1d1d; text-decoration: none; font-size: 12px; }
+  .bottom svg { width: 22px; height: 22px; }
+</style>
+</head>
+<body>
+<script>
+  const which = location.search.slice(1);
+  const icon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>`;
+  const bar = `<nav class="bottom"><a href="#/inbox">${icon}Inbox</a><a href="#/overview">${icon}Overview</a><a href="#/more">${icon}More</a></nav>`;
+  const page = `<div class="spacer"><h1 style="margin:0">Network</h1><p>What the agent's work machine may reach on the internet.</p></div>
+    <label class="field" for="domain">Domains <input id="domain" type="text"></label>`;
+  if (which === "doc") document.body.innerHTML = `<main>${page}<div class="more"><p>Name lookups and changes.</p></div></main>${bar}`;
+  else if (which === "end") document.body.innerHTML = `<main>${page}</main>${bar}`;
+  else if (which === "") document.body.innerHTML = `<div class="column"><main>${page}<div class="more"><p>Name lookups and changes.</p></div></main>${bar}</div>`;
+  else { document.body.className = "shell"; document.body.innerHTML = `<main>${page}<div class="more"><p>Name lookups and changes.</p></div>${bar}</main>`; }
+</script>
+</body>
+</html>

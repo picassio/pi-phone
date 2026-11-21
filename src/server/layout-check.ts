@@ -114,7 +114,8 @@ export type LayoutFind =
     | { kind: "ui-display"; what: string; family: string; size: number; count: number }
     | { kind: "relative-image"; what: string; src: string; count: number }
     // PP-542: the page is an error page (its HTTP status, an error screen it drew) or looks empty; PP-543: or is still
-    // loading (a skeleton, a spinner, aria-busy over most of its main content). Leads the report.
+    // loading (a skeleton, a spinner, aria-busy over most of its main content); PP-554: an error or not-found screen in
+    // the app's own words ("Error 404" over its own heading). Leads the report.
     | {
           kind: "page";
           what: string;
@@ -799,6 +800,13 @@ ${PAGE_HELPERS}
     if (x < 0 || y < 0 || x >= VW || y >= VH) return undefined;
     const hit = document.elementFromPoint(x, y);
     if (!hit || hit === target || target.contains(hit) || hit.contains(target)) return null;
+    // A point past the edge of a box that clips the target shows none of it, so nothing covers it there (PP-554:
+    // ZeroHop's Domains field, half scrolled out of its main, whose tab bar comes after it, was "under" the bar's icon).
+    // Within 1 px of the edge counts as past it: hit testing there lands on either side (a line's 2 px sliver).
+    for (let a = target.parentElement; a && a !== document.body && a !== document.documentElement; a = a.parentElement) {
+      if (clips(a)) { const b = padBox(a); if (x < b.l + 1 || x >= b.r - 1 || y < b.t + 1 || y >= b.b - 1) return null; }
+      if (css(a).position === 'fixed') break;
+    }
     const link = words ? controlOf(hit) : null;
     const over = link && stretchedOver(link);
     if (over && over.contains(target)) {
@@ -815,6 +823,16 @@ ${PAGE_HELPERS}
       if (r.width * r.height >= 0.4 * VW * VH) return null;
       const s = scroller(target);
       if (s && !(s.contains(layer))) return null;
+      // A bar pinned to the view (fixed or sticky: an app's bottom nav, PP-554) over content that scrolls under it: what
+      // can scroll clear of it is not covered (ZeroHop's Domains field below the fold, under its tab bar's Overview icon,
+      // on the first screen); what cannot (the page's end under the bar, no room left to scroll) still is.
+      let pin = null;
+      for (let a = hit; a && a !== document.body && a !== modal && !pin; a = a.parentElement) if (/fixed|sticky/.test(css(a).position)) pin = a;
+      if (pin && s) {
+        const t = target.getBoundingClientRect(), p = pin.getBoundingClientRect();
+        const up = s.scrollTop, down = s.scrollHeight - s.clientHeight - s.scrollTop;
+        if ((p.top + p.bottom) / 2 >= VH / 2 ? down >= t.bottom - p.top : up >= p.bottom - t.top) return null;
+      }
     }
     return hit;
   };
@@ -1499,6 +1517,20 @@ ${PAGE_HELPERS}
     };
     walk(document.body);
     const textIn = (e) => trim((e.shadowRoot ? e.shadowRoot.textContent : '') || e.innerText || e.textContent, 80);
+    // The main content (PP-543): the largest main or [role=main] in view, else the body; the app's chrome (header, nav,
+    // footer, their roles, and what is fixed) is not of it.
+    const areaIn = (r) => Math.max(0, Math.min(r.right, VW) - Math.max(r.left, 0)) * Math.max(0, Math.min(r.bottom, VH) - Math.max(r.top, 0));
+    const mains = [...document.querySelectorAll('main,[role=main]')].filter(seen).map((e) => [e, areaIn(e.getBoundingClientRect())]).sort((a, b) => b[1] - a[1]);
+    const main = mains.length ? mains[0][0] : document.body;
+    const CHROME = 'header,nav,footer,[role=banner],[role=navigation],[role=contentinfo]';
+    const fixedAt = new Map();
+    const fixed = (e) => {
+      if (!e || e === main || e === document.body) return false;
+      let v = fixedAt.get(e);
+      if (v === undefined) { v = css(e).position === 'fixed' || fixed(e.parentElement); fixedAt.set(e, v); }
+      return v;
+    };
+    const chrome = (e) => { const c = e.closest(CHROME); return (c && c !== main && (main === document.body || main.contains(c))) || fixed(e); };
     let shown;
     const vite = document.querySelector('vite-error-overlay');
     const next = [...document.querySelectorAll('nextjs-portal')].find((e) => e.shadowRoot && (e.shadowRoot.querySelector('[data-nextjs-dialog]') || /Unhandled Runtime Error|Runtime Error|Build Error|Failed to compile/.test(e.shadowRoot.textContent || '')));
@@ -1512,6 +1544,38 @@ ${PAGE_HELPERS}
     else if (boundary) shown = { e: boundary, text: textIn(boundary) || 'an error boundary' };
     else if (phrase) shown = phrase;
     else if (alert) shown = { e: alert, text: textIn(alert) };
+    // A not-found or error screen in the app's own words (PP-554; ZeroHop's #/tickets/KHONG-CO on the phone: a small
+    // "Error 404" over the heading "No ticket KHONG-CO", "The link may be broken, or the page was moved or deleted.",
+    // called clean): in a main content of 80 words or less, among its first blocks and before any other heading, a
+    // status label ("Error 404", "404", "HTTP 500", "Lỗi 404") that is a heading itself or stands just over one (a
+    // dashboard's "404" under its card's title is a number); or, under a heading, a line that says
+    // the thing is not there ("may be broken", "moved or deleted", "doesn't exist", "could not be found", "không tồn
+    // tại", "不存在"), on a page with no field to type in (a search that found nothing is a screen of its own).
+    if (!shown) {
+      const STATUS_LABEL = /^((error|http( error)?|lỗi|错误|錯誤)\s*:?\s*)?[45]\d\d(\s*(error|lỗi|错误))?(\s*[-–—:·|]\s*.{0,30})?$/i;
+      const GONE = /\b(may (have been|be) (broken|mistyped)|(was|were|has been|have been|may have been) (re)?moved or deleted|(was|has been) deleted|no longer exists?|(does|do)n.t exist|(does|do) not exist|(could not|cannot|can not|couldn.t|can.t) be found)\b|không tồn tại|không (thể )?tìm thấy|đã bị (xoá|xóa|gỡ)|不存在|已被删除|已被刪除/i;
+      const list = [], at = new Set();
+      let mainWords = 0;
+      const it = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
+      for (let n = it.nextNode(), k = 0; n && k < 5000; n = it.nextNode(), k++) {
+        const p = n.parentElement, w = wordsOf(n.data);
+        if (!p || w === 0 || p.closest('script,style,template,noscript,pre,code') || !seen(p) || chrome(p)) continue;
+        mainWords += w;
+        const b = blockOf(p);
+        if (at.has(b) || list.length >= 8) continue;
+        at.add(b);
+        list.push({ e: b, text: (b.textContent || '').replace(/\s+/g, ' ').trim(), size: parseFloat(css(b).fontSize) || 0, heading: b.matches('h1,h2,h3,[role=heading]') });
+      }
+      if (mainWords <= 80) {
+        const typed = [...main.querySelectorAll('input,textarea,[contenteditable=true]')].some((e) => seen(e) && !/^(hidden|checkbox|radio|button|submit|reset|range|color|file)$/i.test(e.type || ''));
+        const head = list.findIndex((b) => b.heading);
+        const label = list.slice(0, 4).findIndex((b, i) => (head < 0 || i <= head) && b.text.length <= 40 && STATUS_LABEL.test(b.text) && (b.heading || (list[i + 1] && (list[i + 1].heading || list[i + 1].size > b.size))));
+        const gone = typed || head < 0 ? -1 : list.slice(0, 6).findIndex((b, i) => i > head && b.text.length <= 200 && GONE.test(b.text));
+        const under = (i) => list[i + 1] && !list[i].heading && (list[i + 1].heading || list[i + 1].size > list[i].size) ? ' · ' + list[i + 1].text : '';
+        if (label >= 0) shown = { e: list[label].e, text: trim(list[label].text + under(label), 80) };
+        else if (gone >= 0) shown = { e: list[gone].e, text: trim(list[head].text + ' · ' + list[gone].text, 80) };
+      }
+    }
     // Still loading (PP-543): in the main content (the largest main or [role=main] in view, else the body), leaving out
     // the app's chrome (header, nav, footer, their roles, and what is fixed), each row of the view is marked by what
     // shows on it: real content (words, controls, pictures), or a loading state: a skeleton's bones (wordless filled
@@ -1523,9 +1587,6 @@ ${PAGE_HELPERS}
     // content, or a table refreshing under aria-busy with its rows still shown, is not.
     let loading;
     if (!shown) {
-      const areaIn = (r) => Math.max(0, Math.min(r.right, VW) - Math.max(r.left, 0)) * Math.max(0, Math.min(r.bottom, VH) - Math.max(r.top, 0));
-      const mains = [...document.querySelectorAll('main,[role=main]')].filter(seen).map((e) => [e, areaIn(e.getBoundingClientRect())]).sort((a, b) => b[1] - a[1]);
-      const main = mains.length ? mains[0][0] : document.body;
       const mr = main === document.body ? { left: 0, top: 0, right: VW, bottom: VH } : main.getBoundingClientRect();
       const top = Math.max(0, Math.floor(mr.top)), bottom = Math.min(VH, Math.ceil(mr.bottom));
       const left = Math.max(0, mr.left), right = Math.min(VW, mr.right);
@@ -1536,15 +1597,6 @@ ${PAGE_HELPERS}
         for (let y = a; y < b; y++) rows[y] |= bit;
         return b > a;
       };
-      const CHROME = 'header,nav,footer,[role=banner],[role=navigation],[role=contentinfo]';
-      const fixedAt = new Map();
-      const fixed = (e) => {
-        if (!e || e === main || e === document.body) return false;
-        let v = fixedAt.get(e);
-        if (v === undefined) { v = css(e).position === 'fixed' || fixed(e.parentElement); fixedAt.set(e, v); }
-        return v;
-      };
-      const chrome = (e) => { const c = e.closest(CHROME); return (c && c !== main && (main === document.body || main.contains(c))) || fixed(e); };
       const loops = new Set(), turns = new Set();
       for (const a of document.getAnimations ? document.getAnimations() : []) {
         const t = a.effect && a.effect.target;

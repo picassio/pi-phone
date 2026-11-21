@@ -1,0 +1,68 @@
+<!doctype html>
+<!-- PP-554: a not-found screen an app draws in its own words, as ZeroHop's #/tickets/KHONG-CO on the phone drew it (and
+     the check called it clean): an app shell (a fixed header and a bottom nav), and in its main a small mono "Error 404"
+     over the heading "No ticket KHONG-CO", a line and a button. The layout check says it "shows an error". Which one by
+     the address's query:
+     (none)    ZeroHop's markup: the "Error 404" label over the heading;
+     ?code     a large "404" over the heading "Nothing here";
+     ?phrase   no status code: the heading, then "This ticket doesn't exist, or it was moved or deleted.";
+     ?vi       Vietnamese ("không tồn tại"), ?zh Chinese ("不存在");
+   and two controls that are real screens:
+     ?kpi      a dashboard whose cards show 404 and 502 under their titles;
+     ?search   a search with a field, that found nothing ("No tickets could be found for …"). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>ZeroHop</title>
+<style>
+  body { margin: 0; font: 14px/20px system-ui, sans-serif; color: #1d1d1d; background: #fafafa; }
+  .top { position: fixed; top: 0; left: 0; right: 0; height: 60px; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: #ffffff; border-bottom: 1px solid #e5e5e5; }
+  .bottom { position: fixed; bottom: 0; left: 0; right: 0; height: 64px; display: flex; justify-content: space-around; align-items: center; background: #ffffff; border-top: 1px solid #e5e5e5; }
+  .top a, .bottom a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; color: #1d1d1d; text-decoration: none; }
+  main { padding: 76px 16px 80px; }
+  section { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 56px 24px; text-align: center; }
+  .icon { width: 40px; height: 40px; border-radius: 8px; border: 1px solid #e5e5e5; background: #f0f0f0; }
+  .eyebrow { margin: 0; font: 12px/16px ui-monospace, monospace; color: #5c5c5c; }
+  .code { margin: 0; font: 700 72px/80px Georgia, serif; }
+  h1, h2 { margin: 0; font-size: 20px; line-height: 28px; }
+  h2.card-title { margin: 0; font-size: 14px; line-height: 20px; color: #5c5c5c; font-weight: 500; }
+  p { margin: 0; }
+  .muted { font-size: 13px; color: #5c5c5c; }
+  .go { display: inline-flex; align-items: center; height: 40px; padding: 0 16px; border-radius: 8px; background: #0f766e; color: #ffffff; text-decoration: none; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .card { padding: 16px; border-radius: 12px; border: 1px solid #e5e5e5; background: #ffffff; }
+  .num { font-size: 32px; line-height: 40px; font-weight: 700; }
+  input { width: 100%; box-sizing: border-box; height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid #c4c4c4; font: 16px/24px system-ui, sans-serif; }
+</style>
+</head>
+<body>
+<header class="top"><strong>ZeroHop</strong><span>Kestrel Freight</span></header>
+<main id="main"></main>
+<nav class="bottom"><a href="#/inbox">Inbox</a><a href="#/signoffs">Sign-offs</a><a href="#/overview">Overview</a><a href="#/more">More</a></nav>
+<script>
+  const which = location.search.slice(1);
+  const main = document.getElementById("main");
+  const home = `<a class="go" href="#/inbox">Go to home</a>`;
+  if (which === "code") {
+    main.innerHTML = `<section><p class="code">404</p><h1>Nothing here</h1><p class="muted">Check the address, or go back to your inbox.</p>${home}</section>`;
+  } else if (which === "phrase") {
+    main.innerHTML = `<section><span class="icon"></span><h2>No ticket KHONG-CO</h2><p class="muted">This ticket doesn't exist, or it was moved or deleted.</p>${home}</section>`;
+  } else if (which === "vi") {
+    main.innerHTML = `<section><span class="icon"></span><h2>Không có phiếu KHONG-CO</h2><p class="muted">Phiếu này không tồn tại, hoặc đã bị xoá.</p><a class="go" href="#/inbox">Về trang chủ</a></section>`;
+  } else if (which === "zh") {
+    main.innerHTML = `<section><span class="icon"></span><h2>没有工单 KHONG-CO</h2><p class="muted">该工单不存在，或已被删除。</p><a class="go" href="#/inbox">返回首页</a></section>`;
+  } else if (which === "kpi") {
+    main.innerHTML = `<h1>Site health</h1><p class="muted">Kestrel Freight, last 24 hours.</p><div class="cards" style="margin-top:16px">
+      <div class="card"><h2 class="card-title">Broken links</h2><div class="num">404</div></div>
+      <div class="card"><h2 class="card-title">Gateway errors</h2><div class="num">502</div></div>
+      <div class="card"><h2 class="card-title">Tickets</h2><div class="num">128</div></div>
+      <div class="card"><h2 class="card-title">Sign-offs</h2><div class="num">7</div></div></div>`;
+  } else if (which === "search") {
+    main.innerHTML = `<input type="search" aria-label="Search tickets" value="kestrel"><section><h2>No results</h2><p class="muted">No tickets could be found for "kestrel".</p></section>`;
+  } else {
+    main.innerHTML = `<section aria-labelledby="t"><span class="icon"></span><div style="display:flex;flex-direction:column;align-items:center;gap:4px"><p class="eyebrow">Error 404</p><h2 id="t">No ticket KHONG-CO</h2><p class="muted">The link may be broken, or the page was moved or deleted.</p></div>${home}</section>`;
+  }
+</script>
+</body>
+</html>

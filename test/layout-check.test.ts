@@ -207,6 +207,11 @@ const PAGES: Record<string, string> = {
     ...Object.fromEntries(
         ["", "?busy", "?spinner", "?static", "?card", "?refresh"].map((query) => [`/fixtures/loading${query}`, readFileSync(new URL("fixtures/layout/loading.html", import.meta.url), "utf8")]),
     ),
+    // PP-554: not-found screens in an app's own words, and two real screens; a tab bar pinned over a field.
+    ...Object.fromEntries(
+        ["", "?code", "?phrase", "?vi", "?zh", "?kpi", "?search"].map((query) => [`/fixtures/not-found${query}`, readFileSync(new URL("fixtures/layout/not-found.html", import.meta.url), "utf8")]),
+    ),
+    ...Object.fromEntries(["", "?fixed", "?doc", "?end"].map((query) => [`/fixtures/pinned-bars${query}`, readFileSync(new URL("fixtures/layout/pinned-bars.html", import.meta.url), "utf8")])),
     "/fixtures/real-page?status=500": readFileSync(new URL("fixtures/layout/real-page.html", import.meta.url), "utf8"),
     // nginx's own page for a 500.
     "/fixtures/error-500": `<html><head><title>500 Internal Server Error</title></head><body><center><h1>500 Internal Server Error</h1></center><hr><center>nginx/1.24.0</center></body></html>`,
@@ -723,6 +728,73 @@ test("a page still loading leads the report: a skeleton, an empty aria-busy box,
             for (const path of ["/fixtures/real-page", "/fixtures/empty-root?picture"]) {
                 assert.deepEqual(of(await measured(page, path, width), "page"), [], `${path} at ${width}`);
             }
+        }
+    } finally {
+        await engine.close();
+    }
+});
+
+test("a not-found screen in the app's own words leads the report: an 'Error 404' label over a page's own heading, a large 404, and 'doesn't exist', 'không tồn tại', '不存在' under a heading; a dashboard's 404 card, a search that found nothing and a status table give none (PP-554)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+
+        for (const width of [390, 1280]) {
+            await page.init({ width, height: width < 600 ? 844 : 800, mobile: width < 600 });
+
+            for (const [query, text, what] of [
+                ["", "Error 404 · No ticket KHONG-CO", 'p.eyebrow "Error 404"'],
+                ["?code", "404 · Nothing here", 'p.code "404"'],
+                ["?phrase", "No ticket KHONG-CO · This ticket doesn't exist, or it was moved or deleted.", "p.muted"],
+                ["?vi", "Không có phiếu KHONG-CO · Phiếu này không tồn tại, hoặc đã bị xoá.", "p.muted"],
+                ["?zh", "没有工单 KHONG-CO · 该工单不存在，或已被删除。", "p.muted"],
+            ] as const) {
+                const report = await measured(page, `/fixtures/not-found${query}`, width);
+                const found = of(report, "page");
+
+                assert.equal(found.length, 1, `${query} at ${width}: ${JSON.stringify(found)}`);
+                assert.equal(found[0]!.state, "error", `${query} at ${width}`);
+                assert.equal(found[0]!.text, text.slice(0, 80), `${query} at ${width}`);
+                assert.ok(found[0]!.what.startsWith(what), `${query} at ${width}: ${found[0]!.what}`);
+                assert.match(describeLayout(report), /^Layout check at \d+ px \(\d+ elements\): \d+ out of place\.\nThis page shows an error: "/, `${query} at ${width}`);
+                assert.doesNotMatch(describeLayout(report), /nothing spills out/);
+            }
+
+            // The controls: real screens with a status code or a "could not be found" in them.
+            for (const path of ["/fixtures/not-found?kpi", "/fixtures/not-found?search", "/fixtures/real-page"]) {
+                assert.deepEqual(of(await measured(page, path, width), "page"), [], `${path} at ${width}`);
+            }
+        }
+    } finally {
+        await engine.close();
+    }
+});
+
+test("a field under a tab bar is not covered where it is scrolled out of its main (ZeroHop's shell, the bar after the main) or can scroll clear of a fixed bar (the main or the document scrolls); at the page's end with nothing left to scroll it is (PP-554)", { skip }, async () => {
+    const engine = new ChromeEngine(chrome!, [`--host-resolver-rules=MAP pi.test 127.0.0.1:${port}`, "--no-sandbox"]);
+
+    try {
+        const page = new BrowserPage(await engine.connect((await engine.tabs())[0]!));
+
+        for (const width of [390, 1280]) {
+            await page.init({ width, height: width < 600 ? 844 : 800, mobile: width < 600 });
+
+            for (const query of ["", "?fixed", "?doc"]) {
+                assert.deepEqual(of(await measured(page, `/fixtures/pinned-bars${query}`, width), "covered"), [], `${query} at ${width}`);
+            }
+
+            const end = of(await measured(page, "/fixtures/pinned-bars?end", width), "covered");
+
+            // The field and its label's words, both under the bar.
+            assert.deepEqual(
+                end.map((find) => [find.what.split(" ")[0], find.by.split(" ")[0]]),
+                [
+                    ["input#domain", "nav.bottom"],
+                    ["label.field", "nav.bottom"],
+                ],
+                `?end at ${width}: ${JSON.stringify(end)}`,
+            );
         }
     } finally {
         await engine.close();

@@ -1249,6 +1249,15 @@ so Pi changes them through the settings tools; "the last session" is the one the
   areas: a skeleton card beside real cards shares their rows and counts for nothing, and one skeleton card among a
   page's content covers a small share. An error screen comes before it, and it before "looks empty" (a lone spinner
   and "Loading…" is still loading).
+  In the app's own words (PP-554; ZeroHop's #/tickets/KHONG-CO on the phone, a small mono "Error 404" over the heading
+  "No ticket KHONG-CO" and "The link may be broken, or the page was moved or deleted.", was called clean): when no stock
+  phrase leads, in a main content of 80 words or less, among its first four blocks and before any other heading, a
+  status label of 40 characters at most ("Error 404", "404", "HTTP 500", "Lỗi 404", "404 error") that is a heading
+  itself or stands over a heading or larger type: "shows an error: Error 404 · No ticket KHONG-CO". Else, among its
+  first six blocks, under a heading, a line of 200 characters at most that says the thing is not there ("may be
+  broken", "moved or deleted", "doesn't exist", "could not be found", "không tồn tại", "不存在", "已被删除"), when
+  the main has no field to type in (a search that found nothing is a screen). A dashboard's "404" under its card's
+  title, a status table and a search with no results are none.
   huashu-design's facts (PP-545; owner's choice of 2026-11-21 after research PP-540: all four groups; alchaincyf's
   `scripts/design_lint.py`, MIT, `c4cc219`, rules rewritten in the page script, its fixtures adapted): template
   decoration (`decoration`: a label of three parts or more joined by " · ", up to 80 characters; a trailing → on two
@@ -1334,7 +1343,11 @@ so Pi changes them through the settings tools; "the last session" is the one the
     its edges and a field's label, so a small control that keeps its look with a hit layer passes; PP-436: a layer placed
     in a positioned ancestor counts when it lies over the control, so a stretched link, whose ::before or ::after is
     absolute with all four insets 0 over its card, takes the card's box; read from the computed style, never a class
-    name, and words of that card under its layer are not covered, while a control under it still is);
+    name, and words of that card under its layer are not covered, while a control under it still is; PP-554: a point
+    past the edge of a box that clips the element, or within 1 px of it, shows none of it and is not covered, as
+    ZeroHop's Domains field half scrolled out of its main with the tab bar laid after the main; and a bar pinned to the
+    view, fixed or sticky, covers only what cannot scroll clear of it, its scroller's room left below for a bar in the
+    lower half of the view, above for one in the upper half, so the page's end under a bar with no room left still is);
     padding, gaps, corner radii and control heights off the 4 px grid or not whole pixels (0, 1 and 2 px pass as
     hairlines and nudges, pill corners pass, svg icons need whole pixels only; PP-520: in a zoomed canvas, as React
     Flow's viewport draws its nodes with `transform: matrix(0.7, …)`, control heights and icons are divided by the
