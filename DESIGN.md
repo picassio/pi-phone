@@ -2030,6 +2030,36 @@ so Pi changes them through the settings tools; "the last session" is the one the
     what it had, as with Design & video). It adds no tool and no prompt section.
   - **Not done**: pstack's other skills (Cursor's Task API and models), a mode from chart to TLA+ skeleton (not in
     upstream's commit), a machine-tools install tool for Pi (Install tools is the owner's, in Settings › Machines).
+    Twelve of pstack's other skills came later, as the pstack commands below (PP-550).
+- **pstack commands** (`extensions/pstack.ts`, `pstack.ts`, PP-550; owner's decisions of 2026-11-21 after research
+  PP-541, interview e4JC4GXj, wiki `resources/pstack-update-2026-11`): twelve pstack skills at `0b46ec3`
+  (interrogate, blast-radius, ketchup, reflect, correct, why, how, bro, in-your-own-words,
+  create-formal-verification-skill, unslop as `unslop-writing`, teach) in `third_party/pstack/skills/`, copied by
+  `scripts/sync-pstack.ts`. The script applies `third_party/pstack/pi-phone.patch`, which must apply cleanly, so a
+  newer upstream it does not fit is adapted again by hand (`--write-patch`).
+  - **Bundled, not in the library** (the owner's choice over library first): they update with the app, and the
+    extension switch turns them all on or off.
+  - **Slash commands only.** Each keeps `disable-model-invocation: true`. Pi's `formatSkillsForPrompt` leaves such a
+    skill out of the skills section, and `skillCommands` still lists it. So the prompt with the extension on is the
+    prompt with it off, character for character (`test/pstack.test.ts`), and `test/prompt-budget.test.ts` is
+    untouched. The prompt is at its 85,000 limit.
+  - **Adapted, each part marked** (`<!-- pi-phone: adapted|added -->` … `<!-- /pi-phone -->`; the test fails on an
+    unmarked added line). Cursor's Task tool, AskQuestion, arena and its model slugs become `subagent`, `interview`,
+    `models` and the board, wiki, session and library tools.
+    - `/interrogate` asks the owner on one `interview` card which ready models to use: each ticked model approves one
+      adversary, and Pi spawns on those only, never swapping one in. Each adversary gets a git worktree beside the repo
+      with the uncommitted changes copied in. The subagent tool has no worktree of its own, and its `model` is passed
+      only when the person asks, which the card is. A finding survives only when Pi's rerun of its command fails.
+    - pstack's `worker.md` rules (minus the pull request lines) go only into the briefs `/interrogate` and `/how` give
+      subagents. The system prompt stays as it is.
+    - `/ketchup` puts the calls waiting on the owner on an async `interview` card. `/reflect` edits skills through
+      `skill_save` (the owner's card), never the app's files, and puts facts in the wiki.
+    - `unslop` is renamed, as heydamir's `unslop` (Design & video) is the UI skill of that name.
+  - **The extension**, off by default (built that way; whether it should be on is the owner's call), a switch like
+    any (`extensions.pstack.ts`). While it is on, `builtInSkills()` adds `PSTACK_SKILLS` for phone and server
+    sessions. They are not copied to machines.
+  - **Not done**: the video catch-up (`ketchup-video`, PP-551), `/tdd` (not chosen), arena, swarm and the other
+    skills.
 - **Extension builder** (`extensions/extension-builder.ts`, `extension-builder.ts`, PP-367; owner's decisions of
   2026-11-03 after research PP-365, wiki `resources/deepseek-harness-creator-mode-research`): Pi makes a drop-in from
   a chat request. A built-in extension like Formal checks, **on by default** (the owner's choice), a switch like any

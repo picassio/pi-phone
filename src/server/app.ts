@@ -156,6 +156,7 @@ import { exportsOf, MachineTools, machineSkillsDir, sessionEnvOf, TOOLS, TOOLS_B
 import { MachineSkills, machineSkillsText, type SkillBundle, skillBundle } from "./machine-skills.ts";
 import { FORMAL_MODULE, FORMAL_SKILLS } from "./formal-checks.ts";
 import { BUILDER_MODULE, BUILDER_SKILLS } from "./extension-builder.ts";
+import { PSTACK_MODULE, PSTACK_SKILLS } from "./pstack.ts";
 import { reviewTargets } from "./review.ts";
 import { changedSince, composeFeedback, diffSince, makeCheckpoint, newComment, snapshotTree } from "./review-loop.ts";
 import { type CrdRun, CrdError } from "./crd.ts";
@@ -6183,7 +6184,8 @@ export class PocketApp {
      * own (`src/skills/`: getting-started, ui-verify), Effective HTML's (artifacts), the Design & video extension's while it is on
      * (PP-247: design-system, OpenDesign's deck templates and GSAP, Motion Video Kit's business-motion-film, heydamir's unslop), Formal
      * checks' while it is on (PP-316: pstack's statechart), Extension builder's while it is on (PP-367:
-     * extension-builder), and OfficeCLI's where it runs (`third_party/`).
+     * extension-builder), pstack commands' while it is on (PP-550: slash commands only, none in the prompt), and
+     * OfficeCLI's where it runs (`third_party/`).
      */
     builtInSkills(): string[] {
         return [
@@ -6192,6 +6194,7 @@ export class PocketApp {
             ...(this.loader.enabled(DESIGN_MODULE) ? DESIGN_SKILLS : []),
             ...(this.loader.enabled(FORMAL_MODULE) ? FORMAL_SKILLS : []),
             ...(this.loader.enabled(BUILDER_MODULE) ? BUILDER_SKILLS : []),
+            ...(this.loader.enabled(PSTACK_MODULE) ? PSTACK_SKILLS : []),
             ...(this.officecli.available() ? [this.officecli.skillsDir] : []),
         ];
     }

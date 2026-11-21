@@ -278,6 +278,18 @@
   Mermaid 状态图，并高亮通往每条被违反规则的最短路径（exit 1 表示有规则被违反，附带编号路径）；无法解析的模型会报出出错的行和列。它在有 Java 的地方运行：
   装了 **TLC** 机器工具的机器，或服务器版。在手机上 Pi 只画一张未经检查的图，会明确说明，并提议到机器上检查。附带四个示例
   （statechart-art 的奶茶店）。它是单独的扩展，默认开启：在 **扩展** 中关闭它（或让 Pi 关闭）后，任何会话都不再列出这个技能。
+- **pstack 命令。** pstack 的十二个技能。它们是斜杠命令，只在你输入时运行，因此不会给 Pi 的提示词增加任何内容：
+  - `/skill:interrogate`：对手在你于卡片上勾选的模型上运行，各自在独立的 git worktree 中设法打破一项改动。Pi 会重新运行每条发现的命令，
+    只保留再次运行仍然失败的发现。
+  - `/skill:blast-radius`：一项改动可能在别处弄坏什么。
+  - `/skill:ketchup`：总结你上一条消息之后发生的事，并把等你决定的事项放在一张卡片上。
+  - `/skill:reflect`：从对话中总结的经验，写成对你技能库中技能的修改（在卡片上由你批准），或写成 wiki 页面。
+  - `/skill:correct`：让仓库里反复出现的错误不可能再发生。
+  - `/skill:why` 和 `/skill:how`：某个东西为什么是这样（依据提交、wiki 和看板），以及它如何运作。
+  - `/skill:teach`、`/skill:bro`、`/skill:in-your-own-words`、`/skill:unslop-writing` 和
+    `/skill:create-formal-verification-skill`。
+
+  它是单独的扩展，**默认关闭**：在 **扩展** 中打开它（或让 Pi 打开）。
 - **Pi 看得见自己的成果。** `screenshot` 在手机自己的 WebView 中，以手机、桌面和大屏三种宽度（390、1280 和 1920 px）渲染产物、HTML 或 Office 文件或网页，即使屏幕关闭也可以，
   这样 Pi 在宣布完成前会先检查页面。HTML 文件会从它自己的文件夹加载样式表、脚本和图片，所以链接了应用 CSS 的页面也会带样式显示。
   它的 `localStorage` 和 `sessionStorage` 可用（在内存中，每次截图都为空），所以读取它们的单文件应用会正常绘制而不是白屏，页面抛出的错误会列在截图下方。
@@ -797,7 +809,8 @@ pi-phone 大部分是别人的成果，只是为手机把它们组合在了一�
 - **[pi-better](https://github.com/nicobailon/pi-better)**，作者 Nico Bailon（MIT）：移植为 `/better`，其 `helper.md` 和 `brief.md` 原样保存在 `third_party/pi-better/`。helper.md 基于 [Felix Rieseberg](https://felixrieseberg.com/how-to-be-more-ambitious-a-tutorial-for-humans-with-models/#depth) 的 “How to be more ambitious: A tutorial for humans with models” 中的 “Depth” 提示。
 - **[pstack](https://github.com/cursor/plugins/tree/main/pstack)**，作者 Lauren Tan（[@poteto](https://github.com/poteto)，
   MIT）：位于 `third_party/pstack-statechart/` 的 `statechart` 技能，以 Kevin T. Ngo 的
-  **[statechart-art](https://github.com/kevintngo/statechart-art)**（MIT）中的四个奶茶店模型为示例。
+  **[statechart-art](https://github.com/kevintngo/statechart-art)**（MIT）中的四个奶茶店模型为示例；以及位于
+  `third_party/pstack/` 的十二个技能，即 pstack 命令。
 - **[TLA+ tools](https://github.com/tlaplus/tlaplus)**（MIT）：TLC，以及 **[Eclipse Temurin](https://adoptium.net)**
   （GPLv2 附 Classpath Exception）：它的 Java，从各自的发布版安装到机器上，并内置于服务器版镜像中。
 - **[ripgrep](https://github.com/BurntSushi/ripgrep)**（MIT 或 Unlicense）和 **[fd](https://github.com/sharkdp/fd)**

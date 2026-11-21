@@ -77,6 +77,7 @@ export function moduleTitle(title) {
         "Design & video": t("Design & video"),
         "Formal checks": t("Formal checks"),
         "Extension builder": t("Extension builder"),
+        "pstack commands": t("pstack commands"),
         "Machine tools": t("Machine tools"),
         "Wiki (PARA)": t("Wiki (PARA)"),
         Projects: t("Projects"),

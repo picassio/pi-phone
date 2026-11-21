@@ -67,6 +67,7 @@ const ORDER = [
     "design.ts",
     "formal.ts",
     "extension-builder.ts",
+    "pstack.ts",
     "machines.ts",
     "phone.ts",
     "computer.ts",
@@ -93,7 +94,7 @@ export const BUILT_IN_MODULES: ReadonlySet<string> = new Set(
  */
 const REQUIRED = new Set(["prompt.ts", "secrets.ts", "policy.ts"]);
 /** Built-in modules that stay off until the owner turns them on. Drop-ins all do. */
-const OFF_BY_DEFAULT = new Set(["guard.ts", "agent-teams.ts", "projects.ts"]);
+const OFF_BY_DEFAULT = new Set(["guard.ts", "agent-teams.ts", "projects.ts", "pstack.ts"]);
 const TITLES: Record<string, string> = {
     "prompt.ts": "System prompt",
     "artifacts.ts": "Artifacts",
@@ -121,6 +122,7 @@ const TITLES: Record<string, string> = {
     "design.ts": "Design & video",
     "formal.ts": "Formal checks",
     "extension-builder.ts": "Extension builder",
+    "pstack.ts": "pstack commands",
     "machines.ts": "Machine tools",
     "phone.ts": "Phone control",
     "computer.ts": "Computer control",
