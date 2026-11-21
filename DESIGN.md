@@ -736,7 +736,10 @@ so Pi changes them through the settings tools; "the last session" is the one the
   collapsed, `DecoratedCustomViewStyle` rows (`progress_rows.xml`, at least 72dp) each opening its session only from two
   sessions on, the standard template for one or none (`ProgressLayout`, PP-505: HyperOS killed the service with
   BadForegroundServiceNotificationException when the one-row custom view inflated under its minimum height; a JUnit
-  test, CI's `testDebugUnitTest`), Approve for a simple card
+  test, CI's `testDebugUnitTest`), and the standard template for the first 10 minutes after an install or update
+  (`PackageInfo.lastUpdateTime`, PP-553: the system UI still held the replaced APK's resources, could not inflate
+  progress_rows, "Resources$NotFoundException: Resource ID #0x7f070007", and Android killed the app on every
+  restart until its cache was cleared), Approve for a simple card
   (`ACTION_APPROVE` to PiService, `POST /api/approvals/<id>`). With the bubble on and `Settings.canDrawOverlays`,
   `ProgressBubble` adds a `TYPE_APPLICATION_OVERLAY` circle (pi's mark `pi_mark.xml`, a turning ring while Pi works, the
   count, an amber badge), dragged to the nearest side; a tap opens `/?board=1` in a WebView window (bridge `PiBoard`:

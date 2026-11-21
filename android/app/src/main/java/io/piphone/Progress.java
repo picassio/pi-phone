@@ -63,6 +63,19 @@ final class Progress {
         this.plain = plain;
     }
 
+    /**
+     * How long ago the app was installed or updated (PP-553), or 0 when Android does not say: no custom board then.
+     */
+    private long sinceUpdate() {
+        try {
+            long updated = service.getPackageManager().getPackageInfo(service.getPackageName(), 0).lastUpdateTime;
+
+            return Math.max(0, System.currentTimeMillis() - updated);
+        } catch (android.content.pm.PackageManager.NameNotFoundException error) {
+            return 0;
+        }
+    }
+
     /** The board, each new version as the server has it; a poll that fails (the server restarting) is tried again. */
     void loop() {
         long after = -1;
@@ -189,7 +202,7 @@ final class Progress {
                 .setContentIntent(openSession(rows.length() > 0 ? rows.getJSONObject(0).getInt("conversationId") : -1, 1999));
 
         // Two or more sessions: the board of rows. One or none: the standard template, title and text (PP-505).
-        if (ProgressLayout.customBoard(rows.length())) {
+        if (ProgressLayout.customBoard(rows.length(), sinceUpdate())) {
             builder.setStyle(new Notification.DecoratedCustomViewStyle()).setCustomBigContentView(big);
         }
 

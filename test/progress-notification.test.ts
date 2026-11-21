@@ -21,6 +21,8 @@ test("the progress board's custom view is at least 72dp tall, so HyperOS keeps t
 test("the board's custom view is set only when ProgressLayout says so", async () => {
     const progress = await readFile(new URL("java/io/piphone/Progress.java", android), "utf8");
 
-    assert.match(progress, /if \(ProgressLayout\.customBoard\(rows\.length\(\)\)\) \{\s*builder\.setStyle\(new Notification\.DecoratedCustomViewStyle\(\)\)\.setCustomBigContentView\(big\);/);
+    // PP-553: and not right after an update, when the system UI may still hold the replaced APK's resources.
+    assert.match(progress, /if \(ProgressLayout\.customBoard\(rows\.length\(\), sinceUpdate\(\)\)\) \{\s*builder\.setStyle\(new Notification\.DecoratedCustomViewStyle\(\)\)\.setCustomBigContentView\(big\);/);
+    assert.match(progress, /getPackageInfo\(service\.getPackageName\(\), 0\)\.lastUpdateTime/);
     assert.equal(progress.match(/setCustomBigContentView|setCustomContentView/g)?.length, 1);
 });
