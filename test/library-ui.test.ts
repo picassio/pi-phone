@@ -161,10 +161,15 @@ async function measure(name: string, width: number) {
 /**
  * The must-fix findings whose element is in `scope` (what this change draws), not the app around it. A muted hint
  * (`.muted`) at 3:1 or more is the app's hint colour, which ui-verify lets stay when the report names it: not counted.
+ * Nor is the session's folder ending in an ellipsis: it is the test's temporary folder, whose random letters make it
+ * fit its 200 px at one run and lose 3 px at the next (Build APK #514 at 1280 and 1920 px).
  */
 async function mustFix(report: Awaited<ReturnType<typeof measure>>, scope: string) {
     const kinds = report.found.filter(
-        (each) => MUST_FIX.includes(each.kind) && !(each.kind === "contrast" && /^[a-z0-9]+\.muted\b/.test(each.what) && Number((each as { ratio?: number }).ratio) >= 3),
+        (each) =>
+            MUST_FIX.includes(each.kind) &&
+            !(each.kind === "contrast" && /^[a-z0-9]+\.muted\b/.test(each.what) && Number((each as { ratio?: number }).ratio) >= 3) &&
+            !(each.kind === "cut" && each.ellipsis && each.what.includes(`"${root.slice(0, 20)}`)),
     );
     const inside = await inPage<boolean[]>(
         `return JSON.stringify(${JSON.stringify(kinds.map((each) => each.what.split(" ")[0]))}.map((selector) => { try { return document.querySelector(${JSON.stringify(scope)}).querySelector(selector) !== null; } catch { return true; } }))`,
