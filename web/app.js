@@ -934,6 +934,8 @@ if (new URLSearchParams(location.search).has("chat")) {
 const LINKED_SHEETS = new Set([
     "access",
     "appearance",
+    // `/?sheet=audio`: Menu › Audio, its transcription and reading models (PP-557).
+    "audio",
     "browser",
     "dictation",
     // `/s/<id>?sheet=library-session`: that session's Skills & commands (PP-467).

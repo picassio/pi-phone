@@ -6,8 +6,14 @@
  *   each sent at once into a transcription session (`/realtime?intent=transcription`) with server VAD; VAD cuts it into
  *   utterances with their start and end (`input_audio_buffer.speech_started/stopped`), and each utterance's text comes
  *   as `conversation.item.input_audio_transcription.completed`. Their times give SRT and VTT cues.
+ * - Or on the Google Antigravity sign-in (PP-557, `audio.transcribeModel` = `antigravity`): agy's dictation model, the
+ *   file in 16 kHz parts, each stretch of speech in a stream of its own (`antigravity-media.ts`); its times are those
+ *   stretches. It takes no language or words: Google hears the language itself. There is no Antigravity voice to read
+ *   aloud: `audio_speak` stays on the ChatGPT sign-in.
  */
 import { WebSocket } from "ws";
+import { AGY_NAME } from "./antigravity.ts";
+import { AGY_TRANSCRIBE, type AgyMedia } from "./antigravity-media.ts";
 import { HttpError } from "./errors.ts";
 
 /** The transcription models, best first. */
@@ -39,6 +45,8 @@ export interface AudioOptions {
     speakSetting?: () => string | null;
     voiceSetting?: () => string | null;
     endpoints?: { socket: string };
+    /** Google Antigravity's transcription, when the app has it (PP-557). */
+    agy?: Pick<AgyMedia, "signedIn" | "transcribe">;
 }
 
 export class Audio {
@@ -48,15 +56,34 @@ export class Audio {
         this.#options = options;
     }
 
-    /** The model a transcription uses: `asked`, else the setting, else the default; refused when it is not one. */
+    /**
+     * The model a transcription uses: `asked`, else the setting, else the default; refused when it is not one.
+     * `antigravity` is Google Antigravity's, whose sign-in is checked when it runs.
+     */
     transcribeModel(asked?: string): string {
         const model = asked ?? this.#options.transcribeSetting() ?? DEFAULT_TRANSCRIBE_MODEL;
 
-        if (!(TRANSCRIBE_MODELS as readonly string[]).includes(model)) {
-            throw new HttpError(400, `${model} is not a transcription model: ${TRANSCRIBE_MODELS.join(", ")}.`);
+        if (!(TRANSCRIBE_MODELS as readonly string[]).includes(model) && model !== AGY_TRANSCRIBE) {
+            throw new HttpError(400, `${model} is not a transcription model: ${[...TRANSCRIBE_MODELS, AGY_TRANSCRIBE].join(", ")}.`);
         }
 
         return model;
+    }
+
+    /** The transcription models to pick from now: OpenAI's, and Antigravity's while it is signed in. */
+    async transcribeModels(): Promise<string[]> {
+        return [...TRANSCRIBE_MODELS, ...((await this.#options.agy?.signedIn()) === true ? [AGY_TRANSCRIBE] : [])];
+    }
+
+    /** A file part's 16 kHz pcm16 transcribed by Google Antigravity: its utterances, and the model Google named. */
+    async transcribeAgy(pcm: Uint8Array, signal?: AbortSignal): Promise<{ model: string; utterances: Utterance[] }> {
+        const agy = this.#options.agy;
+
+        if (agy === undefined || !(await agy.signedIn())) {
+            throw new HttpError(409, `The transcription model ${AGY_TRANSCRIBE} needs the ${AGY_NAME} sign-in: sign in in Settings › Providers, or pick another model in Menu › Audio.`);
+        }
+
+        return agy.transcribe(pcm, signal);
     }
 
     /** A transcription's language and hint: those asked, else Settings › Voice's (none when it says auto, or has no words). */
@@ -330,9 +357,9 @@ export function m4aArgs(input: string, out: string): string[] {
     return ["-hide_banner", "-loglevel", "error", "-y", "-i", input, "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", "-f", "mp4", out];
 }
 
-/** ffmpeg's arguments for one part of a file's sound, from `start` for `seconds`, as 24 kHz mono pcm16 in a WAV. */
-export function pcmPartArgs(input: string, out: string, start: number, seconds: number): string[] {
-    return ["-hide_banner", "-loglevel", "error", "-y", "-ss", String(start), "-t", String(seconds), "-i", input, "-vn", "-ac", "1", "-ar", String(PCM_RATE), "-c:a", "pcm_s16le", "-map_metadata", "-1", out];
+/** ffmpeg's arguments for one part of a file's sound, from `start` for `seconds`, as mono pcm16 in a WAV (24 kHz unless `rate` says). */
+export function pcmPartArgs(input: string, out: string, start: number, seconds: number, rate = PCM_RATE): string[] {
+    return ["-hide_banner", "-loglevel", "error", "-y", "-ss", String(start), "-t", String(seconds), "-i", input, "-vn", "-ac", "1", "-ar", String(rate), "-c:a", "pcm_s16le", "-map_metadata", "-1", out];
 }
 
 /** A WAV's samples: what its `data` chunk holds (chunks before it skipped), or undefined when it is not a WAV. */

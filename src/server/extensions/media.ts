@@ -40,6 +40,8 @@ import {
 import { slugOf } from "./images.ts";
 import { imageType } from "../image-meta.ts";
 import { m4aArgs, PART_SECONDS, PCM_RATE, pcmPartArgs, saidAsWritten, SPEAK_MODELS, speakParts, srtOf, TRANSCRIBE_MODELS, type Utterance, VOICES, vttOf, wavData, wavOf } from "../audio.ts";
+import { AGY_NAME } from "../antigravity.ts";
+import { AGY_PCM_RATE, AGY_TRANSCRIBE } from "../antigravity-media.ts";
 import type { Usage } from "@earendil-works/pi-ai";
 
 const FOLDER = "media";
@@ -618,6 +620,13 @@ export default function createMedia(host: PocketHost) {
                 return reply(error instanceof Error ? error.message : String(error), true);
             }
 
+            // Google Antigravity's model (PP-557) hears the language itself and takes no words: asking for them is refused.
+            const agy = model === AGY_TRANSCRIBE;
+
+            if (agy && (args.language !== undefined || args.prompt !== undefined)) {
+                return reply(`${AGY_NAME}'s transcription (audio.transcribeModel ${AGY_TRANSCRIBE}) takes no language or prompt: it hears the language itself. Call without them, or name another model.`, true);
+            }
+
             const cwd = (await api.agent(context)).cwd ?? "";
             const env = host.envOf(cwd);
             const absolute = await env.absolutePath(args.path, context);
@@ -652,14 +661,15 @@ export default function createMedia(host: PocketHost) {
             }
 
             const base = `${folder.value}/${stamp(new Date())}-${slugOf(args.path.split("/").pop()?.replace(/\.[^.]+$/, "") ?? "audio")}`;
-            const hints = host.audio.transcribeHints({ ...(args.language === undefined ? {} : { language: args.language }), ...(args.prompt === undefined ? {} : { prompt: args.prompt }) });
+            const hints = agy ? {} : host.audio.transcribeHints({ ...(args.language === undefined ? {} : { language: args.language }), ...(args.prompt === undefined ? {} : { prompt: args.prompt }) });
+            let used: string = model;
             const parts = Math.max(1, Math.ceil(info.duration / PART_SECONDS));
             const utterances: Utterance[] = [];
             const tokens = { input: 0, output: 0 };
 
             for (let part = 0; part < parts; part++) {
                 const wav = `${base}.part.wav`;
-                const cut = await output(env, commandOf(engine, "ffmpeg", pcmPartArgs(absolute.value, wav, part * PART_SECONDS, PART_SECONDS)), context);
+                const cut = await output(env, commandOf(engine, "ffmpeg", pcmPartArgs(absolute.value, wav, part * PART_SECONDS, PART_SECONDS, agy ? AGY_PCM_RATE : PCM_RATE)), context);
                 const read = cut.code === 0 ? await env.readBinaryFile(wav, context) : undefined;
 
                 await env.remove(wav, { force: true }, context);
@@ -675,8 +685,11 @@ export default function createMedia(host: PocketHost) {
                 }
 
                 try {
-                    const heard = await host.audio.transcribePart(pcm, { model, ...hints }, context.abortSignal);
+                    const heard = agy
+                        ? { ...(await host.audio.transcribeAgy(pcm, context.abortSignal)), usage: { input: 0, output: 0 } }
+                        : { model, ...(await host.audio.transcribePart(pcm, { model, ...hints }, context.abortSignal)) };
 
+                    used = agy ? `${AGY_TRANSCRIBE} (${AGY_NAME}, ${heard.model})` : model;
                     utterances.push(...heard.utterances.map((each) => ({ ...each, start: each.start + part * PART_SECONDS * 1000, end: each.end + part * PART_SECONDS * 1000 })));
                     tokens.input += heard.usage.input;
                     tokens.output += heard.usage.output;
@@ -704,10 +717,10 @@ export default function createMedia(host: PocketHost) {
                         text:
                             utterances.length === 0
                                 ? `No speech heard in ${args.path} (${info.duration} s). Saved an empty transcript: ${path}`
-                                : `Transcribed ${args.path} (${info.duration} s${parts > 1 ? `, ${parts} parts` : ""}) with ${model}: ${utterances.length} utterances, saved as ${path}\n\n${start}`,
+                                : `Transcribed ${args.path} (${info.duration} s${parts > 1 ? `, ${parts} parts` : ""}) with ${used}: ${utterances.length} utterances, saved as ${path}\n\n${start}`,
                     },
                 ],
-                details: plain({ model, transcript: { path, format, utterances: utterances.length, duration: info.duration, parts, lines: utterances.slice(0, 4).map((each) => ({ start: each.start, text: each.text.slice(0, 300) })) }, tokens }),
+                details: plain({ model: used, transcript: { path, format, utterances: utterances.length, duration: info.duration, parts, lines: utterances.slice(0, 4).map((each) => ({ start: each.start, text: each.text.slice(0, 300) })) }, tokens }),
             };
         },
     });

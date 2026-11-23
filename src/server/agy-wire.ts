@@ -71,6 +71,19 @@ export const AGY_TLS = {
 } as const satisfies https.AgentOptions;
 
 /**
+ * agy's gRPC ClientHello (grpc-go, its dictation to `aicode.googleapis.com`, measured 2026-11-23, PP-557): Go's, but only
+ * the AEAD cipher suites (no CBC) and ALPN `h2` alone. JA4 `t13d0912h2_f91f431d341e_f50d94e863eb`.
+ */
+export const AGY_GRPC_TLS = {
+    ...AGY_TLS,
+    ciphers: AGY_TLS.ciphers
+        .split(":")
+        .filter((cipher) => !cipher.endsWith("-SHA"))
+        .join(":"),
+    ALPNProtocols: ["h2"],
+} as const;
+
+/**
  * The agent agy's requests share: kept-alive connections as Go's transport keeps them, agy's TLS, no TLS resumption (Go
  * has no session cache unless given one), and the proxy the app is set to (Settings › Proxy, or the environment), as Go
  * reads `HTTPS_PROXY`.

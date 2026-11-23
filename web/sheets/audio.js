@@ -13,7 +13,10 @@ const DETAILS = {
     "whisper-1": "Older",
     "gpt-realtime-mini": "Fast",
     "gpt-realtime": "More natural, slower",
+    antigravity: "On its sign-in; hears the language itself",
 };
+/** Names people read for a model id, where the id is not one (PP-557). */
+const NAMES = { antigravity: "Google Antigravity" };
 
 export function AudioSheet() {
     const [state, setState] = useState(null);
@@ -32,7 +35,7 @@ export function AudioSheet() {
         });
     const options = (list, fallback) => [
         { value: "auto", label: t("Automatic"), detail: t("Now {model}", { model: fallback }) },
-        ...list.map((each) => ({ value: each, label: each, ...(DETAILS[each] === undefined ? {} : { detail: t(DETAILS[each]) }) })),
+        ...list.map((each) => ({ value: each, label: NAMES[each] === undefined ? each : t(NAMES[each]), ...(DETAILS[each] === undefined ? {} : { detail: t(DETAILS[each]) }) })),
     ];
     const voice = state?.voice ?? state?.defaults.voice;
     const sample = () => {

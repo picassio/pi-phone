@@ -10,6 +10,9 @@ export function DictationSheet() {
     // Who listens (PP-190): the phone's or browser's recognizer, or Codex on the owner's ChatGPT sign-in (Settings › Voice).
     const voice = store.state.server?.voice;
     const codex = voice?.settings.engine === "codex";
+    // Google Antigravity (PP-557): offered while it is signed in; picked, it says so even when signed out since.
+    const agy = voice?.settings.engine === "antigravity";
+    const android = !codex && !agy;
     const language = voice?.settings.language ?? "auto";
     // The mic in the message box (PP-384): the person's, on all their devices; Pi's `dictation.micButton`. Hidden until
     // turned on: a missing value is off.
@@ -38,11 +41,23 @@ export function DictationSheet() {
                 <div class="label">${t("Who listens")}</div>
                 <div class="assistant-choice">
                     <div class="segmented" role="group" aria-label=${t("Who listens")}>
-                        <button class=${codex ? "" : "on"} aria-pressed=${!codex} onClick=${() => attempt(() => api("settings", { voice: { engine: "android" } }))}>${t("Android's recognizer")}</button>
+                        <button class=${android ? "on" : ""} aria-pressed=${android} onClick=${() => attempt(() => api("settings", { voice: { engine: "android" } }))}>${t("Android's recognizer")}</button>
                         <button class=${codex ? "on" : ""} aria-pressed=${codex} onClick=${() => attempt(() => api("settings", { voice: { engine: "codex" } }))}>${t("Codex")}</button>
+                        ${
+                            (voice.antigravity || agy) &&
+                            html`<button class=${agy ? "on" : ""} aria-pressed=${agy} data-part="dictation-agy" onClick=${() => attempt(() => api("settings", { voice: { engine: "antigravity" } }))}>${t("Antigravity")}</button>`
+                        }
                     </div>
                     <p class="muted small">
-                        ${codex ? t("Codex ({model}) on your ChatGPT sign-in; audio goes to OpenAI.", { model: voice.settings.dictationModel }) : t("Free, as voice typing is. Codex is on your ChatGPT sign-in.")}
+                        ${
+                            codex
+                                ? t("Codex ({model}) on your ChatGPT sign-in; audio goes to OpenAI.", { model: voice.settings.dictationModel })
+                                : agy
+                                  ? voice.antigravity
+                                      ? t("Google Antigravity's dictation model on your Google sign-in, as agy dictates; audio goes to Google. It hears the language you speak.")
+                                      : t("Google Antigravity is not signed in: sign in in Settings › Providers, or pick another.")
+                                  : t("Free, as voice typing is. Codex is on your ChatGPT sign-in.")
+                        }
                         ${" "}
                         <button class="link small" onClick=${() => openSheet({ type: "voice" })}>${t("Voice settings")}</button>
                     </p>
@@ -59,7 +74,9 @@ export function DictationSheet() {
             />
             <p class="muted small">
                 ${
-                    language !== "auto"
+                    agy
+                        ? t("Google Antigravity hears the language you speak and takes no language setting. The same as Settings › Voice › Language for the others.")
+                        : language !== "auto"
                         ? t("The same as Settings › Voice › Language: one setting for Voice and dictation.")
                         : codex
                           ? t("Codex hears the language you speak, mixed languages too. The same as Settings › Voice › Language.")

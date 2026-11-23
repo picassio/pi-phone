@@ -12,6 +12,8 @@ const STUBS: Record<string, string> = {
     "./store.js": `export const notify = () => {}; export const store = { state: { me: null, server: null } };`,
     // Codex dictation (PP-190): not this test's; the browser's recognizer listens.
     "./codex-dictation.js": `export class CodexRecognition {}`,
+    // Google Antigravity's dictation (PP-557): not this test's either.
+    "./agy-dictation.js": `export class AgyRecognition {}`,
     "./ui.js": `export const html = () => null; export const Icon = () => null;`,
     "./android-speech.js": `export const dictationLanguage = () => "vi-VN";`,
     // The app's words in English, as written: no catalog to fetch, no page to set the language on.

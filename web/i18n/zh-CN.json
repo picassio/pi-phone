@@ -4026,5 +4026,14 @@
     "https://example.com/mcp": "https://example.com/mcp",
     "${NAME}": "${NAME}",
     "http://127.0.0.1:…/callback?code=…": "http://127.0.0.1:…/callback?code=…",
-    "tool_search": "tool_search"
+    "tool_search": "tool_search",
+    "Google Antigravity's dictation stopped.": "Google Antigravity 的语音输入已停止。",
+    "Antigravity": "Antigravity",
+    "Google Antigravity's dictation model on your Google sign-in, as agy dictates; audio goes to Google. It hears the language you speak.": "使用你的 Google 登录的 Google Antigravity 听写模型，和 agy 的听写一样；音频发往 Google。它会自己识别你说的语言。",
+    "Google Antigravity is not signed in: sign in in Settings › Providers, or pick another.": "Google Antigravity 未登录：请在 设置 › 提供方 中登录，或选择其他方式。",
+    "Google Antigravity hears the language you speak and takes no language setting. The same as Settings › Voice › Language for the others.": "Google Antigravity 会自己识别你说的语言，不使用语言设置。其他方式使用 设置 › 语音 › 语言。",
+    "On its sign-in; hears the language itself": "使用其登录；自动识别语言",
+    "Google Antigravity": "Google Antigravity",
+    "on your Google Antigravity plan": "计入你的 Google Antigravity 套餐",
+    "Google Antigravity sign-in": "Google Antigravity 登录"
 }

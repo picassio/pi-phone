@@ -4006,5 +4006,14 @@
     "https://example.com/mcp": "https://example.com/mcp",
     "${NAME}": "${NAME}",
     "http://127.0.0.1:…/callback?code=…": "http://127.0.0.1:…/callback?code=…",
-    "tool_search": "tool_search"
+    "tool_search": "tool_search",
+    "Google Antigravity's dictation stopped.": "Nhập bằng giọng nói của Google Antigravity đã dừng.",
+    "Antigravity": "Antigravity",
+    "Google Antigravity's dictation model on your Google sign-in, as agy dictates; audio goes to Google. It hears the language you speak.": "Mô hình nhập bằng giọng nói của Google Antigravity qua đăng nhập Google của bạn, như agy làm; âm thanh gửi tới Google. Nó tự nhận ra ngôn ngữ bạn nói.",
+    "Google Antigravity is not signed in: sign in in Settings › Providers, or pick another.": "Google Antigravity chưa đăng nhập: đăng nhập ở Cài đặt › Nhà cung cấp, hoặc chọn cách khác.",
+    "Google Antigravity hears the language you speak and takes no language setting. The same as Settings › Voice › Language for the others.": "Google Antigravity tự nhận ra ngôn ngữ bạn nói và không dùng cài đặt ngôn ngữ. Với các cách khác, đây là Cài đặt › Giọng nói › Ngôn ngữ.",
+    "On its sign-in; hears the language itself": "Qua đăng nhập của nó; tự nhận ra ngôn ngữ",
+    "Google Antigravity": "Google Antigravity",
+    "on your Google Antigravity plan": "tính vào gói Google Antigravity của bạn",
+    "Google Antigravity sign-in": "Đăng nhập Google Antigravity"
 }
