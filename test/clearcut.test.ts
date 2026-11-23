@@ -55,6 +55,13 @@ describe("Clearcut telemetry", () => {
     });
 
     describe("ClearcutClient", () => {
+        // Mock send function that returns proper WireResponse
+        const mockSend = (statusCode = 200) => async () => ({
+            status: statusCode,
+            headers: new Headers(),
+            body: (async function* () {})(),
+        });
+
         it("skips send when not signed in", async () => {
             const logs: string[] = [];
             const client = new ClearcutClient({
@@ -74,7 +81,7 @@ describe("Clearcut telemetry", () => {
             const client = new ClearcutClient({
                 send: async (url, init) => {
                     capturedRequest = { url, headers: init.headers ?? {}, body: init.body ?? "" };
-                    return { status: 200, headers: {}, body: (async function* () {})() };
+                    return { status: 200, headers: new Headers(), body: (async function* () {})() };
                 },
                 auth: async () => ({ token: "test-token-123" }),
                 platform: { osType: "linux", arch: "amd64" },
@@ -98,7 +105,7 @@ describe("Clearcut telemetry", () => {
             const client = new ClearcutClient({
                 send: async () => {
                     sendCount++;
-                    return { status: 200, headers: {}, body: (async function* () {})() };
+                    return { status: 200, headers: new Headers(), body: (async function* () {})() };
                 },
                 auth: async () => ({ token: "test-token" }),
                 log: () => {},
@@ -119,7 +126,7 @@ describe("Clearcut telemetry", () => {
             const client = new ClearcutClient({
                 send: async () => {
                     sendCount++;
-                    return { status: 200, headers: {}, body: (async function* () {})() };
+                    return { status: 200, headers: new Headers(), body: (async function* () {})() };
                 },
                 auth: async () => ({ token: "test-token" }),
                 log: (line) => logs.push(line),
@@ -156,7 +163,7 @@ describe("Clearcut telemetry", () => {
         it("logs non-200 status", async () => {
             const logs: string[] = [];
             const client = new ClearcutClient({
-                send: async () => ({ status: 403, headers: {}, body: (async function* () {})() }),
+                send: async () => ({ status: 403, headers: new Headers(), body: (async function* () {})() }),
                 auth: async () => ({ token: "test-token" }),
                 log: (line) => logs.push(line),
             });
