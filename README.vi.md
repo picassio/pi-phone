@@ -200,6 +200,14 @@ dự án thật.</sub>
   cảnh, đầu ra tối đa, nhận hình ảnh và suy luận. Các mô hình của nó xuất hiện trong mọi bộ chọn mô hình. Khóa được lưu
   trong Bí mật: cấu hình mô hình của Pi chỉ ghi tên của nó. Sau này có thể sửa hoặc xóa ở đó; Pi cũng làm được, qua một
   thẻ duyệt, nhưng khóa luôn do bạn gõ.
+- **Google Antigravity, tự chịu rủi ro.** Nhà cung cấp › **Google Antigravity** › **Đăng nhập bằng Google**: mở trang
+  đăng nhập, đăng nhập tài khoản Google, rồi dán mã mà trang Antigravity hiện ra vào thẻ. Không cần app hay máy nào
+  khác: pi-phone đăng nhập giống cách CLI `agy` của Google đăng nhập trên máy không có trình duyệt, tự thiết lập project
+  Antigravity cho tài khoản mới chưa có, và gửi yêu cầu Antigravity đúng như agy gửi (máy chủ, header và dạng yêu cầu), tự
+  gia hạn token. Mô hình là những mô hình `agy models` liệt kê, mỗi dòng một mô hình (Gemini, Claude, GPT-OSS), các mức
+  effort của agy là mức suy nghĩ; gọi công cụ, suy nghĩ và hình ảnh đều dùng được. Điều khoản của Google cấm client bên
+  thứ ba và đang có tài khoản bị khoá vì việc này: bị khoá là mất cả Antigravity, Gemini CLI và Code Assist, chỉ kháng
+  cáo được một lần. Nó không gửi gì cho tới khi bạn đăng nhập; **Đăng xuất** để ngắt.
 - **Mô hình yêu thích.** Nhà cung cấp › **Mô hình yêu thích** liệt kê mọi mô hình bạn chọn được, mỗi cái có một ngôi sao:
   mô hình gắn sao đứng ngay sau mô hình hiện tại trong bộ chọn mô hình, và bộ chọn có bộ lọc **Yêu thích**. Sao là của bạn,
   trên mọi thiết bị; chúng không cho phép gì (mô hình của subagent nằm ở Menu › Subagent). Pi thấy chúng trong công cụ
@@ -1074,6 +1082,7 @@ hiện tại và giá trị mới. Hỏi “bạn đổi được những gì?�
 | Cái gì | Ở đâu | Nhờ Pi? |
 |---|---|---|
 | Nhà cung cấp mô hình (Claude, Codex, Copilot, OpenRouter, …) | **Nhà cung cấp**: đăng nhập, hoặc **Khóa API**; **Thêm tài khoản** cho tài khoản thứ hai | Không với việc đăng nhập, đó là việc của bạn. Có với việc gỡ một tài khoản phụ hoặc đăng xuất |
+| Google Antigravity (tự chịu rủi ro: Google có thể khoá tài khoản) | **Nhà cung cấp › Google Antigravity › Đăng nhập bằng Google**: dán mã trang của nó hiện ra; **Đăng xuất** | Không với việc đăng nhập, đó là việc của bạn. Có với việc đăng xuất |
 | Máy chủ tương thích OpenAI (LM Studio, Ollama, vLLM, một proxy) | **Nhà cung cấp › Thêm nhà cung cấp tương thích OpenAI**: tên, URL gốc, khóa (lưu trong Bí mật) hoặc không có, header, **Tìm mô hình** | “Thêm LM Studio của tôi ở http://192.168.1.20:1234/v1 với qwen3-coder”. Pi nhờ bạn gõ khóa trên thẻ bí mật |
 | Mô hình mặc định cho phiên mới | **Mô hình mặc định** | “Đặt mô hình mặc định là anthropic/claude-opus-… high” |
 | Chờ hạn mức của nhà cung cấp | **Nhà cung cấp › Chờ hạn mức**: thời gian chờ lâu nhất, và thông báo khi chờ lâu; **Thử lại ngay**, **Dừng** và thẻ tài khoản của một phiên đang chờ | “Chờ hạn mức tối đa 12 giờ”, “Thử lại phiên 12 ngay”, “Chuyển phiên 12 sang tài khoản Work” |
@@ -1162,6 +1171,8 @@ pi-phone phần lớn là công sức của người khác, được ghép lại
   PARA, công cụ và ngữ cảnh của nó, cùng tìm kiếm.
 - **[pi-cc-patch](https://github.com/picassio/pi-cc-patch)** (MIT): phép biến đổi tính phí Claude Code, được chuyển sang
   `src/server/cc-patch.ts` cùng các test của nó.
+- **[pi-mono](https://github.com/badlogic/pi-mono)** v0.70.6 (MIT): provider Cloud Code Assist (`google-gemini-cli.ts`) và
+  OAuth client Antigravity của nó, nền của `src/server/antigravity.ts`.
 - **[pi-codex-imagegen](https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-codex-imagegen)** của
   Igor Warzocha (MIT, Copyright (c) 2026 Igor Warzocha): đường ChatGPT (Codex) của `image_generate`, endpoint hình ảnh,
   yêu cầu và header của nó, được chuyển sang `src/server/image-gen.ts`; xem `third_party/pi-codex-imagegen/`.

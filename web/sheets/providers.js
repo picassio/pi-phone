@@ -339,6 +339,7 @@ export function ProvidersSheet() {
                             html`<div class="muted small mono provider-why">${provider.needsSignIn}</div>`
                         }
                         ${provider.configured && html`<${UsageBars} provider=${provider.id} />`}
+                        ${provider.id === AGY && html`<${AgyRisk} />`}
                         ${adding === provider.id && nameField(() => addAccount(provider), t("New account's name"))}
                         ${
                             addingTeam === provider.id &&
@@ -361,7 +362,7 @@ export function ProvidersSheet() {
                                     class="button small"
                                     onClick=${(event) => login(provider, "oauth", event.currentTarget)}
                                 >
-                                    ${provider.oauth}
+                                    ${provider.id === AGY ? t("Sign in with Google") : provider.oauth}
                                 </button>`
                             }
                             ${
@@ -406,6 +407,16 @@ export function ProvidersSheet() {
             )}
         </div>
     <//>`;
+}
+
+/** Google Antigravity, signed in as Google's agy CLI signs in (src/server/antigravity.ts, PP-555). */
+const AGY = "google-antigravity";
+
+/** What signing in to Google Antigravity risks, on its row whether signed in or not. */
+function AgyRisk() {
+    const risk = t("Google's terms forbid third-party clients of Antigravity, and accounts are being suspended for it. A suspension closes Antigravity, Gemini CLI and Code Assist together, with one appeal. Connect only an account you accept to lose.");
+
+    return html`<p class="pv-team-warn small"><b>${t("Google may suspend this account.")}</b> ${risk}</p>`;
 }
 
 /**

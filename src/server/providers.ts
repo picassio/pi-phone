@@ -13,6 +13,7 @@
 import { randomUUID } from "node:crypto";
 import type { AuthPrompt } from "@earendil-works/pi-ai";
 import type { ModelRef } from "@earendil-works/pi-durable";
+import { AGY_NAME, AGY_PROVIDER } from "./antigravity.ts";
 import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
 import { describe, HttpError } from "./errors.ts";
@@ -335,10 +336,8 @@ export class Providers {
             })
             .then(
                 async () => {
-                    await app.models.getAvailable().catch(() => []);
-                    this.#signedInOrOut(providerId);
+                    await this.#signedIn(providerId);
                     send({ step: "done", ok: true });
-                    this.#changed();
                 },
                 (error: unknown) =>
                     send({
@@ -355,6 +354,27 @@ export class Providers {
             .finally(() => this.#flows.delete(flow.id));
 
         return flow.id;
+    }
+
+    /**
+     * A sign-in that worked: Pi checks it, and a provider whose models come from its own list (Google Antigravity's,
+     * PP-555) gets them now, as Pi asks only its cache at a sign-in.
+     */
+    async #signedIn(providerId: string): Promise<void> {
+        const models = this.#app.models;
+
+        if (providerId === AGY_PROVIDER) {
+            const refreshed = await models.refresh({ providers: [providerId], allowNetwork: true, force: true });
+            const failed = refreshed.errors.get(providerId);
+
+            if (failed !== undefined) {
+                this.#app.log(`${AGY_NAME}: models not loaded after signing in: ${describe(failed)}`);
+            }
+        }
+
+        await models.getAvailable().catch(() => []);
+        this.#signedInOrOut(providerId);
+        this.#changed();
     }
 
     answerLogin(user: User, flowId: string, promptId: string, value: string | undefined): void {

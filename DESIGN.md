@@ -152,6 +152,43 @@ so Pi changes them through the settings tools; "the last session" is the one the
   the one pi-ai's user-agent reports (`CLAUDE_CODE_VERSION`, raised with each Pi update that raises pi-ai's): an older
   stored one is raised when read, and the team server raises an older phone's the same way (PP-510). A billed Anthropic
   call is sent whole, never as a thread continuation, which would leave out the billing header.
+- **Google Antigravity** (PP-555, `src/server/antigravity.ts`; the owner's decision of 2026-11-23, personal use, the
+  risk of a suspended Google account accepted): a native provider `google-antigravity` ("Google Antigravity")
+  registered as the app opens, after the accounts. It has no models and sends nothing until the owner signs in. **Sign
+  in with Google** (`loginLabel`) is the sign-in Google's `agy` CLI does on a machine with no browser, through the
+  Providers sign-in card as other OAuth providers: the risk (an `info` event), Google's consent page (an `auth_url`
+  event: `accounts.google.com/o/oauth2/auth` with agy's OAuth client, the one pi-mono v0.70.6 ships, base64 as it keeps
+  it; PKCE S256 from a 32-byte verifier, a 16-byte state, `access_type=offline`, `prompt=consent`, agy's seven scopes,
+  `redirect_uri=https://antigravity.google/oauth-callback`, the parameters in Go's order), then a `manual_code` prompt
+  for the code that page shows (or the page's whole address, whose state must match). The code is traded at
+  `oauth2.googleapis.com/token` as agy's Go client trades it (`authorization_code` with the verifier, the form by name,
+  `User-Agent: Go-http-client/1.1`); the email comes from the ID token. The project: `loadCodeAssist` with
+  `{metadata:{ideType:"ANTIGRAVITY"}}`; an account with none gets `onboardUser` on its default tier (`free-tier` when
+  none is marked), and the long-running operation is asked again (`GET v1internal/<name>`, every 5 s, 2 minutes at
+  most) until it is done with the project; a tier that needs a Cloud project of the owner's own (Workspace) is refused
+  with its reason. The credential (Pi's `auth.json`, as other OAuth sign-ins) keeps the tokens, the project, the email,
+  and the `os_type`/`arch` (this server's, in Go's names; Android as linux) and `auth_method` (`consumer`) for the
+  User-Agent. Renewal is agy's too: the refresh token at the same endpoint. The code, the verifier and the tokens are
+  never in an event, a log line or an error message.
+  **Requests** go from this server with undici's `request` on the app's dispatcher (not `fetch`, which adds `accept`,
+  `accept-language` and `sec-fetch-mode`; undici still writes `connection: keep-alive`, which Go leaves out): `https://daily-cloudcode-pa.googleapis.com/v1internal:*`, headers `User-Agent: antigravity/cli/<AGY_VERSION>
+  (aidev_client; os_type=…; arch=…; cl=<AGY_BUILD>; auth_method=…)`, `Authorization`, `Content-Type`, `Accept-Encoding:
+  gzip`, and agy's envelope: `project`, `requestId` `agent/<cascade>/<ms>/<trajectory>/<step+1>`, `request.labels`,
+  `request.sessionId` (a 63-bit number), `model` (agy's id with its effort), `userAgent: "antigravity"`, `requestType:
+  "agent"`; cascade and trajectory are UUIDs made stable from the session id and its turn. `generationConfig` is agy's
+  for that model: its `maxOutputTokens`, and `thinkingConfig` with `thinkingLevel` LOW/MEDIUM/HIGH (or the number agy
+  sends, 100 for xhigh) or `thinkingBudget` (GPT-OSS); pi's `temperature`, `maxTokens` and request headers are not sent,
+  as agy sends none. Contents, tools (`parameters` for Claude, `parametersJsonSchema` otherwise), tool results with
+  pictures and thought signatures are pi-ai's Google conversion (`api/google-shared`); the SSE stream is read as
+  pi-ai's Google adapter reads it. **Models** are `fetchAvailableModels`' (what `agy models` lists:
+  `agentModelSorts`, disabled ones left out), fetched by the provider's `fetchModels` in Pi's model refresh and once
+  after signing in: one model per `groupedModels` family (`gemini-4-neon`, `claude-opus-5-5`, …) whose efforts are its
+  thinking levels (`thinkingLevelMap` low/medium/high/xhigh, off and minimal unsupported), the others as they are
+  (`gpt-oss-120b-medium`, the orchestrators). The answer is also the catalog each request reads its model's settings
+  from, asked again once after a restart. What agy sends besides (Clearcut logs, experiments, quota) is not imitated.
+  Providers shows the risk on its row (`AgyRisk`): Google's terms forbid third-party clients, accounts are being
+  suspended, a suspension closes Antigravity, Gemini CLI and Code Assist with one appeal. Fingerprint and how it was
+  captured: wiki `resources/antigravity-agy-fingerprint`.
 - **GitHub sign-in** (`src/server/github-login.ts`, `web/sheets/github.js`): GitHub's device flow with `gh`'s own
   OAuth app; the token goes to `gh auth login --with-token`, then `gh auth setup-git`. The agent's `git` and `gh`
   use it for private repositories; it lives in the app's home folder, where the agent can read it.

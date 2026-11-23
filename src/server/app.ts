@@ -12,6 +12,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { promisify } from "node:util";
 import { sshArguments } from "@earendil-works/pi-env";
 import { Accounts, baseProvider, isTeamAccount } from "./accounts.ts";
+import { type AgyOptions, antigravityProvider } from "./antigravity.ts";
 import { CustomProviders, NO_KEY } from "./custom-providers.ts";
 import { ImageGen, type ImageGenOptions } from "./image-gen.ts";
 import { JEV_ID, JevModels } from "./jev.ts";
@@ -453,6 +454,8 @@ export interface OpenOptions {
     usageFetch?: typeof fetch;
     /** The providers that may have more accounts, and how to make each (`accounts.ts`); tests use their scripted one. */
     accountProviders?: ConstructorParameters<typeof Accounts>[2];
+    /** Google Antigravity, signed in as agy signs in (`antigravity.ts`, PP-555): tests answer for Google. */
+    antigravity?: Partial<AgyOptions>;
     /** The clock durable work runs by, such as scheduled messages. Tests move it ahead. */
     now?: () => number;
     /** The home folder, whose `.agents/skills/` every session has. Undefined is Pi's: `$HOME`. Tests use their own. */
@@ -773,6 +776,7 @@ export class PocketApp {
     #openingStorage: Awaited<ReturnType<typeof openNodeSqliteStorage>> | undefined;
     readonly #log: (line: string) => void;
     readonly #configureModels: ((models: ModelRuntime) => void) | undefined;
+    readonly #antigravity: Partial<AgyOptions>;
     readonly #home: string;
     readonly #tempFolders: readonly string[];
     /** The clock durable work runs by. */
@@ -780,6 +784,7 @@ export class PocketApp {
 
     private constructor(options: OpenOptions) {
         this.#configureModels = options.configureModels;
+        this.#antigravity = options.antigravity ?? {};
         this.#home = options.home ?? (process.env.HOME || homedir());
         this.#tempFolders = options.tempFolders ?? phoneTempFolders(this.#home);
         this.now = options.now ?? Date.now;
@@ -1279,6 +1284,8 @@ export class PocketApp {
         this.#configureModels?.(this.models);
         // Before anything reads the models: sessions on an account's models resume with it there.
         this.accounts.registerAll();
+        // Google Antigravity (PP-555): listed in Providers, and nothing is sent until the owner signs in.
+        this.models.registerNativeProvider(antigravityProvider(this.#antigravity));
         // And the OpenAI-compatible providers' keys, from the secrets (PP-248): again whenever the secrets change.
         await this.customProviders.sync();
         this.secrets.onChange(() => void this.customProviders.sync().catch((error: unknown) => this.log(`custom providers: ${describe(error)}`)));

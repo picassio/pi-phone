@@ -142,6 +142,12 @@
   API 密钥（本地服务器可以不填）以及额外请求头。**查找模型**会询问服务器的 `/models`，你勾选需要的模型，或直接输入 ID；每个模型可设上下文窗口、
   最大输出、图片输入和推理。它的模型会出现在所有模型选择器中。密钥保存在密钥中：Pi 的模型配置里只写它的名称。之后可在那里编辑或移除；
   Pi 也可以通过确认卡片操作，但密钥始终由你输入。
+- **Google Antigravity，风险自负。** 提供方 › **Google Antigravity** › **使用 Google 登录**：打开登录页面，用你的 Google 账号登录，
+  再把 Antigravity 页面显示的代码粘贴到卡片中。不需要其他应用或机器：pi-phone 按 Google `agy` CLI 在没有浏览器的机器上的方式登录，
+  为还没有项目的新账号设置 Antigravity 项目，并按 agy 的方式发送 Antigravity 请求（主机、请求头和请求格式），自行续期令牌。
+  模型就是 `agy models` 列出的那些，每个系列一个（Gemini、Claude、GPT-OSS），agy 的强度档位作为思考级别；工具调用、思考和图片都可用。
+  Google 的条款禁止第三方客户端，已有账号因此被封：封禁会同时关闭 Antigravity、Gemini CLI 和 Code Assist，只能申诉一次。
+  在你登录之前它不发送任何内容；**退出登录**即可退出。
 - **收藏的模型。** 提供方 › **收藏的模型** 列出你能选的每个模型，各带一颗星：加星的模型在模型选择器中紧跟当前模型，
   选择器还有 **收藏** 筛选。星标属于你，在所有设备上一致；它不授予任何权限（子代理的模型在菜单 › 子代理中）。Pi 在 `models`
   工具中看到它们（`favorites: true` 只列出它们），并通过卡片修改（`models.favorites`）。
@@ -678,6 +684,7 @@ Pi 会在对话里放一张带 **打开** 按钮的卡片；不点按就不会�
 | 内容 | 位置 | 能让 Pi 来做吗？ |
 |---|---|---|
 | 模型提供方（Claude、Codex、Copilot、OpenRouter 等） | **提供方**：登录，或填写 **API 密钥**；用 **添加账号** 添加第二个账号 | 登录不行，必须你自己来。移除多余账号或退出登录可以 |
+| Google Antigravity（风险自负：Google 可能封禁账号） | **提供方 › Google Antigravity › 使用 Google 登录**：粘贴其页面显示的代码；**退出登录** | 登录不行，必须你自己来。退出登录可以 |
 | OpenAI 兼容服务器（LM Studio、Ollama、vLLM、代理） | **提供方 › 添加 OpenAI 兼容提供方**：名称、基础 URL、密钥（保存在密钥中）或不填、请求头、**查找模型** | “添加我在 http://192.168.1.20:1234/v1 的 LM Studio，用 qwen3-coder”。Pi 会请你在密钥卡片上输入密钥 |
 | 新会话的默认模型 | **默认模型** | “把默认模型设为 anthropic/claude-opus-… high” |
 | 等待提供方额度恢复 | **提供方 › 等待额度恢复**：最长等待时间和长时间等待的通知；等待中会话的 **立即重试**、**停止** 和账号卡片 | “额度最多等 12 小时”“让会话 12 立即重试”“把会话 12 改用 Work 账号” |
@@ -773,6 +780,7 @@ pi-phone 大部分是别人的成果，只是为手机把它们组合在了一�
 - **[pi-para](https://github.com/picassio/pi-para)** 和 **[qmd-engine](https://github.com/picassio/qmd-1)**（MIT）：PARA 知识库及其工具、
   上下文和搜索。
 - **[pi-cc-patch](https://github.com/picassio/pi-cc-patch)**（MIT）：Claude Code 计费转换，连同测试一起移植到 `src/server/cc-patch.ts`。
+- **[pi-mono](https://github.com/badlogic/pi-mono)** v0.70.6（MIT）：其 Cloud Code Assist 提供方（`google-gemini-cli.ts`）和 Antigravity OAuth 客户端，是 `src/server/antigravity.ts` 的基础。
 - **[pi-codex-imagegen](https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-codex-imagegen)**，作者
   Igor Warzocha（MIT，Copyright (c) 2026 Igor Warzocha）：`image_generate` 的 ChatGPT（Codex）路线、其图片端点、请求和请求头，
   移植到 `src/server/image-gen.ts`；见 `third_party/pi-codex-imagegen/`。

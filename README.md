@@ -197,6 +197,14 @@ No Termux, no laptop, no cloud VM.
   models** asks the server's `/models` and you tick the ones you want, or type ids; each takes a context window, the
   most output, image input and reasoning. Its models join every model picker. The key is kept in Secrets: Pi's model
   configuration only names it. Edit or remove it there later; Pi can too, on a card, but the key is always yours to type.
+- **Google Antigravity, at your own risk.** Providers › **Google Antigravity** › **Sign in with Google**: open the
+  sign-in page, sign in with your Google account, and paste the code Antigravity's page then shows into the card. No
+  other app or machine is needed: pi-phone signs in the way Google's `agy` CLI does on a machine with no browser, sets
+  up a new account's Antigravity project when it has none, and sends Antigravity's requests the way agy does (its host,
+  headers and request shape), renewing the token itself. Its models are the ones `agy models` lists, one per family
+  (Gemini, Claude, GPT-OSS) with agy's efforts as thinking levels; tool calls, thinking and pictures work. Google's
+  terms forbid third-party clients and accounts are being suspended for it: a suspension closes Antigravity, Gemini CLI
+  and Code Assist, with one appeal. It sends nothing until you sign in; **Log out** signs it out.
 - **Favorite models.** Providers › **Favorite models** lists every model you can pick, each with a star: a starred
   model comes right after the current one in your model picker, which gets a **Favorites** filter. Stars are yours, on
   every device; they allow nothing (subagents' models are in Menu › Subagents). Pi sees them in its `models` tool
@@ -1053,6 +1061,7 @@ and the new one. Ask "what can you change?" and Pi lists every setting with its 
 |---|---|---|
 | Model providers (Claude, Codex, Copilot, OpenRouter, …) | **Providers**: sign in, or **API key**; **Add account** for a second one | No for signing in, which is yours. Yes for removing an extra account or signing out |
 | An OpenAI-compatible server (LM Studio, Ollama, vLLM, a proxy) | **Providers › Add an OpenAI-compatible provider**: name, base URL, key (kept in Secrets) or none, headers, **Find models** | "Add my LM Studio at http://192.168.1.20:1234/v1 with qwen3-coder". Pi asks you to type the key on a secret card |
+| Google Antigravity (your own risk: Google may suspend the account) | **Providers › Google Antigravity › Sign in with Google**: paste the code its page shows; **Log out** | No for signing in, which is yours. Yes for signing out |
 | Default model for new sessions | **Default model** | "Set the default model to anthropic/claude-opus-… high" |
 | Waiting for a provider's limit | **Providers › Wait for a limit**: the longest wait, and the notice of a long one; a waiting session's **Retry now**, **Stop**, and its account card | "Wait at most 12 hours for limits", "Retry session 12 now", "Move session 12 to the Work account" |
 | GitHub for Pi's `git` and `gh` | **GitHub**: a device code | No for signing in. Yes for signing out |
@@ -1140,6 +1149,8 @@ pi-phone is mostly other people's work, put together for a phone. Thank you to e
   PARA wiki, its tools and context, and its search.
 - **[pi-cc-patch](https://github.com/picassio/pi-cc-patch)** (MIT): the Claude Code billing transform, ported to
   `src/server/cc-patch.ts` with its tests.
+- **[pi-mono](https://github.com/badlogic/pi-mono)** v0.70.6 (MIT): its Cloud Code Assist provider (`google-gemini-cli.ts`)
+  and Antigravity OAuth client, the base of `src/server/antigravity.ts`.
 - **[pi-codex-imagegen](https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-codex-imagegen)** by
   Igor Warzocha (MIT, Copyright (c) 2026 Igor Warzocha): `image_generate`'s ChatGPT (Codex) route, its images
   endpoint, request and headers, ported to `src/server/image-gen.ts`; see `third_party/pi-codex-imagegen/`.
