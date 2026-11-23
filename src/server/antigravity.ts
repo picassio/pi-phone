@@ -52,7 +52,9 @@ import {
 } from "@earendil-works/pi-ai/api/google-shared";
 import { retryProviderRequest } from "@earendil-works/pi-ai/utils/provider-retry";
 import { sanitizeSurrogates } from "@earendil-works/pi-ai/utils/sanitize-unicode";
-import { AgyBackground, type AgyRead, agyTransport, goHeaders, type WireRequest, type WireResponse } from "./agy-wire.ts";
+import { AgyBackground, type AgyRead, goHeaders, type WireRequest, type WireResponse } from "./agy-wire.ts";
+import { agyTlsTransport } from "./agy-tls-proxy.ts";
+import { APP_ROOT } from "./config.ts";
 import { ClearcutClient } from "./antigravity-clearcut.ts";
 
 export const AGY_PROVIDER = "google-antigravity";
@@ -480,7 +482,7 @@ export function antigravityProvider(options: AgyOptions = {}): Provider {
 
 /** The provider, and agy's background reads for its accounts (the usage bars read the quota from them). */
 export function antigravity(options: AgyOptions = {}): { provider: Provider; background: AgyBackground<AgyAuth>; clearcut: ClearcutClient } {
-    const send = options.send ?? agyTransport();
+    const send = options.send ?? agyTlsTransport(APP_ROOT);
     const now = options.now ?? Date.now;
     const sleep = options.sleep ?? sleepFor;
     /** The last model list Google gave, for each request's model and settings; asked once after a start. */
