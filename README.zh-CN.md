@@ -144,8 +144,8 @@
   Pi 也可以通过确认卡片操作，但密钥始终由你输入。
 - **Google Antigravity，风险自负。** 提供方 › **Google Antigravity** › **使用 Google 登录**：打开登录页面，用你的 Google 账号登录，
   再把 Antigravity 页面显示的代码粘贴到卡片中。不需要其他应用或机器：pi-phone 按 Google `agy` CLI 在没有浏览器的机器上的方式登录，
-  为还没有项目的新账号设置 Antigravity 项目，并按 agy 的方式发送 Antigravity 请求（主机、按 Go 顺序的请求头、HTTP/1.1、在 Node 允许范围内尽量接近
-  agy 的 TLS 握手，以及请求格式），自行续期令牌。使用期间，它还按 agy 的节奏进行 agy 的后台读取（配置、项目、模型和额度），从不发送 agy 的遥测数据。
+  为还没有项目的新账号设置 Antigravity 项目，并按 agy 的方式发送 Antigravity 请求（主机、按 Go 顺序的请求头、HTTP/1.1、通过应用自带的小型 Go 程序
+  实现与 agy 相同的 TLS 握手（没有该程序时在 Node 允许范围内尽量接近），以及请求格式），自行续期令牌。使用期间，它还按 agy 的节奏进行 agy 的后台读取（配置、项目、模型和额度），从不发送 agy 的遥测数据。
   模型就是 `agy models` 列出的那些，每个系列一个（Gemini、Claude、GPT-OSS），agy 的强度档位作为思考级别；工具调用、思考和图片都可用。
   Google 的条款禁止第三方客户端，已有账号因此被封：封禁会同时关闭 Antigravity、Gemini CLI 和 Code Assist，只能申诉一次。
   在你登录之前它不发送任何内容；**退出登录**即可退出。登录后它还能像 agy 一样生成图片（菜单 › 图片）、转写文件（菜单 › 音频）

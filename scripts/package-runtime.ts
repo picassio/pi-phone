@@ -57,6 +57,11 @@ for (const program of ["ffmpeg", "ffprobe"]) {
     }
 }
 
+// Antigravity's Go TLS program for Android (PP-559, scripts/build-agy-tls.sh), built before packaging: not in git.
+if (!existsSync(join(ROOT, "native", "android-arm64", "agy-tls", "agy-tls"))) {
+    throw new Error("native/android-arm64/agy-tls is not built: run bash scripts/build-agy-tls.sh android-arm64 first.");
+}
+
 // markit's engine for Android (`fetch_content`, attachments): npm installs it only when told the platform is Android.
 if (!existsSync(join(ROOT, "node_modules", "markit-engine-android-arm64", "markit.android-arm64.node"))) {
     throw new Error("markit-engine-android-arm64 is not in node_modules: install with npm ci --os=android --cpu=arm64.");

@@ -8,6 +8,13 @@ ARG NODE_IMAGE=node:26.12.0-trixie-slim
 # A Debian mirror near the builder (http://debian.xtdv.net/debian in Vietnam, where deb.debian.org gives ~100 KB/s).
 ARG DEBIAN_MIRROR=http://deb.debian.org/debian
 
+# ─── Antigravity's Go TLS program (PP-559: native/agy-tls, scripts/build-agy-tls.sh) for the image's platform. ───
+FROM golang:1.27-trixie AS agy-tls
+WORKDIR /app
+COPY native/agy-tls ./native/agy-tls
+COPY scripts/build-agy-tls.sh ./scripts/
+RUN bash scripts/build-agy-tls.sh "linux-$(dpkg --print-architecture | sed 's/amd64/x64/')" && chmod -R a+rX native
+
 # ─── Build: the Intelligent UI frame (dev dependencies), the pinned tools, then production dependencies only. Everything
 # readable by all (the run stage runs as `node`), whatever modes the build context had. ───
 FROM ${NODE_IMAGE} AS build
@@ -55,6 +62,7 @@ COPY --from=build /app/package.json /app/DESIGN.md /app/AGENTS.md ./
 COPY --from=build /app/src ./src
 COPY --from=build /app/web ./web
 COPY --from=build /app/native ./native
+COPY --from=agy-tls /app/native/ ./native/
 COPY --from=build /app/third_party ./third_party
 COPY --from=build /app/whatsnew ./whatsnew
 COPY --from=build /app/node_modules ./node_modules

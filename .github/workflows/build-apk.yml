@@ -39,6 +39,12 @@ jobs:
           path: native/linux-x64/tlc
           key: tlc-linux-x64-${{ hashFiles('src/server/machine-tools.ts') }}
       - run: test -x native/linux-x64/tlc/bin/java || node scripts/server-tools.ts linux-x64 tlc
+      # Antigravity's Go TLS program (PP-559): its tests run the server edition's build.
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.x'
+          cache: false
+      - run: bash scripts/build-agy-tls.sh linux-x64
       # The UI tests drive the runner's Chrome; its sandbox needs unprivileged user namespaces, which Ubuntu 24.04
       # restricts through AppArmor.
       - name: Allow Chrome's sandbox
@@ -118,6 +124,13 @@ jobs:
         run: |
           sdkmanager 'ndk;27.2.12479018'
           ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018" bash scripts/build-ffmpeg-android.sh native/android-arm64/ffmpeg
+      # Antigravity's Go TLS program for the phone (PP-559), built from native/agy-tls, never committed.
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.x'
+          cache: false
+      - name: agy-tls for Android
+        run: bash scripts/build-agy-tls.sh android-arm64
       - name: Server dependencies for Android arm64, no lifecycle scripts
         run: npm ci --omit=dev --ignore-scripts --os=android --cpu=arm64
       - name: Server runtime

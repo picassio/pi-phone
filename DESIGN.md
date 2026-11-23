@@ -203,9 +203,27 @@ so Pi changes them through the settings tools; "the last session" is the one the
   the EC point formats are three instead of Go's one (the phone's OpenSSL 3.6 sends one, as Go). So JA4 is
   `t13d1311h1_f57a46bbacb6_3ff081f16b5f` against agy's `t13d1312h1_f57a46bbacb6_f50d94e863eb` (the cipher part the
   same; was `t13d5212h1_b262b3658495_8e6e362c5eac` with undici's defaults), and JA3 differs. agy's own order was the
-  same on every connection (no shuffling in this build). No Go binary nor native TLS library is shipped for the rest.
-  Also left as Node does it: one kept connection per host where agy opens several (its parts each have a client),
-  and the `CONNECT` request to a proxy, which only the proxy sees.
+  same on every connection (no shuffling in this build). Also left as Node does it: one kept connection per host where
+  agy opens several (its parts each have a client), and the `CONNECT` request to a proxy, which only the proxy sees.
+  **Go's own TLS** (PP-559, `native/agy-tls`, `src/server/agy-tls-proxy.ts`; the owner's choice of 2026-11-23, over
+  the line above that shipped no Go binary). A small Go program makes the HTTP/1.1 requests with Go's `net/http` and
+  `crypto/tls` (agy's groups set, as agy does): its handshake is agy's, JA4 `t13d1312h1_f57a46bbacb6_f50d94e863eb`
+  (measured on the devbox: built with Go 1.27.1, through the same CONNECT recorder), and the request is written as Go
+  writes agy's: Host, User-Agent, Content-Length, the rest by name, `Accept-Encoding: gzip` last (Go's client adds it
+  and unzips the answer), no `Connection`. Built by CI for the APK (`android-arm64`) and the server's tests and image
+  (`linux-x64`, `linux-arm64`) with `scripts/build-agy-tls.sh`; never committed. The server talks to it over a Unix
+  socket of its own in the app's temporary folder (`os.tmpdir()`: on the phone the app's TMPDIR, as `/tmp` is not
+  writable there: PR #12's first version bound `/tmp/agy-tls.sock` and failed with `bind: permission denied` on
+  the phone), owner-only (umask 077), the address in `X-Agy-Target`; it reaches only https on `googleapis.com`
+  (`--allow` adds a plain-http host:port for tests) and ends when the server's pipe to it closes. The host's address
+  comes from the server's own lookup (`X-Agy-Dial`, the system's resolver: Android's private DNS, a VPN): Go without
+  cgo reads only `/etc/resolv.conf`, which Android has not, and asked `[::1]:53` on the phone (`lookup ... connection
+  refused`, measured on 2026-11-23). Without the program
+  (a checkout that did not build it) or when it does not start, the requests go on `agyTransport` above, said once
+  in the app's log; one that stops starts again at the next request. Dictation's gRPC stream stays on Node's HTTP/2
+  (`AGY_GRPC_TLS`). Reviewed and reworked from PR #12, whose first version committed the binaries, bound `/tmp`,
+  sent bodies chunked with Node's `Connection: keep-alive` passed on, reached any address, and added Clearcut
+  telemetry (left out: see below).
   **Background reads** (`AgyBackground`): while the provider is in use, this server makes the reads agy makes, with its
   headers, at its times: agy's start before an account's first turn (userinfo, loadCodeAssist, fetchAdminControls,
   fetchUserInfo, retrieveUserQuotaSummary, fetchAvailableModels, listExperiments, fetchConfig, cascadeNuxes, in agy's

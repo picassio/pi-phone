@@ -204,7 +204,8 @@ dự án thật.</sub>
   đăng nhập, đăng nhập tài khoản Google, rồi dán mã mà trang Antigravity hiện ra vào thẻ. Không cần app hay máy nào
   khác: pi-phone đăng nhập giống cách CLI `agy` của Google đăng nhập trên máy không có trình duyệt, tự thiết lập project
   Antigravity cho tài khoản mới chưa có, và gửi yêu cầu Antigravity đúng như agy gửi (máy chủ, header theo thứ tự của Go,
-  HTTP/1.1, bắt tay TLS gần với agy nhất mà Node cho phép, và dạng yêu cầu), tự gia hạn token. Khi bạn đang dùng, nó cũng
+  HTTP/1.1, bắt tay TLS y hệt agy qua một chương trình Go nhỏ đi kèm app, hoặc gần nhất mà Node cho phép khi không có nó,
+  và dạng yêu cầu), tự gia hạn token. Khi bạn đang dùng, nó cũng
   làm các lệnh đọc nền của agy đúng nhịp agy (cấu hình, project, mô hình và hạn mức), không bao giờ gửi telemetry của agy. Mô hình là những mô hình `agy models` liệt kê, mỗi dòng một mô hình (Gemini, Claude, GPT-OSS), các mức
   effort của agy là mức suy nghĩ; gọi công cụ, suy nghĩ và hình ảnh đều dùng được. Điều khoản của Google cấm client bên
   thứ ba và đang có tài khoản bị khoá vì việc này: bị khoá là mất cả Antigravity, Gemini CLI và Code Assist, chỉ kháng
