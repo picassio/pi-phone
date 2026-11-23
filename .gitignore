@@ -14,6 +14,8 @@ web/vendor/intelligent-ui/
 native/android-arm64/officecli/
 # ffmpeg and ffprobe for Android (20 MB), built at build time: scripts/build-ffmpeg-android.sh.
 native/android-arm64/ffmpeg/
+# Antigravity's Go TLS program (6 MB), built at build time: scripts/build-agy-tls.sh.
+native/android-arm64/agy-tls/
 # The server edition's tools (scripts/server-tools.ts), fetched by the Dockerfile.
 native/linux-x64/
 native/linux-arm64/

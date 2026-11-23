@@ -201,7 +201,8 @@ No Termux, no laptop, no cloud VM.
   sign-in page, sign in with your Google account, and paste the code Antigravity's page then shows into the card. No
   other app or machine is needed: pi-phone signs in the way Google's `agy` CLI does on a machine with no browser, sets
   up a new account's Antigravity project when it has none, and sends Antigravity's requests the way agy does (its host,
-  headers in Go's order, HTTP/1.1, a TLS handshake as near agy's as Node allows, and its request shape), renewing the
+  headers in Go's order, HTTP/1.1, agy's own TLS handshake through a small Go program the app carries, or as near it as
+  Node allows without it, and its request shape), renewing the
   token itself. While you use it, it also makes agy's background reads at agy's times (its config, project, models and
   quota), never agy's telemetry. Its models are the ones `agy models` lists, one per family
   (Gemini, Claude, GPT-OSS) with agy's efforts as thinking levels; tool calls, thinking and pictures work. Google's

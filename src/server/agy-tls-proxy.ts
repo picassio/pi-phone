@@ -1,178 +1,184 @@
 /**
- * Go TLS proxy for Antigravity (PP-558): makes HTTPS requests with Go's TLS stack (boringcrypto),
- * matching agy's exact TLS fingerprint including ML-KEM post-quantum key exchange and ML-DSA signatures.
+ * Google Antigravity's HTTP/1.1 requests on Go's own TLS and HTTP client (PP-559): `native/agy-tls`, a small Go program
+ * the build makes for each platform (`scripts/build-agy-tls.sh`), so the handshake is agy's (JA4
+ * t13d1312h1_f57a46bbacb6_f50d94e863eb, measured against agy 1.5.15) where Node's OpenSSL could only come near it
+ * (PP-558). It listens on a Unix socket of its own in the app's temporary folder (`os.tmpdir()`: on the phone the app's
+ * TMPDIR, as /tmp is not the app's), and reaches only https addresses on googleapis.com; the request goes out as Go
+ * writes it (Host, User-Agent, Content-Length, the other headers, Accept-Encoding: gzip), the answer unzipped.
  *
- * The `agy-tls` binary listens on a Unix socket. Node.js sends HTTP/1.1 requests with:
- *   X-Agy-Target: https://target.url/path
- * The Go binary makes the HTTPS request and streams the response back.
- *
- * JA4 fingerprint: t13d1312h1_f57a46bbacb6_f50d94e863eb (matches agy 1.5.15 exactly)
+ * Without the program (a checkout that did not build it, another platform) or when it does not start, Antigravity's
+ * requests go on `agyTransport` (Node's TLS set close to Go's), said once in the app's log; a program that stops is
+ * started again at the next request. It ends with the server: its standard input is the server's.
  */
-import { spawn, ChildProcess } from "node:child_process";
-import http from "node:http";
+import { type ChildProcess, spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { lookup } from "node:dns/promises";
+import { existsSync } from "node:fs";
+import http, { type IncomingMessage } from "node:http";
+import { tmpdir } from "node:os";
+import type { Socket } from "node:net";
 import { join } from "node:path";
-import fs from "node:fs";
 import { pipeline } from "node:stream";
 import { createGunzip } from "node:zlib";
-import type { WireRequest, WireResponse } from "./agy-wire.js";
+import type { WireRequest, WireResponse } from "./agy-wire.ts";
 
-const SOCKET_PATH = "/tmp/agy-tls.sock";
+type Send = (url: string, init: WireRequest) => Promise<WireResponse>;
 
-/** Binary paths by platform/arch. The app bundles these in native/agy-tls/. */
-const BINARY_PATHS: Record<string, string> = {
-    "android-arm64": "native/agy-tls/agy-tls-android-arm64",
-    "linux-x64": "native/agy-tls/agy-tls-linux-amd64",
-};
-
-let proxy: ChildProcess | null = null;
-let proxyReady = false;
-let startPromise: Promise<void> | null = null;
-
-/** Get the binary path for the current platform. */
-function getBinaryPath(appRoot: string): string | undefined {
-    const platform = process.platform === "android" ? "android" : process.platform;
-    const arch = process.arch === "arm64" ? "arm64" : process.arch === "x64" ? "x64" : undefined;
-    if (!arch) return undefined;
-
-    const key = `${platform}-${arch}`;
-    const relativePath = BINARY_PATHS[key];
-    if (!relativePath) return undefined;
-
-    return join(appRoot, relativePath);
-}
-
-/** Start the Go TLS proxy if not already running. */
-export async function startAgyTlsProxy(appRoot: string): Promise<void> {
-    if (proxyReady && proxy) return;
-    if (startPromise) return startPromise;
-
-    startPromise = (async () => {
-        const binaryPath = getBinaryPath(appRoot);
-        if (!binaryPath) {
-            throw new Error(`No agy-tls binary for ${process.platform}-${process.arch}`);
-        }
-        if (!fs.existsSync(binaryPath)) {
-            throw new Error(`agy-tls binary not found: ${binaryPath}`);
-        }
-
-        // Remove old socket
-        try { fs.unlinkSync(SOCKET_PATH); } catch { /* ignore */ }
-
-        // Make binary executable
-        try { fs.chmodSync(binaryPath, 0o755); } catch { /* ignore */ }
-
-        // Spawn
-        proxy = spawn(binaryPath, [SOCKET_PATH], {
-            stdio: ["ignore", "pipe", "pipe"],
-            detached: false,
-        });
-
-        proxy.stderr?.on("data", (data: Buffer) => {
-            const msg = data.toString().trim();
-            // Suppress "accept: use of closed network connection" spam on shutdown
-            if (msg && !msg.includes("accept:") && !msg.includes("shutting down")) {
-                console.error(`[agy-tls] ${msg}`);
-            }
-        });
-
-        proxy.on("error", (err) => {
-            console.error(`[agy-tls] process error: ${err.message}`);
-            proxyReady = false;
-            proxy = null;
-        });
-
-        proxy.on("exit", (code) => {
-            if (code !== 0 && code !== null) {
-                console.error(`[agy-tls] exited with code ${code}`);
-            }
-            proxyReady = false;
-            proxy = null;
-        });
-
-        // Wait for socket
-        const maxWait = 5000;
-        const start = Date.now();
-        while (Date.now() - start < maxWait) {
-            if (fs.existsSync(SOCKET_PATH)) {
-                proxyReady = true;
-                console.log("[agy-tls] proxy ready");
-                return;
-            }
-            await new Promise(r => setTimeout(r, 50));
-        }
-        throw new Error("agy-tls socket not ready after 5s");
-    })();
-
-    try {
-        await startPromise;
-    } finally {
-        startPromise = null;
-    }
-}
-
-/** Stop the Go TLS proxy. */
-export function stopAgyTlsProxy(): void {
-    if (proxy) {
-        proxy.kill("SIGTERM");
-        proxy = null;
-    }
-    proxyReady = false;
-    try { fs.unlinkSync(SOCKET_PATH); } catch { /* ignore */ }
-}
-
-/** Check if proxy is running. */
-export function isAgyTlsProxyReady(): boolean {
-    return proxyReady && proxy !== null;
+/** The program for this platform, under the app's root, by `process.platform`-`process.arch`. */
+export function agyTlsBinary(appRoot: string, platform: string = process.platform, arch: string = process.arch): string {
+    return join(appRoot, "native", `${platform}-${arch}`, "agy-tls", "agy-tls");
 }
 
 /**
- * Transport that routes requests through the Go TLS proxy.
- * Headers are passed as-is; the Go proxy handles the TLS with agy's fingerprint.
+ * The program's socket: in the app's temporary folder, one per server (its process id and a random part), within
+ * the 107 bytes a Unix socket's path may have.
  */
-export function agyTlsTransport(appRoot: string): (url: string, init: WireRequest) => Promise<WireResponse> {
-    return async (url, init) => {
-        // Ensure proxy is started
-        if (!proxyReady) {
-            await startAgyTlsProxy(appRoot);
+export function agyTlsSocket(folder: string = tmpdir()): string {
+    return join(folder, `agy-tls-${process.pid}-${randomBytes(4).toString("hex")}.sock`);
+}
+
+export type AgyTlsOptions = {
+    /** The app's root, holding `native/<platform>-<arch>/agy-tls/agy-tls`. */
+    appRoot: string;
+    /** The transport used without the program: `agyTransport()`. */
+    fallback: Send;
+    log?: (line: string) => void;
+    /** The program, when not the platform's under `appRoot` (tests). */
+    binary?: string;
+    /** host:port addresses it may reach over plain http (tests' local servers). */
+    allow?: readonly string[];
+    /** How long the program may take to listen. */
+    startMs?: number;
+};
+
+/** A transport through the Go program, with `close` to end it. */
+export function agyTlsTransport(options: AgyTlsOptions): Send & { close(): void } {
+    const { appRoot, fallback, log = () => {}, allow = [], startMs = 5_000 } = options;
+    const binary = options.binary ?? agyTlsBinary(appRoot);
+    let child: ChildProcess | undefined;
+    let socket: string | undefined;
+    let starting: Promise<string | undefined> | undefined;
+    /** Why the program is not used, once said; undefined while it may be. */
+    let without: string | undefined;
+
+    const fail = (why: string) => {
+        if (without === undefined) {
+            log(`agy-tls: ${why}; Antigravity's requests use Node's TLS`);
         }
 
-        return new Promise<WireResponse>((resolve, reject) => {
-            const request = http.request(
-                {
-                    socketPath: SOCKET_PATH,
-                    method: init.method ?? "POST",
-                    path: "/",
-                    headers: {
-                        "X-Agy-Target": url,
-                        ...init.headers,
-                    },
-                    ...(init.signal === undefined ? {} : { signal: init.signal }),
-                },
-                (response) => {
-                    const headers = new Headers();
-                    for (let i = 0; i + 1 < response.rawHeaders.length; i += 2) {
-                        headers.append(response.rawHeaders[i]!, response.rawHeaders[i + 1]!);
-                    }
+        without = why;
 
-                    // Gunzip if gzipped (Go should already handle this, but be defensive)
-                    const body: AsyncIterable<Uint8Array> =
-                        headers.get("content-encoding") === "gzip"
-                            ? pipeline(response, createGunzip(), () => {})
-                            : response;
+        return undefined;
+    };
 
-                    resolve({ status: response.statusCode ?? 0, headers, body });
+    const start = (): Promise<string | undefined> => {
+        if (!existsSync(binary)) {
+            return Promise.resolve(fail(`no ${binary}`));
+        }
+
+        const path = agyTlsSocket();
+
+        return new Promise((resolve) => {
+            let said = "";
+            const proc = spawn(binary, [path, ...allow.map((host) => `--allow=${host}`)], { stdio: ["pipe", "ignore", "pipe"] });
+
+            // It never keeps the server running: once the server ends, its pipe closes and so does the program.
+            proc.unref();
+            (proc.stdin as Socket | null)?.unref();
+            (proc.stderr as Socket | null)?.unref();
+            const timer = setTimeout(() => {
+                proc.kill();
+                resolve(fail(`it did not listen within ${startMs} ms${said === "" ? "" : ` (${said.trim()})`}`));
+            }, startMs);
+
+            proc.stderr?.setEncoding("utf8");
+            proc.stderr?.on("data", (text: string) => {
+                said = (said + text).slice(-500);
+
+                if (said.includes("listening on")) {
+                    clearTimeout(timer);
+                    child = proc;
+                    socket = path;
+                    resolve(path);
                 }
-            );
-
-            request.on("error", (err) => {
-                // Connection refused means proxy died - mark not ready
-                if ((err as NodeJS.ErrnoException).code === "ECONNREFUSED") {
-                    proxyReady = false;
-                }
-                reject(err);
             });
+            proc.on("error", (error) => {
+                clearTimeout(timer);
+                resolve(fail(`it could not start: ${error.message}`));
+            });
+            proc.on("exit", (code, signal) => {
+                clearTimeout(timer);
 
-            request.end(init.body);
+                if (child === proc) {
+                    log(`agy-tls: it stopped (${code ?? signal}); started again at the next request`);
+                    child = undefined;
+                    socket = undefined;
+                } else {
+                    resolve(fail(`it stopped as it started (${code ?? signal}${said === "" ? "" : `: ${said.trim()}`})`));
+                }
+            });
         });
     };
+
+    const send = (async (url, init) => {
+        if (without !== undefined) {
+            return fallback(url, init);
+        }
+
+        if (socket === undefined) {
+            starting ??= start().finally(() => {
+                starting = undefined;
+            });
+        }
+
+        const path = socket ?? (await starting);
+
+        if (path === undefined) {
+            return fallback(url, init);
+        }
+
+        // The system's resolver (Android's private DNS, a VPN): Go's own finds no /etc/resolv.conf on the phone.
+        // A name it cannot find (a proxy that resolves it) is left to Go and the proxy.
+        const address = await lookup(new URL(url).hostname).then(({ address: found }) => found, () => undefined);
+
+        return request(path, url, init, address);
+    }) as Send & { close(): void };
+
+    send.close = () => {
+        child?.stdin?.end();
+        child?.kill();
+        child = undefined;
+        socket = undefined;
+    };
+
+    return send;
+}
+
+/** One request on the program's socket, its answer as `agyTransport` gives one. */
+function request(socket: string, url: string, init: WireRequest, address: string | undefined): Promise<WireResponse> {
+    return new Promise<WireResponse>((resolve, reject) => {
+        const { Host: _host, ...headers } = init.headers;
+        const outgoing = http.request({
+            socketPath: socket,
+            method: init.method ?? "POST",
+            path: "/",
+            headers: { ...headers, "X-Agy-Target": url, ...(address === undefined ? {} : { "X-Agy-Dial": address }) },
+            ...(init.signal === undefined ? {} : { signal: init.signal }),
+        });
+
+        outgoing.on("error", reject);
+        outgoing.on("response", (response: IncomingMessage) => {
+            const answer = new Headers();
+
+            for (let index = 0; index + 1 < response.rawHeaders.length; index += 2) {
+                answer.append(response.rawHeaders[index]!, response.rawHeaders[index + 1]!);
+            }
+
+            // Go unzips what it asked gzipped itself; a header the caller set leaves the answer zipped, as agyTransport's.
+            const body: AsyncIterable<Uint8Array> = answer.get("content-encoding") === "gzip" ? pipeline(response, createGunzip(), () => {}) : response;
+
+            resolve({ status: response.statusCode ?? 0, headers: answer, body });
+        });
+        outgoing.end(init.body);
+    });
 }

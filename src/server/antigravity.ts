@@ -52,8 +52,8 @@ import {
 } from "@earendil-works/pi-ai/api/google-shared";
 import { retryProviderRequest } from "@earendil-works/pi-ai/utils/provider-retry";
 import { sanitizeSurrogates } from "@earendil-works/pi-ai/utils/sanitize-unicode";
-import { AgyBackground, type AgyRead, goHeaders, type WireRequest, type WireResponse } from "./agy-wire.ts";
 import { agyTlsTransport } from "./agy-tls-proxy.ts";
+import { AgyBackground, type AgyRead, agyTransport, goHeaders, type WireRequest, type WireResponse } from "./agy-wire.ts";
 import { APP_ROOT } from "./config.ts";
 
 export const AGY_PROVIDER = "google-antigravity";
@@ -506,7 +506,8 @@ const STEPS_KEPT = 200;
 
 /** The provider, and agy's background reads, transport and catalog it shares with Antigravity's media. */
 export function antigravity(options: AgyOptions = {}): AgyRuntime {
-    const send = options.send ?? agyTlsTransport(APP_ROOT);
+    // Go's own TLS through native/agy-tls (PP-559), Node's set close to it without the program.
+    const send = options.send ?? agyTlsTransport({ appRoot: APP_ROOT, fallback: agyTransport(), ...(options.log === undefined ? {} : { log: options.log }) });
     const now = options.now ?? Date.now;
     const sleep = options.sleep ?? sleepFor;
     /** The last model list Google gave, for each request's model and settings; asked once after a start. */
