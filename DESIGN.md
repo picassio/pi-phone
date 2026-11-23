@@ -214,10 +214,16 @@ so Pi changes them through the settings tools; "the last session" is the one the
   the quota after a turn unless read in the last minute; they stop 30 minutes after the last turn, as agy stops when
   closed. The start's `fetchAvailableModels` is the catalog requests read. The quota (`retrieveUserQuotaSummary`: per
   group of models, a 5-hour and a weekly window) is the provider's usage bars (`usage-limits.ts`, windows with their
-  `group`), never a call of its own: the bars asking when agy is not running start it, as opening agy would. **Never
-  sent:** agy's telemetry (Clearcut `play.googleapis.com/log`, the `cclog` scope) and its writes (`writeTrajectoryAcls`):
-  that would be made-up usage data in Google's systems, so it is not done even to look more like agy. Nor its
-  `checkpoint` requests (a Gemini Flash Lite summary per conversation), which would spend the owner's quota.
+  `group`), never a call of its own: the bars asking when agy is not running start it, as opening agy would. **Telemetry**
+  (PP-559, `src/server/antigravity-clearcut.ts`): when the owner signs in, telemetry events (Clearcut
+  `play.googleapis.com/log`, the `cclog` scope) are sent as agy sends them: session start, model calls (model, tokens,
+  latency), session end. The events report what pi-phone actually does, not made-up activity; the owner chose this
+  to match agy's fingerprint fully. The protobuf schema was reverse-engineered from agy 1.5.15
+  (wiki: `resources/clearcut-protobuf-schema`). **Not sent:** `writeTrajectoryAcls` (would write pi-phone's transcripts
+  to the owner's Google storage), `checkpoint` (a Gemini Flash Lite summary per conversation, which spends the owner's
+  quota).
+  **Image generation** (PP-559, `src/server/antigravity-media.ts`): `image_generate` with model `gemini-3.1-flash-image`
+  calls `v1internal:generateContent` (not streaming) as agy would, using the agy-wire transport.
   Providers shows the risk on its row (`AgyRisk`): Google's terms forbid third-party clients, accounts are being
   suspended, a suspension closes Antigravity, Gemini CLI and Code Assist with one appeal. Fingerprint and how it was
   captured: wiki `resources/antigravity-agy-fingerprint`.

@@ -53,6 +53,7 @@ import {
 import { retryProviderRequest } from "@earendil-works/pi-ai/utils/provider-retry";
 import { sanitizeSurrogates } from "@earendil-works/pi-ai/utils/sanitize-unicode";
 import { AgyBackground, type AgyRead, agyTransport, goHeaders, type WireRequest, type WireResponse } from "./agy-wire.ts";
+import { ClearcutClient } from "./antigravity-clearcut.ts";
 
 export const AGY_PROVIDER = "google-antigravity";
 export const AGY_NAME = "Google Antigravity";
@@ -478,7 +479,7 @@ export function antigravityProvider(options: AgyOptions = {}): Provider {
 }
 
 /** The provider, and agy's background reads for its accounts (the usage bars read the quota from them). */
-export function antigravity(options: AgyOptions = {}): { provider: Provider; background: AgyBackground<AgyAuth> } {
+export function antigravity(options: AgyOptions = {}): { provider: Provider; background: AgyBackground<AgyAuth>; clearcut: ClearcutClient } {
     const send = options.send ?? agyTransport();
     const now = options.now ?? Date.now;
     const sleep = options.sleep ?? sleepFor;
@@ -537,6 +538,16 @@ export function antigravity(options: AgyOptions = {}): { provider: Provider; bac
         log: options.log ?? (() => {}),
         ...(options.quotaRead === undefined ? {} : { quotaRead: options.quotaRead }),
         now,
+    });
+
+    // Clearcut telemetry client (PP-559): sends usage events to play.googleapis.com/log as agy does
+    const clearcut = new ClearcutClient({
+        auth: async () => {
+            const apiKey = await options.auth?.(`${AGY_PROVIDER}/`);
+            return apiKey === undefined ? undefined : { token: parseAuth(apiKey).token };
+        },
+        platform: options.platform,
+        log: options.log ?? (() => {}),
     });
 
     const fetchCatalog = (auth: AgyAuth, signal?: AbortSignal): Promise<AgyCatalog> =>
@@ -703,6 +714,7 @@ export function antigravity(options: AgyOptions = {}): { provider: Provider; bac
         let ended = () => {};
 
         void (async () => {
+            const startTime = Date.now();
             const output: AssistantMessage = {
                 role: "assistant",
                 content: [],
@@ -873,6 +885,14 @@ export function antigravity(options: AgyOptions = {}): { provider: Provider; bac
                             cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
                         };
                         calculateCost(model, output.usage);
+
+                        // Clearcut telemetry: report model call (PP-559)
+                        void clearcut.sendModelCall(
+                            model.id,
+                            output.usage.input,
+                            output.usage.output,
+                            Date.now() - startTime,
+                        );
                     }
                 }
 
@@ -927,7 +947,7 @@ export function antigravity(options: AgyOptions = {}): { provider: Provider; bac
         },
     });
 
-    return { provider, background };
+    return { provider, background, clearcut };
 }
 
 /**

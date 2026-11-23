@@ -19,6 +19,9 @@
 import { HttpError } from "./errors.ts";
 import { imageType } from "./image-meta.ts";
 import { chatgptAccount } from "./voice.ts";
+import { AGY_PROVIDER } from "./antigravity.ts";
+import { AGY_IMAGE_MODEL, AGY_IMAGE_ASPECTS, type AgyImageAspect, makeAgyImage, type AgyCredential } from "./antigravity-media.ts";
+
 
 export const CODEX_PROVIDER = "openai-codex";
 export const CODEX_IMAGE_MODEL = "gpt-image-2.5";
@@ -28,6 +31,7 @@ export const CODEX_IMAGE_MODEL = "gpt-image-2.5";
  */
 export const CODEX_IMAGE_NAME = "ChatGPT Images (ChatGPT picks the model and quality)";
 export const OPENROUTER = "openrouter";
+export const AGY_IMAGE_NAME = "Gemini 3.1 Flash Image (Google Antigravity)";
 export const ASPECTS = ["1:1", "16:9", "9:16", "4:3", "3:4"] as const;
 export type Aspect = (typeof ASPECTS)[number];
 /** Codex's and the tool's limit on images to edit at once. */
@@ -87,6 +91,8 @@ export type ImageGenOptions = {
     setting(): string | null;
     /** Images made on the ChatGPT plan: counted in Spend, not in money. */
     codexMade(count: number): void;
+    /** The Antigravity sign-in credential, or undefined when not signed in. */
+    agyAuth?(): Promise<AgyCredential | undefined>;
     endpoints?: { codex?: string; openRouter?: string };
     fetch?: typeof fetch;
     now?: () => number;
@@ -218,6 +224,14 @@ export class ImageGen {
             models.push({ id: `${CODEX_PROVIDER}/${CODEX_IMAGE_MODEL}`, provider: CODEX_PROVIDER, model: CODEX_IMAGE_MODEL, name: CODEX_IMAGE_NAME, text: false });
         }
 
+        // Antigravity image model (PP-559)
+        if (this.#options.agyAuth !== undefined) {
+            const agy = await this.#options.agyAuth();
+            if (agy !== undefined) {
+                models.push({ id: `${AGY_PROVIDER}/${AGY_IMAGE_MODEL}`, provider: AGY_PROVIDER, model: AGY_IMAGE_MODEL, name: AGY_IMAGE_NAME, text: false });
+            }
+        }
+
         if ((await this.#options.openRouterKey()) !== undefined) {
             try {
                 for (const each of await this.#openRouterModels()) {
@@ -312,7 +326,7 @@ export class ImageGen {
         const made: MadeImages = { choice, images: [], cost: choice.provider === CODEX_PROVIDER ? undefined : 0, tokens: { input: 0, output: 0 }, text: "" };
 
         for (let index = 0; index < request.count; index++) {
-            const one = choice.provider === CODEX_PROVIDER ? await this.#codex(request) : await this.#chat(choice, request);
+            const one = choice.provider === CODEX_PROVIDER ? await this.#codex(request) : choice.provider === AGY_PROVIDER ? await this.#antigravity(request) : await this.#chat(choice, request);
 
             made.images.push(...one.images);
             made.tokens.input += one.tokens.input;
@@ -491,4 +505,35 @@ export class ImageGen {
             text: said,
         };
     }
+    /** One request to Antigravity's image generation endpoint (PP-559). */
+    async #antigravity(request: { prompt: string; inputs: ImageInput[]; aspect?: Aspect; signal?: AbortSignal }) {
+        if (this.#options.agyAuth === undefined) {
+            throw new Error("Antigravity is not configured.");
+        }
+        const auth = await this.#options.agyAuth();
+        if (auth === undefined) {
+            throw new Error("Not signed in to Antigravity. Sign in through Settings › Providers.");
+        }
+
+        // Convert aspect ratio to Antigravity format
+        const aspect = (AGY_IMAGE_ASPECTS as readonly string[]).includes(request.aspect ?? "1:1")
+            ? (request.aspect as AgyImageAspect | undefined) ?? "1:1"
+            : "1:1";
+
+        const result = await makeAgyImage(
+            { auth: async () => auth },
+            request.prompt,
+            request.inputs,
+            aspect,
+            request.signal,
+        );
+
+        return {
+            images: [{ mimeType: result.mimeType, data: result.data }],
+            cost: undefined, // Antigravity does not report cost
+            tokens: result.tokens,
+            text: "",
+        };
+    }
+
 }
