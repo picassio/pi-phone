@@ -3,6 +3,7 @@
 node_modules
 android
 native
+!native/agy-tls
 web/vendor
 test
 docs
