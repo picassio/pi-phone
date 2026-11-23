@@ -55,6 +55,7 @@ import { sanitizeSurrogates } from "@earendil-works/pi-ai/utils/sanitize-unicode
 import { agyTlsTransport } from "./agy-tls-proxy.ts";
 import { AgyBackground, type AgyRead, agyTransport, goHeaders, type WireRequest, type WireResponse } from "./agy-wire.ts";
 import { APP_ROOT } from "./config.ts";
+import { ClearcutClient } from "./antigravity-clearcut.ts";
 
 export const AGY_PROVIDER = "google-antigravity";
 export const AGY_NAME = "Google Antigravity";
@@ -499,6 +500,8 @@ export type AgyRuntime = {
     catalog: (auth: AgyAuth, signal?: AbortSignal) => Promise<AgyCatalog>;
     /** A conversation's last agent request (by Pi's provider session id), for the ids of a tool call it made. */
     lastStep: (sessionId: string) => AgyStep | undefined;
+    /** Clearcut telemetry client for session events (PP-559). */
+    clearcut: ClearcutClient;
 };
 
 /** How many conversations' last steps are kept. */
@@ -515,6 +518,22 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
     let asking: Promise<AgyCatalog> | undefined;
     /** Each conversation's last agent request, newest last. */
     const steps = new Map<string, AgyStep>();
+
+    // Clearcut telemetry client (PP-559): sends usage events to play.googleapis.com as agy does.
+    const clearcut = new ClearcutClient({
+        auth: async () => {
+            const apiKey = await options.auth?.(AGY_PROVIDER);
+            if (!apiKey) return undefined;
+            try {
+                const auth = parseAuth(apiKey);
+                return { token: auth.token };
+            } catch {
+                return undefined;
+            }
+        },
+        platform: options.platform,
+        log: options.log,
+    });
 
     const post = async (url: string, headers: Record<string, string>, body: string | undefined, signal?: AbortSignal): Promise<string> => {
         const response = await send(url, { ...(body === undefined ? { method: "GET" as const } : { body }), headers, ...(signal === undefined ? {} : { signal }) });
@@ -974,7 +993,7 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
         },
     });
 
-    return { provider, background, send, catalog: catalogFor, lastStep: (sessionId) => steps.get(sessionId) };
+    return { provider, background, send, catalog: catalogFor, lastStep: (sessionId) => steps.get(sessionId), clearcut };
 }
 
 /**

@@ -8247,6 +8247,7 @@ export class PocketApp {
             clearTimeout(this.#sessionsTimer);
             clearInterval(this.#browserSweep);
             this.#antigravity.background.stop();
+            this.#antigravity.clearcut.close();
             // First: a look at idle sessions that fired while the rest closes read a closed storage ("Session is closed").
             this.paraCapture.stop();
             this.phoneControl.close();
