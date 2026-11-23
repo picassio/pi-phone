@@ -40,7 +40,8 @@ export type VoiceProgress = "text" | "answer";
  * refused there (`/v1/audio/speech` answers 429 billing_not_active, checked 2026-10-27).
  */
 export type VoiceReader = "live" | "device";
-export type DictationEngine = "android" | "codex";
+/** Who listens to the message box's mic: Android's recognizer, Codex, or Google Antigravity's dictation (PP-557). */
+export type DictationEngine = "android" | "codex" | "antigravity";
 export type VoicePath = "key" | "server" | "codex";
 /**
  * OpenAI's noise reduction on what the mic hears (PP-195): near_field for a phone at the face or a headset, far_field
@@ -62,7 +63,7 @@ export interface VoiceSettings {
     readonly model: string;
     /** The model that writes down what is said: in calls, and for the Codex dictation engine. */
     readonly dictationModel: string;
-    /** Who listens to the message box's mic: Android's recognizer, or Codex (`dictationModel`). */
+    /** Who listens to the message box's mic: Android's recognizer, Codex (`dictationModel`), or Google Antigravity. */
     readonly engine: DictationEngine;
     readonly voice: string;
     /** "auto", or a language the model hears (ISO 639-1, "vi"). */
@@ -154,7 +155,7 @@ const PROGRESS: readonly VoiceProgress[] = ["text", "answer"];
 const READERS: readonly VoiceReader[] = ["live", "device"];
 /** The reader as first named (PP-190): the device's voice. */
 const reader = (value: unknown): unknown => (value === "android" ? "device" : value);
-const ENGINES: readonly DictationEngine[] = ["android", "codex"];
+const ENGINES: readonly DictationEngine[] = ["android", "codex", "antigravity"];
 const NOISES: readonly VoiceNoise[] = ["near_field", "far_field", "off"];
 const EAGERNESS: readonly VoiceEagerness[] = ["auto", "low", "medium", "high"];
 const KEYS = [
@@ -259,7 +260,7 @@ export function withVoice(current: VoiceSettings, patch: unknown): VoiceSettings
 
     if (patch.engine !== undefined) {
         if (!ENGINES.includes(patch.engine as DictationEngine)) {
-            throw new HttpError(400, "voice.engine is android or codex.");
+            throw new HttpError(400, "voice.engine is android, codex or antigravity.");
         }
 
         next.engine = patch.engine as DictationEngine;

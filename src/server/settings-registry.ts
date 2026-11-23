@@ -23,6 +23,8 @@ import { type VoiceCheck, VOICES } from "./voice.ts";
 import { CODEX_PROVIDER, ImageGen } from "./image-gen.ts";
 import { DEFAULT_ASK_MODEL, DEFAULT_MAKE_MODEL } from "./video-gen.ts";
 import { DEFAULT_SPEAK_MODEL, DEFAULT_TRANSCRIBE_MODEL, DEFAULT_VOICE, SPEAK_MODELS, TRANSCRIBE_MODELS, VOICES as SPEAK_VOICES } from "./audio.ts";
+import { AGY_TRANSCRIBE } from "./antigravity-media.ts";
+import { AGY_PROVIDER } from "./antigravity.ts";
 import { PERMISSION_MODES, POPUP_MODES } from "./browser/pi-browser.ts";
 import { CHROME_FEATURES_MAX, MACHINE_BROWSER_MODES } from "./browser/machine-engine.ts";
 import { TEST_SITES_MAX } from "./test-sites.ts";
@@ -786,7 +788,7 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             id: "image.model",
             area: "images",
             title: "Model image_generate makes images with",
-            help: "provider/model of an image model of a signed-in provider (ChatGPT: openai-codex/gpt-image-2.5, where ChatGPT picks the model and quality itself; OpenRouter: openrouter/google/gemini-2.5-flash-image and others; your own provider's models marked as making images), or auto: ChatGPT's when signed in, else OpenRouter's first. Pi may name another for one call (image_generate's model).",
+            help: "provider/model of an image model of a signed-in provider (ChatGPT: openai-codex/gpt-image-2.5, where ChatGPT picks the model and quality itself; OpenRouter: openrouter/google/gemini-2.5-flash-image and others; Google Antigravity: google-antigravity/gemini-3.1-flash-image, on its plan; your own provider's models marked as making images), or auto: ChatGPT's when signed in, else OpenRouter's first, else Google Antigravity's. Pi may name another for one call (image_generate's model).",
             owner: true,
             read: async () => {
                 const chosen = app.config.imageModel;
@@ -798,7 +800,7 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
                 const { models } = await app.images.models();
                 const found = ImageGen.defaultOf(models);
 
-                return `auto (now ${found?.id ?? "none: sign in to ChatGPT or OpenRouter"})`;
+                return `auto (now ${found?.id ?? "none: sign in to ChatGPT, OpenRouter or Google Antigravity"})`;
             },
             choices: async () => {
                 const { models, problems } = await app.images.models();
@@ -839,10 +841,13 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             id,
             area: "audio",
             title,
-            help: `One of ${choices.join(", ")}, or auto: ${fallback}. On the ChatGPT (Codex) sign-in (Menu › Audio). Pi may name another for one call.`,
+            help:
+                key === "transcribeModel"
+                    ? `One of ${choices.join(", ")} (on the ChatGPT (Codex) sign-in), ${AGY_TRANSCRIBE} (Google Antigravity's, while it is signed in; it takes no language or prompt), or auto: ${fallback}. Menu › Audio. Pi may name another OpenAI model for one call.`
+                    : `One of ${choices.join(", ")}, or auto: ${fallback}. On the ChatGPT (Codex) sign-in (Menu › Audio). Pi may name another for one call.`,
             owner: true,
             read: () => app.config.audioChoice(stored) ?? `auto (${fallback})`,
-            choices: () => ["auto", ...choices],
+            choices: async () => ["auto", ...(key === "transcribeModel" ? await app.audio.transcribeModels() : choices)],
             apply: (user: User, value: string) => app.setAudioChoice(user, key, /^auto$/i.test(value.trim()) || NONE.test(value.trim()) ? null : value.trim()),
         })),
         {
@@ -1323,10 +1328,10 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             id: "voice.engine",
             area: "voice",
             title: "Who listens to the message box's mic",
-            help: "android (the phone's recognizer, free) or codex (the dictation model, on the ChatGPT sign-in).",
+            help: "android (the phone's recognizer, free), codex (the dictation model, on the ChatGPT sign-in), or antigravity (Google Antigravity's dictation model, on its sign-in; offered only while signed in).",
             owner: true,
             read: () => app.config.voice.engine,
-            choices: () => ["android", "codex"],
+            choices: () => ["android", "codex", ...(app.models.hasConfiguredAuth(AGY_PROVIDER) ? ["antigravity"] : [])],
             apply: (user, value) => app.setVoice(user, { engine: value.trim().toLowerCase() }),
         },
         {

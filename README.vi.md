@@ -208,7 +208,9 @@ dự án thật.</sub>
   làm các lệnh đọc nền của agy đúng nhịp agy (cấu hình, project, mô hình và hạn mức), không bao giờ gửi telemetry của agy. Mô hình là những mô hình `agy models` liệt kê, mỗi dòng một mô hình (Gemini, Claude, GPT-OSS), các mức
   effort của agy là mức suy nghĩ; gọi công cụ, suy nghĩ và hình ảnh đều dùng được. Điều khoản của Google cấm client bên
   thứ ba và đang có tài khoản bị khoá vì việc này: bị khoá là mất cả Antigravity, Gemini CLI và Code Assist, chỉ kháng
-  cáo được một lần. Nó không gửi gì cho tới khi bạn đăng nhập; **Đăng xuất** để ngắt.
+  cáo được một lần. Nó không gửi gì cho tới khi bạn đăng nhập; **Đăng xuất** để ngắt. Khi đã đăng nhập, nó còn tạo
+  hình (Menu › Hình ảnh), chép lời tệp âm thanh (Menu › Âm thanh) và nghe micro của ô nhập (Cài đặt › Nhập giọng nói),
+  đúng như agy làm; nó không có giọng đọc thành tiếng.
 - **Mô hình yêu thích.** Nhà cung cấp › **Mô hình yêu thích** liệt kê mọi mô hình bạn chọn được, mỗi cái có một ngôi sao:
   mô hình gắn sao đứng ngay sau mô hình hiện tại trong bộ chọn mô hình, và bộ chọn có bộ lọc **Yêu thích**. Sao là của bạn,
   trên mọi thiết bị; chúng không cho phép gì (mô hình của subagent nằm ở Menu › Subagent). Pi thấy chúng trong công cụ
@@ -569,8 +571,10 @@ dự án thật.</sub>
   9:16, 4:3 hoặc 3:4) bằng mô hình bạn chọn ở **Menu › Hình ảnh** (`image.model`): *ChatGPT Images* qua đăng
   nhập ChatGPT (`openai-codex/gpt-image-2.5`, ChatGPT tự chọn model và độ nét; tính vào gói, Chi phí đếm số hình), một mô hình hình ảnh của OpenRouter như Nano Banana
   (`google/gemini-*-image`; hiển giá theo triệu token hình ảnh, chi phí tính vào phiên), hoặc một mô hình của nhà
-  cung cấp riêng được đánh dấu **Tạo hình ảnh** trong Nhà cung cấp. *Tự động* là của ChatGPT khi bạn đã đăng nhập,
-  nếu không thì mô hình đầu tiên của OpenRouter. Pi có thể dùng mô hình khác cho một hình. Hình được lưu nơi phiên
+  cung cấp riêng được đánh dấu **Tạo hình ảnh** trong Nhà cung cấp, hoặc mô hình hình ảnh của Google Antigravity khi
+  bạn đã đăng nhập nó (Gemini 3.1 Flash Image, gửi đúng như agy gửi; tính vào gói của nó; sửa tối đa ba hình một lần).
+  *Tự động* là của ChatGPT khi bạn đã đăng nhập, nếu không thì mô hình đầu tiên của OpenRouter, rồi tới của
+  Antigravity. Pi có thể dùng mô hình khác cho một hình. Hình được lưu nơi phiên
   làm việc (cả trên máy khác) trong `images/`, đặt tên theo prompt, hình đầu còn là `images/latest.png`, và hiển thị
   trong cuộc trò chuyện; Pi chỉ nhận đường dẫn và chi phí, không nhận hình, nên không tốn ngữ cảnh. Hình về một
   người có thật (ảnh của ai đó, chân dung một người có tên) sẽ hỏi bạn trên một thẻ trước. Khi mô hình của phiên
@@ -590,6 +594,9 @@ dự án thật.</sub>
   ghi cuộc họp, tin nhắn thoại, video) thành văn bản, phụ đề SRT hoặc VTT, hoặc JSON kèm thời gian từng câu, bằng đăng
   nhập ChatGPT (Codex) của bạn, không cần API key (mặc định gpt-4o-transcribe). Tệp dài được chia thành từng phần mười
   phút; bản chép lời lưu trong `transcripts/`. Ngôn ngữ và các từ cần nghe trong Cài đặt › Giọng nói giúp nó nghe đúng hơn.
+  Khi đã đăng nhập Google Antigravity, Menu › Âm thanh có thêm mô hình chép lời của nó (*Google Antigravity*: mô hình
+  nhập giọng nói của agy, từng đoạn có tiếng nói gửi đi như agy gửi khi nhập bằng giọng nói); nó tự nhận ra ngôn ngữ và
+  không nhận ngôn ngữ hay từ gợi ý.
 - **Đọc thành tiếng.** `audio_speak` đọc một văn bản thành tệp âm thanh (m4a hoặc wav) bằng mọi ngôn ngữ, kể cả tiếng
   Việt, cũng bằng đăng nhập đó: lồng tiếng, đọc báo cáo, tóm tắt bằng giọng nói, với một giọng (marin, cedar và tám giọng
   khác) và một cách đọc (ôn tồn, vui vẻ, chậm...). Văn bản dài được đọc từng phần, mỗi phần được so với lời giọng đọc
@@ -887,6 +894,8 @@ dự án thật.</sub>
   bạn) nghe micro thay cho trình nhận dạng của Android; chữ vẫn hiện trong ô nhập ngay khi nghe được, và không gì tự gửi đi.
   Ngôn ngữ của nó là của Cài đặt › Giọng nói, một cài đặt cho Giọng nói và nhập giọng nói: Tự động (Codex tự nghe ngôn ngữ
   bạn nói; trình nhận dạng của Android chọn trong các ngôn ngữ của điện thoại, Android 14 trở lên) hoặc một ngôn ngữ.
+  Khi đã đăng nhập Google Antigravity, **Antigravity** cũng nghe được: mô hình nhập giọng nói của agy, tiếng từ micro
+  đi qua máy chủ tới Google như `/voice` của agy (token ở lại máy chủ); nó tự nhận ra ngôn ngữ bạn nói.
 - **Trợ lý của điện thoại.** Chọn pi làm trợ lý kỹ thuật số (Menu › Trợ lý hướng dẫn từng bước), rồi giữ phím bên
   trong bất kỳ ứng dụng nào: một bảng pi hiện lên phía trên, đã sẵn sàng lắng nghe. Lời bạn nói hiện ra khi bạn nói, rồi chờ
   bạn bấm Gửi, hoặc tự gửi sau 3 giây. Chúng được gửi tới phiên bạn mở gần nhất, một phiên mới, hoặc một phiên bạn

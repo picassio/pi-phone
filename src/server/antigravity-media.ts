@@ -1,498 +1,830 @@
 /**
- * Antigravity's image generation and speech-to-text (PP-559, under PP-555): agy 1.5.15's media calls, through the same
- * wire as its chat (agy-wire.ts), to match its fingerprint.
+ * Images and dictation through Google Antigravity (PP-556, PP-557), on the sign-in of `antigravity.ts` and in the shape
+ * Google's `agy` 1.5.15 sends them (captured 2026-11-23; wiki: resources/antigravity-agy-fingerprint):
  *
- * - **Image generation (`gemini-3.1-flash-image`):** `POST v1internal:generateContent` (not streamed), with
- *   `requestType: "image_gen"`, `requestId: "image_gen/<ms>/<uuid>/<step>"`, the prompt and up to 3 input images in
- *   `request.contents`, and `generationConfig.imageConfig.aspectRatio`. The answer is JPEG data in `inlineData.data`.
- * - **Speech-to-text (`proactive-observer-v10`):** bidirectional gRPC over HTTP/2 to `aicode.googleapis.com`, path
- *   `/google.gca.aicode.v1alpha.PredictionService/BidiGenerateContent`, audio in 40 ms chunks of 16 kHz PCM s16le.
- *   The transcript comes in interim updates and a final at the end of an utterance.
+ * - **Images**: agy's `generate_image` tool is `POST v1internal:generateContent` on Cloud Code with `requestType:
+ *   "image_gen"` and the image model `fetchAvailableModels` names (`imageGenerationModelIds`, Gemini 3.1 Flash Image
+ *   now): the prompt as text, the images to edit (agy takes three) as inline data after it, one candidate and an aspect
+ *   ratio (agy's default 1:1). The pictures come back as inline data.
+ * - **Dictation**: agy's `/voice` streams the mic's 16 kHz pcm16 over gRPC to `aicode.googleapis.com`'s
+ *   `PredictionService/BidiGenerateContent` with the transcription model the catalog names (`audioTranscriptionModelIds`,
+ *   `models/proactive-observer-v10` now): a setup, an activity start, 40 ms of audio a message, then the end of the
+ *   audio and of the activity. Google answers with the running transcript (cumulative) and, at the end, a final one of
+ *   the last turn only. No language or hint is sent: agy sends none, and Google hears the language itself.
+ * - **Text-to-speech**: none. The catalog lists no speech model, the account's live voice is off, and the one TTS id in
+ *   agy's binary answered 404 (checked 2026-11-23); `audio_speak` stays on the ChatGPT sign-in.
  *
- * The catalog (`fetchAvailableModels`) names the media models: `imageGenerationModelIds`, `audioTranscriptionModelIds`.
- * When this account has no image model (empty array), there is nothing to offer: image generation is not faked.
+ * Nothing here is sent before the owner signs in to Google Antigravity (Settings › Providers); its models show only then.
+ *
+ * On the wire as agy (PP-558's `agy-wire.ts`): the Cloud Code calls go on the provider's own transport (HTTP/1.1, Go's
+ * headers and TLS, one pool of connections), the catalog is the provider's (which agy's background reads refresh), and a
+ * media call starts agy's background reads as a turn does. The dictation's gRPC goes on Node's HTTP/2 with grpc-go's
+ * ClientHello (`AGY_GRPC_TLS`), through the app's proxy with grpc-go's CONNECT, its headers in grpc-go's order. Node's
+ * HTTP/2 SETTINGS and window updates stay Node's.
  */
 import { randomUUID } from "node:crypto";
-import http2 from "node:http2";
-import { agyAgent, AGY_TLS, goHeaders, type WireRequest, type WireResponse } from "./agy-wire.ts";
-import { AGY_VERSION, AGY_BUILD, type AgyCredential } from "./antigravity.ts";
-export type { AgyCredential };
+import http from "node:http";
+import { type ClientHttp2Session, type ClientHttp2Stream, connect } from "node:http2";
+import https from "node:https";
+import type { Socket } from "node:net";
+import tls from "node:tls";
+import type { ConversationId } from "@earendil-works/pi-durable";
+import { AGY_GRPC_TLS, agyTransport } from "./agy-wire.ts";
+import { AGY_HOST, AGY_NAME, type AgyAuth, type AgyCatalog, type AgySend, type AgyStep, cloudCodeHeaders, errorText, parseAuth, readText } from "./antigravity.ts";
+import { imageType } from "./image-meta.ts";
 
-const HOST = "https://daily-cloudcode-pa.googleapis.com";
-const GRPC_HOST = "https://aicode.googleapis.com";
-const GRPC_PATH = "/google.gca.aicode.v1alpha.PredictionService/BidiGenerateContent";
+/** agy's dictation endpoint: gRPC on HTTP/2. */
+export const AGY_DICTATION_URL = "https://aicode.googleapis.com";
+export const AGY_DICTATION_PATH = "/google.gca.aicode.v1alpha.PredictionService/BidiGenerateContent";
+/** agy's gRPC client says this of itself. */
+export const AGY_GRPC_AGENT = "grpc-go/1.86.0-dev";
+/** What dictation hears: 16 kHz mono pcm16, as agy records it (`arecord -f S16_LE -r 16000 -c 1`). */
+export const AGY_PCM_RATE = 16000;
+/** agy's audio message: 40 ms. */
+export const AGY_CHUNK_BYTES = 1280;
+const BYTES_A_SECOND = AGY_PCM_RATE * 2;
+/** agy's image tool's aspect ratios, and its default. */
+export const AGY_ASPECTS = ["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9"] as const;
+/** The most images agy's image tool edits at once. */
+export const AGY_MAX_INPUTS = 3;
+/** The id `audio.transcribeModel` keeps for Antigravity's transcription model, whatever Google names it now. */
+export const AGY_TRANSCRIBE = "antigravity";
+/** How long the catalog's media models are kept before Google is asked again. */
+const CATALOG_MS = 60 * 60 * 1000;
+/** Google is done reading the audio when it has said nothing for this long. */
+const IDLE_MS = 1500;
+/** The most a stream may wait for Google to finish, beyond its audio. */
+const STREAM_MS = 60_000;
+/** A picture takes a while. */
+const IMAGE_MS = 5 * 60 * 1000;
+/** A live dictation the page stopped feeding is dropped after this. */
+const DICTATION_IDLE_MS = 30_000;
 
-/** The image model agy uses, from `fetchAvailableModels.imageGenerationModelIds`. */
-export const AGY_IMAGE_MODEL = "gemini-3.1-flash-image";
-/** The STT model agy uses, from `fetchAvailableModels.audioTranscriptionModelIds`. */
-export const AGY_STT_MODEL = "models/proactive-observer-v10";
-/** What agy sends as User-Agent on gRPC (grpc-go's version). */
-export const GRPC_UA = "grpc-go/1.86.0-dev";
+type Catalog = Pick<AgyCatalog, "imageGenerationModelIds" | "audioTranscriptionModelIds"> & { models?: Record<string, { displayName?: string }> };
 
-/** Aspects agy's image tool accepts (from its function declaration in the binary). */
-export const AGY_IMAGE_ASPECTS = ["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9"] as const;
-export type AgyImageAspect = (typeof AGY_IMAGE_ASPECTS)[number];
+export type AgyImageModel = { id: string; name: string };
+export type AgyImage = { mimeType: string; data: Uint8Array };
+export type AgyImages = { images: AgyImage[]; text: string; tokens: { input: number; output: number } };
+/** One stretch of speech in a file: from and to in ms, and what was said. */
+export type AgyUtterance = { start: number; end: number; text: string };
 
-export type AgyImageInput = { mimeType: string; data: Uint8Array };
-
-export interface AgyImageResult {
-    mimeType: string;
-    data: Uint8Array;
-    tokens: { input: number; output: number };
+export interface AgyMediaOptions {
+    /** The sign-in's request auth (pi's `toAuth` key, renewed when it ran out), or undefined when not signed in. */
+    apiKey(): Promise<string | undefined>;
+    /** The provider's transport (`AgyRuntime.send`); tests answer for Cloud Code. Default: a transport of agy's own. */
+    send?: AgySend;
+    /** The provider's catalog (`AgyRuntime.catalog`). Default: asked here, kept an hour. */
+    catalog?: (auth: AgyAuth, signal?: AbortSignal) => Promise<AgyCatalog>;
+    /** Before a media call: agy's background reads start as for a turn (awaited unless `wait` is false). */
+    beforeUse?: (auth: AgyAuth, wait: boolean) => Promise<void>;
+    /** After a media call: agy's read of the quota after a turn. */
+    afterUse?: () => void;
+    /** The agent request a session's tool call came from (its trajectory and step), when the session is on Antigravity. */
+    stepOf?: (conversationId: ConversationId) => Promise<AgyStep | undefined>;
+    /** Tests answer for the dictation endpoint (an h2c server). */
+    dictationUrl?: string;
+    now?: () => number;
+    /** Tests do not wait for Google's quiet. */
+    idleMs?: number;
 }
 
-/** gRPC protobuf helpers (hand-written, no library). */
-function varint(n: number): Buffer {
+// ---- protobuf, as much as the dictation stream needs ----
+
+function varint(value: number): Buffer {
     const out: number[] = [];
-    while (n > 0x7f) {
-        out.push((n & 0x7f) | 0x80);
-        n >>>= 7;
+    let rest = value;
+
+    while (rest > 0x7f) {
+        out.push((rest & 0x7f) | 0x80);
+        rest = Math.floor(rest / 128);
     }
-    out.push(n);
+
+    out.push(rest);
+
     return Buffer.from(out);
 }
 
-function field(number: number, value: Buffer): Buffer {
-    return Buffer.concat([varint((number << 3) | 2), varint(value.length), value]);
-}
+const bytesField = (number: number, value: Uint8Array) => Buffer.concat([varint((number << 3) | 2), varint(value.length), value]);
+const textField = (number: number, value: string) => bytesField(number, Buffer.from(value, "utf8"));
+const trueField = (number: number) => Buffer.from([number << 3, 1]);
+const EMPTY = Buffer.alloc(0);
 
-function flag(number: number): Buffer {
-    return Buffer.concat([varint(number << 3), varint(1)]);
-}
+/** The setup agy sends: the model, `5{6{1:1}}` and an empty `8`, as captured. */
+export const setupMessage = (model: string) => bytesField(1, Buffer.concat([textField(1, model), bytesField(5, bytesField(6, trueField(1))), bytesField(8, EMPTY)]));
+/** Realtime input: the activity starts. */
+export const startMessage = () => bytesField(3, bytesField(5, EMPTY));
+/** Realtime input: one piece of audio. */
+export const audioMessage = (pcm: Uint8Array) => bytesField(3, bytesField(1, Buffer.concat([textField(1, `audio/pcm;rate=${AGY_PCM_RATE}`), bytesField(2, pcm)])));
+/** Realtime input: the audio stream ends, and the activity. */
+export const endMessage = () => bytesField(3, Buffer.concat([trueField(2), bytesField(6, EMPTY)]));
 
-function grpcFrame(message: Buffer): Buffer {
+/** A gRPC message on the wire: uncompressed, its length, itself. */
+export function grpcFrame(message: Uint8Array): Buffer {
     const head = Buffer.alloc(5);
+
     head.writeUInt32BE(message.length, 1);
+
     return Buffer.concat([head, message]);
 }
 
-function readVarint(b: Buffer, i: number): [number, number] {
-    let r = 0;
-    let s = 0;
-    for (;;) {
-        if (i >= b.length) throw new Error("short varint");
-        const c = b[i++]!;
-        r |= (c & 0x7f) << s;
-        s += 7;
-        if (c < 0x80) return [r, i];
-    }
-}
+type Field = { number: number; varint?: number; bytes?: Buffer };
 
-/** Parse a protobuf message into a tree of fields. */
-function parseProto(m: Buffer): Map<number, (Buffer | number)[]> {
-    const fields = new Map<number, (Buffer | number)[]>();
-    let i = 0;
-    while (i < m.length) {
-        const [key, j] = readVarint(m, i);
-        i = j;
-        const f = key >> 3;
-        const wire = key & 7;
-        let value: Buffer | number;
-        if (wire === 0) {
-            const [v, k] = readVarint(m, i);
-            i = k;
-            value = v;
-        } else if (wire === 2) {
-            const [n, k] = readVarint(m, i);
-            value = m.subarray(k, k + n);
-            i = k + n;
-        } else {
-            throw new Error(`unsupported wire type ${wire}`);
+function fields(message: Buffer): Field[] {
+    const out: Field[] = [];
+    let at = 0;
+    const read = () => {
+        let value = 0;
+        let scale = 1;
+
+        for (;;) {
+            if (at >= message.length) {
+                throw new Error("A message from Google's dictation ended early.");
+            }
+
+            const byte = message[at++]!;
+
+            value += (byte & 0x7f) * scale;
+            scale *= 128;
+
+            if (byte < 0x80) {
+                return value;
+            }
         }
-        const arr = fields.get(f);
-        if (arr) arr.push(value);
-        else fields.set(f, [value]);
+    };
+
+    while (at < message.length) {
+        const key = read();
+        const number = Math.floor(key / 8);
+        const type = key & 7;
+
+        if (type === 0) {
+            out.push({ number, varint: read() });
+        } else if (type === 2) {
+            const length = read();
+
+            out.push({ number, bytes: message.subarray(at, at + length) });
+            at += length;
+        } else if (type === 1) {
+            at += 8;
+        } else if (type === 5) {
+            at += 4;
+        } else {
+            throw new Error(`Google's dictation sent a field of wire type ${type}.`);
+        }
     }
-    return fields;
+
+    return out;
 }
 
-/** Get the first Buffer value of a field, or undefined. */
-function getBytes(fields: Map<number, (Buffer | number)[]>, f: number): Buffer | undefined {
-    const arr = fields.get(f);
-    const v = arr?.[0];
-    return v instanceof Buffer ? v : undefined;
-}
+/** What one server message says: the setup is done, the running transcript, the final one, the turn is complete. */
+export type Heard = { setup?: true; running?: string; final?: string; turnComplete?: true };
 
-/** Get the first number value of a field, or undefined. */
-function getInt(fields: Map<number, (Buffer | number)[]>, f: number): number | undefined {
-    const arr = fields.get(f);
-    const v = arr?.[0];
-    return typeof v === "number" ? v : undefined;
-}
+export function readHeard(message: Buffer): Heard {
+    const heard: Heard = {};
+    const textOf = (bytes: Buffer | undefined) => fields(bytes ?? EMPTY).find((each) => each.number === 1)?.bytes?.toString("utf8") ?? "";
 
-export type AgySend = (url: string, init: WireRequest) => Promise<WireResponse>;
+    for (const field of fields(message)) {
+        if (field.number === 1) {
+            heard.setup = true;
+        } else if (field.number === 2 && field.bytes !== undefined) {
+            for (const inner of fields(field.bytes)) {
+                if (inner.number === 11) {
+                    heard.running = textOf(inner.bytes);
+                } else if (inner.number === 6) {
+                    heard.final = textOf(inner.bytes);
+                } else if (inner.number === 2 && inner.varint === 1) {
+                    heard.turnComplete = true;
+                }
+            }
+        }
+    }
 
-export interface AgyMediaOptions {
-    /** The signed-in credential (renewed by Pi when it ends). */
-    auth: () => Promise<AgyCredential | undefined>;
-    /** agy's transport (agy-wire). */
-    send?: AgySend;
-    log?: (line: string) => void;
+    return heard;
 }
 
 /**
- * Generate an image with agy's image model (non-streaming `generateContent`).
- * @param prompt The prompt text.
- * @param inputs Up to 3 input images for editing (optional).
- * @param aspect The aspect ratio (default "1:1").
+ * What was said: Google's final transcript covers the last turn only, its running one all of it. The final is the
+ * transcript when it covers what was heard (at least 80% of the running one's length), else the running one is.
  */
-export async function makeAgyImage(
-    options: AgyMediaOptions,
-    prompt: string,
-    inputs: AgyImageInput[] = [],
-    aspect: AgyImageAspect = "1:1",
-    signal?: AbortSignal,
-): Promise<AgyImageResult> {
-    const auth = await options.auth();
-    if (!auth) throw new Error("not signed in to Antigravity");
+export function transcriptOf(running: string, final: string): string {
+    const a = running.trim();
+    const b = final.trim();
 
-    const send = options.send ?? defaultSend();
-    const url = `${HOST}/v1internal:generateContent`;
-    const ms = Date.now();
-    const requestId = `image_gen/${ms}/${randomUUID()}/2`;
-    const ua = agyUserAgent(auth.osType, auth.arch, auth.authMethod);
+    return b !== "" && b.length >= a.length * 0.8 ? b : a;
+}
 
-    // Build contents: text part, then image parts
-    const parts: unknown[] = [{ text: prompt }];
-    for (const input of inputs.slice(0, 3)) {
-        parts.push({
-            inlineData: {
-                mimeType: input.mimeType,
-                data: Buffer.from(input.data).toString("base64"),
-            },
-        });
+/**
+ * The stretches of speech in 16 kHz pcm16, by loudness in 30 ms frames: quiet under three times the quietest fifth's
+ * level or a tenth of the loud end's (at least 300), gaps up to 1.5 s joined, 210 ms kept around each, and none longer than 45 s (cut at its
+ * quietest frame). Times in ms.
+ */
+export function speechSegments(pcm: Uint8Array): { start: number; end: number }[] {
+    const FRAME = AGY_PCM_RATE * 0.03;
+    const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength - (pcm.byteLength % 2));
+    const samples = view.byteLength / 2;
+    const levels: number[] = [];
+
+    for (let from = 0; from < samples; from += FRAME) {
+        let sum = 0;
+        const to = Math.min(samples, from + FRAME);
+
+        for (let at = from; at < to; at++) {
+            const sample = view.getInt16(at * 2, true);
+
+            sum += sample * sample;
+        }
+
+        levels.push(Math.sqrt(sum / Math.max(1, to - from)));
     }
 
-    const body = JSON.stringify({
-        project: auth.projectId,
-        requestId,
-        request: {
-            contents: [{ role: "user", parts }],
-            generationConfig: {
-                candidateCount: 1,
-                imageConfig: { aspectRatio: aspect },
-            },
-        },
-        model: AGY_IMAGE_MODEL,
-        userAgent: "antigravity",
-        requestType: "image_gen",
+    if (levels.length === 0) {
+        return [];
+    }
+
+    // Speech is louder than three times the quietest fifth (the room's noise), or than a tenth of the loud end, whichever
+    // is lower: a file with no pause at all is speech throughout. Never under 300 (of 32767).
+    const sorted = [...levels].sort((a, b) => a - b);
+    const floor = sorted[Math.floor(sorted.length * 0.2)]!;
+    const loud = sorted[Math.floor(sorted.length * 0.95)]!;
+    const threshold = Math.max(300, Math.min(floor * 3, loud * 0.1));
+    const regions: [number, number][] = [];
+
+    levels.forEach((level, index) => {
+        if (level < threshold) {
+            return;
+        }
+
+        const last = regions.at(-1);
+
+        if (last !== undefined && index - last[1] <= 50) {
+            last[1] = index + 1;
+        } else {
+            regions.push([index, index + 1]);
+        }
     });
 
-    const headers = goHeaders(url, {
-        "User-Agent": ua,
-        Authorization: `Bearer ${auth.access}`,
-        "Content-Type": "application/json",
-    }, body);
+    // A stretch longer than 45 s is cut at its quietest frame between 30 and 45 s, and the rest the same way.
+    const cut = (from: number, to: number): [number, number][] => {
+        if (to - from <= 1500) {
+            return [[from, to]];
+        }
 
-    const response = await send(url, { method: "POST", headers, body, signal });
+        let quietest = from + 1000;
 
-    if (response.status !== 200) {
-        const text = await collectText(response.body);
-        throw new Error(`Antigravity image generation failed (${response.status}): ${text.slice(0, 500)}`);
+        for (let at = from + 1000; at < from + 1500; at++) {
+            if (levels[at]! < levels[quietest]!) {
+                quietest = at;
+            }
+        }
+
+        return [...cut(from, quietest), ...cut(quietest, to)];
+    };
+    const total = levels.length;
+
+    return regions
+        .filter(([from, to]) => to - from >= 4)
+        .flatMap(([from, to]) => cut(Math.max(0, from - 7), Math.min(total, to + 7)))
+        .map(([from, to]) => ({ start: from * 30, end: Math.min(to * 30, Math.round((samples / AGY_PCM_RATE) * 1000)) }));
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** The proxy Go would use for this address (`HTTPS_PROXY`, unless `NO_PROXY` names its host), as the app sets it. */
+export function proxyFor(target: URL, env: NodeJS.ProcessEnv = process.env): URL | undefined {
+    const proxy = env.HTTPS_PROXY ?? env.https_proxy;
+
+    if (target.protocol !== "https:" || proxy === undefined || proxy.trim() === "") {
+        return undefined;
     }
 
-    const text = await collectText(response.body);
-    const json = JSON.parse(text) as {
-        response?: {
-            candidates?: { content?: { parts?: { inlineData?: { mimeType: string; data: string } }[] } }[];
-            usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
-        };
-    };
+    const host = target.hostname.toLowerCase();
 
-    const candidate = json.response?.candidates?.[0];
-    const imagePart = candidate?.content?.parts?.find((p) => p.inlineData?.data);
-    if (!imagePart?.inlineData) {
-        throw new Error("Antigravity returned no image");
+    for (const entry of (env.NO_PROXY ?? env.no_proxy ?? "").split(",")) {
+        const name = entry.trim().toLowerCase().replace(/:\d+$/, "");
+
+        if (name === "*" || (name !== "" && (host === name.replace(/^\./, "") || host.endsWith(name.startsWith(".") ? name : `.${name}`)))) {
+            return undefined;
+        }
     }
 
-    const usage = json.response?.usageMetadata;
-    return {
-        mimeType: imagePart.inlineData.mimeType,
-        data: Buffer.from(imagePart.inlineData.data, "base64"),
-        tokens: {
-            input: usage?.promptTokenCount ?? 0,
-            output: usage?.candidatesTokenCount ?? 0,
-        },
-    };
+    return new URL(proxy.includes("://") ? proxy : `http://${proxy}`);
 }
 
-async function collectText(body: AsyncIterable<Uint8Array>): Promise<string> {
-    const chunks: Uint8Array[] = [];
-    for await (const chunk of body) chunks.push(chunk);
-    return Buffer.concat(chunks).toString("utf8");
-}
+/** A tunnel through the proxy as grpc-go opens it: `CONNECT host:443` with only `Host` and grpc-go's User-Agent. */
+function tunnel(proxy: URL, target: URL): Promise<Socket> {
+    const authority = `${target.hostname}:${target.port || "443"}`;
 
-function agyUserAgent(osType: string, arch: string, authMethod: string): string {
-    return `antigravity/cli/${AGY_VERSION} (aidev_client; os_type=${osType}; arch=${arch}; cl=${AGY_BUILD}; auth_method=${authMethod})`;
-}
-
-let sharedAgent: ReturnType<typeof agyAgent> | undefined;
-
-function defaultSend(): AgySend {
-    return async (url, init) => {
-        sharedAgent ??= agyAgent();
-        const https = await import("node:https");
-        return new Promise((resolve, reject) => {
-            const request = https.request(url, {
-                agent: sharedAgent,
-                method: init.method ?? "POST",
-                headers: init.headers,
-                setHost: false,
-                ...(init.signal ? { signal: init.signal } : {}),
-            });
-            request.removeHeader("Connection");
-            request.on("error", reject);
-            request.on("response", (response) => {
-                const headers = new Headers();
-                for (let i = 0; i + 1 < response.rawHeaders.length; i += 2) {
-                    headers.append(response.rawHeaders[i]!, response.rawHeaders[i + 1]!);
-                }
-                resolve({
-                    status: response.statusCode ?? 0,
-                    headers,
-                    body: response as AsyncIterable<Uint8Array>,
-                });
-            });
-            request.end(init.body);
+    return new Promise<Socket>((resolve, reject) => {
+        const request = (proxy.protocol === "https:" ? https : http).request({
+            host: proxy.hostname,
+            port: Number(proxy.port) || (proxy.protocol === "https:" ? 443 : 80),
+            method: "CONNECT",
+            path: authority,
+            setHost: false,
+            headers: {
+                Host: authority,
+                "User-Agent": AGY_GRPC_AGENT,
+                ...(proxy.username === "" ? {} : { "Proxy-Authorization": `Basic ${Buffer.from(`${decodeURIComponent(proxy.username)}:${decodeURIComponent(proxy.password)}`).toString("base64")}` }),
+            },
         });
-    };
+
+        request.removeHeader("Connection");
+        request.on("connect", (response, socket) => {
+            if (response.statusCode === 200) {
+                resolve(socket);
+            } else {
+                socket.destroy();
+                reject(new Error(`the proxy answered ${String(response.statusCode)} to CONNECT`));
+            }
+        });
+        request.on("error", reject);
+        request.end();
+    });
 }
 
 /**
- * A bidirectional gRPC stream for speech-to-text with agy's dictation model.
- * Audio is sent as 40 ms chunks (1280 bytes at 16 kHz PCM s16le).
+ * An HTTP/2 session to the dictation endpoint as grpc-go opens one: its ClientHello (`AGY_GRPC_TLS`), through the proxy
+ * when there is one. An `http:` address (tests) is plain h2c.
+ */
+async function grpcSession(address: string): Promise<ClientHttp2Session> {
+    const target = new URL(address);
+
+    if (target.protocol !== "https:") {
+        return connect(address);
+    }
+
+    const proxy = proxyFor(target);
+    const socket = proxy === undefined ? undefined : await tunnel(proxy, target);
+    const options = { ...AGY_GRPC_TLS, ALPNProtocols: [...AGY_GRPC_TLS.ALPNProtocols], servername: target.hostname };
+
+    return socket === undefined
+        ? connect(address, options)
+        : connect(address, { ...options, createConnection: () => tls.connect({ ...options, socket }) });
+}
+
+/**
+ * One dictation stream: opened with the setup and the activity's start, fed audio (in agy's 40 ms messages), then
+ * finished: once Google has said nothing for a moment (it has read all the audio), the end goes and the stream is
+ * half-closed; what was said comes when Google closes it.
  */
 export class AgyListen {
-    readonly #auth: AgyCredential;
-    readonly #log: (line: string) => void;
-    #session: http2.ClientHttp2Session | undefined;
-    #stream: http2.ClientHttp2Stream | undefined;
-    #buffer = Buffer.alloc(0);
-    #transcript = "";
+    readonly #session: ClientHttp2Session;
+    readonly #stream: ClientHttp2Stream;
+    readonly #idleMs: number;
+    #rest: Buffer = EMPTY;
+    #running = "";
     #final = "";
-    #lastChange = 0;
-    #turnComplete = false;
-    #closed = false;
+    #lastHeard = Date.now();
+    #ended = false;
+    readonly closed: Promise<string>;
+    /** The running transcript as it changes. */
+    onText: ((text: string) => void) | undefined;
 
-    constructor(auth: AgyCredential, log?: (line: string) => void) {
-        this.#auth = auth;
-        this.#log = log ?? (() => {});
+    /** A stream on a new connection, as agy opens one for each dictation. */
+    static async open(url: string, token: string, model: string, idleMs: number): Promise<AgyListen> {
+        return new AgyListen(await grpcSession(url), new URL(url), token, model, idleMs);
     }
 
-    /** Start the gRPC stream. */
-    async start(): Promise<void> {
-        this.#session = http2.connect(GRPC_HOST, {
-            ...AGY_TLS,
-            ALPNProtocols: ["h2"],
-        });
-
+    private constructor(session: ClientHttp2Session, url: URL, token: string, model: string, idleMs: number) {
+        this.#idleMs = idleMs;
+        this.#session = session;
+        this.#session.on("error", () => undefined);
+        // grpc-go's order: the pseudo-headers, then content-type, user-agent, te, and the call's metadata.
         this.#stream = this.#session.request({
             ":method": "POST",
-            ":path": GRPC_PATH,
+            ":scheme": url.protocol.replace(":", ""),
+            ":path": AGY_DICTATION_PATH,
+            ":authority": url.host,
             "content-type": "application/grpc",
-            "user-agent": GRPC_UA,
+            "user-agent": AGY_GRPC_AGENT,
             te: "trailers",
-            authorization: `Bearer ${this.#auth.access}`,
+            authorization: `Bearer ${token}`,
         });
+        let buffer = EMPTY;
+        let status: string | undefined;
+        let message: string | undefined;
+        let httpStatus: number | undefined;
 
-        this.#stream.on("data", (data: Buffer) => this.#onData(data));
-        this.#stream.on("trailers", (trailers) => {
-            const status = trailers["grpc-status"];
-            if (status && status !== "0") {
-                this.#log(`gRPC error: ${status} ${trailers["grpc-message"] ?? ""}`);
-            }
-        });
-        this.#stream.on("close", () => {
-            this.#closed = true;
-        });
+        this.closed = new Promise<string>((resolve, reject) => {
+            this.#stream.on("response", (headers) => {
+                httpStatus = Number(headers[":status"]);
+                status = typeof headers["grpc-status"] === "string" ? headers["grpc-status"] : status;
+                message = typeof headers["grpc-message"] === "string" ? decodeURIComponent(headers["grpc-message"]) : message;
+            });
+            this.#stream.on("trailers", (trailers) => {
+                status = typeof trailers["grpc-status"] === "string" ? trailers["grpc-status"] : status;
+                message = typeof trailers["grpc-message"] === "string" ? decodeURIComponent(trailers["grpc-message"]) : message;
+            });
+            this.#stream.on("data", (data: Buffer) => {
+                buffer = Buffer.concat([buffer, data]);
 
-        // Setup message
-        const setup = field(1, Buffer.concat([
-            field(1, Buffer.from(AGY_STT_MODEL)),
-            field(5, field(6, Buffer.from([0x08, 0x01]))),
-            field(8, Buffer.alloc(0)),
-        ]));
-        this.#stream.write(grpcFrame(setup));
+                while (buffer.length >= 5 && buffer.length >= 5 + buffer.readUInt32BE(1)) {
+                    const length = buffer.readUInt32BE(1);
+                    const heard = readHeard(buffer.subarray(5, 5 + length));
 
-        // Activity start
-        const start = field(3, field(5, Buffer.alloc(0)));
-        this.#stream.write(grpcFrame(start));
+                    buffer = buffer.subarray(5 + length);
+                    this.#lastHeard = Date.now();
 
-        // Wait for setup complete
-        await this.#waitSetupComplete();
-    }
+                    if (heard.running !== undefined && heard.running !== this.#running) {
+                        this.#running = heard.running;
+                        this.onText?.(this.#running);
+                    }
 
-    async #waitSetupComplete(): Promise<void> {
-        const timeout = Date.now() + 10_000;
-        while (Date.now() < timeout && !this.#closed) {
-            // Setup complete is `1{}` (field 1, empty)
-            if (this.#buffer.length >= 5) {
-                const len = this.#buffer.readUInt32BE(1);
-                if (this.#buffer.length >= 5 + len) {
-                    const msg = this.#buffer.subarray(5, 5 + len);
-                    this.#buffer = this.#buffer.subarray(5 + len);
-                    const fields = parseProto(msg);
-                    if (fields.has(1)) {
-                        // Setup complete
-                        return;
+                    if (heard.final !== undefined) {
+                        this.#final = heard.final;
                     }
                 }
-            }
-            await new Promise((r) => setTimeout(r, 50));
-        }
-        if (this.#closed) throw new Error("gRPC stream closed before setup complete");
-        throw new Error("setup timeout");
-    }
+            });
+            this.#stream.on("error", (error) => reject(new Error(`Could not reach ${AGY_NAME}'s dictation: ${error.message}`)));
+            this.#stream.on("close", () => {
+                this.#session.close();
 
-    #onData(data: Buffer): void {
-        this.#buffer = Buffer.concat([this.#buffer, data]);
-        this.#processMessages();
-    }
-
-    #processMessages(): void {
-        while (this.#buffer.length >= 5) {
-            const len = this.#buffer.readUInt32BE(1);
-            if (this.#buffer.length < 5 + len) break;
-
-            const msg = this.#buffer.subarray(5, 5 + len);
-            this.#buffer = this.#buffer.subarray(5 + len);
-
-            try {
-                const fields = parseProto(msg);
-                // Field 2 is the response content
-                const content = getBytes(fields, 2);
-                if (content) {
-                    const inner = parseProto(content);
-                    // Field 11 is interim transcript, field 6 is final
-                    const interim = getBytes(inner, 11);
-                    const final = getBytes(inner, 6);
-                    // Field 2 = turn complete, field 3 = end
-                    const turnComplete = getInt(inner, 2);
-                    getInt(inner, 3); // end marker, not needed
-
-                    if (interim) {
-                        const text = this.#extractText(interim);
-                        if (text !== this.#transcript) {
-                            this.#transcript = text;
-                            this.#lastChange = Date.now();
-                        }
-                    }
-                    if (final) {
-                        const text = this.#extractText(final);
-                        this.#final = text;
-                        this.#lastChange = Date.now();
-                    }
-                    if (turnComplete === 1) {
-                        this.#turnComplete = true;
-                    }
+                if (httpStatus !== undefined && httpStatus !== 200) {
+                    reject(new Error(`${AGY_NAME}'s dictation answered HTTP ${httpStatus}.`));
+                } else if (status !== undefined && status !== "0") {
+                    reject(new Error(`${AGY_NAME}'s dictation refused (gRPC ${status}${message === undefined || message === "" ? "" : `: ${message}`}).`));
+                } else if (status === undefined) {
+                    reject(new Error(`${AGY_NAME}'s dictation closed without a status.`));
+                } else {
+                    resolve(transcriptOf(this.#running, this.#final));
                 }
-            } catch (e) {
-                this.#log(`parse error: ${e}`);
+            });
+        });
+        this.closed.catch(() => undefined);
+        this.#stream.write(grpcFrame(setupMessage(model)));
+        this.#stream.write(grpcFrame(startMessage()));
+    }
+
+    get running(): string {
+        return this.#running;
+    }
+
+    /** Audio to send, in agy's 40 ms messages; a remainder waits for the next. */
+    audio(pcm: Uint8Array): void {
+        if (this.#ended || this.#stream.closed || this.#stream.destroyed) {
+            return;
+        }
+
+        let data = this.#rest.length === 0 ? Buffer.from(pcm) : Buffer.concat([this.#rest, pcm]);
+
+        while (data.length >= AGY_CHUNK_BYTES) {
+            this.#stream.write(grpcFrame(audioMessage(data.subarray(0, AGY_CHUNK_BYTES))));
+            data = data.subarray(AGY_CHUNK_BYTES);
+        }
+
+        this.#rest = data;
+    }
+
+    /** The rest of the audio, Google's quiet, the end, and what was said. */
+    async finish(signal?: AbortSignal): Promise<string> {
+        if (!this.#ended) {
+            if (this.#rest.length > 0) {
+                this.#stream.write(grpcFrame(audioMessage(this.#rest)));
+                this.#rest = EMPTY;
+            }
+
+            this.#ended = true;
+            const started = Date.now();
+
+            while (Date.now() - this.#lastHeard < this.#idleMs && Date.now() - started < STREAM_MS && !this.#stream.closed) {
+                if (signal?.aborted) {
+                    this.abort();
+                    throw new Error("Stopped.");
+                }
+
+                await new Promise((resolve) => setTimeout(resolve, 100));
+            }
+
+            if (!this.#stream.closed) {
+                this.#stream.end(grpcFrame(endMessage()));
             }
         }
-    }
 
-    #extractText(msg: Buffer): string {
-        const fields = parseProto(msg);
-        const textBuf = getBytes(fields, 1);
-        return textBuf?.toString("utf8") ?? "";
-    }
+        const timer = setTimeout(() => this.abort(), STREAM_MS);
 
-    /** Send audio chunk (40 ms = 1280 bytes at 16 kHz). */
-    sendAudio(chunk: Buffer): void {
-        if (this.#closed || !this.#stream) return;
-        const audio = field(3, field(1, Buffer.concat([
-            field(1, Buffer.from("audio/pcm;rate=16000")),
-            field(2, chunk),
-        ])));
-        this.#stream.write(grpcFrame(audio));
-    }
-
-    /** Signal end of audio. */
-    sendEnd(): void {
-        if (this.#closed || !this.#stream) return;
-        const end = field(3, Buffer.concat([flag(2), field(6, Buffer.alloc(0))]));
-        this.#stream.write(grpcFrame(end));
-    }
-
-    /** Half-close the stream (no more data from client). */
-    halfClose(): void {
-        this.#stream?.end();
-    }
-
-    /** Wait for the transcript to stop changing for the given ms. */
-    async waitQuiet(ms: number): Promise<void> {
-        while (!this.#closed && Date.now() - this.#lastChange < ms) {
-            await new Promise((r) => setTimeout(r, 100));
+        try {
+            return await this.closed;
+        } finally {
+            clearTimeout(timer);
         }
     }
 
-    /** The current transcript (interim or final). */
-    get transcript(): string {
-        // Use final if it's at least 80% of interim length, else interim
-        if (this.#final && this.#final.length >= this.#transcript.length * 0.8) {
-            return this.#final;
-        }
-        return this.#transcript;
-    }
-
-    get turnComplete(): boolean {
-        return this.#turnComplete;
-    }
-
-    get closed(): boolean {
-        return this.#closed;
-    }
-
-    /** Close the stream and session. */
-    close(): void {
-        this.#stream?.close();
-        this.#session?.close();
-        this.#closed = true;
+    /** Close now, nothing kept. */
+    abort(): void {
+        this.#ended = true;
+        this.#stream.close();
+        this.#session.close();
     }
 }
 
-/**
- * Transcribe audio with Antigravity's STT model.
- * @param pcm 16 kHz PCM s16le audio data.
- * @returns The transcript text.
- */
-export async function transcribeAgy(
-    options: AgyMediaOptions,
-    pcm: Uint8Array,
-    signal?: AbortSignal,
-): Promise<string> {
-    const auth = await options.auth();
-    if (!auth) throw new Error("not signed in to Antigravity");
+/** A dictation from the page: its stream, and when the page last sent audio. */
+type Dictation = { listen: AgyListen; at: number; userId: string; failed?: string };
 
-    const listener = new AgyListen(auth, options.log);
-    await listener.start();
+export class AgyMedia {
+    readonly #options: AgyMediaOptions;
+    readonly #send: AgySend;
+    #catalog: { at: number; catalog: Catalog } | undefined;
+    readonly #dictations = new Map<string, Dictation>();
 
-    // Send all audio at once (faster than real time)
-    const CHUNK = 1280;
-    for (let at = 0; at < pcm.length; at += CHUNK) {
-        if (signal?.aborted) {
-            listener.close();
-            throw new Error("aborted");
+    constructor(options: AgyMediaOptions) {
+        this.#options = options;
+        this.#send = options.send ?? agyTransport();
+    }
+
+    #now(): number {
+        return (this.#options.now ?? Date.now)();
+    }
+
+    /** The sign-in's auth, or undefined when there is none. */
+    async #auth(): Promise<AgyAuth | undefined> {
+        const key = await this.#options.apiKey();
+
+        return key === undefined || key === "" ? undefined : parseAuth(key);
+    }
+
+    async #signedInAuth(): Promise<AgyAuth> {
+        const auth = await this.#auth();
+
+        if (auth === undefined) {
+            throw new Error(`${AGY_NAME} is not signed in: sign in in Settings › Providers.`);
         }
-        listener.sendAudio(Buffer.from(pcm.subarray(at, at + CHUNK)));
+
+        return auth;
     }
 
-    // Wait for transcript to stabilize
-    await listener.waitQuiet(1500);
-
-    // Send end and half-close
-    listener.sendEnd();
-    await new Promise((r) => setTimeout(r, 100));
-    listener.halfClose();
-
-    // Wait for close
-    const timeout = Date.now() + 10_000;
-    while (!listener.closed && Date.now() < timeout) {
-        await new Promise((r) => setTimeout(r, 100));
+    async signedIn(): Promise<boolean> {
+        return (await this.#options.apiKey().catch(() => undefined)) !== undefined;
     }
 
-    const transcript = listener.transcript;
-    listener.close();
-    return transcript;
+    /** One Cloud Code call with agy's headers, in Go's order; Google's error as the message. */
+    async #cloudCode(method: string, auth: AgyAuth, body: unknown, signal?: AbortSignal): Promise<unknown> {
+        const url = `${AGY_HOST}/v1internal:${method}`;
+        const json = JSON.stringify(body);
+        const answer = await this.#send(url, { headers: cloudCodeHeaders(url, auth, json), body: json, ...(signal === undefined ? {} : { signal }) });
+        const text = await readText(answer.body);
+
+        if (answer.status >= 400) {
+            throw new Error(`${AGY_NAME} (${answer.status}): ${errorText(text)}`);
+        }
+
+        return JSON.parse(text) as unknown;
+    }
+
+    /**
+     * The catalog's media models: the provider's (agy's background reads keep it current), or else asked here
+     * (`fetchAvailableModels`, as agy asks it) and kept an hour; a failed ask is not kept.
+     */
+    async #media(auth: AgyAuth): Promise<Catalog> {
+        if (this.#options.catalog !== undefined) {
+            return this.#options.catalog(auth, AbortSignal.timeout(30_000));
+        }
+
+        const now = this.#now();
+
+        if (this.#catalog !== undefined && now - this.#catalog.at < CATALOG_MS) {
+            return this.#catalog.catalog;
+        }
+
+        const answer = await this.#cloudCode("fetchAvailableModels", auth, { project: auth.project }, AbortSignal.timeout(30_000));
+        const catalog = (isRecord(answer) ? answer : {}) as Catalog;
+
+        this.#catalog = { at: now, catalog };
+
+        return catalog;
+    }
+
+    /** The image models Antigravity offers, with their names; none when not signed in. */
+    async imageModels(): Promise<AgyImageModel[]> {
+        const auth = await this.#auth();
+
+        if (auth === undefined) {
+            return [];
+        }
+
+        const catalog = await this.#media(auth);
+
+        return (catalog.imageGenerationModelIds ?? []).map((id) => ({ id, name: catalog.models?.[id]?.displayName ?? id }));
+    }
+
+    /** The transcription model Antigravity offers now (agy's dictation model). */
+    async transcribeModel(): Promise<string> {
+        const auth = await this.#signedInAuth();
+        const model = (await this.#media(auth)).audioTranscriptionModelIds?.[0];
+
+        if (model === undefined) {
+            throw new Error(`${AGY_NAME} lists no transcription model for this account now.`);
+        }
+
+        return model;
+    }
+
+    /** A media call as agy makes one while it runs: its background reads first, its quota read after. */
+    async #use<T>(auth: AgyAuth, wait: boolean, call: () => Promise<T>): Promise<T> {
+        await this.#options.beforeUse?.(auth, wait);
+
+        try {
+            return await call();
+        } finally {
+            this.#options.afterUse?.();
+        }
+    }
+
+    /**
+     * agy's image request id: `image_gen/<ms>/<the calling trajectory>/<the step after the agent request>`. A session on
+     * Antigravity gives its own; another session has no agy trajectory, so it gets a new one, as a first tool call (step 2).
+     */
+    async #imageRequestId(conversationId: ConversationId | undefined): Promise<string> {
+        const step = conversationId === undefined ? undefined : await this.#options.stepOf?.(conversationId).catch(() => undefined);
+
+        return `image_gen/${this.#now()}/${step?.trajectory ?? randomUUID()}/${step === undefined ? 2 : step.step + 1}`;
+    }
+
+    /** One picture, or an edit of up to three, as agy's image tool asks for it. */
+    async makeImage(request: { model: string; prompt: string; inputs: AgyImage[]; aspect?: string; signal?: AbortSignal; conversationId?: ConversationId }): Promise<AgyImages> {
+        if (request.inputs.length > AGY_MAX_INPUTS) {
+            throw new Error(`${AGY_NAME} edits at most ${AGY_MAX_INPUTS} images at once.`);
+        }
+
+        const aspect = request.aspect ?? "1:1";
+
+        if (!(AGY_ASPECTS as readonly string[]).includes(aspect)) {
+            throw new Error(`${AGY_NAME} takes the aspect ratios ${AGY_ASPECTS.join(", ")}.`);
+        }
+
+        const auth = await this.#signedInAuth();
+
+        return this.#use(auth, true, () => this.#makeImage(auth, request, aspect));
+    }
+
+    async #makeImage(auth: AgyAuth, request: { model: string; prompt: string; inputs: AgyImage[]; signal?: AbortSignal; conversationId?: ConversationId }, aspect: string): Promise<AgyImages> {
+        const body = {
+            project: auth.project,
+            requestId: await this.#imageRequestId(request.conversationId),
+            request: {
+                contents: [
+                    {
+                        role: "user",
+                        parts: [{ text: request.prompt }, ...request.inputs.map((image) => ({ inlineData: { mimeType: image.mimeType, data: Buffer.from(image.data).toString("base64") } }))],
+                    },
+                ],
+                generationConfig: { candidateCount: 1, imageConfig: { aspectRatio: aspect } },
+            },
+            model: request.model,
+            userAgent: "antigravity",
+            requestType: "image_gen",
+        };
+        const answer = await this.#cloudCode("generateContent", auth, body, AbortSignal.any([AbortSignal.timeout(IMAGE_MS), ...(request.signal === undefined ? [] : [request.signal])]));
+        const response = isRecord(answer) && isRecord(answer.response) ? answer.response : {};
+        const candidate = Array.isArray(response.candidates) && isRecord(response.candidates[0]) ? response.candidates[0] : {};
+        const content = isRecord(candidate.content) ? candidate.content : {};
+        const parts = Array.isArray(content.parts) ? content.parts.filter(isRecord) : [];
+        const images = parts.flatMap((part) => {
+            const inline = isRecord(part.inlineData) ? part.inlineData : undefined;
+            const data = typeof inline?.data === "string" ? new Uint8Array(Buffer.from(inline.data, "base64")) : undefined;
+
+            if (data === undefined || data.length === 0) {
+                return [];
+            }
+
+            const mimeType = imageType(data) ?? (typeof inline?.mimeType === "string" ? inline.mimeType : undefined);
+
+            return mimeType === undefined ? [] : [{ mimeType, data }];
+        });
+        const text = parts
+            .filter((part) => part.thought !== true && typeof part.text === "string")
+            .map((part) => String(part.text))
+            .join("")
+            .trim();
+
+        if (images.length === 0) {
+            const reason = typeof candidate.finishReason === "string" ? ` (${candidate.finishReason})` : "";
+
+            throw new Error(`${AGY_NAME} returned no image with ${request.model}${reason}${text === "" ? "" : `; it said: ${text.slice(0, 400)}`}.`);
+        }
+
+        const usage = isRecord(response.usageMetadata) ? response.usageMetadata : {};
+
+        return {
+            images,
+            text,
+            tokens: { input: typeof usage.promptTokenCount === "number" ? usage.promptTokenCount : 0, output: typeof usage.candidatesTokenCount === "number" ? usage.candidatesTokenCount : 0 },
+        };
+    }
+
+    /** A new dictation stream on the sign-in, with the catalog's transcription model. */
+    async listen(): Promise<{ listen: AgyListen; model: string }> {
+        const auth = await this.#signedInAuth();
+        const model = await this.transcribeModel();
+
+        return { listen: await AgyListen.open(this.#options.dictationUrl ?? AGY_DICTATION_URL, auth.token, model, this.#options.idleMs ?? IDLE_MS), model };
+    }
+
+    /**
+     * A file's 16 kHz pcm16 as utterances: each stretch of speech (`speechSegments`) in a stream of its own, one after
+     * another, sent at once, its transcript once Google is done with it.
+     */
+    async transcribe(pcm: Uint8Array, signal?: AbortSignal): Promise<{ model: string; utterances: AgyUtterance[] }> {
+        const auth = await this.#signedInAuth();
+
+        return this.#use(auth, true, () => this.#transcribe(pcm, signal));
+    }
+
+    async #transcribe(pcm: Uint8Array, signal?: AbortSignal): Promise<{ model: string; utterances: AgyUtterance[] }> {
+        const model = await this.transcribeModel();
+        const utterances: AgyUtterance[] = [];
+
+        for (const segment of speechSegments(pcm)) {
+            if (signal?.aborted) {
+                throw new Error("Stopped.");
+            }
+
+            const { listen } = await this.listen();
+            const from = Math.floor((segment.start * BYTES_A_SECOND) / 1000 / 2) * 2;
+            const to = Math.floor((segment.end * BYTES_A_SECOND) / 1000 / 2) * 2;
+
+            listen.audio(pcm.subarray(from, to));
+            const text = (await listen.finish(signal)).trim();
+
+            if (text !== "") {
+                utterances.push({ ...segment, text });
+            }
+        }
+
+        return { model, utterances };
+    }
+
+    // ---- the message box's dictation (Settings › Dictation › Google Antigravity) ----
+
+    /** Start a dictation for the page: its id. */
+    async startDictation(userId: string): Promise<{ dictation: string; model: string; rate: number }> {
+        this.#sweep();
+        // agy's background reads start beside it: the mic does not wait for them.
+        await this.#options.beforeUse?.(await this.#signedInAuth(), false);
+        const { listen, model } = await this.listen();
+        const id = randomUUID();
+
+        const dictation: Dictation = { listen, at: this.#now(), userId };
+
+        this.#dictations.set(id, dictation);
+        // Google closing it early (a refusal, the network) is said to the page's next audio.
+        listen.closed.catch((error: unknown) => {
+            dictation.failed = error instanceof Error ? error.message : String(error);
+        });
+
+        return { dictation: id, model, rate: AGY_PCM_RATE };
+    }
+
+    #dictation(userId: string, id: string): Dictation {
+        const found = this.#dictations.get(id);
+
+        if (found === undefined || found.userId !== userId) {
+            throw new Error("No such dictation: it ended. Tap the mic again.");
+        }
+
+        return found;
+    }
+
+    /** The page's audio (16 kHz pcm16): the running transcript back. */
+    dictationAudio(userId: string, id: string, pcm: Uint8Array): { text: string } {
+        const found = this.#dictation(userId, id);
+
+        if (found.failed !== undefined) {
+            this.#dictations.delete(id);
+            throw new Error(found.failed);
+        }
+
+        found.at = this.#now();
+        found.listen.audio(pcm);
+
+        return { text: found.listen.running };
+    }
+
+    /** The page stopped: what was said; `drop` closes it at once. */
+    async endDictation(userId: string, id: string, drop: boolean): Promise<{ text: string }> {
+        const found = this.#dictation(userId, id);
+
+        this.#dictations.delete(id);
+
+        if (drop) {
+            found.listen.abort();
+
+            return { text: "" };
+        }
+
+        try {
+            return { text: await found.listen.finish() };
+        } finally {
+            this.#options.afterUse?.();
+        }
+    }
+
+    /** Dictations the page stopped feeding long ago are closed. */
+    #sweep(): void {
+        for (const [id, each] of this.#dictations) {
+            if (this.#now() - each.at > DICTATION_IDLE_MS) {
+                each.listen.abort();
+                this.#dictations.delete(id);
+            }
+        }
+    }
 }

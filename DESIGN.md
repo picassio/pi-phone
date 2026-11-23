@@ -227,6 +227,41 @@ so Pi changes them through the settings tools; "the last session" is the one the
   Providers shows the risk on its row (`AgyRisk`): Google's terms forbid third-party clients, accounts are being
   suspended, a suspension closes Antigravity, Gemini CLI and Code Assist with one appeal. Fingerprint and how it was
   captured: wiki `resources/antigravity-agy-fingerprint`.
+  **Media** (PP-556/557, `src/server/antigravity-media.ts`, `AgyMedia` on the app, on the same sign-in and its
+  `toAuth` key; nothing is listed or sent while signed out). It is the same agy as the provider (`AgyRuntime`): its
+  Cloud Code calls go on the provider's transport (`agy-wire.ts`: HTTP/1.1, Go's headers and TLS, one pool), the media
+  models come from the provider's catalog (`imageGenerationModelIds`, `audioTranscriptionModelIds`; the background
+  reads keep it current), and a media call starts agy's background reads as a turn does (awaited, but for the mic) and
+  reads the quota after it as after a turn. *Images* join `image_generate`'s
+  providers (`image-gen.ts`, `google-antigravity/<id>`, Gemini 3.1 Flash Image now; *Automatic* after ChatGPT and
+  OpenRouter; on the plan, no money) as agy's `generate_image` asks: `POST v1internal:generateContent` with agy's
+  headers, `{project, requestId:"image_gen/<ms>/<trajectory>/<step>", request:{contents:[{role:"user", parts:[{text}, inline
+  images…]}], generationConfig:{candidateCount:1, imageConfig:{aspectRatio}}}, model, userAgent:"antigravity",
+  requestType:"image_gen"}` (no labels, session id, system text or safety settings: agy sends none), at most three
+  images to edit, aspect 1:1 unless asked. The id is agy's: a session on Antigravity's own models gives the trajectory
+  of the agent request that called the tool and its number plus one (`agent/…/1`, `image_gen/…/2`, `agent/…/3`, as
+  captured; the provider keeps each conversation's last request, `lastStep`); a session on another provider has no agy
+  trajectory, so it gets a new one, numbered as a first tool call (2). *Speech to text* is agy's dictation stream: gRPC
+  over HTTP/2 (`node:http2`, grpc-go's ClientHello `AGY_GRPC_TLS`: Go's without the CBC suites, ALPN `h2` only;
+  through the app's proxy with grpc-go's CONNECT; Node's own SETTINGS and window updates)
+  to `aicode.googleapis.com` `/google.gca.aicode.v1alpha.PredictionService/BidiGenerateContent`, headers in grpc-go's
+  order (the pseudo-headers, then
+  `content-type: application/grpc`, `user-agent: grpc-go/1.86.0-dev`, `te: trailers`, the Bearer token); messages
+  written by hand as protobuf, byte for byte as captured: the setup (the model, `5{6{1:1}}`, `8{}`), the activity's
+  start, 16 kHz pcm16 in 40 ms messages (`audio/pcm;rate=16000`), then audio stream end + activity end; Google answers
+  the running transcript (cumulative, field 11) and a final one of the last turn only (field 6). The end goes only once
+  Google has been quiet for 1.5 s (it has read all the audio: an earlier end cuts the transcript), then the stream is
+  half-closed; the transcript is the final when it covers at least 80% of the running one, else the running one. No
+  language or hint is sent, as agy sends none. `audio_transcribe` with `audio.transcribeModel` = `antigravity` (offered
+  while signed in; refused with a language or prompt) cuts each 16 kHz part into its stretches of speech by loudness
+  (`speechSegments`: 30 ms frames, gaps up to 1.5 s joined, at most 45 s) and sends each in a stream of its own, one
+  after another, all at once; the stretches are the utterances' times. The message box's dictation engine
+  `antigravity` (Settings › Dictation, offered while signed in; `voice.engine`) cannot reach gRPC from a page and
+  must not hold the token: `web/agy-dictation.js` records the mic at 16 kHz (Web Audio), posts about a quarter second
+  at a time to `POST /api/voice/agy-dictation/<id>/audio`, which feeds the server's stream and answers the running
+  transcript; `…/end` answers the settled one. A dictation the page stops feeding is closed after 30 s. *Text to
+  speech*: none (no speech model in the catalog, the account's live voice off, the TTS id in agy's binary answered 404),
+  so `audio_speak` stays on the ChatGPT sign-in.
 - **GitHub sign-in** (`src/server/github-login.ts`, `web/sheets/github.js`): GitHub's device flow with `gh`'s own
   OAuth app; the token goes to `gh auth login --with-token`, then `gh auth setup-git`. The agent's `git` and `gh`
   use it for private repositories; it lives in the app's home folder, where the agent can read it.

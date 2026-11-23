@@ -12,12 +12,13 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { promisify } from "node:util";
 import { sshArguments } from "@earendil-works/pi-env";
 import { Accounts, baseProvider, isTeamAccount } from "./accounts.ts";
-import { type AgyOptions, antigravity } from "./antigravity.ts";
+import { AGY_PROVIDER, type AgyOptions, antigravity } from "./antigravity.ts";
+import { AgyMedia, type AgyMediaOptions } from "./antigravity-media.ts";
 import { CustomProviders, NO_KEY } from "./custom-providers.ts";
 import { ImageGen, type ImageGenOptions } from "./image-gen.ts";
 import { JEV_ID, JevModels } from "./jev.ts";
 import { Videos, type VideosOptions } from "./video-gen.ts";
-import { Audio, type AudioOptions, m4aArgs, SPEAK_MODELS, TRANSCRIBE_MODELS, VOICES as SPEAK_VOICES, wavOf } from "./audio.ts";
+import { Audio, type AudioOptions, m4aArgs, SPEAK_MODELS, VOICES as SPEAK_VOICES, wavOf } from "./audio.ts";
 
 /** What a voice's sample says, in the person's language. */
 const AUDIO_SAMPLES: Record<"vi" | "zh-CN" | "en", string> = {
@@ -456,6 +457,8 @@ export interface OpenOptions {
     accountProviders?: ConstructorParameters<typeof Accounts>[2];
     /** Google Antigravity, signed in as agy signs in (`antigravity.ts`, PP-555): tests answer for Google. */
     antigravity?: Partial<AgyOptions>;
+    /** Antigravity's images and dictation (`antigravity-media.ts`, PP-556/557): tests answer for Cloud Code and the gRPC stream. */
+    agyMedia?: Partial<Pick<AgyMediaOptions, "send" | "dictationUrl" | "idleMs">>;
     /** The clock durable work runs by, such as scheduled messages. Tests move it ahead. */
     now?: () => number;
     /** The home folder, whose `.agents/skills/` every session has. Undefined is Pi's: `$HOME`. Tests use their own. */
@@ -686,6 +689,8 @@ export class PocketApp {
     readonly voice: VoiceService;
     /** Images Pi makes and edits (PP-275): the providers signed in, their image models, the owner's choice. */
     readonly images: ImageGen;
+    /** Google Antigravity's images and dictation, on its sign-in (PP-556/557). */
+    readonly agyMedia: AgyMedia;
     /** Videos through OpenRouter (PP-297): `video_ask`'s models and asks. */
     readonly videos: Videos;
     readonly audio: Audio;
@@ -866,7 +871,46 @@ export class PocketApp {
             makeSetting: () => this.config.videoModel,
             ...options.videos,
         });
+        this.agyMedia = new AgyMedia({
+            apiKey: async () => {
+                if (!this.models.hasConfiguredAuth(AGY_PROVIDER)) {
+                    return undefined;
+                }
+
+                const key = (await this.models.getAuth(AGY_PROVIDER))?.auth.apiKey;
+
+                return key === undefined || key === "" ? undefined : key;
+            },
+            // As one agy: the provider's transport, catalog and background reads (PP-558).
+            send: this.#antigravity.send,
+            catalog: (auth, signal) => this.#antigravity.catalog(auth, signal),
+            beforeUse: async (auth, wait) => {
+                const started = this.#antigravity.background.beforeTurn(AGY_PROVIDER, auth, undefined);
+
+                if (wait) {
+                    await started;
+                } else {
+                    started.catch((error: unknown) => this.log(`${AGY_PROVIDER}: background reads: ${describe(error)}`));
+                }
+            },
+            afterUse: () => this.#antigravity.background.afterTurn(AGY_PROVIDER),
+            // A tool call of a session on Antigravity: the agent request it came from.
+            stepOf: async (id) => {
+                const model = (await this.agentState(id))?.model;
+
+                if (model?.provider !== AGY_PROVIDER) {
+                    return undefined;
+                }
+
+                const sessionId = (await this.harness.snapshot(ProviderDoc, id, context))?.sessionId;
+
+                return sessionId === undefined ? undefined : this.#antigravity.lastStep(sessionId);
+            },
+            ...options.agyMedia,
+            now: () => this.now(),
+        });
         this.audio = new Audio({
+            agy: this.agyMedia,
             auth: async () => {
                 const token = (await this.models.getAuth("openai-codex"))?.auth.apiKey;
 
@@ -908,6 +952,7 @@ export class PocketApp {
             },
             setting: () => this.config.imageModel,
             codexMade: (count) => this.spend.codexImagesMade(count),
+            agy: this.agyMedia,
             ...options.images,
             now: () => this.now(),
         });
@@ -2838,6 +2883,11 @@ export class PocketApp {
 
         const current = this.config.voice;
         const next = withVoice(current, patch);
+
+        // Google Antigravity's dictation (PP-557) listens only on its sign-in.
+        if (next.engine === "antigravity" && current.engine !== "antigravity" && !this.models.hasConfiguredAuth(AGY_PROVIDER)) {
+            throw new HttpError(409, "Dictation by Google Antigravity needs its sign-in: sign in in Settings › Providers first.");
+        }
 
         await this.voice.validate(current, next);
         this.config.voice = next;
@@ -4898,7 +4948,8 @@ export class PocketApp {
                 // What the phone's assistant sheet does (PP-146): the owner's, as only the owner uses the sheet.
                 ...(user.role === "owner" ? { assistant: this.config.assistant } : {}),
                 // Voice with the owner's ChatGPT sign-in (PP-185): its settings and what the last model check found.
-                ...(user.role === "owner" ? { voice: { settings: this.config.voice, check: this.config.voiceCheck ?? null, voices: VOICES } } : {}),
+                // `antigravity`: whether Google Antigravity is signed in, for its dictation (PP-557).
+                ...(user.role === "owner" ? { voice: { settings: this.config.voice, check: this.config.voiceCheck ?? null, voices: VOICES, antigravity: this.models.hasConfiguredAuth(AGY_PROVIDER) } } : {}),
                 // Pi using a phone (PP-141): the owner's tabs show the session's live line, with Stop.
                 phoneControl: user.role === "owner" ? this.phoneControl.view() : [],
                 computerControl: user.role === "owner" ? this.computerControl.view() : [],
@@ -7148,7 +7199,8 @@ export class PocketApp {
             throw new HttpError(403, "Only the owner can do that");
         }
 
-        const allowed: readonly string[] = key === "transcribeModel" ? TRANSCRIBE_MODELS : key === "speakModel" ? SPEAK_MODELS : SPEAK_VOICES;
+        // Google Antigravity's transcription is one only while it is signed in (PP-557).
+        const allowed: readonly string[] = key === "transcribeModel" ? await this.audio.transcribeModels() : key === "speakModel" ? SPEAK_MODELS : SPEAK_VOICES;
 
         if (value !== null && (typeof value !== "string" || !allowed.includes(value))) {
             throw new HttpError(400, `Choose one of: ${allowed.join(", ")}, or none for the default.`);
@@ -8195,7 +8247,6 @@ export class PocketApp {
             clearTimeout(this.#sessionsTimer);
             clearInterval(this.#browserSweep);
             this.#antigravity.background.stop();
-            this.#antigravity.clearcut.close();
             // First: a look at idle sessions that fired while the rest closes read a closed storage ("Session is closed").
             this.paraCapture.stop();
             this.phoneControl.close();

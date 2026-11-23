@@ -23,6 +23,10 @@ function priceOf(model) {
         return t("on your ChatGPT plan");
     }
 
+    if (model.provider === "google-antigravity") {
+        return t("on your Google Antigravity plan");
+    }
+
     if (model.price?.imageOut !== undefined) {
         return t("{price}/M image tokens out", { price: perMillion(model.price.imageOut) });
     }
@@ -31,7 +35,8 @@ function priceOf(model) {
 }
 
 /** Who a model is from, as a group's title. */
-const providerTitle = (provider) => (provider === "openai-codex" ? t("ChatGPT sign-in") : provider === "openrouter" ? "OpenRouter" : provider);
+const providerTitle = (provider) =>
+    provider === "openai-codex" ? t("ChatGPT sign-in") : provider === "openrouter" ? "OpenRouter" : provider === "google-antigravity" ? t("Google Antigravity sign-in") : provider;
 
 export function ImagesSheet() {
     const [state, setState] = useState(null);

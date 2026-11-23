@@ -34,7 +34,7 @@ import type { ConversationId } from "@earendil-works/pi-durable";
 import { VOICES } from "../voice.ts";
 import { ImageGen } from "../image-gen.ts";
 import { DEFAULT_ASK_MODEL, DEFAULT_MAKE_MODEL } from "../video-gen.ts";
-import { DEFAULT_SPEAK_MODEL, DEFAULT_TRANSCRIBE_MODEL, DEFAULT_VOICE, SPEAK_MODELS, TRANSCRIBE_MODELS, VOICES as SPEAK_VOICES } from "../audio.ts";
+import { DEFAULT_SPEAK_MODEL, DEFAULT_TRANSCRIBE_MODEL, DEFAULT_VOICE, SPEAK_MODELS, VOICES as SPEAK_VOICES } from "../audio.ts";
 import { serveLocalVideo } from "./assets.ts";
 import { makeBackup, MAX_RESTORE, stageRestore } from "../backup.ts";
 import { addressOf, deviceName } from "../devices.ts";
@@ -64,6 +64,17 @@ const MAX_RENDER_BODY = 30 * 1024 * 1024;
 const kept = new Map<string, { owner: string; type: string; bytes: Buffer; until: number }>();
 const KEEP_MS = 5 * 60_000;
 const MAX_KEPT = 25 * 1024 * 1024;
+/** The most one post of a dictation's audio holds: 10 s of 16 kHz pcm16 (the page sends about a quarter second). */
+const MAX_DICTATION_AUDIO = 320_000;
+
+/** Antigravity's dictation fails as a conflict the page shows (not signed in, a refusal, the stream gone), not as a crash. */
+async function withConflict<T>(run: () => Promise<T>): Promise<T> {
+    try {
+        return await run();
+    } catch (error) {
+        throw error instanceof HttpError ? error : new HttpError(409, error instanceof Error ? error.message : String(error));
+    }
+}
 
 /** This machine's non-internal IPv4 addresses, for invite links other devices on its networks can open. */
 function lanAddresses(): string[] {
@@ -1135,7 +1146,8 @@ export function createApi(options: HttpOptions, auth: Auth) {
         if (first === "audio" && second === undefined && method === "GET") {
             return json(response, 200, {
                 transcribeModel: app.config.audioChoice("audioTranscribeModel"),
-                transcribeModels: TRANSCRIBE_MODELS,
+                // Google Antigravity's while it is signed in (PP-557).
+                transcribeModels: await app.audio.transcribeModels(),
                 speakModel: app.config.audioChoice("audioSpeakModel"),
                 speakModels: SPEAK_MODELS,
                 voice: app.config.audioChoice("audioVoice"),
@@ -2144,6 +2156,24 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 app.voice.dictationEnd(user.id, third);
 
                 return json(response, 200, { ok: true });
+            }
+
+            // Dictation by Google Antigravity (PP-557): the page sends its mic's 16 kHz pcm16, the server streams it to
+            // Google as agy does and answers with what was heard so far; the end waits for the whole of it.
+            if (second === "agy-dictation" && third === undefined && method === "POST") {
+                return json(response, 200, await withConflict(() => app.agyMedia.startDictation(user.id)));
+            }
+
+            if (second === "agy-dictation" && third !== undefined && parts[3] === "audio" && method === "POST") {
+                const pcm = await readBody(request, MAX_DICTATION_AUDIO);
+
+                return json(response, 200, await withConflict(async () => app.agyMedia.dictationAudio(user.id, third, new Uint8Array(pcm))));
+            }
+
+            if (second === "agy-dictation" && third !== undefined && parts[3] === "end" && method === "POST") {
+                const { drop } = await readJson<{ drop?: unknown }>(request);
+
+                return json(response, 200, await withConflict(() => app.agyMedia.endDictation(user.id, third, drop === true)));
             }
 
             if (second === "calls" && third !== undefined && method === "POST") {

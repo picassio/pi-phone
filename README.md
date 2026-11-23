@@ -206,7 +206,9 @@ No Termux, no laptop, no cloud VM.
   quota), never agy's telemetry. Its models are the ones `agy models` lists, one per family
   (Gemini, Claude, GPT-OSS) with agy's efforts as thinking levels; tool calls, thinking and pictures work. Google's
   terms forbid third-party clients and accounts are being suspended for it: a suspension closes Antigravity, Gemini CLI
-  and Code Assist, with one appeal. It sends nothing until you sign in; **Log out** signs it out.
+  and Code Assist, with one appeal. It sends nothing until you sign in; **Log out** signs it out. Signed in, it also
+  makes images (Menu › Images), transcribes files (Menu › Audio) and listens to the message box's mic (Settings ›
+  Dictation), as agy does; it has no voice to read aloud.
 - **Favorite models.** Providers › **Favorite models** lists every model you can pick, each with a star: a starred
   model comes right after the current one in your model picker, which gets a **Favorites** filter. Stars are yours, on
   every device; they allow nothing (subagents' models are in Menu › Subagents). Pi sees them in its `models` tool
@@ -565,8 +567,10 @@ No Termux, no laptop, no cloud VM.
   4:3 or 3:4) with the model you pick in **Menu › Images** (`image.model`): *ChatGPT Images* on your ChatGPT sign-in
   (`openai-codex/gpt-image-2.5`, where ChatGPT picks the model and the quality itself; on the plan, counted in Spend as
   images), an OpenRouter image model such as Nano Banana (`google/gemini-*-image`; its
-  price per million image tokens shown, its cost in the session's spend), or a model of your own provider marked
-  **Makes images** in Providers. *Automatic* is ChatGPT's when you are signed in, else OpenRouter's first. Pi may name
+  price per million image tokens shown, its cost in the session's spend), Google Antigravity's image model when you are
+  signed in to it (Gemini 3.1 Flash Image, asked as agy asks; on its plan; edits take three images at most), or a model
+  of your own provider marked **Makes images** in Providers. *Automatic* is ChatGPT's when you are signed in, else
+  OpenRouter's first, else Antigravity's. Pi may name
   another model for one image. The pictures are saved where the session works (on a machine too) in `images/`, named
   from the prompt, the first also as `images/latest.png`, and show in the chat; Pi gets their paths and the cost, not the
   pictures, so they cost no context. A picture of a real person (a photo of someone, a named person's likeness) asks
@@ -585,7 +589,9 @@ No Termux, no laptop, no cloud VM.
 - **Transcribing audio.** `audio_transcribe` turns speech in an audio or video file where the session works (a
   meeting recording, a voice note, a video) into text, SRT or VTT subtitles, or JSON with each utterance's times, on
   your ChatGPT (Codex) sign-in with no API key (gpt-4o-transcribe by default). Long files go in ten-minute parts; the
-  transcript is saved in `transcripts/`. Settings › Voice's language and words to listen for help it.
+  transcript is saved in `transcripts/`. Settings › Voice's language and words to listen for help it. Signed in to
+  Google Antigravity, Menu › Audio offers its transcription too (*Google Antigravity*: agy's dictation model, each
+  stretch of speech sent as agy sends dictation); it hears the language itself and takes no language or words.
 - **Reading aloud.** `audio_speak` reads a text into an audio file (m4a or wav) in any language, Vietnamese included,
   on the same sign-in: voice-overs, read-aloud reports, audio summaries, with a voice (marin, cedar and eight more) and
   a style (calm, cheerful, slow...). Long text is read in parts, and each part is checked against what the voice says
@@ -874,7 +880,9 @@ No Termux, no laptop, no cloud VM.
 - **Codex dictation**: Settings › Dictation can let Codex (`gpt-4o-transcribe` on your ChatGPT sign-in) listen to the
   mic instead of Android's recognizer; words still show in the box as they are heard, and nothing is sent by itself.
   Its language is Settings › Voice's, one setting for Voice and dictation: Auto (Codex hears the language you speak;
-  Android's recognizer picks among the phone's languages, Android 14 and later) or a language.
+  Android's recognizer picks among the phone's languages, Android 14 and later) or a language. Signed in to Google
+  Antigravity, **Antigravity** can listen instead: agy's dictation model, the mic's sound streamed through the server
+  to Google as agy's `/voice` streams it (the token stays on the server); it hears the language you speak by itself.
 - **The phone's assistant.** Pick pi as the digital assistant (Menu › Assistant walks you through it), then hold the
   side key in any app: a pi sheet comes up over it, already listening. Your words show as you speak, then wait for
   Send, or go by themselves after 3 seconds. They go to the last session you were in, a new session, or one session

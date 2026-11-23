@@ -10,18 +10,21 @@
  * - **OpenRouter**: `POST /api/v1/chat/completions` with `modalities` and `image_config.aspect_ratio`; the images come
  *   back as data URLs in the message's `images`, and `usage.cost` says what it cost. The models are those of
  *   `GET /api/v1/models` whose `architecture.output_modalities` include "image" (Nano Banana is `google/gemini-*-image`).
+ * - **Google Antigravity** (PP-556): the image models its catalog names (Gemini 3.1 Flash Image now), asked as agy's own
+ *   image tool asks (`antigravity-media.ts`), up to three images to edit, the aspect as its own setting. On the
+ *   Antigravity plan, not in money.
  * - **OpenAI-compatible providers** (Settings › Providers, PP-248): only a model marked "makes images" there, through the
  *   same chat-completions shape as OpenRouter, the aspect in the prompt.
  *
  * The default, when the owner picked none, is the Codex model when the ChatGPT sign-in is there, else OpenRouter's first
- * image model, else none: then the tool fails, saying to set up a provider.
+ * image model, else Antigravity's first, else none: then the tool fails, saying to set up a provider.
  */
+import type { ConversationId } from "@earendil-works/pi-durable";
+import { AGY_NAME, AGY_PROVIDER } from "./antigravity.ts";
+import type { AgyMedia } from "./antigravity-media.ts";
 import { HttpError } from "./errors.ts";
 import { imageType } from "./image-meta.ts";
 import { chatgptAccount } from "./voice.ts";
-import { AGY_PROVIDER } from "./antigravity.ts";
-import { AGY_IMAGE_MODEL, AGY_IMAGE_ASPECTS, type AgyImageAspect, makeAgyImage, type AgyCredential } from "./antigravity-media.ts";
-
 
 export const CODEX_PROVIDER = "openai-codex";
 export const CODEX_IMAGE_MODEL = "gpt-image-2.5";
@@ -31,7 +34,6 @@ export const CODEX_IMAGE_MODEL = "gpt-image-2.5";
  */
 export const CODEX_IMAGE_NAME = "ChatGPT Images (ChatGPT picks the model and quality)";
 export const OPENROUTER = "openrouter";
-export const AGY_IMAGE_NAME = "Gemini 3.1 Flash Image (Google Antigravity)";
 export const ASPECTS = ["1:1", "16:9", "9:16", "4:3", "3:4"] as const;
 export type Aspect = (typeof ASPECTS)[number];
 /** Codex's and the tool's limit on images to edit at once. */
@@ -91,8 +93,8 @@ export type ImageGenOptions = {
     setting(): string | null;
     /** Images made on the ChatGPT plan: counted in Spend, not in money. */
     codexMade(count: number): void;
-    /** The Antigravity sign-in credential, or undefined when not signed in. */
-    agyAuth?(): Promise<AgyCredential | undefined>;
+    /** Google Antigravity's image models and requests, when the app has them (PP-556); its models list only when signed in. */
+    agy?: Pick<AgyMedia, "imageModels" | "makeImage">;
     endpoints?: { codex?: string; openRouter?: string };
     fetch?: typeof fetch;
     now?: () => number;
@@ -224,18 +226,20 @@ export class ImageGen {
             models.push({ id: `${CODEX_PROVIDER}/${CODEX_IMAGE_MODEL}`, provider: CODEX_PROVIDER, model: CODEX_IMAGE_MODEL, name: CODEX_IMAGE_NAME, text: false });
         }
 
-        // Antigravity image model (PP-559)
-        if (this.#options.agyAuth !== undefined) {
-            const agy = await this.#options.agyAuth();
-            if (agy !== undefined) {
-                models.push({ id: `${AGY_PROVIDER}/${AGY_IMAGE_MODEL}`, provider: AGY_PROVIDER, model: AGY_IMAGE_MODEL, name: AGY_IMAGE_NAME, text: false });
-            }
-        }
-
         if ((await this.#options.openRouterKey()) !== undefined) {
             try {
                 for (const each of await this.#openRouterModels()) {
                     models.push({ id: `${OPENROUTER}/${each.id}`, provider: OPENROUTER, model: each.id, name: each.name, text: each.text, ...(each.price === undefined ? {} : { price: each.price }) });
+                }
+            } catch (error) {
+                problems.push(error instanceof Error ? error.message : String(error));
+            }
+        }
+
+        if (this.#options.agy !== undefined) {
+            try {
+                for (const each of await this.#options.agy.imageModels()) {
+                    models.push({ id: `${AGY_PROVIDER}/${each.id}`, provider: AGY_PROVIDER, model: each.id, name: each.name, text: false });
                 }
             } catch (error) {
                 problems.push(error instanceof Error ? error.message : String(error));
@@ -251,9 +255,9 @@ export class ImageGen {
         return { models, problems };
     }
 
-    /** The default when the owner picked none: Codex's, else OpenRouter's first, else none. */
+    /** The default when the owner picked none: Codex's, else OpenRouter's first, else Antigravity's first, else none. */
     static defaultOf(models: readonly ImageModelChoice[]): ImageModelChoice | undefined {
-        return models.find((each) => each.provider === CODEX_PROVIDER) ?? models.find((each) => each.provider === OPENROUTER);
+        return models.find((each) => each.provider === CODEX_PROVIDER) ?? models.find((each) => each.provider === OPENROUTER) ?? models.find((each) => each.provider === AGY_PROVIDER);
     }
 
     /**
@@ -269,7 +273,7 @@ export class ImageGen {
             const found = ImageGen.defaultOf(models);
 
             if (found === undefined) {
-                throw new Error(`No image model: sign in to ChatGPT or OpenRouter in Settings › Providers, or mark a model of your own provider as making images there; then pick one in ${SETTING_HINT}.${why}`);
+                throw new Error(`No image model: sign in to ChatGPT, OpenRouter or ${AGY_NAME} in Settings › Providers, or mark a model of your own provider as making images there; then pick one in ${SETTING_HINT}.${why}`);
             }
 
             return found;
@@ -295,7 +299,7 @@ export class ImageGen {
         const { models } = await this.models();
 
         if (!models.some((each) => each.id === model)) {
-            throw new HttpError(400, `${model} is not an image model of a provider signed in now. Pick one of: ${models.map((each) => each.id).join(", ") || "none (sign in to ChatGPT or OpenRouter first)"}.`);
+            throw new HttpError(400, `${model} is not an image model of a provider signed in now. Pick one of: ${models.map((each) => each.id).join(", ") || `none (sign in to ChatGPT, OpenRouter or ${AGY_NAME} first)`}.`);
         }
 
         return model;
@@ -318,15 +322,19 @@ export class ImageGen {
     }
 
     /** Make `count` images (one request each) with `choice`, from `inputs` when given (an edit). */
-    async generate(choice: ImageModelChoice, request: { prompt: string; inputs: ImageInput[]; aspect?: Aspect; count: number; signal?: AbortSignal }): Promise<MadeImages> {
+    async generate(
+        choice: ImageModelChoice,
+        request: { prompt: string; inputs: ImageInput[]; aspect?: Aspect; count: number; signal?: AbortSignal; conversationId?: ConversationId },
+    ): Promise<MadeImages> {
         if (request.inputs.length > MAX_INPUT_IMAGES) {
             throw new Error(`At most ${MAX_INPUT_IMAGES} images to edit at once.`);
         }
 
-        const made: MadeImages = { choice, images: [], cost: choice.provider === CODEX_PROVIDER ? undefined : 0, tokens: { input: 0, output: 0 }, text: "" };
+        const plan = choice.provider === CODEX_PROVIDER || choice.provider === AGY_PROVIDER;
+        const made: MadeImages = { choice, images: [], cost: plan ? undefined : 0, tokens: { input: 0, output: 0 }, text: "" };
 
         for (let index = 0; index < request.count; index++) {
-            const one = choice.provider === CODEX_PROVIDER ? await this.#codex(request) : choice.provider === AGY_PROVIDER ? await this.#antigravity(request) : await this.#chat(choice, request);
+            const one = choice.provider === CODEX_PROVIDER ? await this.#codex(request) : choice.provider === AGY_PROVIDER ? await this.#agy(choice, request) : await this.#chat(choice, request);
 
             made.images.push(...one.images);
             made.tokens.input += one.tokens.input;
@@ -343,6 +351,31 @@ export class ImageGen {
         }
 
         return made;
+    }
+
+    /** One picture from Google Antigravity, as agy's image tool asks for it. */
+    async #agy(choice: ImageModelChoice, request: { prompt: string; inputs: ImageInput[]; aspect?: Aspect; signal?: AbortSignal; conversationId?: ConversationId }) {
+        if (this.#options.agy === undefined) {
+            throw new Error(`${AGY_NAME} is not set up here. Pick another image model in ${SETTING_HINT}.`);
+        }
+
+        let made;
+
+        try {
+            made = await this.#options.agy.makeImage({
+                model: choice.model,
+                prompt: request.prompt,
+                inputs: request.inputs,
+                ...(request.aspect === undefined ? {} : { aspect: request.aspect }),
+                ...(request.signal === undefined ? {} : { signal: request.signal }),
+                // The session's agy trajectory, for the request's id (PP-556).
+                ...(request.conversationId === undefined ? {} : { conversationId: request.conversationId }),
+            });
+        } catch (error) {
+            throw new Error(`${error instanceof Error ? error.message : String(error)} Another image model: ${SETTING_HINT}.`);
+        }
+
+        return { images: made.images, cost: undefined, tokens: made.tokens, text: made.text };
     }
 
     /** One request to Codex's images endpoint, as pi-codex-imagegen makes it. */
@@ -505,35 +538,4 @@ export class ImageGen {
             text: said,
         };
     }
-    /** One request to Antigravity's image generation endpoint (PP-559). */
-    async #antigravity(request: { prompt: string; inputs: ImageInput[]; aspect?: Aspect; signal?: AbortSignal }) {
-        if (this.#options.agyAuth === undefined) {
-            throw new Error("Antigravity is not configured.");
-        }
-        const auth = await this.#options.agyAuth();
-        if (auth === undefined) {
-            throw new Error("Not signed in to Antigravity. Sign in through Settings › Providers.");
-        }
-
-        // Convert aspect ratio to Antigravity format
-        const aspect = (AGY_IMAGE_ASPECTS as readonly string[]).includes(request.aspect ?? "1:1")
-            ? (request.aspect as AgyImageAspect | undefined) ?? "1:1"
-            : "1:1";
-
-        const result = await makeAgyImage(
-            { auth: async () => auth },
-            request.prompt,
-            request.inputs,
-            aspect,
-            request.signal,
-        );
-
-        return {
-            images: [{ mimeType: result.mimeType, data: result.data }],
-            cost: undefined, // Antigravity does not report cost
-            tokens: result.tokens,
-            text: "",
-        };
-    }
-
 }

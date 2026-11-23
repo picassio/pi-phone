@@ -55,7 +55,6 @@ import { sanitizeSurrogates } from "@earendil-works/pi-ai/utils/sanitize-unicode
 import { AgyBackground, type AgyRead, goHeaders, type WireRequest, type WireResponse } from "./agy-wire.ts";
 import { agyTlsTransport } from "./agy-tls-proxy.ts";
 import { APP_ROOT } from "./config.ts";
-import { ClearcutClient } from "./antigravity-clearcut.ts";
 
 export const AGY_PROVIDER = "google-antigravity";
 export const AGY_NAME = "Google Antigravity";
@@ -65,6 +64,8 @@ export const AGY_BUILD = "1027820220";
 
 const API = "google-antigravity";
 const HOST = "https://daily-cloudcode-pa.googleapis.com";
+/** Cloud Code's host, for the media calls (`antigravity-media.ts`). */
+export const AGY_HOST = HOST;
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 /** Google's account endpoint, which agy reads with Go's own User-Agent. */
 const USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
@@ -135,7 +136,7 @@ export type AgyCredential = OAuthCredential & {
 };
 
 /** What a request needs, as `toAuth` gives it to the stream (pi-ai's `apiKey`). */
-type AgyAuth = { token: string; project: string; userAgent: string };
+export type AgyAuth = { token: string; project: string; userAgent: string };
 
 type ModelInfo = {
     displayName?: string;
@@ -154,6 +155,10 @@ export type AgyCatalog = {
     models?: Record<string, ModelInfo>;
     agentModelSorts?: { groups?: { modelIds?: string[] }[] }[];
     groupedModels?: Record<string, { displayName?: string; supportedThinkingLevels?: { thinkingSuffix?: string }[] }>;
+    /** The image models agy's image tool uses (`antigravity-media.ts`). */
+    imageGenerationModelIds?: string[];
+    /** The dictation models agy's `/voice` uses. */
+    audioTranscriptionModelIds?: string[];
 };
 
 /** agy's thinking levels by number, as protobuf's JSON writes them; another number is sent as it is (100: xhigh). */
@@ -172,7 +177,7 @@ export class AgyHttpError extends Error {
     }
 }
 
-async function readText(body: AsyncIterable<Uint8Array>): Promise<string> {
+export async function readText(body: AsyncIterable<Uint8Array>): Promise<string> {
     const chunks: Buffer[] = [];
 
     for await (const chunk of body) {
@@ -183,7 +188,7 @@ async function readText(body: AsyncIterable<Uint8Array>): Promise<string> {
 }
 
 /** Google's error message in a JSON error body, or the body cut short. */
-function errorText(body: string): string {
+export function errorText(body: string): string {
     try {
         const message = (JSON.parse(body) as { error?: { message?: unknown; status?: unknown } }).error;
 
@@ -301,7 +306,7 @@ function authOf(credential: AgyCredential): AgyAuth {
     return { token: credential.access, project: credential.projectId, userAgent: agyUserAgent(credential.osType, credential.arch, credential.authMethod) };
 }
 
-function parseAuth(apiKey: string | undefined): AgyAuth {
+export function parseAuth(apiKey: string | undefined): AgyAuth {
     try {
         const auth = JSON.parse(apiKey ?? "") as Partial<AgyAuth>;
 
@@ -319,7 +324,7 @@ function parseAuth(apiKey: string | undefined): AgyAuth {
  * The headers agy sends with a Cloud Code call, as Go writes them (`goHeaders`): Host, User-Agent, Content-Length,
  * Authorization, Content-Type, Accept-Encoding; a GET has no body, so no Content-Length nor Content-Type.
  */
-function cloudCodeHeaders(url: string, auth: AgyAuth, body?: string): Record<string, string> {
+export function cloudCodeHeaders(url: string, auth: AgyAuth, body?: string): Record<string, string> {
     return goHeaders(url, { "User-Agent": auth.userAgent, Authorization: `Bearer ${auth.token}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }) }, body);
 }
 
@@ -480,14 +485,35 @@ export function antigravityProvider(options: AgyOptions = {}): Provider {
     return antigravity(options).provider;
 }
 
-/** The provider, and agy's background reads for its accounts (the usage bars read the quota from them). */
-export function antigravity(options: AgyOptions = {}): { provider: Provider; background: AgyBackground<AgyAuth>; clearcut: ClearcutClient } {
+/** A conversation's last agent request: its trajectory and the number its `requestId` ends with. */
+export type AgyStep = { trajectory: string; step: number };
+
+/** What `antigravity()` gives the app: the provider, and what agy's other features share with it, as in one agy. */
+export type AgyRuntime = {
+    provider: Provider;
+    /** agy's background reads for its accounts (the usage bars read the quota from them). */
+    background: AgyBackground<AgyAuth>;
+    /** The one transport (one pool of connections, as Go's one transport) every HTTP/1.1 request of agy's goes on. */
+    send: AgySend;
+    /** The model list Google gave last (refreshed by the background reads), asked once when there is none. */
+    catalog: (auth: AgyAuth, signal?: AbortSignal) => Promise<AgyCatalog>;
+    /** A conversation's last agent request (by Pi's provider session id), for the ids of a tool call it made. */
+    lastStep: (sessionId: string) => AgyStep | undefined;
+};
+
+/** How many conversations' last steps are kept. */
+const STEPS_KEPT = 200;
+
+/** The provider, and agy's background reads, transport and catalog it shares with Antigravity's media. */
+export function antigravity(options: AgyOptions = {}): AgyRuntime {
     const send = options.send ?? agyTlsTransport(APP_ROOT);
     const now = options.now ?? Date.now;
     const sleep = options.sleep ?? sleepFor;
     /** The last model list Google gave, for each request's model and settings; asked once after a start. */
     let catalog: AgyCatalog | undefined;
     let asking: Promise<AgyCatalog> | undefined;
+    /** Each conversation's last agent request, newest last. */
+    const steps = new Map<string, AgyStep>();
 
     const post = async (url: string, headers: Record<string, string>, body: string | undefined, signal?: AbortSignal): Promise<string> => {
         const response = await send(url, { ...(body === undefined ? { method: "GET" as const } : { body }), headers, ...(signal === undefined ? {} : { signal }) });
@@ -540,16 +566,6 @@ export function antigravity(options: AgyOptions = {}): { provider: Provider; bac
         log: options.log ?? (() => {}),
         ...(options.quotaRead === undefined ? {} : { quotaRead: options.quotaRead }),
         now,
-    });
-
-    // Clearcut telemetry client (PP-559): sends usage events to play.googleapis.com/log as agy does
-    const clearcut = new ClearcutClient({
-        auth: async () => {
-            const apiKey = await options.auth?.(`${AGY_PROVIDER}/`);
-            return apiKey === undefined ? undefined : { token: parseAuth(apiKey).token };
-        },
-        platform: options.platform,
-        log: options.log ?? (() => {}),
     });
 
     const fetchCatalog = (auth: AgyAuth, signal?: AbortSignal): Promise<AgyCatalog> =>
@@ -716,7 +732,6 @@ export function antigravity(options: AgyOptions = {}): { provider: Provider; bac
         let ended = () => {};
 
         void (async () => {
-            const startTime = Date.now();
             const output: AssistantMessage = {
                 role: "assistant",
                 content: [],
@@ -749,6 +764,23 @@ export function antigravity(options: AgyOptions = {}): { provider: Provider; bac
                 }
 
                 const body = requestBody(model, normalized, auth.project, agyId, info, streamOptions);
+                const sessionId = streamOptions?.sessionId;
+                const id = typeof body.requestId === "string" ? /^agent\/[^/]+\/\d+\/([^/]+)\/(\d+)$/.exec(body.requestId) : null;
+
+                // A tool this request calls (agy's image tool) names the trajectory and the step after it.
+                if (sessionId !== undefined && id !== null) {
+                    steps.delete(sessionId);
+                    steps.set(sessionId, { trajectory: id[1]!, step: Number(id[2]) });
+
+                    for (const oldest of steps.keys()) {
+                        if (steps.size <= STEPS_KEPT) {
+                            break;
+                        }
+
+                        steps.delete(oldest);
+                    }
+                }
+
                 const payload = (await streamOptions?.onPayload?.(body, model)) ?? body;
                 const json = JSON.stringify(payload);
                 const response = await retryProviderRequest(
@@ -887,14 +919,6 @@ export function antigravity(options: AgyOptions = {}): { provider: Provider; bac
                             cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
                         };
                         calculateCost(model, output.usage);
-
-                        // Clearcut telemetry: report model call (PP-559)
-                        void clearcut.sendModelCall(
-                            model.id,
-                            output.usage.input,
-                            output.usage.output,
-                            Date.now() - startTime,
-                        );
                     }
                 }
 
@@ -949,7 +973,7 @@ export function antigravity(options: AgyOptions = {}): { provider: Provider; bac
         },
     });
 
-    return { provider, background, clearcut };
+    return { provider, background, send, catalog: catalogFor, lastStep: (sessionId) => steps.get(sessionId) };
 }
 
 /**

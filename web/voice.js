@@ -7,6 +7,7 @@ import { t } from "./i18n.js";
 import { dictationLanguage } from "./android-speech.js";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { CodexRecognition } from "./codex-dictation.js";
+import { AgyRecognition } from "./agy-dictation.js";
 import { notify, store } from "./store.js";
 import { html, Icon } from "./ui.js";
 
@@ -20,8 +21,19 @@ const codexEngine = () =>
     typeof globalThis.RTCPeerConnection === "function" &&
     typeof navigator.mediaDevices?.getUserMedia === "function";
 
-/** The recognizer, looked up when used (so a page can stand one in): Codex's, or the browser's; undefined where there is none. */
-const Recognizer = () => (codexEngine() ? CodexRecognition : (globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition));
+/**
+ * Google Antigravity listens (Settings › Voice's engine, PP-557): the owner's, signed in to it, in a browser with a
+ * microphone and Web Audio.
+ */
+const agyEngine = () =>
+    store.state.server?.voice?.settings?.engine === "antigravity" &&
+    store.state.server?.voice?.antigravity === true &&
+    store.state.me?.role === "owner" &&
+    typeof globalThis.AudioContext === "function" &&
+    typeof navigator.mediaDevices?.getUserMedia === "function";
+
+/** The recognizer, looked up when used (so a page can stand one in): Codex's, Antigravity's, or the browser's; undefined where there is none. */
+const Recognizer = () => (codexEngine() ? CodexRecognition : agyEngine() ? AgyRecognition : (globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition));
 
 /** Whether the mic can work here: a recognizer, and a page browsers give the microphone to (https, or this machine). */
 export const voiceAvailable = () =>

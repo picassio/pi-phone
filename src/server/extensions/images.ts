@@ -16,6 +16,7 @@ import { arr, int, obj, opt, str, union } from "@earendil-works/pi-schema";
 import { literal } from "../tool-schema.ts";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import type { PocketHost } from "../host.ts";
+import { AGY_NAME, AGY_PROVIDER } from "../antigravity.ts";
 import { imageType } from "../image-meta.ts";
 import { ASPECTS, type Aspect, CODEX_PROVIDER, type ImageInput, MAX_COUNT, MAX_INPUT_IMAGES } from "../image-gen.ts";
 import { isPng, markUp } from "../markup.ts";
@@ -175,6 +176,7 @@ export default function createImages(host: PocketHost) {
                     ...(args.aspect === undefined ? {} : { aspect: args.aspect as Aspect }),
                     count: args.n ?? 1,
                     ...(context.abortSignal === undefined ? {} : { signal: context.abortSignal }),
+                    conversationId: api.conversationId,
                 });
             } catch (error) {
                 return reply(error instanceof Error ? error.message : String(error), true);
@@ -212,8 +214,15 @@ export default function createImages(host: PocketHost) {
             }
 
             const codex = choice.provider === CODEX_PROVIDER;
-            const cost = codex ? "on the ChatGPT plan (no charge in money)" : made.cost === undefined ? `cost not reported by ${choice.provider}` : `cost ${money(made.cost)}`;
-            const usage: Usage | undefined = codex
+            const agy = choice.provider === AGY_PROVIDER;
+            const cost = codex
+                ? "on the ChatGPT plan (no charge in money)"
+                : agy
+                  ? `on the ${AGY_NAME} plan (no charge in money)`
+                  : made.cost === undefined
+                    ? `cost not reported by ${choice.provider}`
+                    : `cost ${money(made.cost)}`;
+            const usage: Usage | undefined = codex || agy
                 ? undefined
                 : {
                       input: made.tokens.input,
@@ -236,7 +245,7 @@ export default function createImages(host: PocketHost) {
                     model: choice.id,
                     images: saved,
                     latest: `${folder.value}/latest.png`,
-                    ...(codex ? { plan: "chatgpt" } : made.cost === undefined ? {} : { cost: made.cost }),
+                    ...(codex ? { plan: "chatgpt" } : agy ? { plan: "antigravity" } : made.cost === undefined ? {} : { cost: made.cost }),
                 },
                 ...(usage === undefined ? {} : { usage }),
             };
