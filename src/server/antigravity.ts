@@ -521,6 +521,7 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
 
     // Clearcut telemetry client (PP-559): sends usage events to play.googleapis.com as agy does.
     const clearcut = new ClearcutClient({
+        send,
         auth: async () => {
             const apiKey = await options.auth?.(AGY_PROVIDER);
             if (!apiKey) return undefined;

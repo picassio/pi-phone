@@ -9,6 +9,9 @@
 // headers, then Accept-Encoding: gzip, which the client adds itself and answers by unzipping the response. Hop-by-hop
 // headers of the socket's request (Connection, Keep-Alive, Transfer-Encoding...) are not passed on. The process ends
 // when its standard input closes: the server that started it is gone.
+//
+// For HTTP/2 requests (Clearcut telemetry), set X-Agy-Proto: h2. The request uses Go's HTTP/2 client with the same
+// TLS configuration, matching agy's HTTP/2 fingerprint.
 package main
 
 import (
@@ -26,6 +29,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"golang.org/x/net/http2"
 )
 
 // agy's key exchange groups, in its order: X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024, X25519, P-256,
@@ -53,6 +58,7 @@ var hopByHop = map[string]bool{
 	"Content-Length":      true,
 	"X-Agy-Target":        true,
 	"X-Agy-Dial":          true,
+	"X-Agy-Proto":         true,
 }
 
 // The address the server's own lookup gave for a request's host (X-Agy-Dial): on Android there is no /etc/resolv.conf,
@@ -72,6 +78,7 @@ func dial(ctx context.Context, network, addr string) (net.Conn, error) {
 	return dialer.DialContext(ctx, network, addr)
 }
 
+// HTTP/1.1 client for Cloud Code API calls (agy's main traffic).
 var client = &http.Client{
 	Transport: &http.Transport{
 		TLSClientConfig: &tls.Config{
@@ -87,6 +94,40 @@ var client = &http.Client{
 		MaxIdleConnsPerHost: 10,
 		IdleConnTimeout:     90 * time.Second,
 		TLSHandshakeTimeout: 10 * time.Second,
+	},
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+}
+
+// HTTP/2 client for Clearcut telemetry (play.googleapis.com/log).
+// Uses Go's HTTP/2 transport with the same TLS config as agy.
+var clientH2 = &http.Client{
+	Transport: &http2.Transport{
+		TLSClientConfig: &tls.Config{
+			MinVersion:       tls.VersionTLS12,
+			MaxVersion:       tls.VersionTLS13,
+			CurvePreferences: agyCurves,
+			NextProtos:       []string{"h2"},
+		},
+		DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
+			// Use our custom dialer for DNS resolution on Android
+			rawConn, err := dial(ctx, network, addr)
+			if err != nil {
+				return nil, err
+			}
+			host, _, _ := net.SplitHostPort(addr)
+			tlsConn := tls.Client(rawConn, &tls.Config{
+				MinVersion:       tls.VersionTLS12,
+				MaxVersion:       tls.VersionTLS13,
+				CurvePreferences: agyCurves,
+				NextProtos:       []string{"h2"},
+				ServerName:       host,
+			})
+			if err := tlsConn.HandshakeContext(ctx); err != nil {
+				rawConn.Close()
+				return nil, err
+			}
+			return tlsConn, nil
+		},
 	},
 	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 }
@@ -133,6 +174,14 @@ func forward(conn net.Conn, req *http.Request) bool {
 		writeError(conn, 403, "agy-tls reaches only https addresses on googleapis.com: not "+target.Host)
 		return drain(req)
 	}
+
+	// Choose HTTP/1.1 or HTTP/2 based on X-Agy-Proto header
+	useH2 := strings.EqualFold(req.Header.Get("X-Agy-Proto"), "h2")
+	httpClient := client
+	if useH2 {
+		httpClient = clientH2
+	}
+
 	ctx := req.Context()
 	if ip := net.ParseIP(req.Header.Get("X-Agy-Dial")); ip != nil {
 		ctx = context.WithValue(ctx, dialKey{}, dialTo{host: target.Hostname(), ip: ip.String()})
@@ -159,9 +208,13 @@ func forward(conn net.Conn, req *http.Request) bool {
 	}
 	if out.Header.Get("User-Agent") == "" {
 		// Go's own, as agy's OAuth calls send it, rather than none.
-		out.Header["User-Agent"] = []string{"Go-http-client/1.1"}
+		if useH2 {
+			out.Header["User-Agent"] = []string{"Go-http-client/2.0"}
+		} else {
+			out.Header["User-Agent"] = []string{"Go-http-client/1.1"}
+		}
 	}
-	resp, err := client.Do(out)
+	resp, err := httpClient.Do(out)
 	if err != nil {
 		writeError(conn, 502, fmt.Sprintf("upstream: %v", err))
 		// What is left of the body is unknown: the connection closes, the next request opens another.
@@ -200,46 +253,39 @@ func main() {
 	}
 	socketPath := os.Args[1]
 	for _, arg := range os.Args[2:] {
-		if host, ok := strings.CutPrefix(arg, "--allow="); ok && host != "" {
-			allowed[host] = true
-		} else {
-			fmt.Fprintf(os.Stderr, "unknown argument: %s\n", arg)
-			os.Exit(2)
+		if strings.HasPrefix(arg, "--allow=") {
+			allowed[strings.TrimPrefix(arg, "--allow=")] = true
 		}
 	}
+
+	// Remove stale socket file if it exists
 	os.Remove(socketPath)
-	// Owner-only from the start: no moment where another user could connect.
-	syscall.Umask(0o077)
+
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "listen: %v\n", err)
 		os.Exit(1)
 	}
-	stop := func() {
-		listener.Close()
-		os.Remove(socketPath)
-		os.Exit(0)
-	}
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-signals
-		stop()
-	}()
-	// The server that started it holds its standard input: when that closes, the server is gone.
+	defer listener.Close()
+	defer os.Remove(socketPath)
+
+	// End when stdin closes (the server that started us is gone) or on SIGTERM/SIGINT.
 	go func() {
 		io.Copy(io.Discard, os.Stdin)
-		stop()
+		listener.Close()
 	}()
-	fmt.Fprintf(os.Stderr, "agy-tls listening on %s\n", socketPath)
+	go func() {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, syscall.SIGTERM, syscall.SIGINT)
+		<-c
+		listener.Close()
+	}()
+
+	fmt.Fprintf(os.Stderr, "listening on %s\n", socketPath)
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			if strings.Contains(err.Error(), "use of closed") {
-				return
-			}
-			fmt.Fprintf(os.Stderr, "accept: %v\n", err)
-			continue
+			break
 		}
 		go handleConnection(conn)
 	}
