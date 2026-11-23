@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { promisify } from "node:util";
 import { sshArguments } from "@earendil-works/pi-env";
 import { Accounts, baseProvider, isTeamAccount } from "./accounts.ts";
-import { type AgyOptions, antigravityProvider } from "./antigravity.ts";
+import { type AgyOptions, antigravity } from "./antigravity.ts";
 import { CustomProviders, NO_KEY } from "./custom-providers.ts";
 import { ImageGen, type ImageGenOptions } from "./image-gen.ts";
 import { JEV_ID, JevModels } from "./jev.ts";
@@ -776,7 +776,8 @@ export class PocketApp {
     #openingStorage: Awaited<ReturnType<typeof openNodeSqliteStorage>> | undefined;
     readonly #log: (line: string) => void;
     readonly #configureModels: ((models: ModelRuntime) => void) | undefined;
-    readonly #antigravity: Partial<AgyOptions>;
+    /** Google Antigravity's provider, and agy's background reads for it (its quota for the usage bars). */
+    readonly #antigravity: ReturnType<typeof antigravity>;
     readonly #home: string;
     readonly #tempFolders: readonly string[];
     /** The clock durable work runs by. */
@@ -784,7 +785,12 @@ export class PocketApp {
 
     private constructor(options: OpenOptions) {
         this.#configureModels = options.configureModels;
-        this.#antigravity = options.antigravity ?? {};
+        this.#antigravity = antigravity({
+            auth: async (provider) => (await this.models.getAuth(provider))?.auth.apiKey,
+            log: (line) => this.#log(line),
+            quotaRead: (provider) => void this.usageLimits.get(provider, true),
+            ...options.antigravity,
+        });
         this.#home = options.home ?? (process.env.HOME || homedir());
         this.#tempFolders = options.tempFolders ?? phoneTempFolders(this.#home);
         this.now = options.now ?? Date.now;
@@ -931,6 +937,7 @@ export class PocketApp {
                 }
             },
             ...(options.usageFetch === undefined ? {} : { fetch: options.usageFetch }),
+            antigravity: (provider) => this.#antigravity.background.usage(provider),
         });
         this.voice = new VoiceService({
             auth:
@@ -1285,7 +1292,7 @@ export class PocketApp {
         // Before anything reads the models: sessions on an account's models resume with it there.
         this.accounts.registerAll();
         // Google Antigravity (PP-555): listed in Providers, and nothing is sent until the owner signs in.
-        this.models.registerNativeProvider(antigravityProvider(this.#antigravity));
+        this.models.registerNativeProvider(this.#antigravity.provider);
         // And the OpenAI-compatible providers' keys, from the secrets (PP-248): again whenever the secrets change.
         await this.customProviders.sync();
         this.secrets.onChange(() => void this.customProviders.sync().catch((error: unknown) => this.log(`custom providers: ${describe(error)}`)));
@@ -8187,6 +8194,7 @@ export class PocketApp {
         this.#closing ??= (async () => {
             clearTimeout(this.#sessionsTimer);
             clearInterval(this.#browserSweep);
+            this.#antigravity.background.stop();
             // First: a look at idle sessions that fired while the rest closes read a closed storage ("Session is closed").
             this.paraCapture.stop();
             this.phoneControl.close();

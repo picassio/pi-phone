@@ -144,7 +144,8 @@
   Pi 也可以通过确认卡片操作，但密钥始终由你输入。
 - **Google Antigravity，风险自负。** 提供方 › **Google Antigravity** › **使用 Google 登录**：打开登录页面，用你的 Google 账号登录，
   再把 Antigravity 页面显示的代码粘贴到卡片中。不需要其他应用或机器：pi-phone 按 Google `agy` CLI 在没有浏览器的机器上的方式登录，
-  为还没有项目的新账号设置 Antigravity 项目，并按 agy 的方式发送 Antigravity 请求（主机、请求头和请求格式），自行续期令牌。
+  为还没有项目的新账号设置 Antigravity 项目，并按 agy 的方式发送 Antigravity 请求（主机、按 Go 顺序的请求头、HTTP/1.1、在 Node 允许范围内尽量接近
+  agy 的 TLS 握手，以及请求格式），自行续期令牌。使用期间，它还按 agy 的节奏进行 agy 的后台读取（配置、项目、模型和额度），从不发送 agy 的遥测数据。
   模型就是 `agy models` 列出的那些，每个系列一个（Gemini、Claude、GPT-OSS），agy 的强度档位作为思考级别；工具调用、思考和图片都可用。
   Google 的条款禁止第三方客户端，已有账号因此被封：封禁会同时关闭 Antigravity、Gemini CLI 和 Code Assist，只能申诉一次。
   在你登录之前它不发送任何内容；**退出登录**即可退出。
@@ -153,7 +154,8 @@
   工具中看到它们（`favorites: true` 只列出它们），并通过卡片修改（`models.favorites`）。
 - **多个账号。** 在提供方中添加第二个（或第三个）Claude、Codex 或 Copilot 账号；每个账号单独登录，模型按账号列出（“Claude Opus · Work”）。
   会话使用你为它所选模型对应的账号，因此可以在任意账号上开始会话，也可以把会话转到另一个账号。
-- **套餐用量。** 每个 Claude、Codex 和 Copilot 账号的额度，与其官方应用中显示的一致：5 小时窗口和每周窗口（Copilot 为当月的高级请求数）
+- **套餐用量。** 每个 Claude、Codex、Copilot 和 Google Antigravity 账号的额度，与其官方应用中显示的一致：5 小时窗口和每周窗口
+  （Copilot 为当月的高级请求数；Antigravity 按模型组分别显示）
   及重置时间。它们以进度条显示在提供方和模型菜单中，也以用量条显示在会话顶栏，点开可查看所有窗口。某个窗口用到 90% 时，会话会提示你，
   并提供 **切换到** 你的其他账号；请求因额度用尽而失败时，会提供 **在其他账号上继续**。pi-phone 从不自动切换。
 - **等待提供方额度恢复。** 运行遇到 429、过载或 Claude、ChatGPT 的套餐窗口上限时，会在请求内部等到提供方自己的重置时间

@@ -203,8 +203,9 @@ dự án thật.</sub>
 - **Google Antigravity, tự chịu rủi ro.** Nhà cung cấp › **Google Antigravity** › **Đăng nhập bằng Google**: mở trang
   đăng nhập, đăng nhập tài khoản Google, rồi dán mã mà trang Antigravity hiện ra vào thẻ. Không cần app hay máy nào
   khác: pi-phone đăng nhập giống cách CLI `agy` của Google đăng nhập trên máy không có trình duyệt, tự thiết lập project
-  Antigravity cho tài khoản mới chưa có, và gửi yêu cầu Antigravity đúng như agy gửi (máy chủ, header và dạng yêu cầu), tự
-  gia hạn token. Mô hình là những mô hình `agy models` liệt kê, mỗi dòng một mô hình (Gemini, Claude, GPT-OSS), các mức
+  Antigravity cho tài khoản mới chưa có, và gửi yêu cầu Antigravity đúng như agy gửi (máy chủ, header theo thứ tự của Go,
+  HTTP/1.1, bắt tay TLS gần với agy nhất mà Node cho phép, và dạng yêu cầu), tự gia hạn token. Khi bạn đang dùng, nó cũng
+  làm các lệnh đọc nền của agy đúng nhịp agy (cấu hình, project, mô hình và hạn mức), không bao giờ gửi telemetry của agy. Mô hình là những mô hình `agy models` liệt kê, mỗi dòng một mô hình (Gemini, Claude, GPT-OSS), các mức
   effort của agy là mức suy nghĩ; gọi công cụ, suy nghĩ và hình ảnh đều dùng được. Điều khoản của Google cấm client bên
   thứ ba và đang có tài khoản bị khoá vì việc này: bị khoá là mất cả Antigravity, Gemini CLI và Code Assist, chỉ kháng
   cáo được một lần. Nó không gửi gì cho tới khi bạn đăng nhập; **Đăng xuất** để ngắt.
@@ -216,8 +217,8 @@ dự án thật.</sub>
   tài khoản có đăng nhập riêng, và mô hình của nó được liệt kê theo tài khoản ("Claude Opus · Work"). Một phiên dùng
   tài khoản của mô hình bạn chọn cho nó, nên bạn có thể mở phiên trên bất kỳ tài khoản nào hoặc chuyển phiên sang tài
   khoản khác.
-- **Mức dùng gói.** Giới hạn của từng tài khoản Claude, Codex và Copilot đúng như ứng dụng của chính nó hiển thị: khoảng
-  5 giờ và hàng tuần (Copilot: số yêu cầu cao cấp trong tháng), kèm thời điểm đặt lại, dưới dạng thanh trong Nhà cung
+- **Mức dùng gói.** Giới hạn của từng tài khoản Claude, Codex, Copilot và Google Antigravity đúng như ứng dụng của chính
+  nó hiển thị: khoảng 5 giờ và hàng tuần (Copilot: số yêu cầu cao cấp trong tháng; Antigravity: theo từng nhóm mô hình), kèm thời điểm đặt lại, dưới dạng thanh trong Nhà cung
   cấp, trong menu mô hình, và một thước đo trên thanh trên cùng của phiên, mở ra để xem mọi khoảng. Ở 90% một khoảng,
   phiên sẽ báo, kèm **Chuyển sang** các tài khoản khác của bạn; một yêu cầu thất bại vì giới hạn sẽ đề nghị **Tiếp tục
   trên** tài khoản khác. pi-phone không bao giờ tự chuyển.

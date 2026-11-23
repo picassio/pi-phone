@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { after, test } from "node:test";
 import { type Api, type AssistantMessage, type AuthEvent, type AuthPrompt, type Context, type Model, normalizeContext, type OAuthCredential, type ProviderAuthInteraction } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText } from "@earendil-works/pi-ai/providers/faux";
+import { AGY_START } from "../src/server/agy-wire.ts";
 import { AGY_PROVIDER, type AgyCatalog, type AgySend, antigravityProvider, catalogModels } from "../src/server/antigravity.ts";
 import { appSettings } from "../src/server/settings-registry.ts";
 
@@ -65,6 +66,26 @@ function google(answer: (sent: Sent) => { status?: number; body: string; headers
 
     return { sent, send };
 }
+
+/** retrieveUserQuotaSummary's answer, as Google gave it on 2026-11-23 (its texts cut). */
+const QUOTA = {
+    groups: [
+        {
+            buckets: [
+                { bucketId: "gemini-weekly", displayName: "Weekly Limit Remaining", window: "weekly", resetTime: "2026-11-28T10:39:15Z", remainingFraction: 0.42826134 },
+                { bucketId: "gemini-5h", displayName: "Five Hour Limit Remaining", window: "5h", resetTime: "2026-11-23T13:12:05Z", remainingFraction: 1 },
+            ],
+            displayName: "Gemini Models",
+        },
+        {
+            buckets: [
+                { bucketId: "3p-weekly", displayName: "Weekly Limit Remaining", window: "weekly", resetTime: "2026-11-29T06:07:33Z", remainingFraction: 0.9431948 },
+                { bucketId: "3p-5h", displayName: "Five Hour Limit Remaining", window: "5h", resetTime: "2026-11-23T13:12:05Z" },
+            ],
+            displayName: "Claude and GPT models",
+        },
+    ],
+};
 
 const sse = (...chunks: unknown[]) => chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\r\n\r\n`).join("");
 
@@ -140,10 +161,13 @@ test("signing in is agy's: Google's consent page with agy's client, PKCE S256 an
     assert.equal(prompts.length, 1);
     assert.equal(prompts[0]!.type, "manual_code");
 
-    // The code traded at Google's token endpoint as agy's Go client trades it: the form by name, with the verifier.
+    // The code traded at Google's token endpoint as agy's Go client trades it: the form by name, with the verifier, and
+    // Go's headers in Go's order (PP-558).
     assert.equal(sent[0]!.url, "https://oauth2.googleapis.com/token");
     assert.deepEqual(Object.entries(sent[0]!.headers), [
+        ["Host", "oauth2.googleapis.com"],
         ["User-Agent", "Go-http-client/1.1"],
+        ["Content-Length", String(sent[0]!.body.length)],
         ["Content-Type", "application/x-www-form-urlencoded"],
         ["Accept-Encoding", "gzip"],
     ]);
@@ -162,7 +186,9 @@ test("signing in is agy's: Google's consent page with agy's client, PKCE S256 an
     assert.equal(sent.length, 2);
     assert.equal(sent[1]!.url, "https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist");
     assert.deepEqual(Object.entries(sent[1]!.headers), [
+        ["Host", "daily-cloudcode-pa.googleapis.com"],
         ["User-Agent", UA],
+        ["Content-Length", "38"],
         ["Authorization", "Bearer ya29.new-access"],
         ["Content-Type", "application/json"],
         ["Accept-Encoding", "gzip"],
@@ -242,8 +268,10 @@ test("an account with no project yet is set up as agy does: onboardUser on its d
         ["POST https://oauth2.googleapis.com/token", "POST /v1internal:loadCodeAssist", "POST /v1internal:onboardUser", "GET /v1internal/operations/onboard-1", "GET /v1internal/operations/onboard-1"],
     );
     assert.equal(sent[2]!.body, '{"tierId":"free-tier","metadata":{"ideType":"ANTIGRAVITY"}}');
-    assert.deepEqual(Object.keys(sent[2]!.headers), ["User-Agent", "Authorization", "Content-Type", "Accept-Encoding"]);
+    assert.deepEqual(Object.keys(sent[2]!.headers), ["Host", "User-Agent", "Content-Length", "Authorization", "Content-Type", "Accept-Encoding"]);
+    // A GET as Go sends it: no body, so no Content-Length nor Content-Type.
     assert.deepEqual(Object.entries(sent[3]!.headers), [
+        ["Host", "daily-cloudcode-pa.googleapis.com"],
         ["User-Agent", UA],
         ["Authorization", "Bearer ya29.new-access"],
         ["Accept-Encoding", "gzip"],
@@ -274,7 +302,7 @@ test("the token is renewed as agy's Go client renews it, the refresh token kept;
     const renewed = await antigravityProvider({ send, now: () => NOW }).auth.oauth!.refresh(credential, new AbortController().signal);
 
     assert.equal(sent[0]!.url, "https://oauth2.googleapis.com/token");
-    assert.deepEqual(Object.keys(sent[0]!.headers), ["User-Agent", "Content-Type", "Accept-Encoding"]);
+    assert.deepEqual(Object.keys(sent[0]!.headers), ["Host", "User-Agent", "Content-Length", "Content-Type", "Accept-Encoding"]);
     const form = new URLSearchParams(sent[0]!.body);
 
     assert.deepEqual([...form.keys()], ["client_id", "client_secret", "grant_type", "refresh_token"]);
@@ -376,7 +404,9 @@ test("a request is agy's: its headers, envelope, the effort's model and thinking
 
     assert.equal(request!.url, "https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse");
     assert.deepEqual(Object.entries(request!.headers), [
+        ["Host", "daily-cloudcode-pa.googleapis.com"],
         ["User-Agent", UA],
+        ["Content-Length", String(Buffer.byteLength(request!.body))],
         ["Authorization", "Bearer ya29.live"],
         ["Content-Type", "application/json"],
         ["Accept-Encoding", "gzip"],
@@ -514,14 +544,16 @@ after(async () => {
 });
 
 test("in the app: listed in Providers off until signed in; Sign in with Google shows the page and takes the pasted code on its card, then its models are there; the code and tokens reach no log", async () => {
-    const { send } = google((request) =>
+    const { sent, send } = google((request) =>
         request.url.includes("fetchAvailableModels")
             ? { body: JSON.stringify(CATALOG) }
             : request.url.endsWith("/token")
               ? { body: TOKENS }
               : request.url.includes("loadCodeAssist")
-                ? { body: JSON.stringify({ cloudaicompanionProject: "aicode-consumers" }) }
-                : { body: "{}" },
+                ? { body: JSON.stringify({ cloudaicompanionProject: "aicode-consumers", currentTier: { id: "free-tier", name: "Antigravity" }, paidTier: { id: "g1-pro-tier", name: "Google AI Pro" } }) }
+                : request.url.includes("retrieveUserQuotaSummary")
+                  ? { body: JSON.stringify(QUOTA) }
+                  : { body: "{}" },
     );
     const logged: string[] = [];
 
@@ -570,6 +602,27 @@ test("in the app: listed in Providers off until signed in; Sign in with Google s
             ["gpt-oss-120b-medium", ["off"]],
         ],
     );
+
+    // Its usage bars: the quota agy's start read (PP-558), per group of models, with the plan; no call of their own.
+    const usage = await app.usageLimits.get(AGY_PROVIDER, true);
+
+    assert.ok(usage !== undefined && "windows" in usage, JSON.stringify(usage));
+    assert.equal(usage.plan, "Google AI Pro");
+    assert.deepEqual(
+        usage.windows.map((window) => [window.group, window.label, Math.round(window.usedPercent), window.resetsAt]),
+        [
+            ["Gemini Models", "Weekly", 57, Date.parse("2026-11-28T10:39:15Z")],
+            ["Gemini Models", "5-hour", 0, Date.parse("2026-11-23T13:12:05Z")],
+            ["Claude and GPT models", "Weekly", 6, Date.parse("2026-11-29T06:07:33Z")],
+            ["Claude and GPT models", "5-hour", 0, Date.parse("2026-11-23T13:12:05Z")],
+        ],
+    );
+    const quotaCalls = sent.filter((request) => request.url.endsWith(":retrieveUserQuotaSummary")).length;
+
+    assert.equal(quotaCalls, AGY_START.filter((read) => read === "retrieveUserQuotaSummary").length, "only agy's start read it");
+    await app.usageLimits.get(AGY_PROVIDER, true);
+    assert.equal(sent.filter((request) => request.url.endsWith(":retrieveUserQuotaSummary")).length, quotaCalls, "asking again reads what agy last read");
+    assert.equal(tab.last("usage")?.provider, AGY_PROVIDER, "the tabs are told");
 
     await app.providers.logout(AGY_PROVIDER);
     assert.equal(listed()?.configured, false);

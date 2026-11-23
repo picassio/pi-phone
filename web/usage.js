@@ -29,6 +29,14 @@ export function windowName(label) {
     return names[label] ?? label;
 }
 
+/**
+ * A window's name with the group of models it counts, when the provider has windows per group (Google Antigravity's
+ * "Gemini Models", in Google's words): "Gemini Models · Weekly".
+ */
+export function windowTitle(window) {
+    return window.group ? `${window.group} · ${windowName(window.label)}` : windowName(window.label);
+}
+
 /** How close to the limit: under 70% fine, under 90% near, else at it. */
 const level = (percent) => (percent >= 90 ? "high" : percent >= 70 ? "near" : "low");
 
@@ -61,7 +69,7 @@ export function usageLine(provider) {
         return undefined;
     }
 
-    return usage.windows.map((window) => `${SHORT[window.label] ?? window.label} ${Math.round(window.usedPercent)}%`).join(" · ");
+    return usage.windows.map((window) => `${window.group ? `${window.group} ` : ""}${SHORT[window.label] ?? window.label} ${Math.round(window.usedPercent)}%`).join(" · ");
 }
 
 /**
@@ -98,12 +106,12 @@ export function UsageBars({ provider }) {
         ${usage.windows.map(
             (window) => html`<div class="usage-window">
                 <div class="usage-head small">
-                    <span>${windowName(window.label)}</span>
+                    <span>${windowTitle(window)}</span>
                     <span class="muted">
                         ${t("{n}% used", { n: Math.round(window.usedPercent) })}${window.resetsAt === undefined ? "" : ` · ${resetText(window.resetsAt)}`}${window.detail ? ` · ${window.detail}` : ""}
                     </span>
                 </div>
-                <div class="usage-track" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${Math.round(window.usedPercent)} aria-label=${windowName(window.label)}>
+                <div class="usage-track" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${Math.round(window.usedPercent)} aria-label=${windowTitle(window)}>
                     <div class=${`usage-fill ${level(window.usedPercent)}`} style=${`width:${Math.max(2, window.usedPercent)}%`}></div>
                 </div>
             </div>`,
@@ -236,7 +244,7 @@ export function UsageWarning() {
     return html`<div class="watch-bar usage-warning" data-part="usage-warning">
         <span class="grow">
             ${(() => {
-                const limit = html`<strong>${t("{account}: {window} limit at {n}%", { account: accountName(provider), window: windowName(window.label).toLowerCase(), n: Math.round(window.usedPercent) })}</strong>`;
+                const limit = html`<strong>${t("{account}: {window} limit at {n}%", { account: accountName(provider), window: window.group ? `${window.group} ${windowName(window.label).toLowerCase()}` : windowName(window.label).toLowerCase(), n: Math.round(window.usedPercent) })}</strong>`;
 
                 return window.resetsAt === undefined ? tx("{limit}.", { limit }) : tx("{limit}, {reset}.", { limit, reset: resetText(window.resetsAt) });
             })()}

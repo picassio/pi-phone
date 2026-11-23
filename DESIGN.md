@@ -170,10 +170,9 @@ so Pi changes them through the settings tools; "the last session" is the one the
   and the `os_type`/`arch` (this server's, in Go's names; Android as linux) and `auth_method` (`consumer`) for the
   User-Agent. Renewal is agy's too: the refresh token at the same endpoint. The code, the verifier and the tokens are
   never in an event, a log line or an error message.
-  **Requests** go from this server with undici's `request` on the app's dispatcher (not `fetch`, which adds `accept`,
-  `accept-language` and `sec-fetch-mode`; undici still writes `connection: keep-alive`, which Go leaves out): `https://daily-cloudcode-pa.googleapis.com/v1internal:*`, headers `User-Agent: antigravity/cli/<AGY_VERSION>
-  (aidev_client; os_type=…; arch=…; cl=<AGY_BUILD>; auth_method=…)`, `Authorization`, `Content-Type`, `Accept-Encoding:
-  gzip`, and agy's envelope: `project`, `requestId` `agent/<cascade>/<ms>/<trajectory>/<step+1>`, `request.labels`,
+  **Requests** go from this server on agy's wire (below): `https://daily-cloudcode-pa.googleapis.com/v1internal:*`,
+  headers `Host`, `User-Agent: antigravity/cli/<AGY_VERSION> (aidev_client; os_type=…; arch=…; cl=<AGY_BUILD>;
+  auth_method=…)`, `Content-Length`, `Authorization`, `Content-Type`, `Accept-Encoding: gzip`, and agy's envelope: `project`, `requestId` `agent/<cascade>/<ms>/<trajectory>/<step+1>`, `request.labels`,
   `request.sessionId` (a 63-bit number), `model` (agy's id with its effort), `userAgent: "antigravity"`, `requestType:
   "agent"`; cascade and trajectory are UUIDs made stable from the session id and its turn. `generationConfig` is agy's
   for that model: its `maxOutputTokens`, and `thinkingConfig` with `thinkingLevel` LOW/MEDIUM/HIGH (or the number agy
@@ -185,7 +184,40 @@ so Pi changes them through the settings tools; "the last session" is the one the
   after signing in: one model per `groupedModels` family (`gemini-4-neon`, `claude-opus-5-5`, …) whose efforts are its
   thinking levels (`thinkingLevelMap` low/medium/high/xhigh, off and minimal unsupported), the others as they are
   (`gpt-oss-120b-medium`, the orchestrators). The answer is also the catalog each request reads its model's settings
-  from, asked again once after a restart. What agy sends besides (Clearcut logs, experiments, quota) is not imitated.
+  from, asked again once after a restart.
+  **The wire** (PP-558, `src/server/agy-wire.ts`, measured on the devbox on 2026-11-23: a local CONNECT proxy read
+  agy's ClientHello in each tunnel and relayed the bytes unchanged to Google; mitmproxy read the requests). agy 1.5.15
+  is a Go 1.28 binary. To Google's API hosts (`daily-cloudcode-pa`, `aicode`, `www.googleapis.com`, `oauth2`) it speaks
+  HTTP/1.1 (its ClientHello offers only `http/1.1` there; HTTP/2 only to Clearcut and gstatic). Requests go with Node's
+  `node:https` (undici writes `connection: keep-alive` first and `content-length` last whatever it is given): headers in
+  Go's order (`goHeaders`: Host, User-Agent, Content-Length, the rest by name, `Accept-Encoding: gzip` last), no
+  `Connection` header (removed, the connection still kept), Go's own `User-Agent: Go-http-client/1.1` for the token
+  endpoint and Google's userinfo, a kept-alive agent per app, no TLS resumption (Go keeps no session cache), and the
+  app's proxy (`proxyEnv`, as Go reads `HTTPS_PROXY`). TLS (`AGY_TLS`): Go's 13 cipher suites (TLS 1.2's in Go's
+  order), its groups `X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024, X25519, P-256, P-384, P-521` with key
+  shares for X25519MLKEM768 and X25519, its 13 signature algorithms (ML-DSA first) in order, ALPN `http/1.1`, TLS
+  1.2–1.3, `status_request` asked for, no session ticket and no encrypt-then-MAC: the ciphers, groups, key shares,
+  signature algorithms, ALPN and versions are Go's exactly. What OpenSSL does not let Node change: the TLS 1.3 suites
+  come first (Go puts them last), the extension order is OpenSSL's, `psk_key_exchange_modes` is always sent, Go's
+  `signed_certificate_timestamp` and `signature_algorithms_cert` are never sent, and with OpenSSL 3.5 (the devbox, CI)
+  the EC point formats are three instead of Go's one (the phone's OpenSSL 3.6 sends one, as Go). So JA4 is
+  `t13d1311h1_f57a46bbacb6_3ff081f16b5f` against agy's `t13d1312h1_f57a46bbacb6_f50d94e863eb` (the cipher part the
+  same; was `t13d5212h1_b262b3658495_8e6e362c5eac` with undici's defaults), and JA3 differs. agy's own order was the
+  same on every connection (no shuffling in this build). No Go binary nor native TLS library is shipped for the rest.
+  Also left as Node does it: one kept connection per host where agy opens several (its parts each have a client),
+  and the `CONNECT` request to a proxy, which only the proxy sees.
+  **Background reads** (`AgyBackground`): while the provider is in use, this server makes the reads agy makes, with its
+  headers, at its times: agy's start before an account's first turn (userinfo, loadCodeAssist, fetchAdminControls,
+  fetchUserInfo, retrieveUserQuotaSummary, fetchAvailableModels, listExperiments, fetchConfig, cascadeNuxes, in agy's
+  order with its repeats; its picture and gstatic's plugin lists left out), `fetchConfig` every minute,
+  `loadCodeAssist` and `fetchAvailableModels` every six minutes, `fetchUserInfo` at a conversation's first turn, and
+  the quota after a turn unless read in the last minute; they stop 30 minutes after the last turn, as agy stops when
+  closed. The start's `fetchAvailableModels` is the catalog requests read. The quota (`retrieveUserQuotaSummary`: per
+  group of models, a 5-hour and a weekly window) is the provider's usage bars (`usage-limits.ts`, windows with their
+  `group`), never a call of its own: the bars asking when agy is not running start it, as opening agy would. **Never
+  sent:** agy's telemetry (Clearcut `play.googleapis.com/log`, the `cclog` scope) and its writes (`writeTrajectoryAcls`):
+  that would be made-up usage data in Google's systems, so it is not done even to look more like agy. Nor its
+  `checkpoint` requests (a Gemini Flash Lite summary per conversation), which would spend the owner's quota.
   Providers shows the risk on its row (`AgyRisk`): Google's terms forbid third-party clients, accounts are being
   suspended, a suspension closes Antigravity, Gemini CLI and Code Assist with one appeal. Fingerprint and how it was
   captured: wiki `resources/antigravity-agy-fingerprint`.

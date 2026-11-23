@@ -16,8 +16,6 @@
  * and Settings › Providers says so beside it. The pasted code, the verifier and the tokens never reach a log or a chat.
  */
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { pipeline } from "node:stream";
-import { createGunzip } from "node:zlib";
 import {
     type Api,
     type AssistantMessage,
@@ -54,7 +52,7 @@ import {
 } from "@earendil-works/pi-ai/api/google-shared";
 import { retryProviderRequest } from "@earendil-works/pi-ai/utils/provider-retry";
 import { sanitizeSurrogates } from "@earendil-works/pi-ai/utils/sanitize-unicode";
-import * as undici from "undici";
+import { AgyBackground, type AgyRead, agyTransport, goHeaders, type WireRequest, type WireResponse } from "./agy-wire.ts";
 
 export const AGY_PROVIDER = "google-antigravity";
 export const AGY_NAME = "Google Antigravity";
@@ -65,6 +63,10 @@ export const AGY_BUILD = "1027820220";
 const API = "google-antigravity";
 const HOST = "https://daily-cloudcode-pa.googleapis.com";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
+/** Google's account endpoint, which agy reads with Go's own User-Agent. */
+const USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
+/** agy's config and experiments. */
+const CONFIG_URL = "https://aicode.googleapis.com/v1alpha:fetchConfig";
 /** Google's consent page, as agy opens it (Go's `oauth2` with Google's endpoint: not the v2 path). */
 export const AGY_AUTH_URL = "https://accounts.google.com/o/oauth2/auth";
 /** agy's redirect for a machine with no browser: the page shows the code to paste. */
@@ -81,8 +83,6 @@ const SCOPES = [
 ];
 /** What agy's User-Agent says of a Google sign-in. */
 const AUTH_METHOD = "consumer";
-/** agy's Go client, for Google's token endpoint. */
-const TOKEN_HEADERS = { "User-Agent": "Go-http-client/1.1", "Content-Type": "application/x-www-form-urlencoded", "Accept-Encoding": "gzip" };
 /** How long an account's first project may take Google to set up, and how often it is asked. */
 const ONBOARD_TRIES = 24;
 const ONBOARD_EVERY_MS = 5_000;
@@ -97,18 +97,23 @@ const EARLY_MS = 5 * 60_000;
 export const AGY_RISK =
     "Google's terms forbid third-party clients of Antigravity, and accounts are being suspended for it. A suspension closes Antigravity, Gemini CLI and Code Assist together, with one appeal. Connect only an account you accept to lose.";
 
-export interface AgyResponse {
-    status: number;
-    headers: Headers;
-    body: AsyncIterable<Uint8Array>;
-}
+export type AgyResponse = WireResponse;
 
-/** One request (a POST unless `method` says GET), its headers in the order given; the body is gunzipped when Google gzipped it. */
-export type AgySend = (url: string, init: { method?: "GET" | "POST"; headers: Record<string, string>; body?: string; signal?: AbortSignal }) => Promise<AgyResponse>;
+/**
+ * One request (a POST unless `method` says GET), its headers written as given, in Go's order (`goHeaders`); the body is
+ * gunzipped when Google gzipped it.
+ */
+export type AgySend = (url: string, init: WireRequest) => Promise<AgyResponse>;
 
 export interface AgyOptions {
-    /** Tests answer for Google. Default: undici's `request` on the app's dispatcher (`net.ts`). */
+    /** Tests answer for Google. Default: agy's wire (`agy-wire.ts`): HTTP/1.1 with Go's headers and TLS. */
     send?: AgySend;
+    /** The sign-in of an account now, as `toAuth` gives it (Pi renews it): agy's background reads between turns. */
+    auth?: (provider: string) => Promise<string | undefined>;
+    /** The app's log: a background read that failed. */
+    log?: (line: string) => void;
+    /** agy read an account's quota again (the usage bars show it). */
+    quotaRead?: (provider: string) => void;
     now?: () => number;
     /** The wait between asking whether a new account's project is ready. Tests do not wait. */
     sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
@@ -163,26 +168,6 @@ export class AgyHttpError extends Error {
         this.headers = headers;
     }
 }
-
-const sendWithUndici: AgySend = async (url, init) => {
-    const response = await undici.request(url, {
-        method: init.method ?? "POST",
-        headers: init.headers,
-        ...(init.body === undefined ? {} : { body: init.body }),
-        ...(init.signal === undefined ? {} : { signal: init.signal }),
-    });
-    const headers = new Headers();
-
-    for (const [name, value] of Object.entries(response.headers)) {
-        for (const each of value === undefined ? [] : Array.isArray(value) ? value : [value]) {
-            headers.append(name, each);
-        }
-    }
-
-    const body: AsyncIterable<Uint8Array> = headers.get("content-encoding") === "gzip" ? pipeline(response.body, createGunzip(), () => {}) : response.body;
-
-    return { status: response.statusCode, headers, body };
-};
 
 async function readText(body: AsyncIterable<Uint8Array>): Promise<string> {
     const chunks: Buffer[] = [];
@@ -328,11 +313,11 @@ function parseAuth(apiKey: string | undefined): AgyAuth {
 }
 
 /**
- * The headers agy sends with every Cloud Code call, in Go's order and spelling. undici writes `host` and
- * `connection: keep-alive` before them and `content-length` after them, whatever is given; Go sends no `connection`.
+ * The headers agy sends with a Cloud Code call, as Go writes them (`goHeaders`): Host, User-Agent, Content-Length,
+ * Authorization, Content-Type, Accept-Encoding; a GET has no body, so no Content-Length nor Content-Type.
  */
-function cloudCodeHeaders(auth: AgyAuth): Record<string, string> {
-    return { "User-Agent": auth.userAgent, Authorization: `Bearer ${auth.token}`, "Content-Type": "application/json", "Accept-Encoding": "gzip" };
+function cloudCodeHeaders(url: string, auth: AgyAuth, body?: string): Record<string, string> {
+    return goHeaders(url, { "User-Agent": auth.userAgent, Authorization: `Bearer ${auth.token}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }) }, body);
 }
 
 /** A stable UUID-shaped id from a seed: agy's cascade and trajectory ids for one session and one turn. */
@@ -489,7 +474,12 @@ async function* events(body: AsyncIterable<Uint8Array>): AsyncGenerator<Chunk> {
 let toolCallCounter = 0;
 
 export function antigravityProvider(options: AgyOptions = {}): Provider {
-    const send = options.send ?? sendWithUndici;
+    return antigravity(options).provider;
+}
+
+/** The provider, and agy's background reads for its accounts (the usage bars read the quota from them). */
+export function antigravity(options: AgyOptions = {}): { provider: Provider; background: AgyBackground<AgyAuth> } {
+    const send = options.send ?? agyTransport();
     const now = options.now ?? Date.now;
     const sleep = options.sleep ?? sleepFor;
     /** The last model list Google gave, for each request's model and settings; asked once after a start. */
@@ -509,9 +499,45 @@ export function antigravityProvider(options: AgyOptions = {}): Provider {
 
     const cloudCode = async <T>(method: string, auth: AgyAuth, body: unknown, signal?: AbortSignal): Promise<T> => {
         const json = JSON.stringify(body);
+        const url = `${HOST}/v1internal:${method}`;
 
-        return JSON.parse(await post(`${HOST}/v1internal:${method}`, cloudCodeHeaders(auth), json, signal)) as T;
+        return JSON.parse(await post(url, cloudCodeHeaders(url, auth, json), json, signal)) as T;
     };
+
+    /** A GET as agy makes it: agy's User-Agent (Go's own for Google's account endpoint) and the token. */
+    const getJson = async (url: string, auth: AgyAuth, userAgent: string = auth.userAgent): Promise<unknown> =>
+        JSON.parse(await post(url, goHeaders(url, { "User-Agent": userAgent, Authorization: `Bearer ${auth.token}` }), undefined));
+
+    /** agy's background reads, each as agy sends it. */
+    const read = async (_provider: string, auth: AgyAuth, name: AgyRead): Promise<unknown> => {
+        switch (name) {
+            case "userinfo":
+                return getJson(USERINFO_URL, auth, "Go-http-client/1.1");
+            case "fetchConfig":
+                return getJson(CONFIG_URL, auth);
+            case "cascadeNuxes":
+                return getJson(`${HOST}/v1internal/cascadeNuxes?page_size=1000`, auth);
+            case "loadCodeAssist":
+                return cloudCode(name, auth, { metadata: { ideType: "ANTIGRAVITY" } });
+            case "fetchAvailableModels":
+                catalog = await cloudCode<AgyCatalog>(name, auth, { project: auth.project });
+
+                return catalog;
+            default:
+                return cloudCode(name, auth, { project: auth.project });
+        }
+    };
+    const background = new AgyBackground<AgyAuth>({
+        read,
+        auth: async (provider) => {
+            const apiKey = await options.auth?.(provider);
+
+            return apiKey === undefined ? undefined : parseAuth(apiKey);
+        },
+        log: options.log ?? (() => {}),
+        ...(options.quotaRead === undefined ? {} : { quotaRead: options.quotaRead }),
+        now,
+    });
 
     const fetchCatalog = (auth: AgyAuth, signal?: AbortSignal): Promise<AgyCatalog> =>
         cloudCode<AgyCatalog>("fetchAvailableModels", auth, { project: auth.project }, signal).then((answer) => {
@@ -544,7 +570,10 @@ export function antigravityProvider(options: AgyOptions = {}): Provider {
         let answer: { access_token?: unknown; expires_in?: unknown; refresh_token?: unknown; id_token?: unknown };
 
         try {
-            answer = JSON.parse(await post(TOKEN_URL, TOKEN_HEADERS, form.toString(), signal)) as typeof answer;
+            const body = form.toString();
+
+            // Go's own client, with its User-Agent.
+            answer = JSON.parse(await post(TOKEN_URL, goHeaders(TOKEN_URL, { "Content-Type": "application/x-www-form-urlencoded" }, body), body, signal)) as typeof answer;
         } catch (error) {
             // OAuth's own words (invalid_grant) reach the Providers sheet; the request's form never does.
             throw new Error(`${failed}: ${error instanceof Error ? error.message : String(error)}`);
@@ -606,9 +635,9 @@ export function antigravityProvider(options: AgyOptions = {}): Provider {
 
         for (let tries = 1; operation.done !== true && typeof operation.name === "string" && tries < ONBOARD_TRIES; tries++) {
             await sleep(ONBOARD_EVERY_MS, interaction.signal);
-            operation = JSON.parse(
-                await post(`${HOST}/v1internal/${operation.name}`, { "User-Agent": auth.userAgent, Authorization: `Bearer ${auth.token}`, "Accept-Encoding": "gzip" }, undefined, interaction.signal),
-            ) as typeof operation;
+            const url = `${HOST}/v1internal/${operation.name}`;
+
+            operation = JSON.parse(await post(url, cloudCodeHeaders(url, auth), undefined, interaction.signal)) as typeof operation;
         }
 
         const made = idOf(operation.response?.cloudaicompanionProject);
@@ -670,6 +699,9 @@ export function antigravityProvider(options: AgyOptions = {}): Provider {
         const events$ = createAssistantMessageEventStream();
         const normalized = collapseSystemMessages(context);
 
+        // After the turn, agy reads the quota again (`AgyBackground.afterTurn`).
+        let ended = () => {};
+
         void (async () => {
             const output: AssistantMessage = {
                 role: "assistant",
@@ -685,6 +717,10 @@ export function antigravityProvider(options: AgyOptions = {}): Provider {
             try {
                 const auth = parseAuth(streamOptions?.apiKey);
                 const signal = streamOptions?.signal;
+
+                // agy's start when it is not running for this account, and its reads at a conversation's first turn.
+                await background.beforeTurn(model.provider, auth, streamOptions?.sessionId);
+                ended = () => background.afterTurn(model.provider);
                 const level = model.reasoning ? clampThinkingLevel(model, reasoning ?? "off") : undefined;
                 const suffix = level === undefined ? undefined : model.thinkingLevelMap?.[level];
                 const agyId = typeof suffix === "string" ? `${model.id}-${suffix}` : model.id;
@@ -703,8 +739,9 @@ export function antigravityProvider(options: AgyOptions = {}): Provider {
                 const json = JSON.stringify(payload);
                 const response = await retryProviderRequest(
                     async () => {
-                        const answer = await send(`${HOST}/v1internal:streamGenerateContent?alt=sse`, {
-                            headers: cloudCodeHeaders(auth),
+                        const url = `${HOST}/v1internal:streamGenerateContent?alt=sse`;
+                        const answer = await send(url, {
+                            headers: cloudCodeHeaders(url, auth, json),
                             body: json,
                             ...(signal === undefined ? {} : { signal }),
                         });
@@ -861,12 +898,14 @@ export function antigravityProvider(options: AgyOptions = {}): Provider {
                 events$.push({ type: "error", reason: output.stopReason, error: output });
                 events$.end();
             }
+
+            ended();
         })();
 
         return events$;
     };
 
-    return createProvider({
+    const provider = createProvider({
         id: AGY_PROVIDER,
         name: AGY_NAME,
         baseUrl: HOST,
@@ -887,6 +926,8 @@ export function antigravityProvider(options: AgyOptions = {}): Provider {
             streamSimple: (model, context, streamOptions?: SimpleStreamOptions) => stream(model, context, streamOptions, streamOptions?.reasoning),
         },
     });
+
+    return { provider, background };
 }
 
 /**

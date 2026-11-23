@@ -1,7 +1,8 @@
 /**
  * Plan limits of the subscription accounts (owner's decisions of 2026-10-19, wiki: provider-accounts-and-usage): how much
  * of each window an account has used, and when the window resets, as the providers' own apps show it. Claude and Codex
- * have a 5-hour and a weekly window; Copilot has its monthly premium requests. Each is asked with the account's own
+ * have a 5-hour and a weekly window; Copilot has its monthly premium requests; Google Antigravity a 5-hour and a weekly
+ * window per group of models, read as agy reads them in the background (`agy-wire.ts`, PP-558). Each is asked with the account's own
  * sign-in (renewed by Pi's runtime when needed, so a renewed token is kept), through endpoints the providers' apps use and
  * do not document: an answer of another shape is "usage unavailable", with why, never a guess.
  *
@@ -16,6 +17,8 @@ import { describe } from "./errors.ts";
 export type UsageWindow = {
     /** "5-hour", "Weekly", "Weekly Opus", "Premium requests". */
     label: string;
+    /** The group of models it counts, in the provider's words ("Gemini Models"), when its windows are per group. */
+    group?: string;
     /** 0–100. */
     usedPercent: number;
     /** When it resets, in ms; undefined when the provider does not say. */
@@ -29,7 +32,7 @@ export type AccountUsage =
     | { provider: string; at: number; error: string };
 
 /** The providers with plan limits: their accounts' too (`anthropic~work`). */
-const LIMITED = new Set(["anthropic", "openai-codex", "github-copilot"]);
+const LIMITED = new Set(["anthropic", "openai-codex", "github-copilot", "google-antigravity"]);
 const KEEP_MS = 60_000;
 const TIMEOUT_MS = 10_000;
 
@@ -180,6 +183,8 @@ export type UsageLimitsOptions = {
     publish: (usage: AccountUsage) => void;
     /** The auth file the sign-ins are in, when not Pi's own (the team server's team accounts, PP-74). */
     authPath?: string;
+    /** Google Antigravity's quota, as agy's background reads last said it (`AgyBackground.usage`). */
+    antigravity?: (provider: string) => Promise<{ windows: UsageWindow[]; plan?: string }>;
     fetch?: typeof fetch;
     now?: () => number;
 };
@@ -203,7 +208,8 @@ export class UsageLimits {
     }
 
     /**
-     * Whether a provider's account has plan limits to show: a subscription (OAuth) sign-in of Claude, Codex, or Copilot.
+     * Whether a provider's account has plan limits to show: a subscription (OAuth) sign-in of Claude, Codex, Copilot, or
+     * Google Antigravity.
      * Asked of the sign-in itself (`checkAuth`), not the runtime's status, which a new account has only once its first
      * check is done.
      */
@@ -311,6 +317,15 @@ export class UsageLimits {
                     "x-github-api-version": "2025-04-01",
                 }),
             );
+        }
+
+        if (base === "google-antigravity") {
+            // Never a call of its own: the quota agy's background reads keep, as agy's own screen shows it.
+            if (this.#options.antigravity === undefined) {
+                throw new Error("no Antigravity quota reader here");
+            }
+
+            return await this.#options.antigravity(provider);
         }
 
         const token = (await this.#options.models().getAuth(provider))?.auth.apiKey;
