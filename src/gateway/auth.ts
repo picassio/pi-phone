@@ -16,7 +16,7 @@ import type { DatabaseSync } from "node:sqlite";
 export type GatewayAuthOptions = {
     db: DatabaseSync;
     secret: string;
-    /** The address people open: `https://tuanlh-devbox-01.tailf11d61.ts.net`. Passkeys are tied to its host name. */
+    /** The address people open: `https://devbox-01.example.ts.net`. Passkeys are tied to its host name. */
     origin: string;
     /** A failed sign-in step (PP-26): how (password, two-factor code, backup code, passkey), the email tried, the address. */
     onSignInFailed?: (failure: { how: string; email?: string; ip?: string }) => void;

@@ -40,41 +40,47 @@ test("an OpenRouter model or another provider's is refused before any request", 
 });
 
 test("a run without the subscription's token is refused: none, OpenRouter's key alone, or an API key", () => {
-    const none = promptEval(["--only", "no-such-scenario"]);
+    const none = promptEval(["--only", "no-such-scenario", "--account", "anthropic~work"]);
 
     assert.equal(none.status, 1);
-    assert.match(none.stderr, /EVAL_ANTHROPIC_TOKEN is needed: a short-lived OAuth token of anthropic~han-acc's Claude subscription/);
+    assert.match(none.stderr, /EVAL_ANTHROPIC_TOKEN is needed: a short-lived OAuth token of anthropic~work's Claude subscription/);
 
     // `--only` names no scenario, so the script before PP-476 stopped there too, before any request.
-    const openRouter = promptEval(["--only", "no-such-scenario"], { OPENROUTER_API_KEY: "sk-or-v1-test" });
+    const openRouter = promptEval(["--only", "no-such-scenario"], { OPENROUTER_API_KEY: "sk-or-v1-test", EVAL_ACCOUNT: "anthropic~work" });
 
     assert.equal(openRouter.status, 1);
     assert.match(openRouter.stderr, /OPENROUTER_API_KEY is set but evals never run on OpenRouter/);
 
-    const apiKey = promptEval(["--only", "no-such-scenario"], { EVAL_ANTHROPIC_TOKEN: "sk-ant-api03-test" });
+    const apiKey = promptEval(["--only", "no-such-scenario", "--account", "anthropic~work"], { EVAL_ANTHROPIC_TOKEN: "sk-ant-api03-test" });
 
     assert.equal(apiKey.status, 1);
     assert.match(apiKey.stderr, /not a subscription OAuth token/);
 });
 
-test("the default is the owner's Opus on Anthropic, on the account anthropic~han-acc", () => {
-    const result = promptEval(["--dry-run"]);
+test("the default model is the owner's Opus on Anthropic; the account is always named, by --account or EVAL_ACCOUNT, never kept in the script", () => {
+    const result = promptEval(["--dry-run"], { EVAL_ACCOUNT: "anthropic~work" });
 
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /Model claude-opus-5-5 on Anthropic, account anthropic~han-acc\./);
+    assert.match(result.stdout, /Model claude-opus-5-5 on Anthropic, account anthropic~work\./);
     assert.doesNotMatch(result.stdout + result.stderr, /openrouter/i);
+
+    const unnamed = promptEval(["--dry-run"]);
+
+    assert.equal(unnamed.status, 1);
+    assert.match(unnamed.stderr, /Name the Claude subscription account whose token this run uses: --account anthropic~<account> \(or EVAL_ACCOUNT\)/);
+    assert.match(promptEval(["--dry-run", "--account", "openrouter"]).stderr, /is not a subscription account of Anthropic/);
 });
 
 test("--dry-run prints the requests a run makes, and only that", () => {
     const core = SCENARIOS.filter((scenario) => scenario.core === true);
     const most = core.reduce((sum, scenario) => sum + ((scenario.rounds ?? 3) + 1) * 2 * 2, 0);
-    const result = promptEval(["--dry-run", "--only", "core", "--runs", "2", "--compare", "origin/master", "--account", "anthropic~tuan-dw"]);
+    const result = promptEval(["--dry-run", "--only", "core", "--runs", "2", "--compare", "origin/master", "--account", "anthropic~home"]);
 
     assert.equal(result.status, 0, result.stderr);
     assert.equal(
         result.stdout.trim(),
         `Planned: ${core.length * 4} requests (${core.length} scenarios × 2 runs × 2 trees), at most ${most} with lead-ins; ` +
-            "a provider's passing error is tried again, at most 4 times a request. Model claude-opus-5-5 on Anthropic, account anthropic~tuan-dw.",
+            "a provider's passing error is tried again, at most 4 times a request. Model claude-opus-5-5 on Anthropic, account anthropic~home.",
     );
 });
 

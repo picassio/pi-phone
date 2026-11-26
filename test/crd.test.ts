@@ -34,7 +34,7 @@ const COMMAND = `& "\${Env:PROGRAMFILES(X86)}\\Google\\Chrome Remote Desktop\\Cu
 const powershell = (script: string) => Buffer.from(/-EncodedCommand (\S+)/.exec(script)![1]!, "base64").toString("utf16le");
 
 const machine = (over: Partial<Machine> = {}): Machine & { remote: NonNullable<Machine["remote"]> } =>
-    ({ id: "w1", name: "tualh-laptop", host: "h", user: "Picassio", keyId: "k", createdAt: 0, remote: { platform: "windows", arch: "x64", home: "C:/Users/Picassio" }, ...over }) as Machine & { remote: NonNullable<Machine["remote"]> };
+    ({ id: "w1", name: "laptop-01", host: "h", user: "Picassio", keyId: "k", createdAt: 0, remote: { platform: "windows", arch: "x64", home: "C:/Users/Picassio" }, ...over }) as Machine & { remote: NonNullable<Machine["remote"]> };
 
 const crdOn = (found: ReturnType<typeof machine>, fake = fakeCrd()) => ({ fake, crd: new ChromeRemoteDesktop(() => found, fake.run) });
 
@@ -176,7 +176,7 @@ test("connect: the values reach the machine only as variables, never in the scri
 test("connect on a machine where it is not installed says to install it; a run that fails is reported without the values", async () => {
     const { crd } = crdOn(machine(), fakeCrd(NOT_INSTALLED));
 
-    await assert.rejects(crd.connect("w1", COMMAND, PIN, PIN), /not installed on tualh-laptop: install it first/);
+    await assert.rejects(crd.connect("w1", COMMAND, PIN, PIN), /not installed on laptop-01: install it first/);
 
     const failing = new ChromeRemoteDesktop(() => machine(), async () => {
         throw new Error(`daemon gone while running with ${PIN} and ${CODE}`);
@@ -191,8 +191,8 @@ test("install: installed counts as installed; no administrator, an unsigned down
     const done = await crd.install("w1");
 
     assert.equal(done.ok, true);
-    assert.match(done.said, /Chrome Remote Desktop 154\.0\.8037\.40 is installed on tualh-laptop \(Google's, its signature checked\): installed, not connected\./);
-    assert.match((await crd.install("w1")).said, /was installed on tualh-laptop already/);
+    assert.match(done.said, /Chrome Remote Desktop 154\.0\.8037\.40 is installed on laptop-01 \(Google's, its signature checked\): installed, not connected\./);
+    assert.match((await crd.install("w1")).said, /was installed on laptop-01 already/);
 
     fake.state = { ...NOT_INSTALLED };
     fake.installSays = { code: 30, out: "fail admin\n" };
@@ -218,13 +218,13 @@ test("remove uninstalls it and says when it could not; status reads the machine"
     fake.state = { ...CONNECTED };
     const failing = new ChromeRemoteDesktop(() => machine(), async () => ({ code: 32, out: "msiexec 1603\nfail msiexec 1603\n" }));
 
-    await assert.rejects(failing.remove("w1"), /could not remove it on tualh-laptop: exit 1603, a fatal error during installation\. Its log is ~\/\.pi\/mobile\/crd\/remove\.log/);
+    await assert.rejects(failing.remove("w1"), /could not remove it on laptop-01: exit 1603, a fatal error during installation\. Its log is ~\/\.pi\/mobile\/crd\/remove\.log/);
 });
 
 test("only the owner's Windows x64 machines are offered it: Linux, macOS, Windows on Arm and team machines are refused before anything runs", async () => {
     for (const [found, why] of [
-        [machine({ remote: { platform: "linux", arch: "x64", home: "/home/me" } }), /for Windows machines for now \(Linux and macOS come later\); tualh-laptop is linux/],
-        [machine({ remote: { platform: "darwin", arch: "arm64", home: "/Users/me" } }), /tualh-laptop is darwin/],
+        [machine({ remote: { platform: "linux", arch: "x64", home: "/home/me" } }), /for Windows machines for now \(Linux and macOS come later\); laptop-01 is linux/],
+        [machine({ remote: { platform: "darwin", arch: "arm64", home: "/Users/me" } }), /laptop-01 is darwin/],
         [machine({ remote: { platform: "windows", arch: "arm64", home: "C:/Users/me" } }), /Windows on x64 for now/],
         [machine({ team: { id: "t", manage: true, usable: true, roles: [], publicKey: "", createdBy: "", folder: "" } }), /not for a team machine/],
     ] as const) {
@@ -285,16 +285,16 @@ test("Chrome Remote Desktop is a machine tool, unticked: offered on a Windows ma
     assert.equal(linux.supported, false);
     assert.equal(linux.offered, false);
     assert.equal(linux.crd, undefined);
-    assert.match((await tools.install("w1", ["crd"])).results[0]!.said, /for your own Windows x64 machines for now; tualh-laptop is linux x64/);
+    assert.match((await tools.install("w1", ["crd"])).results[0]!.said, /for your own Windows x64 machines for now; laptop-01 is linux x64/);
     assert.equal(fake.calls.length, calls, "nothing of CRD runs on Linux");
 });
 
 test("a locked Windows screen: Pi is told to unlock it with Chrome Remote Desktop when it is connected, else to offer to set it up", () => {
     const state = parseWindowsState(`state ${JSON.stringify({ task: true, loggedOn: true, locked: true, running: true, crd: "connected" })}`);
 
-    assert.match(describeWindowsState("tualh-laptop", state), /its screen is locked.*Ask the owner to unlock it with Chrome Remote Desktop from their phone/);
-    assert.match(describeWindowsState("tualh-laptop", { ...state, crd: "not installed" }), /Offer to set up Chrome Remote Desktop.*crd: "install", then crd: "connect"/);
-    assert.match(describeWindowsState("tualh-laptop", { ...state, crd: "installed, not connected" }), /Offer to set up Chrome Remote Desktop.*installed but not connected: computer_control setup with crd: "connect"/);
-    assert.doesNotMatch(describeWindowsState("tualh-laptop", { ...state, locked: false }), /Chrome Remote Desktop/);
+    assert.match(describeWindowsState("laptop-01", state), /its screen is locked.*Ask the owner to unlock it with Chrome Remote Desktop from their phone/);
+    assert.match(describeWindowsState("laptop-01", { ...state, crd: "not installed" }), /Offer to set up Chrome Remote Desktop.*crd: "install", then crd: "connect"/);
+    assert.match(describeWindowsState("laptop-01", { ...state, crd: "installed, not connected" }), /Offer to set up Chrome Remote Desktop.*installed but not connected: computer_control setup with crd: "connect"/);
+    assert.doesNotMatch(describeWindowsState("laptop-01", { ...state, locked: false }), /Chrome Remote Desktop/);
     assert.throws(() => parseWindowsState(`state ${JSON.stringify({ task: true, loggedOn: true, locked: true, running: true })}`), /did not say how Chrome Remote Desktop stands/);
 });

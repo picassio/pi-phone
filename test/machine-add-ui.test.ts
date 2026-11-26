@@ -22,7 +22,7 @@ import { VIEWPORTS } from "./support/browser/viewport.ts";
 const sshdPath = ["/usr/sbin/sshd", join(process.env.PREFIX ?? "/usr", "bin", "sshd")].find((path) => existsSync(path));
 const skip = findBrowser() === undefined ? "no Chromium-based browser on this machine" : sshdPath === undefined ? "no sshd on this machine" : false;
 const SHOTS = process.env.MACHINE_SHOTS;
-const LONG_ADDRESS = "https://wiki.example.com/sandbox/han-proxmox/virtual-machines/tuanlh-sandbox-01/setup-notes-and-the-whole-checklist?section=network&step=12";
+const LONG_ADDRESS = "https://wiki.example.com/sandbox/lab-proxmox/virtual-machines/sandbox-01/setup-notes-and-the-whole-checklist?section=network&step=12";
 let toolArgs: Record<string, unknown> = {};
 
 const route: FauxResponseStep = (request) => {
@@ -91,12 +91,12 @@ before(async () => {
 
     writeFileSync(authorized, `${key.publicKey}\n`, { mode: 0o600 });
     toolArgs = {
-        name: "tuanlh-sandbox-01",
+        name: "sandbox-01",
         address: `${userInfo().username}@127.0.0.1:${port}`,
         key: "sandbox-key",
         expectedFingerprint: execFileSync("ssh-keygen", ["-lf", join(etc, "host_key.pub")], { encoding: "utf8" }).split(/\s+/)[1],
         // A long address with no spaces: a link on the card, broken to fit a phone; the closing full stop is the sentence's.
-        reason: `The VM I just built on han-proxmox, for the sandbox work, see ${LONG_ADDRESS}.`,
+        reason: `The VM I just built on lab-proxmox, for the sandbox work, see ${LONG_ADDRESS}.`,
     };
     server = createServer(createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }));
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -142,8 +142,8 @@ test("the machine_add card shows the machine, fits a phone, and Approve adds it 
     await until(async () => (await text(".machine-add-card")) !== "", "the card on a phone");
     const card = await text(".machine-add-card");
 
-    assert.match(card, /Add tuanlh-sandbox-01 to your machines\?/);
-    assert.match(card, /The VM I just built on han-proxmox/);
+    assert.match(card, /Add sandbox-01 to your machines\?/);
+    assert.match(card, /The VM I just built on lab-proxmox/);
     assert.deepEqual(
         await inPage<string[]>(`return JSON.stringify([...document.querySelectorAll(".machine-add-card .approval-reason a")].map((link) => link.getAttribute("href") + " " + link.target))`),
         [`${LONG_ADDRESS} _blank`],
@@ -186,9 +186,9 @@ test("the machine_add card shows the machine, fits a phone, and Approve adds it 
     // Nothing to download here: every tool unticked.
     await page.evaluate(`for (const box of document.querySelectorAll(".machine-add-card .machine-tool input")) if (box.checked) box.click()`);
     await page.click({ selector: ".machine-add-card .button.primary" });
-    await until(() => app.machines.list().some((each) => each.name === "tuanlh-sandbox-01" && each.remote !== undefined), "connected", 60_000);
+    await until(() => app.machines.list().some((each) => each.name === "sandbox-01" && each.remote !== undefined), "connected", 60_000);
     await until(async () => (await text(".machine-add-card")) === "", "the card gone");
     await page.click({ selector: ".new-button" });
-    await until(async () => (await text(".fp-places")).includes("tuanlh-sandbox-01"), "the machine in the folder picker");
+    await until(async () => (await text(".fp-places")).includes("sandbox-01"), "the machine in the folder picker");
     await shot("machine-add-picker-1280");
 });

@@ -115,7 +115,7 @@ export function profileFromInspect(out: string): string | undefined {
     }
 
     // One line: Windows' command line, macOS's ps, and Chrome on Linux, which rewrites its arguments as one line (its
-    // process title; tuanlh-sandbox-01, Chrome 156). A folder with spaces is quoted there, or ends at the first space.
+    // process title; sandbox-01, Chrome 156). A folder with spaces is quoted there, or ends at the first space.
     const match = /(?:^|\s)--user-data-dir=(?:"([^"]+)"|(\S+))/.exec(said);
 
     return match?.[1] ?? match?.[2];

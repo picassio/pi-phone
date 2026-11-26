@@ -45,7 +45,7 @@ function freePort(): Promise<number> {
  * there (forwarding is the point; PP-107: only then, so the host after `--` stays), then `-N` and the forward. The
  * machine's end is `localhost`, which reaches a dev server on `::1` as well as `127.0.0.1` (PP-105), unless `host` names
  * one: Pi's browser asks for 127.0.0.1, where Chrome's DevTools listens alone, as Windows' sshd took `localhost` for
- * ::1 and every request to it came back empty ("socket hang up", tualh-laptop, 2026-10-26). This end listens on
+ * ::1 and every request to it came back empty ("socket hang up", laptop-01, 2026-10-26). This end listens on
  * 127.0.0.1 alone.
  */
 export function forwardArguments(args: readonly string[], localPort: number, remotePort: number, host = "localhost"): string[] {

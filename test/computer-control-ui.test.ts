@@ -29,7 +29,7 @@ const route: FauxResponseStep = (request) => {
 
     if (role === "user" && text.endsWith("greet me on the sandbox")) {
         return fauxAssistantMessage(
-            [fauxToolCall("computer_control", { action: "start", machine: "tuanlh-sandbox-01", apps: ["Pi OCU Demo", "Text Editor"], minutes: 15, follow: true, reason: "Fill in the name in Pi OCU Demo and press Greet." } as never)],
+            [fauxToolCall("computer_control", { action: "start", machine: "sandbox-01", apps: ["Pi OCU Demo", "Text Editor"], minutes: 15, follow: true, reason: "Fill in the name in Pi OCU Demo and press Greet." } as never)],
             { stopReason: "toolUse" },
         );
     }
@@ -73,7 +73,7 @@ before(async () => {
     process.env.FAKE_OCU_LOG = ocuLog;
     app = await openApp(scriptedModel(route), join(root, "computer-ui-data"), undefined, {
         computer: {
-            machines: () => [{ id: "m1", name: "tuanlh-sandbox-01", platform: "linux", connected: true, tools: { ocu: "1.1.2-pp.1" } }],
+            machines: () => [{ id: "m1", name: "sandbox-01", platform: "linux", connected: true, tools: { ocu: "1.1.2-pp.1" } }],
             launch: (_machine, script) => spawn(process.execPath, [FAKE, script.includes("python3 -c") ? "sign" : "mcp"], { stdio: ["pipe", "pipe", "pipe"] }),
             idleEndMs: 600_000,
             refreshMs: 3000,
@@ -123,7 +123,7 @@ test("the card, the panel with its picture and box, take over, and Menu › Comp
     await until(async () => (await text(".phone-control-card")) !== "", "the card on a phone");
     const card = await text(".phone-control-card");
 
-    assert.match(card, /Let Pi use tuanlh-sandbox-01 for 15 minutes\?/);
+    assert.match(card, /Let Pi use sandbox-01 for 15 minutes\?/);
     assert.match(card, /Fill in the name in Pi OCU Demo and press Greet\./);
     assert.match(card, /Pi OCU Demo\s+demo_app\.py/);
     assert.match(card, /Text Editor\s+gedit/);
@@ -160,7 +160,7 @@ test("the card, the panel with its picture and box, take over, and Menu › Comp
     const panel = await text("[data-part=computer-panel]");
 
     assert.match(panel, /Pi's computer/);
-    assert.match(panel, /tuanlh-sandbox-01 · Pi OCU Demo/);
+    assert.match(panel, /sandbox-01 · Pi OCU Demo/);
     assert.match(panel, /Pi OCU Demo\s+Text Editor/, "the windows as tabs");
     assert.match(panel, /This session · 1[45] min left/);
     assert.match(await text("[data-part=computer-panel] .cu-hit-tag"), /click \[5\]/);
@@ -266,7 +266,7 @@ test("the card, the panel with its picture and box, take over, and Menu › Comp
     const sheet = await text(".computer-control-sheet");
 
     // Its end in clockTime's form: the time, after the date when it falls on another day (a run near midnight).
-    assert.match(sheet, /tuanlh-sandbox-01\s+Linux · ocu 1\.1\.2-pp\.1 · in use by session #\d+ until (?:[A-Z][a-z]{2} \d{1,2} )?\d{1,2}:\d\d/);
+    assert.match(sheet, /sandbox-01\s+Linux · ocu 1\.1\.2-pp\.1 · in use by session #\d+ until (?:[A-Z][a-z]{2} \d{1,2} )?\d{1,2}:\d\d/);
     assert.match(sheet, /Banking and payment apps/);
     assert.match(sheet, /Password managers and authenticators/);
     await page.evaluate(`[...document.querySelectorAll(".computer-control-sheet button.chip")].find((each) => each.innerText.includes("Add")).click()`);
@@ -309,7 +309,7 @@ test("computer_sign_in's card on a phone: fixed labels, the values into the wind
     await until(async () => (await text(".computer-sign-in-card")) !== "", "the card on a phone");
     const card = await text(".computer-sign-in-card");
 
-    assert.match(card, /Sign in to Pi OCU Demo on tuanlh-sandbox-01/);
+    assert.match(card, /Sign in to Pi OCU Demo on sandbox-01/);
     assert.match(card, /What you type goes into the window on the computer; Pi never sees it\./);
     assert.match(card, /Remember in Secrets for next time/);
     assert.match(card, /Not now/);
@@ -373,7 +373,7 @@ test("Pi's computer says when the window shown is partly covered by another wind
         const id = Number(await newSession(app));
         const session = await app.computerControl.start({
             machine: "m1",
-            machineName: "tuanlh-sandbox-01",
+            machineName: "sandbox-01",
             conversationId: id,
             session: id,
             approvedBy: "owner",

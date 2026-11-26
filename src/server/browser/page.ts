@@ -1301,7 +1301,7 @@ export class BrowserPage {
                 heard();
             }
         });
-        // A binding's calls reach DevTools only with the Runtime domain on (tuanlh-sandbox-01, Chrome 156: none came without).
+        // A binding's calls reach DevTools only with the Runtime domain on (sandbox-01, Chrome 156: none came without).
         await this.cdp.send("Runtime.enable");
         await this.cdp.send("Runtime.addBinding", { name: INPUT_BINDING });
         await this.cdp.send("Page.addScriptToEvaluateOnNewDocument", { source: INPUT_WATCH });

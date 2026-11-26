@@ -14,9 +14,9 @@ import { type FakeWindows, fakeWindows } from "./support/fake-windows.ts";
 
 const calls: Record<string, [string, Record<string, unknown>]> = {
     "how is it": ["computer_control", { action: "status" }],
-    "start it": ["computer_control", { action: "start", machine: "tualh-laptop", apps: ["Pi OCU Demo"], minutes: 10, reason: "Greet me" }],
-    "set it up": ["computer_control", { action: "setup", machine: "tualh-laptop", task: "install", reason: "To use your apps" }],
-    "remove it": ["computer_control", { action: "setup", machine: "tualh-laptop", task: "remove" }],
+    "start it": ["computer_control", { action: "start", machine: "laptop-01", apps: ["Pi OCU Demo"], minutes: 10, reason: "Greet me" }],
+    "set it up": ["computer_control", { action: "setup", machine: "laptop-01", task: "install", reason: "To use your apps" }],
+    "remove it": ["computer_control", { action: "setup", machine: "laptop-01", task: "remove" }],
     "read it": ["computer_screen", { app: "Pi OCU Demo" }],
     "stop it": ["computer_control", { action: "stop" }],
 };
@@ -38,7 +38,7 @@ before(async () => {
     windows = await fakeWindows({ ocuLog: join(mkdtempSync(join(root, "computer-windows-")), "calls.jsonl") });
     app = await openApp(scriptedModel(route), join(root, "computer-windows-data"), undefined, {
         computer: {
-            machines: () => [{ id: "w1", name: "tualh-laptop", platform: "windows", connected: true, tools: { ocu: "1.1.2-pp.2" }, user: "Picassio" }],
+            machines: () => [{ id: "w1", name: "laptop-01", platform: "windows", connected: true, tools: { ocu: "1.1.2-pp.2" }, user: "Picassio" }],
             launch: windows.launch,
             run: windows.run,
             writeFile: windows.writeFile,
@@ -75,12 +75,12 @@ test("status and start say when pi-phone's task is not set up, or nobody is sign
     const id = await newSession(app);
 
     windows.state = { task: false, loggedOn: true, locked: false, running: false };
-    assert.match((await turn(id, "how is it")).said, /- tualh-laptop: Windows, ocu 1\.1\.2-pp\.2, not set up: pi-phone's task \\"pi-phone ocu\\" is not on tualh-laptop/);
-    assert.match((await turn(id, "start it")).said, /ocu could not read tualh-laptop's desktop: not set up: pi-phone's task/);
+    assert.match((await turn(id, "how is it")).said, /- laptop-01: Windows, ocu 1\.1\.2-pp\.2, not set up: pi-phone's task \\"pi-phone ocu\\" is not on laptop-01/);
+    assert.match((await turn(id, "start it")).said, /ocu could not read laptop-01's desktop: not set up: pi-phone's task/);
     assert.equal(app.approvals.forConversation(id as never).length, 0, "no card for a session that cannot start");
 
     windows.state = { task: true, loggedOn: false, locked: false, running: false };
-    assert.match((await turn(id, "how is it")).said, /- tualh-laptop: Windows, ocu 1\.1\.2-pp\.2, not logged on: nobody is signed in to tualh-laptop's desktop/);
+    assert.match((await turn(id, "how is it")).said, /- laptop-01: Windows, ocu 1\.1\.2-pp\.2, not logged on: nobody is signed in to laptop-01's desktop/);
     assert.match((await turn(id, "start it")).said, /not logged on: nobody is signed in/);
 });
 
@@ -91,25 +91,25 @@ test("computer_control setup with task: the owner's card shows what is made; Den
     const denied = await turn(id, "set it up", false);
 
     assert.equal(denied.card?.tool, "computer_control");
-    assert.equal(denied.card?.subject, taskPlan("tualh-laptop", "Picassio", "install"));
+    assert.equal(denied.card?.subject, taskPlan("laptop-01", "Picassio", "install"));
     assert.equal(denied.card?.reason, "To use your apps");
-    assert.match(denied.said, /said no: nothing changed on tualh-laptop/);
+    assert.match(denied.said, /said no: nothing changed on laptop-01/);
     assert.ok(!windows.scripts.some((each) => each.kind === "install"));
 
     const made = await turn(id, "set it up", true);
 
-    assert.match(made.said, /pi-phone's task is on tualh-laptop\. It is ready\./);
-    assert.match((await turn(id, "how is it")).said, /- tualh-laptop: Windows, ocu 1\.1\.2-pp\.2, ready/);
+    assert.match(made.said, /pi-phone's task is on laptop-01\. It is ready\./);
+    assert.match((await turn(id, "how is it")).said, /- laptop-01: Windows, ocu 1\.1\.2-pp\.2, ready/);
 
     const started = await turn(id, "start it", true);
 
     assert.equal(started.card?.form?.type, "computer");
-    assert.match(started.said, /Computer control is on for 10 minutes \(until \d\d:\d\d\) on tualh-laptop: Pi OCU Demo \(demo_app\.py\)/);
+    assert.match(started.said, /Computer control is on for 10 minutes \(until \d\d:\d\d\) on laptop-01: Pi OCU Demo \(demo_app\.py\)/);
     assert.match((await turn(id, "read it")).said, /3 password text \[password\]/);
-    assert.match((await turn(id, "stop it")).said, /Computer control on tualh-laptop is stopped/);
+    assert.match((await turn(id, "stop it")).said, /Computer control on laptop-01 is stopped/);
 
     const removed = await turn(id, "remove it", true);
 
     assert.match(removed.card?.subject ?? "", /remove pi-phone's computer control/);
-    assert.match(removed.said, /are gone from tualh-laptop/);
+    assert.match(removed.said, /are gone from laptop-01/);
 });

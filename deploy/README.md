@@ -118,7 +118,7 @@ You need Docker with Compose on a Linux machine (x64 or arm64), and a name for i
    - **A Tailscale name** (`devbox.your-tailnet.ts.net`): install Tailscale on the machine and sign it in, turn on HTTPS
      certificates in the Tailscale admin console (DNS › HTTPS Certificates), then `PI_HOST=devbox.your-tailnet.ts.net`.
      Caddy asks the machine's Tailscale for the certificate (the compose file mounts its socket).
-   - **Only on your network, for a try:** `PI_HOST=192.168.1.61 PI_TLS=internal`. Caddy uses its own CA, which browsers
+   - **Only on your network, for a try:** `PI_HOST=192.0.2.61 PI_TLS=internal`. Caddy uses its own CA, which browsers
      warn about until you trust it.
 3. Start it:
 

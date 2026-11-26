@@ -2,7 +2,7 @@
 // model with the TLC that TLA2TOOLS and JAVA name (exit 1: a rule breaks), and its reply shows chart.mmd as a mermaid
 // block, which the chat draws with pele: the states on the shortest path to the bug have the theme's bug-path border,
 // the state that breaks the rule the theme's red, and the legend says which is which. Without Chromium or TLC (the
-// phone) it is skipped; CI runs it with both, as did tuanlh-devbox-01. With PHONE_SHOTS, screenshots go there.
+// phone) it is skipped; CI runs it with both, as did devbox-01. With PHONE_SHOTS, screenshots go there.
 import { type App, cleanUp, cleanUpAll, context, home, lastText, newSession, pastWelcome, root, scriptedModel, until, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";

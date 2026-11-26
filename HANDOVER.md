@@ -75,7 +75,7 @@ Done:
   pi-pocket / pi-termux-mobile commits since `UPSTREAM.md`'s, with the files this fork still has.
 
 Verified on the phone: APK and runtime updates, GitHub sign-in, image reads, `watch_ci`, remote work against
-han-devbox (`ubuntu@192.168.1.50`). Not yet tried by the owner: the terminal, Continue in Pi, uploads.
+a second devbox (`ubuntu@192.0.2.50`). Not yet tried by the owner: the terminal, Continue in Pi, uploads.
 
 Next:
 1. The owner's test of the terminal, Continue in Pi, and uploads (`test/tools-ui.test.ts` covers them in CI).

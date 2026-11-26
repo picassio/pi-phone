@@ -576,7 +576,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
   machine. Tests: `test/machine-rekey.test.ts` (real sshd whose key changes), `test/machine-rekey-ui.test.ts`.
   **Windows** (2026-10-19): through Windows' own OpenSSH Server (pi-env's Windows daemons, x64 and arm64, are in the
   APK). The daemon runs command lines with Git Bash, so "Install and connect" runs one and refuses a Windows machine
-  without it (install Git for Windows). Paths there are drive paths with forward slashes (`C:/Users/tuan`,
+  without it (install Git for Windows). Paths there are drive paths with forward slashes (`C:/Users/me`,
   `src/server/machine-paths.ts`): what the daemon answers with `\` (home, folder checks, listings) is turned to `/`
   once, so places, the web's path joins, and Git Bash read them alike. `machine_run` gives Windows the command line
   (Git Bash) instead of `sh -c`; `machine_copy` takes `<machine>:C:/…`. The environment section tells Pi it is
@@ -1404,7 +1404,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
   react.dev at 1280: 347 to 383 ms).
   Allowed in plan mode. A `seeing` prompt section asks Pi to look before calling an artifact done; Effective HTML's and
   OfficeCLI's pi-phone notes point to it.
-  - **On a machine, app shells, file pages** (PP-440; reported from a session on tuanlh-devbox-01, 2026-11-07, proved there
+  - **On a machine, app shells, file pages** (PP-440; reported from a session on devbox-01, 2026-11-07, proved there
     live in session #370894 first). *Localhost:* the phone renders, so `http://127.0.0.1:5191` in a session on a machine
     was the phone's (connection refused). Decided: keep rendering on the phone and open the port to it, rather than
     render with the machine's Chrome (another renderer and layout, a machine tool required, artifacts and the app's
@@ -2123,7 +2123,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
   each pair with ffmpeg (8×8 area averages, largest RGB difference, over 32 of 255 is a different picture: OpenFilm's
   `look` limit) and says the times, the two stills and the usual causes (exit 1; 0 same; 2 could not check; a warning
   when every still is identical). `hyperframes check` passes a composition whose `onUpdate` keeps a counter; this
-  catches it (YMAX 133 against 0 for the pure one on tuanlh-devbox-01). A second marked note in SKILL.md: run
+  catches it (YMAX 133 against 0 for the pure one on devbox-01). A second marked note in SKILL.md: run
   `hyperframes check` and `twice.sh` before every render; step 7 and quality-bar's Determinism row point to it.
   `test/motion-twice.test.ts` runs it against a stand-in `hyperframes` drawing with the server edition's ffmpeg.
 - **Unslop** (`third_party/heydamir-unslop/`, PP-327; owner's decision of 2026-11-01 after research PP-300, wiki
@@ -2374,7 +2374,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
     `HYPERFRAMES_NO_AUTO_INSTALL`, `HYPERFRAMES_NO_OPTIONAL_INSTALL`, `HYPERFRAMES_SKIP_SKILLS` (no self-updates or
     installs at run time: a feature needing an optional package fails, naming it), and (`envCommands`)
     `HYPERFRAMES_BROWSER_PATH`, `HYPERFRAMES_FFMPEG_PATH`, `HYPERFRAMES_FFPROBE_PATH` at pi-phone's wrappers in the
-    tools' bin. Checked on tuanlh-devbox-01 (2026-10-29): a 5 s 1080p30 render in 10 s, BeginFrame capture; tcpdump saw
+    tools' bin. Checked on devbox-01 (2026-10-29): a 5 s 1080p30 render in 10 s, BeginFrame capture; tcpdump saw
     no PostHog name or address, only cdn.jsdelivr.net (the composition's GSAP) and Google Fonts (HyperFrames' font
     localization). Windows is left out: untried, and its Chrome would be a wrapper Node cannot spawn.
     **TLC** (PP-316, `TLC_TOOL` 1.7.4, `optIn`, ~165 MB): Eclipse Temurin's JRE 21.0.13+9 (the release's `.sha256.txt`
@@ -2385,7 +2385,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
     bash in sessions there `TLA2TOOLS` (the jar) and `JAVA` (the program) while the machine has this version
     (`sessionEnvOf`, exported by `prepare` in `app.ts` after PATH), which the statechart skill's script uses instead of
     mise. Its `skills` are the statechart skill, listed while Formal checks is on (`skillsModule`). Linux x64 and arm64,
-    macOS, Windows x64; none for Android (the phone has no Java). Checked on tuanlh-devbox-01 (2026-11-01): the install
+    macOS, Windows x64; none for Android (the phone has no Java). Checked on devbox-01 (2026-11-01): the install
     script in 23 s, 161 MB; the four boba models with the session's variables in 3 to 4 s each, Bug exit 1, every chart
     and report the same as statechart-art's.
     **Chrome Remote Desktop** (PP-263, 2026-10-31, `crd.ts`; `CRD_TOOL`, `optIn`, `windowsOnly`, `installer: "crd"`):
@@ -2866,7 +2866,7 @@ so Pi changes them through the settings tools; "the last session" is the one the
     the engine compares them with its forward's. Not the phone's WebView (it takes no flags), the server edition's own
     Chrome, or a browser Pi attached to. `browser_eval`'s world keeps `CanvasRenderingContext2D` as a global (its
     methods refuse like every other, and `getContext` is not a read), so `typeof
-    CanvasRenderingContext2D.prototype.drawElementImage` detects it: "function" with the setting on tuanlh-devbox-01's
+    CanvasRenderingContext2D.prototype.drawElementImage` detects it: "function" with the setting on devbox-01's
     Chrome 155, "undefined" without (measured 2026-11-08, 0.4 to 0.8 s to start Chrome and read it).
   - **HTML-in-Canvas in screenshots** (PP-454). The screenshot renderer is Android System WebView, measured on the
     owner's phone (WebView 156.0.8078.47, 2026-11-08, a page reporting it through `screenshot`): `drawElementImage`
@@ -3728,12 +3728,12 @@ so Pi changes them through the settings tools; "the last session" is the one the
     through one) takes only secrets whose Machines switch is on. A secret set to ask is asked once for each session
     (`McpStartOptions.who`: `session <id>`) while the server runs, again after it stops. (Security review of
     PP-517, 2026-11-20: 5 P2 and 5 P3, each with a test in `test/mcp-review.test.ts` that fails on the code before.) Checked live on 2026-11-20 from
-    the phone to tuanlh-devbox-01 over pi-ssh: the call in 728 ms, the remote process gone after the idle stop.
+    the phone to devbox-01 over pi-ssh: the call in 728 ms, the remote process gone after the idle stop.
     On a machine it gets what bash gets in a session there: `/bin/sh -c` puts `~/.pi/mobile/tools/bin` before the
     daemon's PATH and `exec`s the program with its arguments as given, and the installed tools' variables
     (`sessionEnvOf`) come under the entry's own `env`. A wrapper is a command like any: GoPeak on a machine without a
     GPU runs as `xvfb-run -a -s "-screen 0 1280x800x24" npx -y gopeak@2.3.8` (or with `DISPLAY` in its env), and the
-    idle stop ends Xvfb with it (the daemon kills the process group; checked on tuanlh-devbox-01, 2026-11-20).
+    idle stop ends Xvfb with it (the daemon kills the process group; checked on devbox-01, 2026-11-20).
   - **Their tools** (`mcp/tools.ts`, `mcp/result.ts`, PP-525): each tool of a server that is on and approved is a tool
     of its own, `mcp__<server>__<tool>` (pi-mcp's `createMcpToolName`: 64 characters, a hash on a clash), deferred
     (only `tool_search` offers it; codemode scripts call it any time) and `replay: "unsafe"`. They are the extension

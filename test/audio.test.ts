@@ -172,8 +172,8 @@ test("a text in parts after its sentences (a long sentence after words); what wa
     assert.deepEqual(speakParts("One two. Three four! Five six?", 20), ["One two. Three four!", "Five six?"]);
     assert.deepEqual(speakParts("a b c d e f g h", 5), ["a b c", "d e f", "g h"]);
     assert.deepEqual(speakParts("  Short.  "), ["Short."]);
-    assert.ok(saidAsWritten("Xin chào, anh Tuấn!", "xin chào anh tuấn"));
-    assert.ok(!saidAsWritten("Xin chào anh Tuấn", "Xin chao anh Tuan"));
+    assert.ok(saidAsWritten("Xin chào, anh Dũng!", "xin chào anh dũng"));
+    assert.ok(!saidAsWritten("Xin chào anh Dũng", "Xin chao anh Dung"));
     assert.deepEqual([...wavData(wavOf(new Uint8Array([1, 2, 3, 4])))!], [1, 2, 3, 4]);
     // The phone's slim ffmpeg has the mp4 muxer but not ipod, which .m4a picks: the format is named (seen on #386).
     assert.deepEqual(m4aArgs("in.wav", "out.m4a").slice(-3), ["-f", "mp4", "out.m4a"]);

@@ -48,7 +48,7 @@ test("the launch script starts Chrome once and says where its DevTools are, or t
     assert.match(script, /No usable sandbox/);
 });
 
-test("a forward Chrome does not answer through is closed and said so, not a bare socket hang up (tualh-laptop, 2026-10-26)", async () => {
+test("a forward Chrome does not answer through is closed and said so, not a bare socket hang up (laptop-01, 2026-10-26)", async () => {
     // What Windows' sshd gave when it took `localhost` for ::1: the forward takes the connection, and drops it.
     const hangUp = createServer((request) => request.socket.destroy());
 
