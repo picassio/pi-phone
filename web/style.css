@@ -4715,6 +4715,15 @@ pre.diff .del {
     overflow-wrap: anywhere;
 }
 
+/* A sign-in's choices (how it signs in, a Gemini Enterprise license): the choice, its detail under it, as a card's
+   width is too narrow for both on one line. */
+.list-item.auth-option {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    text-align: left;
+}
+
 /* A provider's own words in a failed sign-in (what to do in Google Cloud): long, so in the text colour to read, and
    apart from the button under it. */
 .error-box .auth-error {

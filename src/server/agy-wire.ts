@@ -215,7 +215,7 @@ export type AgyWindow = { label: string; usedPercent: number; resetsAt?: number;
  * (1 − `remainingFraction`) and when it resets. Another shape is an error, never a guess.
  */
 export function parseAgyQuota(json: unknown): AgyWindow[] {
-    type Bucket = { window?: unknown; remainingFraction?: unknown; resetTime?: unknown };
+    type Bucket = { window?: unknown; displayName?: unknown; remainingFraction?: unknown; resetTime?: unknown };
     const groups = (json as { groups?: { displayName?: unknown; buckets?: Bucket[] }[] } | null)?.groups;
 
     if (!Array.isArray(groups)) {
@@ -226,7 +226,17 @@ export function parseAgyQuota(json: unknown): AgyWindow[] {
 
     for (const group of groups) {
         for (const bucket of group.buckets ?? []) {
-            const label = bucket.window === "5h" ? "5-hour" : bucket.window === "weekly" ? "Weekly" : typeof bucket.window === "string" ? bucket.window : "Window";
+            // A Gemini Enterprise license's buckets are per model, with no window: named as agy names them.
+            const label =
+                bucket.window === "5h"
+                    ? "5-hour"
+                    : bucket.window === "weekly"
+                      ? "Weekly"
+                      : typeof bucket.window === "string"
+                        ? bucket.window
+                        : typeof bucket.displayName === "string"
+                          ? bucket.displayName
+                          : "Window";
             // A bucket with nothing used may leave its fraction out (protobuf's JSON drops a default).
             const left = bucket.remainingFraction === undefined ? 1 : bucket.remainingFraction;
 

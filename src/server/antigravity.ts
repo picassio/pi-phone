@@ -90,6 +90,22 @@ const SCOPES = [
 ];
 /** What agy's User-Agent says of a Google sign-in. */
 const AUTH_METHOD = "consumer";
+/**
+ * A Google Cloud sign-in (agy's "Use a Google Cloud project" › "Continue with Google Cloud", a Gemini Enterprise
+ * subscription; captured 2026-11-26 from agy 1.5.18, wiki: resources/antigravity-agy-fingerprint › Gemini Enterprise):
+ * its own OAuth client and scopes (no `aicode`), `auth_method=gcp` in the User-Agent, Cloud Code's production host, and
+ * Gemini Enterprise's API for the licenses, the configuration and the turns.
+ */
+const GCP_AUTH_METHOD = "gcp";
+const GCP_HOST = "https://cloudcode-pa.googleapis.com";
+const BUSINESS_HOST = "https://businessaicode.googleapis.com";
+const GCP_SCOPES = SCOPES.filter((scope) => !scope.endsWith("/auth/aicode"));
+// agy's OAuth client for a Google Cloud sign-in, as its binary holds it (sha256 of the secret checked against agy's own
+// token request); an installed app's client secret, never logged.
+const GCP_CLIENT_ID = atob("ODg0MzU0OTE5MDUyLTM2dHJjMWpqYjN0Z3VpYWMzMm92NmNvZDI2OGM1YmxoLmFwcHMuZ29vZ2xldXNlcmNvbnRlbnQuY29t");
+const GCP_CLIENT_SECRET = atob("R09DU1BYLTlZUVdwRjdSV0RDMFFUZGotWXhLTXdSMFp0c1g=");
+/** What agy's labels say of the agent that made a Gemini Enterprise turn. */
+const TRAJECTORY_SOURCE = "cortex_trajectory_source_cli";
 /** How long an account's first project may take Google to set up, and how often it is asked. */
 const ONBOARD_TRIES = 24;
 const ONBOARD_EVERY_MS = 5_000;
@@ -123,6 +139,20 @@ const ineligibleOf = (assist: Assist): string =>
         .map((each) => each.reasonMessage ?? each.reasonCode)
         .filter((each): each is string => typeof each === "string" && each !== "")
         .join("; ");
+
+/** A Gemini Enterprise license as `fetchLicenses` lists it. */
+type License = { userTier: string; tierDisplayName?: string; projectId: string; location: string };
+
+/** A license as agy lists it: "Gemini Enterprise Plus (Project: p, Location: global)". */
+const licenseName = (license: License): string => `${license.tierDisplayName ?? license.userTier} (Project: ${license.projectId}, Location: ${license.location})`;
+
+/** A license as the sign-in keeps it. */
+const named = (license: License): { projectId: string; location: string; userTier: string; tierName?: string } => ({
+    projectId: license.projectId,
+    location: license.location,
+    userTier: license.userTier,
+    ...(license.tierDisplayName === undefined ? {} : { tierName: license.tierDisplayName }),
+});
 
 /** What a Workspace account needs before it signs in, and why the last project was refused, if one was. */
 export function projectHelp(tier: string, refused: string): string {
@@ -193,14 +223,24 @@ export interface AgyOptions {
 export type AgyCredential = OAuthCredential & {
     projectId: string;
     email?: string;
-    /** agy's `os_type`, `arch` and `auth_method` in its User-Agent. */
+    /** agy's `os_type`, `arch` and `auth_method` in its User-Agent (`gcp`: a Google Cloud sign-in). */
     osType: string;
     arch: string;
     authMethod: string;
+    /** A Google Cloud sign-in's Gemini Enterprise license: its location, tier and the tier's name. */
+    location?: string;
+    userTier?: string;
+    tierName?: string;
 };
 
-/** What a request needs, as `toAuth` gives it to the stream (pi-ai's `apiKey`). */
-export type AgyAuth = { token: string; project: string; userAgent: string };
+/** A Gemini Enterprise license's place and tier, which its requests carry. */
+export type AgyEnterprise = { location: string; userTier: string };
+
+/**
+ * What a request needs, as `toAuth` gives it to the stream (pi-ai's `apiKey`); `enterprise` for a Google Cloud sign-in
+ * on a Gemini Enterprise license, whose requests go to other hosts in another shape.
+ */
+export type AgyAuth = { token: string; project: string; userAgent: string; enterprise?: AgyEnterprise };
 
 type ModelInfo = {
     displayName?: string;
@@ -280,18 +320,19 @@ function hostPlatform(): { osType: string; arch: string } {
 
 /**
  * Google's consent page for one sign-in, as agy opens it: Go's `url.Values` order (by name), agy's client, PKCE S256,
- * offline access with consent, its scopes and its no-browser redirect.
+ * offline access with consent, its scopes and its no-browser redirect; a Google Cloud sign-in (`gcp`) with agy's client
+ * and scopes for it.
  */
-export function signInUrl(challenge: string, state: string): string {
+export function signInUrl(challenge: string, state: string, gcp = false): string {
     const query = new URLSearchParams({
         access_type: "offline",
-        client_id: CLIENT_ID,
+        client_id: gcp ? GCP_CLIENT_ID : CLIENT_ID,
         code_challenge: challenge,
         code_challenge_method: "S256",
         prompt: "consent",
         redirect_uri: AGY_REDIRECT,
         response_type: "code",
-        scope: SCOPES.join(" "),
+        scope: (gcp ? GCP_SCOPES : SCOPES).join(" "),
         state,
     });
 
@@ -367,7 +408,17 @@ function agyCredential(credential: Credential | undefined): AgyCredential {
 }
 
 function authOf(credential: AgyCredential): AgyAuth {
-    return { token: credential.access, project: credential.projectId, userAgent: agyUserAgent(credential.osType, credential.arch, credential.authMethod) };
+    const enterprise =
+        credential.authMethod === GCP_AUTH_METHOD && typeof credential.location === "string" && typeof credential.userTier === "string"
+            ? { location: credential.location, userTier: credential.userTier }
+            : undefined;
+
+    return {
+        token: credential.access,
+        project: credential.projectId,
+        userAgent: agyUserAgent(credential.osType, credential.arch, credential.authMethod),
+        ...(enterprise === undefined ? {} : { enterprise }),
+    };
 }
 
 export function parseAuth(apiKey: string | undefined): AgyAuth {
@@ -375,7 +426,16 @@ export function parseAuth(apiKey: string | undefined): AgyAuth {
         const auth = JSON.parse(apiKey ?? "") as Partial<AgyAuth>;
 
         if (typeof auth.token === "string" && typeof auth.project === "string" && typeof auth.userAgent === "string") {
-            return { token: auth.token, project: auth.project, userAgent: auth.userAgent };
+            const enterprise = auth.enterprise;
+
+            return {
+                token: auth.token,
+                project: auth.project,
+                userAgent: auth.userAgent,
+                ...(typeof enterprise?.location === "string" && typeof enterprise.userTier === "string"
+                    ? { enterprise: { location: enterprise.location, userTier: enterprise.userTier } }
+                    : {}),
+            };
         }
     } catch {
         // Below.
@@ -388,9 +448,24 @@ export function parseAuth(apiKey: string | undefined): AgyAuth {
  * The headers agy sends with a Cloud Code call, as Go writes them (`goHeaders`): Host, User-Agent, Content-Length,
  * Authorization, Content-Type, Accept-Encoding; a GET has no body, so no Content-Length nor Content-Type.
  */
-export function cloudCodeHeaders(url: string, auth: AgyAuth, body?: string): Record<string, string> {
-    return goHeaders(url, { "User-Agent": auth.userAgent, Authorization: `Bearer ${auth.token}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }) }, body);
+export function cloudCodeHeaders(url: string, auth: AgyAuth, body?: string, more: Record<string, string> = {}): Record<string, string> {
+    return goHeaders(
+        url,
+        { "User-Agent": auth.userAgent, Authorization: `Bearer ${auth.token}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...more },
+        body,
+    );
 }
+
+/** Cloud Code's host for a sign-in: production for a Google Cloud one, as agy uses; `daily-` for a Google one. */
+export const cloudCodeHost = (auth: AgyAuth): string => (auth.enterprise === undefined ? HOST : GCP_HOST);
+
+/** Gemini Enterprise's place for a license: `…/v1beta/projects/<project>/locations/<location>`. */
+const businessPlace = (auth: AgyAuth, enterprise: AgyEnterprise): string =>
+    `${BUSINESS_HOST}/v1beta/projects/${encodeURIComponent(auth.project)}/locations/${encodeURIComponent(enterprise.location)}`;
+
+/** `fetchAvailableModels`' body: the project, and a license's tier and location, as agy sends them. */
+const catalogBody = (auth: AgyAuth): Record<string, unknown> =>
+    auth.enterprise === undefined ? { project: auth.project } : { project: auth.project, entitlement: { userTier: auth.enterprise.userTier }, location: auth.enterprise.location };
 
 /** A stable UUID-shaped id from a seed: agy's cascade and trajectory ids for one session and one turn. */
 function uuidFrom(seed: string): string {
@@ -497,21 +572,37 @@ type Part = {
     functionCall?: { name?: string; args?: Record<string, unknown>; id?: string };
 };
 
-type Chunk = {
-    response?: {
-        candidates?: { content?: { parts?: Part[] }; finishReason?: string }[];
-        usageMetadata?: {
-            promptTokenCount?: number;
-            candidatesTokenCount?: number;
-            thoughtsTokenCount?: number;
-            totalTokenCount?: number;
-            cachedContentTokenCount?: number;
-        };
-        modelVersion?: string;
-        responseId?: string;
+/** One `GenerateContentResponse`: Cloud Code's wraps it in `response`; Gemini Enterprise's comes as it is. */
+type Answer = {
+    candidates?: { content?: { parts?: Part[] }; finishReason?: string }[];
+    usageMetadata?: {
+        promptTokenCount?: number;
+        candidatesTokenCount?: number;
+        thoughtsTokenCount?: number;
+        totalTokenCount?: number;
+        cachedContentTokenCount?: number;
     };
+    modelVersion?: string;
+    responseId?: string;
+};
+
+type Chunk = Answer & {
+    response?: Answer;
     error?: { message?: string; status?: string; code?: number };
 };
+
+/**
+ * A stream event's answer: Cloud Code's `response` (a Google sign-in), or the event itself, as Gemini Enterprise's
+ * `PredictionService.StreamGenerateContent` answers a plain `GenerateContentResponse` (agy's own descriptor of
+ * `google.cloud.businessaicode.v1main`).
+ */
+function answerOf(chunk: Chunk): Answer | undefined {
+    if (chunk.response !== undefined) {
+        return chunk.response;
+    }
+
+    return chunk.candidates !== undefined || chunk.usageMetadata !== undefined || chunk.responseId !== undefined ? chunk : undefined;
+}
 
 /** The SSE events of a stream, each `data:` line's JSON. */
 async function* events(body: AsyncIterable<Uint8Array>): AsyncGenerator<Chunk> {
@@ -637,7 +728,7 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
 
     const cloudCode = async <T>(method: string, auth: AgyAuth, body: unknown, signal?: AbortSignal): Promise<T> => {
         const json = JSON.stringify(body);
-        const url = `${HOST}/v1internal:${method}`;
+        const url = `${cloudCodeHost(auth)}/v1internal:${method}`;
 
         return JSON.parse(await post(url, cloudCodeHeaders(url, auth, json), json, signal)) as T;
     };
@@ -652,18 +743,23 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
             case "userinfo":
                 return getJson(USERINFO_URL, auth, "Go-http-client/1.1");
             case "fetchConfig":
-                return getJson(CONFIG_URL, auth);
+                // A Gemini Enterprise license's configuration is Gemini Enterprise's own, for its tier.
+                return auth.enterprise === undefined
+                    ? getJson(CONFIG_URL, auth)
+                    : getJson(`${businessPlace(auth, auth.enterprise)}:fetchConfig?entitlement.userTier=${encodeURIComponent(auth.enterprise.userTier)}`, auth);
             case "cascadeNuxes":
-                return getJson(`${HOST}/v1internal/cascadeNuxes?page_size=1000`, auth);
+                return getJson(`${cloudCodeHost(auth)}/v1internal/cascadeNuxes?page_size=1000`, auth);
             case "loadCodeAssist":
                 return cloudCode(name, auth, { metadata: { ideType: "ANTIGRAVITY" } });
             case "fetchAvailableModels": {
-                const answer = await cloudCode<AgyCatalog>(name, auth, { project: auth.project });
+                const answer = await cloudCode<AgyCatalog>(name, auth, catalogBody(auth));
 
                 catalogs.set(account, answer);
 
                 return answer;
             }
+            case "listExperiments":
+                return cloudCode(name, auth, auth.enterprise === undefined ? { project: auth.project } : {});
             default:
                 return cloudCode(name, auth, { project: auth.project });
         }
@@ -681,7 +777,7 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
     });
 
     const fetchCatalog = (account: string, auth: AgyAuth, signal?: AbortSignal): Promise<AgyCatalog> =>
-        cloudCode<AgyCatalog>("fetchAvailableModels", auth, { project: auth.project }, signal).then((answer) => {
+        cloudCode<AgyCatalog>("fetchAvailableModels", auth, catalogBody(auth), signal).then((answer) => {
             catalogs.set(account, answer);
 
             return answer;
@@ -706,13 +802,14 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
         return pending;
     };
 
-    /** Google's token endpoint, as agy's Go client asks it: the form by name, agy's client in it. */
+    /** Google's token endpoint, as agy's Go client asks it: the form by name, agy's client in it (its Google Cloud one for `gcp`). */
     const token = async (
         fields: Record<string, string>,
         failed: string,
         signal?: AbortSignal,
+        gcp = false,
     ): Promise<{ access_token: string; expires_in: number; refresh_token?: unknown; id_token?: unknown }> => {
-        const form = new URLSearchParams({ client_id: CLIENT_ID, client_secret: CLIENT_SECRET, ...fields });
+        const form = new URLSearchParams({ client_id: gcp ? GCP_CLIENT_ID : CLIENT_ID, client_secret: gcp ? GCP_CLIENT_SECRET : CLIENT_SECRET, ...fields });
 
         form.sort();
         let answer: { access_token?: unknown; expires_in?: unknown; refresh_token?: unknown; id_token?: unknown };
@@ -736,7 +833,12 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
 
     /** A new access token from the refresh token, as agy's Go client asks for it. */
     const renew = async (credential: AgyCredential, signal?: AbortSignal): Promise<AgyCredential> => {
-        const answer = await token({ grant_type: "refresh_token", refresh_token: credential.refresh }, "Google token refresh failed", signal);
+        const answer = await token(
+            { grant_type: "refresh_token", refresh_token: credential.refresh },
+            "Google token refresh failed",
+            signal,
+            credential.authMethod === GCP_AUTH_METHOD,
+        );
 
         return {
             ...credential,
@@ -757,7 +859,7 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
 
         for (let tries = 1; operation.done !== true && typeof operation.name === "string" && tries < ONBOARD_TRIES; tries++) {
             await sleep(ONBOARD_EVERY_MS, interaction.signal);
-            const url = `${HOST}/v1internal/${operation.name}`;
+            const url = `${cloudCodeHost(auth)}/v1internal/${operation.name}`;
 
             operation = JSON.parse(await post(url, cloudCodeHeaders(url, auth), undefined, interaction.signal)) as typeof operation;
         }
@@ -873,10 +975,16 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
 
     /** The project a stored sign-in of this account has, when there is one. */
     const savedProject = async (account: string): Promise<string | undefined> => {
-        try {
-            const project = parseAuth(await options.auth?.(account)).project;
+        const saved = await savedAuth(account);
 
-            return PROJECT_ID.test(project) ? project : undefined;
+        // A Gemini Enterprise license's project is that license's, not one for a Google sign-in.
+        return saved !== undefined && saved.enterprise === undefined && PROJECT_ID.test(saved.project) ? saved.project : undefined;
+    };
+
+    /** This account's stored sign-in, when there is one. */
+    const savedAuth = async (account: string): Promise<AgyAuth | undefined> => {
+        try {
+            return parseAuth(await options.auth?.(account));
         } catch {
             return undefined;
         }
@@ -888,13 +996,23 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
      */
     const login = async (account: string, interaction: ProviderAuthInteraction): Promise<OAuthCredential> => {
         interaction.notify({ type: "info", message: AGY_RISK });
+        // agy's own first question: a Google account, or a Google Cloud (Gemini Enterprise) sign-in.
+        const gcp =
+            (await interaction.prompt({
+                type: "select",
+                message: "How this account signs in",
+                options: [
+                    { id: "google", label: "Google account", description: "A personal Google account, or a Workspace one with a Google Cloud project for Gemini Code Assist" },
+                    { id: "gcp", label: "Gemini Enterprise", description: "A business account with a Gemini Enterprise subscription, through Google Cloud (agy's \"Use a Google Cloud project\")" },
+                ],
+            })) === "gcp";
         // Go's oauth2.GenerateVerifier: 32 random bytes; agy's state: 16.
         const verifier = randomBytes(32).toString("base64url");
         const state = randomBytes(16).toString("base64url");
 
         interaction.notify({
             type: "auth_url",
-            url: signInUrl(createHash("sha256").update(verifier).digest("base64url"), state),
+            url: signInUrl(createHash("sha256").update(verifier).digest("base64url"), state, gcp),
             instructions: "Sign in with the Google account to use. Google Antigravity's page then shows a code: copy it and paste it below.",
         });
         const code = pastedCode(await interaction.prompt({ type: "manual_code", message: "The code from Google Antigravity's page", placeholder: "4/0A…" }), state);
@@ -902,6 +1020,7 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
             { code, code_verifier: verifier, grant_type: "authorization_code", redirect_uri: AGY_REDIRECT },
             "Google did not accept the code",
             interaction.signal,
+            gcp,
         );
 
         if (typeof answer.refresh_token !== "string" || answer.refresh_token === "") {
@@ -918,15 +1037,90 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
             projectId: "",
             osType: platform.osType,
             arch: platform.arch,
-            authMethod: AUTH_METHOD,
+            authMethod: gcp ? GCP_AUTH_METHOD : AUTH_METHOD,
             ...(email === undefined ? {} : { email }),
         };
-        const projectId = await projectOf(account, authOf(credential), interaction);
 
         // Another Google account may be signed in now: its own catalog, asked again.
         catalogs.delete(account);
 
+        if (gcp) {
+            const license = await licenseOf(account, authOf(credential), interaction);
+
+            return { ...credential, projectId: license.projectId, location: license.location, userTier: license.userTier, ...(license.tierName === undefined ? {} : { tierName: license.tierName }) };
+        }
+
+        const projectId = await projectOf(account, authOf(credential), interaction);
+
         return { ...credential, projectId };
+    };
+
+    /**
+     * A Google Cloud sign-in's Gemini Enterprise license, as agy picks it: `loadCodeAssist` on Cloud Code's production
+     * host, then Gemini Enterprise's `fetchLicenses`; the license this account signed in with before when it is still
+     * one of them, else the person picks one (agy asks even for one, to trust its project). Pay As You Go and a project
+     * typed by hand (`selfAssignLicense`) are agy's too but were not captured: an account with no license is told so.
+     */
+    const licenseOf = async (account: string, auth: AgyAuth, interaction: ProviderAuthInteraction): Promise<ReturnType<typeof named>> => {
+        // On the production host, as agy calls it before a license is picked (the sign-in has no license yet).
+        const assist = `${GCP_HOST}/v1internal:loadCodeAssist`;
+        const metadata = JSON.stringify({ metadata: AGY_METADATA });
+
+        await post(assist, cloudCodeHeaders(assist, auth, metadata), metadata, interaction.signal);
+        const url = `${BUSINESS_HOST}/v1beta:fetchLicenses`;
+        let answer: { licenses?: unknown };
+
+        try {
+            answer = JSON.parse(await post(url, goHeaders(url, { "User-Agent": auth.userAgent, Authorization: `Bearer ${auth.token}` }), undefined, interaction.signal)) as typeof answer;
+        } catch (error) {
+            if (error instanceof AgyHttpError) {
+                throw new HttpError(409, `Google did not list this account's Gemini Enterprise licenses (${error.status}): ${error.message.replace(/^[^:]*\(\d+\):\s*/, "")}`);
+            }
+
+            throw error;
+        }
+
+        const licenses = (Array.isArray(answer.licenses) ? answer.licenses : []).filter(
+            (each): each is License =>
+                typeof each === "object" && each !== null && typeof each.projectId === "string" && typeof each.location === "string" && typeof each.userTier === "string",
+        );
+
+        if (licenses.length === 0) {
+            throw new HttpError(
+                409,
+                "This Google account has no Gemini Enterprise license: ask your Google Workspace admin to assign one (Gemini Enterprise in the Google Cloud console), or sign in as a Google account with a Google Cloud project for Gemini Code Assist.",
+            );
+        }
+
+        const stored = await savedAuth(account);
+        const saved = stored?.enterprise;
+        const before =
+            stored === undefined || saved === undefined
+                ? undefined
+                : licenses.find((each) => each.projectId === stored.project && each.location === saved.location && each.userTier === saved.userTier);
+
+        if (before !== undefined) {
+            interaction.notify({ type: "info", message: `Using ${licenseName(before)}, which this account signed in with before.` });
+
+            return named(before);
+        }
+
+        interaction.notify({
+            type: "info",
+            message: "Verify that these licenses were provided by your administrator and that you trust the project ID before proceeding. Account activity and data may be logged by your organization.",
+        });
+        const picked = await interaction.prompt({
+            type: "select",
+            message: "Gemini Enterprise subscription",
+            options: licenses.map((each, index) => ({ id: String(index), label: licenseName(each), description: each.userTier })),
+        });
+        const license = licenses[Number(picked)];
+
+        if (license === undefined) {
+            throw new HttpError(400, "No Gemini Enterprise subscription was picked: sign in again and pick one.");
+        }
+
+        return named(license);
     };
 
     /**
@@ -978,7 +1172,13 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
                     output.providerThinkingLevel = suffix;
                 }
 
-                const body = requestBody(model, normalized, auth.project, agyId, info, streamOptions);
+                // A Gemini Enterprise license's turn goes to its own API, in its own shape, with agy's X-Aicode headers.
+                const enterprise = auth.enterprise;
+                const made =
+                    enterprise === undefined
+                        ? { body: requestBody(model, normalized, auth.project, agyId, info, streamOptions), headers: {} }
+                        : enterpriseRequest(model, normalized, agyId, info, enterprise.userTier, streamOptions);
+                const body = made.body;
                 const sessionId = streamOptions?.sessionId;
                 const id = typeof body.requestId === "string" ? /^agent\/[^/]+\/\d+\/([^/]+)\/(\d+)$/.exec(body.requestId) : null;
 
@@ -1000,9 +1200,10 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
                 const json = JSON.stringify(payload);
                 const response = await retryProviderRequest(
                     async () => {
-                        const url = `${HOST}/v1internal:streamGenerateContent?alt=sse`;
+                        const url =
+                            enterprise === undefined ? `${HOST}/v1internal:streamGenerateContent?alt=sse` : `${businessPlace(auth, enterprise)}:streamGenerateContent?alt=sse`;
                         const answer = await send(url, {
-                            headers: cloudCodeHeaders(url, auth, json),
+                            headers: cloudCodeHeaders(url, auth, json, made.headers),
                             body: json,
                             ...(signal === undefined ? {} : { signal }),
                         });
@@ -1043,7 +1244,7 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
                         throw new Error(`${AGY_NAME}: ${chunk.error.status ?? chunk.error.code ?? ""} ${chunk.error.message ?? "error"}`.trim());
                     }
 
-                    const answer = chunk.response;
+                    const answer = answerOf(chunk);
 
                     if (answer === undefined) {
                         continue;
@@ -1212,6 +1413,76 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
                 client.close();
             }
         },
+    };
+}
+
+/**
+ * A Gemini Enterprise license's request for one turn, as agy 1.5.18 sends it (captured 2026-11-26): to
+ * `businessaicode …/projects/<p>/locations/<l>:streamGenerateContent`, the model as `aicode.experience` (its effort in
+ * the id), the system prompt with no role, agy's labels with `trajectory_source` and the model enum in lower case (no
+ * request or trajectory id: those go in the `X-Aicode-*` headers), `responseMimeType` empty in the generation settings,
+ * and the license's tier as `entitlement`; no project, requestId, sessionId, model, userAgent nor requestType in it.
+ */
+export function enterpriseRequest(
+    model: Model<Api>,
+    context: TranscriptContext,
+    agyId: string,
+    info: ModelInfo,
+    userTier: string,
+    options: (StreamOptions & { toolChoice?: unknown }) | undefined,
+): { body: Record<string, unknown>; headers: Record<string, string> } {
+    const contents = convertMessages(asGoogle(model), context);
+    const system = getInitialSystemMessage(context.messages);
+    const systemText = system === undefined ? "" : getSystemMessageText(system);
+    const tools = getCurrentTools(context.messages);
+    const claude = info.modelProvider === "MODEL_PROVIDER_ANTHROPIC";
+    const { cascade, trajectory, calls } = turnIds(context, options?.sessionId);
+    const step = Math.max(0, contents.length - 1);
+    const toolChoice = typeof options?.toolChoice === "string" && options.toolChoice !== "auto" ? options.toolChoice : undefined;
+    const settings = generationConfig(info);
+
+    return {
+        body: {
+            aicode: { experience: agyId },
+            contents,
+            ...(systemText === "" ? {} : { systemInstruction: { parts: [{ text: sanitizeSurrogates(systemText) }] } }),
+            ...(tools.length === 0 ? {} : { tools: convertTools(tools, claude, false) }),
+            ...(tools.length === 0 || toolChoice === undefined ? {} : { toolConfig: { functionCallingConfig: { mode: mapToolChoice(toolChoice) } } }),
+            labels: {
+                cascade_id: cascade,
+                last_step_index: String(step),
+                model_enum: (info.model ?? "").toLowerCase(),
+                root_cascade_id: cascade,
+                trajectory_source: TRAJECTORY_SOURCE,
+                used_claude: String(claude),
+                used_claude_conservative: String(claude),
+                used_non_gemini_model: String(info.modelProvider !== "MODEL_PROVIDER_GOOGLE"),
+            },
+            generationConfig: {
+                ...(settings.maxOutputTokens === undefined ? {} : { maxOutputTokens: settings.maxOutputTokens }),
+                responseMimeType: "",
+                ...(settings.thinkingConfig === undefined ? {} : { thinkingConfig: settings.thinkingConfig }),
+            },
+            entitlement: { userTier },
+        },
+        // Go writes these by name, after Content-Type: the prompt's id (32 hex), the call's and the trajectory's.
+        headers: {
+            "X-Aicode-Prompt-Id": createHash("md5").update(`prompt:${trajectory}`).digest("hex"),
+            "X-Aicode-Request-Id": `${trajectory}-${calls}`,
+            "X-Aicode-Trajectory-Id": trajectory,
+        },
+    };
+}
+
+/** A turn's ids as agy makes them, stable per session and turn: the session's cascade, the turn's trajectory, its calls so far. */
+function turnIds(context: TranscriptContext, sessionId: string | undefined): { cascade: string; trajectory: string; calls: number } {
+    const turns = context.messages.filter((message) => message.role === "user").length;
+    const lastUser = context.messages.findLastIndex((message) => message.role === "user");
+
+    return {
+        cascade: sessionId === undefined ? randomUUID() : uuidFrom(`cascade:${sessionId}`),
+        trajectory: sessionId === undefined ? randomUUID() : uuidFrom(`trajectory:${sessionId}:${turns}`),
+        calls: context.messages.slice(lastUser + 1).filter((message) => message.role === "assistant").length,
     };
 }
 
