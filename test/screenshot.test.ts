@@ -297,7 +297,7 @@ test("a machine's own addresses in a url: localhost, 127.x, [::1], 0.0.0.0, with
     assert.deepEqual(of("http://127.0.1.1/"), { host: "127.0.1.1", port: 80 });
     assert.deepEqual(of("https://[::1]/"), { host: "[::1]", port: 443 });
     assert.deepEqual(of("http://0.0.0.0:8080/"), { host: "127.0.0.1", port: 8080 });
-    assert.equal(of("http://192.168.1.61:5191/"), undefined);
+    assert.equal(of("http://192.0.2.61:5191/"), undefined);
     assert.equal(of("https://example.com/"), undefined);
 });
 

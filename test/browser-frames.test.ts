@@ -1,6 +1,6 @@
 // The Browser panel's pictures when the page's capture stalls (PP-199; src/server/browser/pi-browser.ts `#startFrames`),
 // against a fake DevTools: Page.captureScreenshot waits as long as a page whose main thread is busy holds it (headless
-// Chrome, checked on tuanlh-devbox-01), and a still page's screencast sends nothing. The panel stayed on "Waiting for the
+// Chrome, checked on devbox-01), and a still page's screencast sends nothing. The panel stayed on "Waiting for the
 // page…" for good. Now: a first capture that hangs is tried again (with a growing wait, the screencast started again)
 // and the next picture shows; pictures that never come tell the panel (`pictureError`), which shows Retry; Retry starts
 // them again; a panel opened later gets the last picture at once.
@@ -356,7 +356,7 @@ test("Take over: a key goes without waiting for a navigation, a tap's two events
     assert.ok(Date.now() - started < 190, `a tap took ${Date.now() - started} ms (two round trips of 100 ms one after the other before)`);
 });
 
-// What holds a capture, found on tuanlh-devbox-01 (headless Chrome 155, 1280×800): a page whose main thread is busy
+// What holds a capture, found on devbox-01 (headless Chrome 155, 1280×800): a page whose main thread is busy
 // (a big dialog's list rendering, on a slow computer). Page.captureScreenshot waits until it is free, from the surface
 // or not; the screencast's frames come once it is.
 test("with Chrome: a page busy when the panel opens gets its picture once it is free", { skip: chrome === undefined ? "no Chrome on this machine" : false }, async () => {

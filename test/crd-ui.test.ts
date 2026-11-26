@@ -30,7 +30,7 @@ const route: FauxResponseStep = (request) => {
     const text = typeof last.content === "string" ? last.content : JSON.stringify(last.content);
 
     if (last.role === "user" && text.includes("connect the laptop")) {
-        return fauxAssistantMessage([fauxToolCall("computer_control", { action: "setup", machine: "tualh-laptop", crd: "connect", reason: "So you can unlock it from your phone" } as never)], { stopReason: "toolUse" });
+        return fauxAssistantMessage([fauxToolCall("computer_control", { action: "setup", machine: "laptop-01", crd: "connect", reason: "So you can unlock it from your phone" } as never)], { stopReason: "toolUse" });
     }
 
     return fauxAssistantMessage([fauxText("ok")]);
@@ -65,7 +65,7 @@ before(async () => {
     app = await openApp(scriptedModel(route), join(root, "crd-ui-data"), undefined, { crdRun: crd.run });
     const key = await app.sshKeys.generate("crd-ui");
 
-    laptop = app.machines.add({ name: "tualh-laptop", address: "Picassio@laptop", keyId: key.id }).id;
+    laptop = app.machines.add({ name: "laptop-01", address: "Picassio@laptop", keyId: key.id }).id;
     Object.assign(app.machines.get(laptop), {
         hostKey: "SHA256:test (ED25519)",
         remote: { platform: "windows", arch: "x64", home: "C:/Users/Picassio" },
@@ -142,7 +142,7 @@ test("Pi's card: Google's page as a real link with Copy link, the hidden fields,
     await until(async () => (await text(".crd-connect-card")) !== "", "the card on a phone");
     const card = await text(".crd-connect-card");
 
-    assert.match(card, /Connect Chrome Remote Desktop on tualh-laptop to your Google account/);
+    assert.match(card, /Connect Chrome Remote Desktop on laptop-01 to your Google account/);
     assert.match(card, /Tap Begin, then Next, then Authorize\./);
     assert.match(card, /Copy the command under Windows \(PowerShell\) and paste it below/);
     assert.match(card, /Pi never sees them/);

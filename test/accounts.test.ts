@@ -82,21 +82,21 @@ test("Google Antigravity has more accounts, as Claude does: Add account on its r
     assert.ok(app.accounts.providers().includes(AGY));
     assert.equal(app.providers.list(true).find((each) => each.id === AGY)?.accounts, true, "its row offers Add account");
     const original = app.models.getProvider(AGY);
-    const account = app.accounts.add(AGY, "Han acc");
+    const account = app.accounts.add(AGY, "Second");
 
-    assert.equal(account.id, `${AGY}~han-acc`);
+    assert.equal(account.id, `${AGY}~second`);
     const provider = app.models.getProvider(account.id)!;
 
-    assert.equal(provider.name, "Google Antigravity · Han acc");
+    assert.equal(provider.name, "Google Antigravity · Second");
     assert.equal(provider.auth.oauth?.loginLabel, "Sign in with Google", "its own Google sign-in, as the original's");
     assert.notEqual(provider, original);
     assert.equal(app.models.getProvider(AGY), original, "the original is not replaced");
     assert.equal(app.models.getProviderAuthStatus(account.id).configured, false, "signed in on its own, not with the original's sign-in");
-    assert.deepEqual(app.providers.list(true).find((each) => each.id === account.id)?.account, { name: "Han acc", of: AGY });
+    assert.deepEqual(app.providers.list(true).find((each) => each.id === account.id)?.account, { name: "Second", of: AGY });
 
     await app.close();
     app = await openApp(model, dataDir);
-    assert.equal(app.models.getProvider(account.id)?.name, "Google Antigravity · Han acc", "registered as the app opens");
+    assert.equal(app.models.getProvider(account.id)?.name, "Google Antigravity · Second", "registered as the app opens");
     assert.ok(app.models.getProvider(AGY), "beside the original");
 
     await app.accounts.remove(account.id);

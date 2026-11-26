@@ -56,7 +56,7 @@ async function eventually(check: () => boolean, what: string): Promise<void> {
     }
 }
 
-const LAPTOP: ComputerMachine = { id: "w1", name: "tualh-laptop", platform: "windows", connected: true, tools: { ocu: "1.1.2-pp.2" }, user: "Picassio" };
+const LAPTOP: ComputerMachine = { id: "w1", name: "laptop-01", platform: "windows", connected: true, tools: { ocu: "1.1.2-pp.2" }, user: "Picassio" };
 
 /** The script PowerShell runs: `-EncodedCommand`'s UTF-16LE base64, decoded. */
 const powershellOf = (script: string) => Buffer.from(/-EncodedCommand (\S+)/.exec(script)![1]!, "base64").toString("utf16le");
@@ -100,7 +100,7 @@ async function make(options: { sign?: string } = {}) {
 
 const DEMO = { label: "Pi OCU Demo", name: "demo_app.py" };
 const start = (control: ComputerControl) =>
-    control.start({ machine: "w1", machineName: "tualh-laptop", conversationId: 7, session: 7, approvedBy: "owner", apps: [DEMO], follow: false, reason: "greet", minutes: 15 });
+    control.start({ machine: "w1", machineName: "laptop-01", conversationId: 7, session: 7, approvedBy: "owner", apps: [DEMO], follow: false, reason: "greet", minutes: 15 });
 
 test("the task: as the user, only while they are signed in, no password, never SYSTEM or elevated; at logon and on demand; on battery, with no time limit", () => {
     const register = registerCommands();
@@ -131,12 +131,12 @@ test("the task: as the user, only while they are signed in, no password, never S
     assert.match(remove, /if \(\$dir -notlike '\*\\\.pi\\mobile\\computer'\) \{ throw/);
     assert.match(remove, /\$_\.CommandLine -like '\*\\\.pi\\mobile\\computer\\bridge\.ps1\*'/);
     // The card says what is made, for whom, and the registration whole.
-    const plan = taskPlan("tualh-laptop", "Picassio", "install");
+    const plan = taskPlan("laptop-01", "Picassio", "install");
 
-    assert.match(plan, /^On tualh-laptop, for Picassio \(no password: it runs only while Picassio is signed in, never as SYSTEM or elevated\):/);
+    assert.match(plan, /^On laptop-01, for Picassio \(no password: it runs only while Picassio is signed in, never as SYSTEM or elevated\):/);
     assert.match(plan, /listens on 127\.0\.0\.1 only, with a new random token in ~\/\.pi\/mobile\/computer\/bridge\.json that only Picassio can read/);
     assert.ok(plan.endsWith(register));
-    assert.match(taskPlan("tualh-laptop", "Picassio", "remove"), /remove pi-phone's computer control:\n- the scheduled task "pi-phone ocu"/);
+    assert.match(taskPlan("laptop-01", "Picassio", "remove"), /remove pi-phone's computer control:\n- the scheduled task "pi-phone ocu"/);
 });
 
 test("the bridge: 127.0.0.1 only, a new random token in a file only the user may read, a wrong token refused; ASCII, as Windows PowerShell reads it", () => {
@@ -169,18 +169,18 @@ test("a machine is ready, not set up, or not logged on; without a signed-in desk
     const { control, windows } = await make();
 
     windows.state = { task: false, loggedOn: true, locked: false, running: false };
-    assert.equal(windowsStateWord(await control.windowsState("tualh-laptop")), "not set up");
-    await assert.rejects(control.apps("w1"), /not set up: pi-phone's task "pi-phone ocu" is not on tualh-laptop \(computer_control setup with task: "install"/);
+    assert.equal(windowsStateWord(await control.windowsState("laptop-01")), "not set up");
+    await assert.rejects(control.apps("w1"), /not set up: pi-phone's task "pi-phone ocu" is not on laptop-01 \(computer_control setup with task: "install"/);
 
     windows.state = { task: true, loggedOn: false, locked: false, running: false };
     assert.equal(windowsStateWord(await control.windowsState("w1")), "not logged on");
-    await assert.rejects(control.apps("w1"), /not logged on: nobody is signed in to tualh-laptop's desktop, so pi-phone's task \(and ocu with it\) cannot run there/);
+    await assert.rejects(control.apps("w1"), /not logged on: nobody is signed in to laptop-01's desktop, so pi-phone's task \(and ocu with it\) cannot run there/);
 
     windows.state = { task: true, loggedOn: true, locked: true, running: false };
     const state = await control.windowsState("w1");
 
     assert.equal(windowsStateWord(state), "ready");
-    assert.match(describeWindowsState("tualh-laptop", state), /^ready \(the task starts when a session does\); its screen is locked/);
+    assert.match(describeWindowsState("laptop-01", state), /^ready \(the task starts when a session does\); its screen is locked/);
     assert.deepEqual(parseWindowsState('noise\nstate {"task":true,"loggedOn":true,"locked":false,"running":true,"crd":"connected"}\n'), { task: true, loggedOn: true, locked: false, running: true, crd: "connected" });
     assert.throws(() => parseWindowsState("Get-ScheduledTask : Access is denied"), /did not say how it stands: Get-ScheduledTask : Access is denied/);
     // No desktop setup line on Windows: ocu runs in the desktop already.
@@ -235,7 +235,7 @@ test("Stop on the Windows sign ends the session; a wrong token is refused", asyn
     const stopped = await make({ sign: "stop" });
 
     // Stop may come while ocu still starts: then start says so, and it is stopped all the same.
-    await start(stopped.control).catch((error: Error) => assert.match(error.message, /Stop was pressed on tualh-laptop as the session started/));
+    await start(stopped.control).catch((error: Error) => assert.match(error.message, /Stop was pressed on laptop-01 as the session started/));
     await eventually(() => stopped.control.view().length === 0, "Stop to end it");
     assert.match(stopped.control.noSession("w1"), /Stop on the computer/);
     await eventually(() => stopped.windows.open() === 0, "its connections to close");
@@ -243,7 +243,7 @@ test("Stop on the Windows sign ends the session; a wrong token is refused", asyn
     const wrong = await make();
 
     wrong.windows.bridgeToken = "b".repeat(64);
-    await assert.rejects(start(wrong.control), /pi-phone's bridge on tualh-laptop: it refused: wrong token/);
+    await assert.rejects(start(wrong.control), /pi-phone's bridge on laptop-01: it refused: wrong token/);
     assert.equal(wrong.control.view().length, 0);
 });
 
@@ -252,29 +252,29 @@ test("Pi's setup makes or removes the task only after the owner's card, which sh
     const asked: { tool: string; subject: string; reason: string }[] = [];
 
     windows.state = { task: false, loggedOn: true, locked: false, running: false };
-    const denied = await control.setupTask("tualh-laptop", "install", "", async (request) => {
+    const denied = await control.setupTask("laptop-01", "install", "", async (request) => {
         asked.push(request);
 
         return { allow: false, by: "Tuan" };
     });
 
-    assert.equal(denied, "Tuan said no: nothing changed on tualh-laptop.");
-    assert.equal(asked[0]?.subject, taskPlan("tualh-laptop", "Picassio", "install"));
+    assert.equal(denied, "Tuan said no: nothing changed on laptop-01.");
+    assert.equal(asked[0]?.subject, taskPlan("laptop-01", "Picassio", "install"));
     assert.ok(!windows.scripts.some((each) => each.kind === "install"), "nothing ran before the yes");
 
-    const made = await control.setupTask("tualh-laptop", "install", "", async () => ({ allow: true, by: "Tuan" }));
+    const made = await control.setupTask("laptop-01", "install", "", async () => ({ allow: true, by: "Tuan" }));
 
-    assert.match(made, /^pi-phone's task is on tualh-laptop\. It is ready\.$/);
+    assert.match(made, /^pi-phone's task is on laptop-01\. It is ready\.$/);
     assert.equal(windows.files.get(".pi/mobile/computer/bridge.ps1"), BRIDGE, "bridge.ps1 was written before the task was registered");
 
-    const removed = await control.setupTask("tualh-laptop", "remove", "", async (request) => {
+    const removed = await control.setupTask("laptop-01", "remove", "", async (request) => {
         asked.push(request);
 
         return { allow: true, by: "Tuan" };
     });
 
     assert.match(asked.at(-1)?.subject ?? "", /remove pi-phone's computer control/);
-    assert.match(removed, /are gone from tualh-laptop \(ocu stays installed\)/);
+    assert.match(removed, /are gone from laptop-01 \(ocu stays installed\)/);
     assert.equal(windows.state.task, false);
     // Linux machines have no task.
     const linux = new ComputerControl({ dataDir: mkdtempSync(join(root, "data-")), gateway: false, machines: () => [{ id: "m1", name: "box", platform: "linux", connected: true, tools: { ocu: "1" } }], launch: windows.launch });

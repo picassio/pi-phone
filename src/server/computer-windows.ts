@@ -336,7 +336,7 @@ const LOOK = [
 ];
 
 /**
- * Git Bash (pi-env's daemon runs it: Windows' sshd's own shell may be cmd.exe, tualh-laptop 2026-10-31): the bridge's
+ * Git Bash (pi-env's daemon runs it: Windows' sshd's own shell may be cmd.exe, laptop-01 2026-10-31): the bridge's
  * folder and the machine tools' as Windows paths, for PowerShell, then the script.
  */
 const shellFor = (kind: string, script: string, before: string[] = []) =>

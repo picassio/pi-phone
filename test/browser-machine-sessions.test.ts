@@ -282,7 +282,7 @@ test("a browser's profile is read from its command line: its own argument, Chrom
     const b64 = (text: string) => Buffer.from(text).toString("base64");
 
     assert.equal(profileFromInspect(`argv ${b64("chrome\n--user-data-dir=/home/u/My Profile\nabout:blank")}\ndone`), "/home/u/My Profile");
-    // Chrome rewrites /proc/<pid>/cmdline as one line (tuanlh-sandbox-01, Chrome 156).
+    // Chrome rewrites /proc/<pid>/cmdline as one line (sandbox-01, Chrome 156).
     assert.equal(profileFromInspect(`argv ${b64("/opt/chrome/chrome --headless=new --remote-debugging-port=9333 --user-data-dir=/home/u/tmp/foreign about:blank")}\ndone`), "/home/u/tmp/foreign");
     assert.equal(profileFromInspect(`cmdline ${b64('"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" --remote-debugging-port=9222 --user-data-dir="C:\\Users\\Me\\AppData\\Local\\Temp\\pw profile"')}`), "C:\\Users\\Me\\AppData\\Local\\Temp\\pw profile");
     assert.equal(profileFromInspect(`argv ${b64("chrome\n--remote-debugging-port=9222")}\ndone`), undefined, "its default profile");

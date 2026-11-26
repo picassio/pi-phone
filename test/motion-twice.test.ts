@@ -3,7 +3,7 @@
 // whose pictures differ. Here it runs against a stand-in `hyperframes` (its `info --json` and `snapshot --at … -o`)
 // that draws with the server edition's ffmpeg, which the script also compares with: a composition whose picture
 // depends only on t, one whose picture depends on how many frames were drawn before, and one that never changes.
-// Checked by hand with the real HyperFrames 0.8.216 on tuanlh-devbox-01 (2026-11-06): its `check` passed the second.
+// Checked by hand with the real HyperFrames 0.8.216 on devbox-01 (2026-11-06): its `check` passed the second.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { accessSync, constants, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";

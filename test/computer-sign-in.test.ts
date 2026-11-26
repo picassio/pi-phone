@@ -20,7 +20,7 @@ const photon = createRequire(import.meta.url)("@silvia-odwyer/photon-node") as {
     PhotonImage: { new_from_byteslice(bytes: Uint8Array): { get_raw_pixels(): Uint8Array; get_width(): number; free(): void } };
 };
 const calls: Record<string, [string, Record<string, unknown>]> = {
-    "start it": ["computer_control", { action: "start", machine: "tuanlh-sandbox-01", apps: ["Pi OCU Demo"], minutes: 10, reason: "Sign me in" }],
+    "start it": ["computer_control", { action: "start", machine: "sandbox-01", apps: ["Pi OCU Demo"], minutes: 10, reason: "Sign me in" }],
     "read it": ["computer_screen", { app: "Pi OCU Demo" }],
     "sign me in": ["computer_sign_in", { username: 2, password: 3 }],
     "a code please": ["computer_sign_in", { code: 2 }],
@@ -67,7 +67,7 @@ before(async () => {
     app = await openApp(scriptedModel(route), dataDir, undefined, {
         log: (line: string) => logs.push(line),
         computer: {
-            machines: () => [{ id: "m1", name: "tuanlh-sandbox-01", platform: "linux", connected: true, tools: { ocu: "1.1.2-pp.2" } }],
+            machines: () => [{ id: "m1", name: "sandbox-01", platform: "linux", connected: true, tools: { ocu: "1.1.2-pp.2" } }],
             launch: (_machine, script) => spawn(process.execPath, [FAKE, script.includes("python3 -c") ? "sign" : "mcp"], { stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, FAKE_OCU_LOG: ocuLog } }),
             idleEndMs: 60_000,
             refreshMs: 60_000,
@@ -144,17 +144,17 @@ test("the owner's values go into the window through ocu with allow_password_inpu
 
     // The card: the machine, the app, the fields by Pi's numbers in fixed words; the Secrets name it may be kept under.
     assert.equal(filled.card?.tool, "computer_sign_in");
-    assert.equal(filled.card?.subject, "Sign in to Pi OCU Demo on tuanlh-sandbox-01");
+    assert.equal(filled.card?.subject, "Sign in to Pi OCU Demo on sandbox-01");
     assert.deepEqual(filled.card?.form, {
         type: "computer-sign-in",
         machine: "m1",
-        machineName: "tuanlh-sandbox-01",
+        machineName: "sandbox-01",
         app: { label: "Pi OCU Demo", name: "demo_app.py" },
         fields: [
             { name: "username", index: 2, label: "Username" },
             { name: "password", index: 3, label: "Password" },
         ],
-        secret: "LOGIN_TUANLH_SANDBOX_01_DEMO_APP_PY",
+        secret: "LOGIN_SANDBOX_01_DEMO_APP_PY",
         saved: false,
     });
     // Each value into its element, with this call's opt-out of ocu's password guard.
@@ -176,7 +176,7 @@ test("the owner's values go into the window through ocu with allow_password_inpu
     // The picture a model gets has the field blacked out (and the greeting): white elsewhere.
     const shot = await turn(id, "picture it");
 
-    assert.match(shot.said, /Pi OCU Demo on tuanlh-sandbox-01 \(420x220 px/);
+    assert.match(shot.said, /Pi OCU Demo on sandbox-01 \(420x220 px/);
     const pngs = (await modelTexts(app, id as never)).flatMap((content) => [...content.matchAll(/"data":"(iVBOR[^"]+)"/g)].map((match) => match[1]!));
     const image = photon.PhotonImage.new_from_byteslice(Buffer.from(pngs.at(-1)!, "base64"));
     const raw = image.get_raw_pixels();
@@ -189,7 +189,7 @@ test("the owner's values go into the window through ocu with allow_password_inpu
     assert.deepEqual(at(200, 140), [255, 255, 255], "the Greet button is not");
 
     // Remembered: in Secrets, asking before any use.
-    assert.deepEqual(JSON.parse(app.secrets.value("LOGIN_TUANLH_SANDBOX_01_DEMO_APP_PY")!), { username: USER, password: PASSWORD });
+    assert.deepEqual(JSON.parse(app.secrets.value("LOGIN_SANDBOX_01_DEMO_APP_PY")!), { username: USER, password: PASSWORD });
 
     // Never in what Pi was told, the transcript kept on disk, the model's requests, or the log.
     const seen = JSON.stringify(await modelTexts(app, id as never)) + requests.join("\n") + logs.join("\n") + stored();

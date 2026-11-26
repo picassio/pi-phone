@@ -45,7 +45,7 @@ const route: FauxResponseStep = (request) => {
 
     if (role === "user" && text.endsWith("replace the devbox key")) {
         return fauxAssistantMessage(
-            [fauxToolCall("machine_rekey", { machine: "tuanlh-devbox-01", expectedFingerprint: readThere, reason: "The VM moved from han-proxmox to tuan-pve and cloud-init made new host keys; I read this one through the guest agent." })],
+            [fauxToolCall("machine_rekey", { machine: "devbox-01", expectedFingerprint: readThere, reason: "The VM moved from lab-proxmox to tuan-pve and cloud-init made new host keys; I read this one through the guest agent." })],
             { stopReason: "toolUse" },
         );
     }
@@ -108,7 +108,7 @@ before(async () => {
         `${[`Port ${port}`, "ListenAddress 127.0.0.1", `HostKey ${join(etc, "host_key")}`, `AuthorizedKeysFile ${join(remoteHome, ".ssh", "authorized_keys")}`, "PasswordAuthentication no", "KbdInteractiveAuthentication no", "StrictModes no", "UsePAM no", `PidFile ${join(etc, "sshd.pid")}`, `SetEnv HOME=${remoteHome}`, "LogLevel ERROR"].join("\n")}\n`,
     );
     await startSshd();
-    const machine = app.machines.add({ name: "tuanlh-devbox-01", address: `${userInfo().username}@127.0.0.1:${port}`, keyId: key.id });
+    const machine = app.machines.add({ name: "devbox-01", address: `${userInfo().username}@127.0.0.1:${port}`, keyId: key.id });
     const scanned = await app.machines.scan(machine.id);
 
     await app.machines.accept(machine.id, scanned.lines, scanned.fingerprints[0]);
@@ -250,8 +250,8 @@ test("Pi's machine_rekey card: the old key and the new, the one Pi read; Replace
     await until(async () => (await text(dock, ".machine-add-card")) !== "", "the card", 30_000);
     const card = await text(dock, ".machine-add-card");
 
-    assert.match(card, /Replace tuanlh-devbox-01's host key\?/);
-    assert.match(card, /moved from han-proxmox to tuan-pve/);
+    assert.match(card, /Replace devbox-01's host key\?/);
+    assert.match(card, /moved from lab-proxmox to tuan-pve/);
     assert.ok(card.includes(old), card);
     assert.ok(card.includes(`${readThere} (ED25519)`), card);
     assert.match(card, /the one Pi read on the machine itself/);

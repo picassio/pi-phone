@@ -1,6 +1,6 @@
 /**
  * Paths on a machine, as its system spells them (DESIGN.md section 4): POSIX on Linux, macOS and Termux; on Windows,
- * drive paths written with forward slashes (`C:/Users/tuan/project`). Windows takes `/` as well as `\`, and with `/`
+ * drive paths written with forward slashes (`C:/Users/me/project`). Windows takes `/` as well as `\`, and with `/`
  * the app's places, the web's path joins, and Git Bash (Pi's shell there) all read them the same way. What a Windows
  * daemon answers with `\` is turned to `/` here, once, so a place is spelled one way only.
  */

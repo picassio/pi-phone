@@ -161,7 +161,7 @@ export function launchScript({ mode = "headless", windows = false, prepare = "",
         'mkdir -p "$P/profile" "$P/uploads" "$P/downloads"',
         // Running already when its DevTools answer on the port it wrote. Not by its pid: on Windows, Git Bash cannot see
         // a pid an earlier shell started, and a second Chrome on the profile then aborts ("Lock file can not be
-        // created", tualh-laptop, 2026-10-20 and 2026-10-26). Without curl, by the pid, as before.
+        // created", laptop-01, 2026-10-20 and 2026-10-26). Without curl, by the pid, as before.
         "alive() {",
         '  [ -s "$P/profile/DevToolsActivePort" ] || return 1',
         '  D=$(head -n 1 "$P/profile/DevToolsActivePort")',

@@ -106,8 +106,8 @@ before(async () => {
 
     app = await openApp(scriptedModel(route), join(root, "browser-machine-ui"), undefined, {
         browserMachines: {
-            list: () => [{ id: "m1", name: "tuanlh-sandbox-01", connected: true, platform: "linux" }],
-            access: () => ({ name: "tuanlh-sandbox-01", home, run, writeFile: async () => {}, forward: async (remote) => ({ port: remote, close: () => {} }) }),
+            list: () => [{ id: "m1", name: "sandbox-01", connected: true, platform: "linux" }],
+            access: () => ({ name: "sandbox-01", home, run, writeFile: async () => {}, forward: async (remote) => ({ port: remote, close: () => {} }) }),
         },
     });
     session = await newSession(app);
@@ -170,11 +170,11 @@ test("the panel's Browse on moves a phone session's browsing to a machine; someo
     await open(VIEWPORTS.mobile, true);
     await until(async () => (await panelText()).includes("Browse on"), "Browse on");
     await shot("mbrowser-panel-browse-on-390");
-    await choose(".pb-on", "tuanlh-sandbox-01");
+    await choose(".pb-on", "sandbox-01");
     await until(() => app.browserPlaces()[String(session)] === "machine:m1", "the session browsing on the machine");
 
     await app.browserFor(app.cwdOf(session), session).open(Number(session), siteUrl);
-    await until(async () => (await panelText()).includes("Pi's browser on tuanlh-sandbox-01") && (await panelText()).includes("Team portal"), "the machine's page in the panel");
+    await until(async () => (await panelText()).includes("Pi's browser on sandbox-01") && (await panelText()).includes("Team portal"), "the machine's page in the panel");
     await until(pictured, "its live picture");
     await shot("mbrowser-panel-machine-390");
 
@@ -183,7 +183,7 @@ test("the panel's Browse on moves a phone session's browsing to a machine; someo
         const { piBrowserState, setPiBrowser } = await import("/store.js");
         setPiBrowser({ ...piBrowserState(), windowInUse: true });
     `);
-    await until(async () => (await panelText()).includes("Someone is using this browser's window on tuanlh-sandbox-01."), "the window in use");
+    await until(async () => (await panelText()).includes("Someone is using this browser's window on sandbox-01."), "the window in use");
     await shot("mbrowser-panel-in-use-390");
 
     await open(VIEWPORTS.desktop, true);
@@ -191,12 +191,12 @@ test("the panel's Browse on moves a phone session's browsing to a machine; someo
     await shot("mbrowser-panel-machine-1280");
 
     // Attaching to the owner's own Chrome: the card first.
-    calls["attach my chrome"] = ["browser_attach", { machine: "tuanlh-sandbox-01", devtools_active_port: "~/my-chrome/DevToolsActivePort", label: "My Chrome" }];
+    calls["attach my chrome"] = ["browser_attach", { machine: "sandbox-01", devtools_active_port: "~/my-chrome/DevToolsActivePort", label: "My Chrome" }];
     const attached = turn("attach my chrome", async (card) => {
         assert.equal(card.tool, "browser_attach");
         assert.match(card.subject, new RegExp(`Profile: ${profile.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
         await open(VIEWPORTS.mobile, false);
-        await until(async () => (await inPage<string>(`return JSON.stringify(document.body.innerText)`)).includes("Attach Pi's browser to a browser on tuanlh-sandbox-01"), "the attach card");
+        await until(async () => (await inPage<string>(`return JSON.stringify(document.body.innerText)`)).includes("Attach Pi's browser to a browser on sandbox-01"), "the attach card");
         await shot("mbrowser-card-attach-390");
         await open(VIEWPORTS.desktop, false);
         await until(async () => (await inPage<string>(`return JSON.stringify(document.body.innerText)`)).includes("carries its profile's sign-ins"), "the attach card at 1280");
@@ -259,7 +259,7 @@ test("the panel's Browse on moves a phone session's browsing to a machine; someo
     assert.match(await (await fetch(`http://127.0.0.1:${port}/json/version`)).text(), /Browser/);
 
     // Settings › Machines: how Pi's browser runs on a machine.
-    const machine = { id: "m1", name: "tuanlh-sandbox-01", host: "100.123.85.103", user: "ubuntu", keyId: "k1", createdAt: 1, hostKey: "SHA256:x", connectedAt: Date.now(), remote: { platform: "linux", arch: "x64", home: "/home/ubuntu" }, tools: {}, browserMode: "window" };
+    const machine = { id: "m1", name: "sandbox-01", host: "100.64.0.103", user: "ubuntu", keyId: "k1", createdAt: 1, hostKey: "SHA256:x", connectedAt: Date.now(), remote: { platform: "linux", arch: "x64", home: "/home/ubuntu" }, tools: {}, browserMode: "window" };
 
     for (const viewport of [VIEWPORTS.mobile, VIEWPORTS.desktop]) {
         await page.setViewport(viewport);

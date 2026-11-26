@@ -39,7 +39,7 @@ async function eventually(check: () => boolean, what: string): Promise<void> {
     }
 }
 
-const SANDBOX: ComputerMachine = { id: "m1", name: "tuanlh-sandbox-01", platform: "linux", connected: true, tools: { ocu: "1.1.2-pp.1" } };
+const SANDBOX: ComputerMachine = { id: "m1", name: "sandbox-01", platform: "linux", connected: true, tools: { ocu: "1.1.2-pp.1" } };
 
 /** A control with the stand-in machine: what it was asked to run on it, and what ocu got (from the log). */
 function make(options: { sign?: string; machines?: ComputerMachine[]; idleEndMs?: number; dataDir?: string; env?: Record<string, string> } = {}) {
@@ -75,7 +75,7 @@ const DEMO = { label: "Pi OCU Demo", name: "demo_app.py" };
 const start = (control: ComputerControl, extra: { follow?: boolean; apps?: { label: string; name: string }[]; conversationId?: number } = {}) =>
     control.start({
         machine: "m1",
-        machineName: "tuanlh-sandbox-01",
+        machineName: "sandbox-01",
         conversationId: extra.conversationId ?? 7,
         session: extra.conversationId ?? 7,
         approvedBy: "owner",
@@ -131,7 +131,7 @@ test("a machine must be connected, Linux or Windows, with ocu; its desktop setup
         ],
     });
 
-    assert.equal(control.machine("TUANLH-SANDBOX-01").id, "m1");
+    assert.equal(control.machine("SANDBOX-01").id, "m1");
     // Windows through pi-phone's task (PP-179, computer-windows.test.ts).
     assert.equal(control.machine("laptop").id, "m2");
     assert.throws(() => control.machine("mac"), /Computer control runs on Linux and Windows machines; mac is darwin/);
@@ -190,7 +190,7 @@ test("the apps on the desktop, each with why it is never controlled; the setup l
 test("a session shows its window on the machine before ocu starts; without it nothing starts", async () => {
     const failing = make({ sign: "fail" });
 
-    await assert.rejects(start(failing.control), /tuanlh-sandbox-01 could not show that Pi is using it, so the session did not start: ModuleNotFoundError: No module named 'gi'/);
+    await assert.rejects(start(failing.control), /sandbox-01 could not show that Pi is using it, so the session did not start: ModuleNotFoundError: No module named 'gi'/);
     assert.equal(failing.control.sessions().length, 0);
     assert.equal(failing.scripts.filter((each) => each.includes("ocu\" mcp")).length, 0, "no ocu started");
 
@@ -325,7 +325,7 @@ test("it ends after Pi's run unless another starts, on Stop on the machine, and 
     const stopped = make({ sign: "stop" });
 
     // Stop may come while ocu still starts: then start says so, and it is stopped all the same.
-    await start(stopped.control).catch((error: Error) => assert.match(error.message, /Stop was pressed on tuanlh-sandbox-01 as the session started/));
+    await start(stopped.control).catch((error: Error) => assert.match(error.message, /Stop was pressed on sandbox-01 as the session started/));
     await eventually(() => stopped.control.active("m1") === undefined, "Stop on the machine");
     assert.match(stopped.control.noSession("m1"), /Stop on the computer/);
 

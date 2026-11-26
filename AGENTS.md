@@ -41,9 +41,10 @@
 - Evals (`scripts/prompt-eval.ts` and every script that calls a real model) run only on a Claude subscription account
   (default `anthropic~han-acc`, `--account` names another), never on OpenRouter: it is too expensive (the owner's
   rule, PP-476; the scripts refuse it). Before each run, ask the owner, with the request count `--dry-run` prints
-  (`scripts/eval-on-devbox.sh scripts/prompt-eval.ts … --dry-run`). Once they agree, save the account's short-lived
+  (`EVAL_DEVBOX=<machine> scripts/eval-on-devbox.sh scripts/prompt-eval.ts … --dry-run`, the devbox's machine name
+  from Settings › Machines). Once they agree, save the account's short-lived
   OAuth token as the secret `EVAL_ANTHROPIC_TOKEN` with `secret_save` (the owner approves the command on its card), and
-  run `EVAL_ANTHROPIC_TOKEN="$EVAL_ANTHROPIC_TOKEN" scripts/eval-on-devbox.sh scripts/prompt-eval.ts …`: it takes the
+  run `EVAL_DEVBOX=<machine> EVAL_ANTHROPIC_TOKEN="$EVAL_ANTHROPIC_TOKEN" scripts/eval-on-devbox.sh scripts/prompt-eval.ts …`: it takes the
   token to the devbox for that run only and removes it after. `scripts/wiki-eval.ts` runs its words-only way (A), which
   calls no model.
 - Every commit that changes prompt text (sections, tool descriptions, parameter descriptions, skills' descriptions)

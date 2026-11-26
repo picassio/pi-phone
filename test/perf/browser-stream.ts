@@ -1,6 +1,6 @@
-// PP-200: how smooth the Browser panel is. Not part of `npm test`: run on a machine with Chrome (tuanlh-devbox-01),
+// PP-200: how smooth the Browser panel is. Not part of `npm test`: run on a machine with Chrome (devbox-01),
 // `node test/perf/browser-stream.ts [local|tailscale|slow]`, before and after a change to compare. Pi's browser is a headless Chrome reached through a TCP proxy that can
-// hold Chrome's side to a bandwidth and a delay (a machine browser over the app's ssh forward, e.g. tualh-laptop over
+// hold Chrome's side to a bandwidth and a delay (a machine browser over the app's ssh forward, e.g. laptop-01 over
 // Tailscale); the panel is the real web app in another headless Chrome at a phone's size. Measured in the panel, from
 // what it draws (its picture's middle pixel, read every animation frame):
 //   fps        new pictures shown per second while the page animates
@@ -23,7 +23,7 @@ import { ChromeEngine } from "../../src/server/browser/pi-browser.ts";
 
 const PROFILES: Record<string, { bps: number; delayMs: number }> = {
     local: { bps: Infinity, delayMs: 0 },
-    // Roughly tualh-laptop's uplink over Tailscale (owner's case): 12 Mbit/s, 25 ms each way.
+    // Roughly laptop-01's uplink over Tailscale (owner's case): 12 Mbit/s, 25 ms each way.
     tailscale: { bps: 12_000_000 / 8, delayMs: 25 },
     slow: { bps: 4_000_000 / 8, delayMs: 40 },
 };

@@ -20,9 +20,9 @@ const REDIRECT = "https://remotedesktop.google.com/_/oauthredirect";
 const PIN = "90210377";
 const COMMAND = `& "\${Env:PROGRAMFILES(X86)}\\Google\\Chrome Remote Desktop\\CurrentVersion\\remoting_start_host.exe" --code="${CODE}" --redirect-url="${REDIRECT}" --name=$Env:COMPUTERNAME`;
 const calls: Record<string, [string, Record<string, unknown>]> = {
-    "connect it": ["computer_control", { action: "setup", machine: "tualh-laptop", crd: "connect" }],
-    "install it": ["computer_control", { action: "setup", machine: "tualh-laptop", crd: "install", reason: "To unlock it from your phone" }],
-    "remove it": ["computer_control", { action: "setup", machine: "tualh-laptop", crd: "remove" }],
+    "connect it": ["computer_control", { action: "setup", machine: "laptop-01", crd: "connect" }],
+    "install it": ["computer_control", { action: "setup", machine: "laptop-01", crd: "install", reason: "To unlock it from your phone" }],
+    "remove it": ["computer_control", { action: "setup", machine: "laptop-01", crd: "remove" }],
     "connect the linux one": ["computer_control", { action: "setup", machine: "build-box", crd: "connect" }],
     "how is it": ["computer_control", { action: "status" }],
 };
@@ -52,7 +52,7 @@ before(async () => {
         log: (line: string) => logs.push(line),
         crdRun: crd.run,
         computer: {
-            machines: () => [{ id: laptop, name: "tualh-laptop", platform: "windows", connected: true, tools: { ocu: "1.1.2-pp.2" }, user: "Picassio" }],
+            machines: () => [{ id: laptop, name: "laptop-01", platform: "windows", connected: true, tools: { ocu: "1.1.2-pp.2" }, user: "Picassio" }],
             launch: windows.launch,
             run: windows.run,
             writeFile: windows.writeFile,
@@ -63,7 +63,7 @@ before(async () => {
     });
     const key = await app.sshKeys.generate("crd");
 
-    laptop = app.machines.add({ name: "tualh-laptop", address: "Picassio@laptop", keyId: key.id }).id;
+    laptop = app.machines.add({ name: "laptop-01", address: "Picassio@laptop", keyId: key.id }).id;
     Object.assign(app.machines.get(laptop), { hostKey: "SHA256:test (ED25519)", remote: { platform: "windows", arch: "x64", home: "C:/Users/Picassio" } });
     const box = app.machines.add({ name: "build-box", address: "me@box", keyId: key.id }).id;
 
@@ -108,7 +108,7 @@ test("connect: only the owner sends the card's command and PIN; a bad redirect o
     const id = await newSession(app);
     const guest = app.config.addUser("Lan", "guest").user;
     const connected = await turn(id, "connect it", async (card) => {
-        assert.deepEqual(card.form, { type: "crd-connect", machine: laptop, machineName: "tualh-laptop" });
+        assert.deepEqual(card.form, { type: "crd-connect", machine: laptop, machineName: "laptop-01" });
         await assert.rejects(app.answerCrdConnect(card.id, { command: COMMAND, pin: PIN, confirm: PIN }, guest), /Only the owner connects Chrome Remote Desktop/);
         await assert.rejects(app.answerApproval(card.id, true, owner(app)), /This connects Chrome Remote Desktop: paste Google's command and choose a PIN on the card/);
         await assert.rejects(app.answerCrdConnect(card.id, { command: COMMAND.replace(REDIRECT, "https://evil.example/_/oauthredirect"), pin: PIN, confirm: PIN }, owner(app)), /redirect address is not Google's/);
@@ -123,7 +123,7 @@ test("connect: only the owner sends the card's command and PIN; a bad redirect o
         assert.equal(await app.answerCrdConnect(card.id, { command: COMMAND, pin: PIN, confirm: PIN }, owner(app)), true);
     });
 
-    assert.match(connected.said, /Chrome Remote Desktop on tualh-laptop is connected to the owner's Google account.*you never saw the code or the PIN/);
+    assert.match(connected.said, /Chrome Remote Desktop on laptop-01 is connected to the owner's Google account.*you never saw the code or the PIN/);
     assert.deepEqual(crd.given, { code: CODE, redirect: REDIRECT, pin: PIN });
 
     for (const value of [CODE, REDIRECT, PIN]) {
@@ -137,7 +137,7 @@ test("connect: only the owner sends the card's command and PIN; a bad redirect o
         assert.ok(!stored().includes(value), "never kept on disk");
     }
 
-    assert.ok(logs.some((line) => /Chrome Remote Desktop: tualh-laptop is connected/.test(line)));
+    assert.ok(logs.some((line) => /Chrome Remote Desktop: laptop-01 is connected/.test(line)));
 
     // The machine's row sends the same way (`crdConnect`): connected already, Pi is told so without a card.
     assert.match((await turn(id, "connect it")).said, /is connected already/);
@@ -148,24 +148,24 @@ test("install and remove: each card shows what changes; Deny runs nothing; Appro
     const id = await newSession(app);
 
     crd.state = { ...NOT_INSTALLED };
-    assert.match((await turn(id, "connect it")).said, /not installed on tualh-laptop: install it first \(crd: \\"install\\"\)/);
+    assert.match((await turn(id, "connect it")).said, /not installed on laptop-01: install it first \(crd: \\"install\\"\)/);
 
     const denied = await turn(id, "install it", (card) => app.answerApproval(card.id, false, owner(app)));
 
-    assert.equal(denied.card?.subject, installPlan("tualh-laptop"));
+    assert.equal(denied.card?.subject, installPlan("laptop-01"));
     assert.equal(denied.card?.reason, "To unlock it from your phone");
-    assert.match(denied.said, /said no: nothing changed on tualh-laptop/);
+    assert.match(denied.said, /said no: nothing changed on laptop-01/);
     assert.ok(!crd.calls.some((each) => each.kind === "install"));
 
     const made = await turn(id, "install it", (card) => app.answerApproval(card.id, true, owner(app)));
 
-    assert.match(made.said, /Chrome Remote Desktop 154\.0\.8037\.40 is installed on tualh-laptop \(Google's, its signature checked\): installed, not connected\..*crd: \\"connect\\"/);
+    assert.match(made.said, /Chrome Remote Desktop 154\.0\.8037\.40 is installed on laptop-01 \(Google's, its signature checked\): installed, not connected\..*crd: \\"connect\\"/);
     assert.equal(app.machines.get(laptop).tools?.crd, "154.0.8037.40");
 
     const removed = await turn(id, "remove it", (card) => app.answerApproval(card.id, true, owner(app)));
 
-    assert.equal(removed.card?.subject, removePlan("tualh-laptop"));
-    assert.match(removed.said, /Chrome Remote Desktop is removed from tualh-laptop/);
+    assert.equal(removed.card?.subject, removePlan("laptop-01"));
+    assert.match(removed.said, /Chrome Remote Desktop is removed from laptop-01/);
     assert.equal(crd.state.installed, false);
     assert.equal(app.machines.get(laptop).tools?.crd, undefined);
 });

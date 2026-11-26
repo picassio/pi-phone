@@ -157,7 +157,7 @@ function windowsMachine(cdp: FakeCdp, state: { loggedOn: boolean; locked: boolea
     return {
         seen,
         access: {
-            name: "tualh-laptop",
+            name: "laptop-01",
             home: "C:/Users/Picassio",
             run: async (script: string) => {
                 const encoded = /-EncodedCommand (\S+)/.exec(script)?.[1];
@@ -209,17 +209,17 @@ test("on Windows, window mode starts Chrome in the signed-in desktop session thr
     const laptop = windowsMachine(cdp, state);
     const engine = new MachineEngine(laptop.access, { mode: () => "window", platform: "windows" });
 
-    await assert.rejects(engine.tabs(), /Nobody is signed in to tualh-laptop's desktop, so Pi's browser cannot open a window there/);
+    await assert.rejects(engine.tabs(), /Nobody is signed in to laptop-01's desktop, so Pi's browser cannot open a window there/);
     state.loggedOn = true;
     state.locked = true;
-    await assert.rejects(engine.tabs(), /tualh-laptop's screen is locked/);
+    await assert.rejects(engine.tabs(), /laptop-01's screen is locked/);
     state.locked = false;
 
-    const browser = new PiBrowser({ engine, place: "machine:w1", where: "tualh-laptop", changed: () => {}, frame: () => {}, log: () => {} });
+    const browser = new PiBrowser({ engine, place: "machine:w1", where: "laptop-01", changed: () => {}, frame: () => {}, log: () => {} });
 
     assert.match(await browser.open(1, "https://example.com/"), /example\.com/);
     assert.match(laptop.seen.at(-1)!.powershell, /Register-ScheduledTask/);
-    assert.equal(engine.visibleOn, "tualh-laptop", "a window someone at the machine may use");
+    assert.equal(engine.visibleOn, "laptop-01", "a window someone at the machine may use");
     await browser.close();
 });
 

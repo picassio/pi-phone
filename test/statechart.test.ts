@@ -2,7 +2,7 @@
 // models as its examples; TLC as an opt-in machine tool (Temurin's JRE 21 and tla2tools.jar, sha256-pinned, TLA2TOOLS
 // and JAVA for sessions there); the Formal checks extension lists the skill, off hides it, and setting_change switches
 // it. Where TLC is (TLA2TOOLS set: CI, a machine with the tool), the skill's own script checks the four examples and
-// writes what statechart-art's repo holds, byte for byte. Checked by hand on tuanlh-devbox-01 (linux-x64, 2026-11-01):
+// writes what statechart-art's repo holds, byte for byte. Checked by hand on devbox-01 (linux-x64, 2026-11-01):
 // the tool's install script installed it, and the script ran there with the tool's TLA2TOOLS and JAVA.
 import { type App, cleanUp, context, lastText, modelTexts, newSession, openApp, owner, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";

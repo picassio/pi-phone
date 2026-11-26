@@ -46,7 +46,7 @@ before(async () => {
     windows.state = { task: false, loggedOn: true, locked: false, running: false };
     app = await openApp(scriptedModel(() => fauxAssistantMessage([fauxText("ok")])), join(root, "computer-windows-ui-data"), undefined, {
         computer: {
-            machines: () => [{ id: "w1", name: "tualh-laptop", platform: "windows", connected: true, tools: { ocu: "1.1.2-pp.2" }, user: "Picassio" }],
+            machines: () => [{ id: "w1", name: "laptop-01", platform: "windows", connected: true, tools: { ocu: "1.1.2-pp.2" }, user: "Picassio" }],
             launch: windows.launch,
             run: windows.run,
             writeFile: windows.writeFile,
@@ -91,7 +91,7 @@ test("Menu › Computer control: a Windows machine not set up, Set up, ready wit
     await until(async () => (await machineText()).includes("pi-phone's task is not set up"), "not set up");
     const before = await machineText();
 
-    assert.match(before, /tualh-laptop\s+Windows · ocu 1\.1\.2-pp\.2/);
+    assert.match(before, /laptop-01\s+Windows · ocu 1\.1\.2-pp\.2/);
     assert.match(before, /Set up makes a scheduled task as you, run only while you are signed in \(no password, never as administrator\)/);
     assert.ok(!windows.scripts.some((each) => each.kind === "install"));
     await shot("computer-windows-not-set-up");

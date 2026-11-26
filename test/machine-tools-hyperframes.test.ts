@@ -1,7 +1,7 @@
 // ffmpeg and HyperFrames as machine tools (PP-246): pinned builds with their sums, not ticked by default; ffmpeg's two
 // programs, each with a wrapper; HyperFrames as an npm app run by a Node of its own from the app's pinned lockfile, with
 // its telemetry, update checks and self-installs off, pointed at pi-phone's Chrome and ffmpeg, which install before it.
-// Checked by hand on tuanlh-devbox-01 (linux-x64, 2026-10-29): the scripts installed, a 5 s GSAP film rendered.
+// Checked by hand on devbox-01 (linux-x64, 2026-10-29): the scripts installed, a 5 s GSAP film rendered.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

@@ -799,7 +799,7 @@ function SessionRow({
     const task = session.group?.role === "task" ? /^([A-Z][A-Z0-9]{1,5}-\d+) · (.*)$/.exec(title) : null;
     const shownTitle = task ? task[2] : title;
     const remote = session.cwd.startsWith("machine:");
-    // On a machine, as the design has it: the machine, then the folder's last two parts ("tualh-laptop · source/cmg").
+    // On a machine, as the design has it: the machine, then the folder's last two parts ("laptop-01 · source/app").
     const machine = remote ? /^([^:]+):\s*(.*)$/.exec(path) : null;
     const shortWhere = machine ? `${machine[1]} · ${machine[2].split("/").filter((part) => part !== "" && part !== "~").slice(-2).join("/") || machine[2]}` : path;
     const place = team ? "task session" : session.group ? session.group.title : shortWhere;
