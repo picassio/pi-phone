@@ -36,6 +36,7 @@ import tls from "node:tls";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import { AGY_GRPC_TLS, agyTransport } from "./agy-wire.ts";
 import { AGY_HOST, AGY_NAME, AGY_PROVIDER, type AgyAuth, type AgyCatalog, type AgySend, type AgyStep, cloudCodeHeaders, errorText, parseAuth, readText } from "./antigravity.ts";
+import { HttpError } from "./errors.ts";
 import { imageType } from "./image-meta.ts";
 
 /** agy's dictation endpoint: gRPC on HTTP/2. */
@@ -566,6 +567,14 @@ export class AgyMedia {
             );
         }
 
+        // A Gemini Enterprise license's images and dictation go elsewhere in agy (not captured yet): never guessed.
+        if (auth.enterprise !== undefined) {
+            throw new HttpError(
+                409,
+                "Images and dictation are not available for a Google Cloud (Gemini Enterprise) sign-in here yet: agy's requests for them on such an account have not been captured. Use another account's, or another model in Menu › Images or Menu › Audio.",
+            );
+        }
+
         return auth;
     }
 
@@ -625,7 +634,8 @@ export class AgyMedia {
     async imageModels(account: string = AGY_PROVIDER): Promise<AgyImageModel[]> {
         const auth = await this.#auth(account);
 
-        if (auth === undefined) {
+        // A Gemini Enterprise license lists none here (see `#signedInAuth`).
+        if (auth === undefined || auth.enterprise !== undefined) {
             return [];
         }
 

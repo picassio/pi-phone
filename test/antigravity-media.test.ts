@@ -330,7 +330,9 @@ test("in the app: Antigravity's image model, its transcription and its dictation
         app.attach(tab.client);
         const flowId = app.providers.startLogin(user, AGY_PROVIDER, "oauth");
 
-        await until(() => tab.last("auth")?.step === "prompt", "the code prompt");
+        await until(() => tab.last("auth")?.step === "prompt", "the sign-in method");
+        app.providers.answerLogin(user, flowId, tab.last("auth")!.promptId as string, "google");
+        await until(() => tab.last("auth")?.step === "prompt" && (tab.last("auth")!.prompt as { type: string }).type === "manual_code", "the code prompt");
         app.providers.answerLogin(user, flowId, tab.last("auth")!.promptId as string, "4/0Aean-code");
         await until(() => tab.last("auth")?.step === "done", "the sign-in to finish");
 

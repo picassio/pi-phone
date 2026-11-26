@@ -15,6 +15,7 @@ import { accountProvider } from "../src/server/accounts.ts";
 import { AGY_START } from "../src/server/agy-wire.ts";
 import { AGY_PROVIDER, type AgyCatalog, type AgySend, antigravity, antigravityProvider, catalogModels } from "../src/server/antigravity.ts";
 import { appSettings } from "../src/server/settings-registry.ts";
+import { AgyMedia } from "../src/server/antigravity-media.ts";
 import { HttpError } from "../src/server/errors.ts";
 
 const UA = "antigravity/cli/1.5.15 (aidev_client; os_type=linux; arch=amd64; cl=1027820220; auth_method=consumer)";
@@ -98,15 +99,20 @@ const TOKENS = JSON.stringify({ access_token: "ya29.new-access", expires_in: 359
 
 /**
  * A sign-in's card, as these tests answer it: each event kept, the code prompt answered by `paste` (from the consent
- * page's address), a text prompt (a Workspace account's Google Cloud project) by `typed`.
+ * page's address), a text prompt (a Workspace account's Google Cloud project) by `typed`, each choice (how it signs
+ * in, then a Gemini Enterprise license) by `picks` in turn, a Google account when none is left.
  */
-function card(paste: (url: URL) => string = () => CODE, typed?: string) {
+function card(paste: (url: URL) => string = () => CODE, typed?: string, picks: string[] = []) {
     const events: AuthEvent[] = [];
     const prompts: AuthPrompt[] = [];
     const interaction: ProviderAuthInteraction = {
         signal: new AbortController().signal,
         prompt: async (prompt) => {
             prompts.push(prompt);
+
+            if (prompt.type === "select") {
+                return picks.shift() ?? "google";
+            }
 
             if (prompt.type === "text") {
                 assert.ok(typed !== undefined, `nothing to type for "${prompt.message}"`);
@@ -170,8 +176,15 @@ test("signing in is agy's: Google's consent page with agy's client, PKCE S256 an
     );
     assert.match(shown.url, /&scope=https%3A%2F%2Fwww\.googleapis\.com%2Fauth%2Fcloud-platform\+https%3A/, "spaces as +, as Go writes them");
     assert.match(url.searchParams.get("state")!, /^[\w-]{22}$/);
-    assert.equal(prompts.length, 1);
-    assert.equal(prompts[0]!.type, "manual_code");
+    // agy's first question, how it signs in, then the code.
+    assert.deepEqual(
+        prompts.map((prompt) => prompt.type),
+        ["select", "manual_code"],
+    );
+    assert.deepEqual(
+        prompts[0]!.type === "select" ? prompts[0]!.options.map((option) => option.id) : [],
+        ["google", "gcp"],
+    );
 
     // The code traded at Google's token endpoint as agy's Go client trades it: the form by name, with the verifier, and
     // Go's headers in Go's order (PP-558).
@@ -275,7 +288,7 @@ test("an account with no project yet is set up as agy does: onboardUser on its d
     const { events, prompts, interaction } = card();
     const signedIn = await antigravityProvider({ send, platform: PLATFORM, sleep: async (ms) => void waits.push(ms) }).auth.oauth!.login(interaction);
 
-    assert.deepEqual(prompts.map((prompt) => prompt.type), ["manual_code"], "a free account is asked for no project");
+    assert.deepEqual(prompts.map((prompt) => prompt.type), ["select", "manual_code"], "a free account is asked for no project");
 
     assert.deepEqual(
         sent.map((request) => `${request.method} ${request.url.replace("https://daily-cloudcode-pa.googleapis.com", "")}`),
@@ -324,6 +337,7 @@ test("a Workspace account (standard-tier) is asked for its Google Cloud project,
     assert.deepEqual(
         first.prompts.map((prompt) => [prompt.type, prompt.message]),
         [
+            ["select", "How this account signs in"],
             ["manual_code", "The code from Google Antigravity's page"],
             ["text", "Google Cloud project ID"],
         ],
@@ -364,7 +378,7 @@ test("a Workspace account (standard-tier) is asked for its Google Cloud project,
     const resigned = await antigravityProvider({ send: known.send, platform: PLATFORM, auth: async () => saved }).auth.oauth!.login(again.interaction);
 
     assert.equal(resigned.projectId, "corp-gemini-1");
-    assert.deepEqual(again.prompts.map((prompt) => prompt.type), ["manual_code"], "no project asked for");
+    assert.deepEqual(again.prompts.map((prompt) => prompt.type), ["select", "manual_code"], "no project asked for");
     assert.ok(again.events.some((event) => event.type === "info" && /Using the Google Cloud project corp-gemini-1/.test(event.message)));
 
     // A saved project Google refuses now: said, and another asked for.
@@ -416,6 +430,252 @@ test("a project Google refuses says why and what to do in Google Cloud: the API 
     await assert.rejects(login(none.send, "  "), /No Google Cloud project ID was given/);
     await assert.rejects(login(none.send, "My_Project"), /My_Project is not a Google Cloud project ID/);
     assert.equal(none.sent.filter((request) => request.url.endsWith(":loadCodeAssist")).length, 3, "only the first loadCodeAssist of each sign-in");
+});
+
+// Gemini Enterprise, as agy 1.5.18 sent it for a Workspace account on a Gemini Enterprise license (captured 2026-11-26, wiki:
+// resources/antigravity-agy-fingerprint › Gemini Enterprise). Google's answers are the captured ones.
+const GCP_UA = "antigravity/cli/1.5.15 (aidev_client; os_type=linux; arch=amd64; cl=1027820220; auth_method=gcp)";
+const DASHER = {
+    allowedTiers: [{ id: "standard-tier", name: "Antigravity", userDefinedCloudaicompanionProject: true, isDefault: true, usesGcpTos: true }],
+    ineligibleTiers: [{ reasonCode: "RESTRICTED_DASHER_USER", reasonMessage: "Your current account is not eligible for Antigravity.", tierId: "free-tier", tierName: "Antigravity" }],
+};
+const LICENSES = { licenses: [{ userTier: "gcp-ge-plus-tier", tierDisplayName: "Gemini Enterprise Plus", projectId: "example-project-123", location: "global" }] };
+const ENTERPRISE_CATALOG: AgyCatalog = {
+    models: {
+        "gemini-4-carbon-medium": { displayName: "Gemini 4 Carbon (Medium)", supportsImages: true, supportsThinking: true, thinkingLevel: 2, maxTokens: 1048576, maxOutputTokens: 65536, model: "MODEL_PLACEHOLDER_M437", modelProvider: "MODEL_PROVIDER_GOOGLE" },
+        "gemini-3.5-flash-lite": { displayName: "Gemini 3.5 Flash Lite", maxTokens: 1048576, maxOutputTokens: 65535, model: "MODEL_PLACEHOLDER_M277", modelProvider: "MODEL_PROVIDER_GOOGLE" },
+    },
+    agentModelSorts: [{ groups: [{ modelIds: ["gemini-4-carbon-medium"] }] }],
+    imageGenerationModelIds: ["gemini-3-pro-image"],
+};
+const ENTERPRISE_QUOTA = {
+    groups: [
+        {
+            buckets: [
+                { bucketId: "gemini-4-carbon-medium", displayName: "Gemini 4 Carbon (Medium)", remainingFraction: 1 },
+                { bucketId: "gemini-3.8-flash-high", displayName: "Gemini 3.8 Flash (High)", remainingFraction: 0.25 },
+            ],
+            displayName: "All Models",
+        },
+    ],
+};
+const enterpriseCredential: OAuthCredential = {
+    ...credential,
+    access: "ya29.enterprise",
+    projectId: "example-project-123",
+    authMethod: "gcp",
+    location: "global",
+    userTier: "gcp-ge-plus-tier",
+    tierName: "Gemini Enterprise Plus",
+};
+
+test("a Gemini Enterprise sign-in is agy's Google Cloud one: its own OAuth client and scopes, Cloud Code's production host with auth_method=gcp, fetchLicenses, the license picked and kept; signing in again takes the saved one", async () => {
+    const enterprise = google((request) =>
+        request.url.endsWith("/token")
+            ? { body: TOKENS }
+            : request.url === "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist"
+              ? { body: JSON.stringify(DASHER) }
+              : request.url === "https://businessaicode.googleapis.com/v1beta:fetchLicenses"
+                ? { body: JSON.stringify(LICENSES) }
+                : { status: 404, body: "{}" },
+    );
+    const signIn = card(undefined, undefined, ["gcp", "0"]);
+    const provider = antigravityProvider({ send: enterprise.send, now: () => NOW, platform: PLATFORM });
+    const signedIn = await provider.auth.oauth!.login(signIn.interaction);
+
+    // agy's Google Cloud client, with its scopes (no aicode), and its token form.
+    const page = signIn.events.find((event) => event.type === "auth_url");
+    const url = new URL(page?.type === "auth_url" ? page.url : "https://x");
+
+    assert.equal(url.searchParams.get("client_id"), "884354919052-36trc1jjb3tguiac32ov6cod268c5blh.apps.googleusercontent.com");
+    assert.equal(
+        url.searchParams.get("scope"),
+        "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/cclog https://www.googleapis.com/auth/experimentsandconfigs openid",
+    );
+    assert.equal(url.searchParams.get("redirect_uri"), "https://antigravity.google/oauth-callback");
+    const form = new URLSearchParams(enterprise.sent[0]!.body);
+
+    assert.equal(form.get("client_id"), "884354919052-36trc1jjb3tguiac32ov6cod268c5blh.apps.googleusercontent.com");
+    assert.equal(createHash("sha256").update(form.get("client_secret")!).digest("hex").slice(0, 10), "a2ddedc848", "agy's secret for that client");
+
+    // Then, as agy: loadCodeAssist on the production host, and the licenses.
+    assert.deepEqual(
+        enterprise.sent.slice(1).map((request) => `${request.method} ${request.url}`),
+        ["POST https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist", "GET https://businessaicode.googleapis.com/v1beta:fetchLicenses"],
+    );
+    assert.equal(enterprise.sent[1]!.headers["User-Agent"], GCP_UA);
+    assert.equal(enterprise.sent[1]!.body, '{"metadata":{"ideType":"ANTIGRAVITY"}}');
+    assert.deepEqual(Object.keys(enterprise.sent[2]!.headers), ["Host", "User-Agent", "Authorization", "Accept-Encoding"]);
+    const pick = signIn.prompts.at(-1)!;
+
+    assert.ok(pick.type === "select");
+    assert.deepEqual(pick.options.map((option) => option.label), ["Gemini Enterprise Plus (Project: example-project-123, Location: global)"]);
+    assert.ok(signIn.events.some((event) => event.type === "info" && /Verify that these licenses were provided by your administrator/.test(event.message)));
+    assert.deepEqual(
+        [signedIn.projectId, signedIn.location, signedIn.userTier, signedIn.tierName, signedIn.authMethod],
+        ["example-project-123", "global", "gcp-ge-plus-tier", "Gemini Enterprise Plus", "gcp"],
+    );
+    assert.deepEqual(JSON.parse((await provider.auth.oauth!.toAuth(signedIn)).apiKey!), {
+        token: "ya29.new-access",
+        project: "example-project-123",
+        userAgent: GCP_UA,
+        enterprise: { location: "global", userTier: "gcp-ge-plus-tier" },
+    });
+
+    // Renewed with agy's Google Cloud client too.
+    const renewing = google(() => ({ body: JSON.stringify({ access_token: "ya29.renewed", expires_in: 3599, token_type: "Bearer" }) }));
+    const renewed = await antigravityProvider({ send: renewing.send, now: () => NOW }).auth.oauth!.refresh(enterpriseCredential, new AbortController().signal);
+
+    assert.equal(new URLSearchParams(renewing.sent[0]!.body).get("client_id"), "884354919052-36trc1jjb3tguiac32ov6cod268c5blh.apps.googleusercontent.com");
+    assert.deepEqual([renewed.projectId, renewed.location, renewed.userTier], ["example-project-123", "global", "gcp-ge-plus-tier"]);
+
+    // Signing in again: the license its sign-in has, without asking.
+    const again = card(undefined, undefined, ["gcp"]);
+    const saved = JSON.stringify({ token: "t", project: "example-project-123", userAgent: GCP_UA, enterprise: { location: "global", userTier: "gcp-ge-plus-tier" } });
+    const resigned = await antigravityProvider({ send: enterprise.send, platform: PLATFORM, auth: async () => saved }).auth.oauth!.login(again.interaction);
+
+    assert.equal(resigned.projectId, "example-project-123");
+    assert.deepEqual(again.prompts.map((prompt) => prompt.type), ["select", "manual_code"], "no license asked for");
+    assert.ok(again.events.some((event) => event.type === "info" && /^Using Gemini Enterprise Plus \(Project: example-project-123, Location: global\)/.test(event.message)));
+
+    // No license, or Google refusing the list: said, with what to do.
+    const none = google((request) => (request.url.endsWith("/token") ? { body: TOKENS } : request.url.endsWith(":fetchLicenses") ? { body: "{}" } : { body: JSON.stringify(DASHER) }));
+
+    await assert.rejects(
+        antigravityProvider({ send: none.send, platform: PLATFORM }).auth.oauth!.login(card(undefined, undefined, ["gcp"]).interaction),
+        (error: Error) => error instanceof HttpError && /^This Google account has no Gemini Enterprise license: ask your Google Workspace admin/.test(error.message),
+    );
+    const refused = google((request) =>
+        request.url.endsWith("/token") ? { body: TOKENS } : request.url.endsWith(":fetchLicenses") ? googleSaid(403, "PERMISSION_DENIED", "Caller lacks permission") : { body: JSON.stringify(DASHER) },
+    );
+
+    await assert.rejects(
+        antigravityProvider({ send: refused.send, platform: PLATFORM }).auth.oauth!.login(card(undefined, undefined, ["gcp"]).interaction),
+        /Google did not list this account's Gemini Enterprise licenses \(403\): PERMISSION_DENIED: Caller lacks permission$/,
+    );
+});
+
+test("a Gemini Enterprise turn is agy's: businessaicode's projects/<p>/locations/<l>:streamGenerateContent, the experience, its labels and X-Aicode headers, the tier as entitlement; the plain GenerateContentResponse it answers is read; the quota refusal is said", async () => {
+    const reply =
+        `data: ${JSON.stringify({ candidates: [{ content: { role: "model", parts: [{ text: "Looking.", thought: true }] } }], responseId: "r-ge", modelVersion: "gemini-4-carbon" })}\r\n\r\n` +
+        `data: ${JSON.stringify({ candidates: [{ content: { role: "model", parts: [{ text: "pong" }] }, finishReason: "STOP" }], usageMetadata: { promptTokenCount: 30, candidatesTokenCount: 2, thoughtsTokenCount: 3, totalTokenCount: 35 } })}\r\n\r\n`;
+    let exhausted = false;
+    const { sent, send } = google((request) =>
+        request.url.includes("fetchAvailableModels")
+            ? { body: JSON.stringify(ENTERPRISE_CATALOG) }
+            : request.url.includes(":streamGenerateContent")
+              ? exhausted
+                  ? googleSaid(429, "RESOURCE_EXHAUSTED", "Quota pool exhausted. Contact your administrator to enable overages. Resets in 24h57m11s.")
+                  : { body: reply, headers: { "content-type": "text/event-stream" } }
+              : { body: "{}" },
+    );
+    const provider = antigravityProvider({ send });
+    const auth = await provider.auth.oauth!.toAuth(enterpriseCredential);
+    const model = catalogModels(ENTERPRISE_CATALOG)[0]! as Model<Api>;
+
+    assert.equal(model.id, "gemini-4-carbon-medium", "one model per effort, as its catalog lists them");
+    const context = normalizeContext({ systemPrompt: "You are Pi.", messages: [{ role: "user", content: "Reply with exactly: pong", timestamp: NOW }], tools: [READ_TOOL as never] });
+    const message = await provider.streamSimple(model, context, { apiKey: auth.apiKey, sessionId: "session-ge" }).result();
+
+    assert.equal(message.stopReason, "stop", message.errorMessage ?? "");
+    assert.deepEqual(message.content.map((block) => block.type), ["thinking", "text"]);
+    assert.equal(message.content[1]!.type === "text" && message.content[1]!.text, "pong");
+    assert.deepEqual([message.usage.input, message.usage.output, message.responseId], [30, 5, "r-ge"]);
+
+    // Its catalog on the production host, with the license.
+    const catalog = sent.find((request) => request.url.includes("fetchAvailableModels"))!;
+
+    assert.equal(catalog.url, "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels");
+    assert.deepEqual(JSON.parse(catalog.body), { project: "example-project-123", entitlement: { userTier: "gcp-ge-plus-tier" }, location: "global" });
+
+    // The turn.
+    const turn = sent.find((request) => request.url.includes(":streamGenerateContent"))!;
+    const body = JSON.parse(turn.body) as Record<string, unknown> & { labels: Record<string, string> };
+    const trajectory = turn.headers["X-Aicode-Trajectory-Id"]!;
+
+    assert.equal(turn.url, "https://businessaicode.googleapis.com/v1beta/projects/example-project-123/locations/global:streamGenerateContent?alt=sse");
+    assert.deepEqual(Object.keys(turn.headers), [
+        "Host",
+        "User-Agent",
+        "Content-Length",
+        "Authorization",
+        "Content-Type",
+        "X-Aicode-Prompt-Id",
+        "X-Aicode-Request-Id",
+        "X-Aicode-Trajectory-Id",
+        "Accept-Encoding",
+    ]);
+    assert.equal(turn.headers["User-Agent"], GCP_UA);
+    assert.equal(turn.headers.Authorization, "Bearer ya29.enterprise");
+    assert.match(turn.headers["X-Aicode-Prompt-Id"]!, /^[0-9a-f]{32}$/);
+    assert.match(trajectory, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    assert.equal(turn.headers["X-Aicode-Request-Id"], `${trajectory}-0`);
+    assert.deepEqual(Object.keys(body), ["aicode", "contents", "systemInstruction", "tools", "labels", "generationConfig", "entitlement"]);
+    assert.deepEqual(body.aicode, { experience: "gemini-4-carbon-medium" });
+    assert.deepEqual(body.systemInstruction, { parts: [{ text: "You are Pi." }] }, "no role, as agy sends it");
+    assert.deepEqual(Object.keys(body.labels), ["cascade_id", "last_step_index", "model_enum", "root_cascade_id", "trajectory_source", "used_claude", "used_claude_conservative", "used_non_gemini_model"]);
+    assert.deepEqual(
+        [body.labels.model_enum, body.labels.trajectory_source, body.labels.last_step_index, body.labels.cascade_id === body.labels.root_cascade_id],
+        ["model_placeholder_m437", "cortex_trajectory_source_cli", "0", true],
+    );
+    assert.deepEqual(body.generationConfig, { maxOutputTokens: 65536, responseMimeType: "", thinkingConfig: { includeThoughts: true, thinkingLevel: "MEDIUM" } });
+    assert.deepEqual(body.entitlement, { userTier: "gcp-ge-plus-tier" });
+
+    // The license's quota pool used up: Google's words come back.
+    exhausted = true;
+    const refused = await provider.streamSimple(model, context, { apiKey: auth.apiKey, maxRetries: 0 }).result();
+
+    assert.equal(refused.stopReason, "error");
+    assert.match(refused.errorMessage!, /\(429\): RESOURCE_EXHAUSTED: Quota pool exhausted\. Contact your administrator to enable overages/);
+});
+
+test("a Gemini Enterprise license's background reads are agy's: Cloud Code's production host with the project, Gemini Enterprise's own configuration, its catalog with the license; its quota per model; no images nor dictation", async () => {
+    const key = JSON.stringify({ token: "ya29.enterprise", project: "example-project-123", userAgent: GCP_UA, enterprise: { location: "global", userTier: "gcp-ge-plus-tier" } });
+    const { sent, send } = google((request) =>
+        request.url.includes("retrieveUserQuotaSummary")
+            ? { body: JSON.stringify(ENTERPRISE_QUOTA) }
+            : request.url.includes("fetchAvailableModels")
+              ? { body: JSON.stringify(ENTERPRISE_CATALOG) }
+              : request.url.includes("loadCodeAssist")
+                ? { body: JSON.stringify(DASHER) }
+                : { body: "{}" },
+    );
+    const runtime = antigravity({ send, auth: async () => key, now: () => NOW, platform: PLATFORM });
+
+    try {
+        const usage = await runtime.background.usage(AGY_PROVIDER);
+
+        assert.deepEqual(
+            usage.windows.map((window) => [window.group, window.label, window.usedPercent]),
+            [
+                ["All Models", "Gemini 4 Carbon (Medium)", 0],
+                ["All Models", "Gemini 3.8 Flash (High)", 75],
+            ],
+        );
+        const hosts = new Set(sent.filter((request) => request.url.includes("/v1internal")).map((request) => new URL(request.url).host));
+
+        assert.deepEqual([...hosts], ["cloudcode-pa.googleapis.com"], "never the daily host");
+        assert.ok(sent.every((request) => request.url.startsWith("https://www.googleapis.com/") || request.headers["User-Agent"] === GCP_UA));
+        const quota = sent.find((request) => request.url.endsWith(":retrieveUserQuotaSummary"))!;
+
+        assert.deepEqual(JSON.parse(quota.body), { project: "example-project-123" });
+        assert.deepEqual(JSON.parse(sent.find((request) => request.url.endsWith(":fetchAvailableModels"))!.body), { project: "example-project-123", entitlement: { userTier: "gcp-ge-plus-tier" }, location: "global" });
+        assert.deepEqual(JSON.parse(sent.find((request) => request.url.endsWith(":listExperiments"))!.body), {});
+        const config = sent.find((request) => request.url.includes("fetchConfig"))!;
+
+        assert.equal(config.method, "GET");
+        assert.equal(config.url, "https://businessaicode.googleapis.com/v1beta/projects/example-project-123/locations/global:fetchConfig?entitlement.userTier=gcp-ge-plus-tier");
+        assert.equal(sent.some((request) => request.url.includes("aicode.googleapis.com/v1alpha")), false, "not the Google account's configuration");
+    } finally {
+        runtime.close();
+    }
+
+    // Its images and dictation were not captured: none offered, and asking says so.
+    const media = new AgyMedia({ apiKey: async () => key, send });
+
+    assert.deepEqual(await media.imageModels(), []);
+    await assert.rejects(media.makeImage({ model: "gemini-3-pro-image", prompt: "x", inputs: [] }), /not available for a Google Cloud \(Gemini Enterprise\) sign-in here yet/);
+    await assert.rejects(media.transcribeModel(), /not available for a Google Cloud \(Gemini Enterprise\) sign-in/);
 });
 
 test("the token is renewed as agy's Go client renews it, the refresh token kept; a refused renewal says invalid_grant and never the token", async () => {
@@ -704,7 +964,11 @@ test("in the app: listed in Providers off until signed in; Sign in with Google s
     app.attach(tab.client);
     const flowId = app.providers.startLogin(user, AGY_PROVIDER, "oauth");
 
-    await until(() => tab.last("auth")?.step === "prompt", "the code prompt");
+    // How it signs in (agy's first question): a Google account.
+    await until(() => tab.last("auth")?.step === "prompt", "the sign-in method");
+    assert.equal((tab.last("auth")!.prompt as AuthPrompt).type, "select");
+    app.providers.answerLogin(user, flowId, tab.last("auth")!.promptId as string, "google");
+    await until(() => tab.last("auth")?.step === "prompt" && (tab.last("auth")!.prompt as AuthPrompt).type === "manual_code", "the code prompt");
     const shown = tab.events.filter((each) => each.event === "auth").map((each) => each.data);
 
     assert.ok(shown.some((each) => (each.event as AuthEvent | undefined)?.type === "auth_url" && String((each.event as { url: string }).url).startsWith("https://accounts.google.com/o/oauth2/auth?")));
@@ -864,7 +1128,9 @@ test("in the app: Add account for Google Antigravity; it signs in with its own G
         const flowId = app!.providers.startLogin(user, provider, "oauth");
         const last = () => tab.events.slice(before).findLast((each) => each.event === "auth")?.data;
 
-        await until(() => last()?.step === "prompt", `${provider}'s code prompt`);
+        await until(() => last()?.step === "prompt", `${provider}'s sign-in method`);
+        app!.providers.answerLogin(user, flowId, last()!.promptId as string, "google");
+        await until(() => last()?.step === "prompt" && (last()!.prompt as AuthPrompt).type === "manual_code", `${provider}'s code prompt`);
         app!.providers.answerLogin(user, flowId, last()!.promptId as string, code);
         await until(() => last()?.step === "done", `${provider}'s sign-in`);
         assert.equal(last()?.ok, true, JSON.stringify(last()));
@@ -981,12 +1247,14 @@ test("in the app: a Workspace account's sign-in asks for its project on the card
     const tab = fakeTab(undefined, user);
 
     app.attach(tab.client);
-    const account = app.accounts.add(AGY_PROVIDER, "tuanlh ent");
+    const account = app.accounts.add(AGY_PROVIDER, "work");
     const signIn = async () => {
         const before = tab.events.length;
         const flowId = app!.providers.startLogin(user, account.id, "oauth");
         const last = () => tab.events.slice(before).findLast((each) => each.event === "auth")?.data;
 
+        await until(() => last()?.step === "prompt" && (last()!.prompt as AuthPrompt).type === "select", "the sign-in method");
+        app!.providers.answerLogin(user, flowId, last()!.promptId as string, "google");
         await until(() => last()?.step === "prompt" && (last()!.prompt as AuthPrompt).type === "manual_code", "the code prompt");
         app!.providers.answerLogin(user, flowId, last()!.promptId as string, CODE);
         await until(() => last()?.step === "prompt" && (last()!.prompt as AuthPrompt).type === "text", "the project prompt");

@@ -596,7 +596,7 @@ export function AuthDialog({ inline = false }) {
                     ${prompt.options.map(
                         (option) =>
                             html`<button
-                                class="list-item"
+                                class="list-item auth-option"
                                 onClick=${() => answer({ value: option.id })}
                             >
                                 <span>${option.label}</span>

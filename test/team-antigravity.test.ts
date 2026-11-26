@@ -74,9 +74,11 @@ test("a team account of Google Antigravity: added, signed in with Google through
 
             return steps.find(until)!;
         };
-        const prompt = (await next((step) => step.step === "prompt")) as { promptId: string; prompt: Omit<AuthPrompt, "signal"> };
+        const method = (await next((step) => step.step === "prompt")) as { promptId: string; prompt: Omit<AuthPrompt, "signal"> };
 
-        assert.equal(prompt.prompt.type, "manual_code");
+        assert.equal(method.prompt.type, "select", "how it signs in, agy's first question");
+        team.answer(flow, "owner", method.promptId, "google");
+        const prompt = (await next((step) => step.step === "prompt" && step.prompt.type === "manual_code")) as { promptId: string; prompt: Omit<AuthPrompt, "signal"> };
         team.answer(flow, "owner", prompt.promptId, "4/0Aean-team-code");
         const done = (await next((step) => step.step === "done")) as { ok: boolean; details?: string };
 
