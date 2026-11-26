@@ -95,7 +95,7 @@ before(async () => {
         const { role, text } = lastText(request as never);
 
         if (role === "user" && text.endsWith("read it")) {
-            return fauxAssistantMessage([fauxToolCall("audio_speak", { text: "Chào anh Tuấn, đây là bản thử." })], { stopReason: "toolUse" });
+            return fauxAssistantMessage([fauxToolCall("audio_speak", { text: "Chào anh Dũng, đây là bản thử." })], { stopReason: "toolUse" });
         }
 
         if (role === "user" && text.endsWith("transcribe it")) {
@@ -224,7 +224,7 @@ test("audio_speak's file plays under its line with its waveform; audio_transcrib
     // Each line says what it did, not its arguments as JSON.
     const heads = await inPage<string[]>(`return JSON.stringify([...document.querySelectorAll('[data-part="tool-call"] [data-part="step-head"]')].map((head) => head.textContent.replace(/\\s+/g, " ").trim()))`);
 
-    assert.match(heads[0]!, /^audio_speak ?Chào anh Tuấn, đây là bản thử\. ?marin · 0 s$/, heads[0]!);
+    assert.match(heads[0]!, /^audio_speak ?Chào anh Dũng, đây là bản thử\. ?marin · 0 s$/, heads[0]!);
     assert.match(heads[1]!, /^audio_transcribe ?meeting\.flac ?6 lines$/, heads[1]!);
     // Download beside the audio and the transcript (the owner's ask): the file comes from the download route, whole.
     const saved = await inPage<{ buttons: number; names: string[] }>(`
@@ -244,11 +244,11 @@ test("audio_speak's file plays under its line with its waveform; audio_transcrib
     // The smaller transcript's fetch can end first (CI and the devbox under load, PP-373): by kind, not by order.
     const [audioName, textName] = [...saved.names].sort((a, b) => Number(a.endsWith(".txt")) - Number(b.endsWith(".txt")));
 
-    assert.match(audioName!, /^\d{8}-\d{6}-chao-anh-tuan[-a-z]*\.m4a$/, JSON.stringify(saved));
+    assert.match(audioName!, /^\d{8}-\d{6}-chao-anh-dung[-a-z]*\.m4a$/, JSON.stringify(saved));
     assert.match(textName!, /^\d{8}-\d{6}-meeting\.txt$/, JSON.stringify(saved));
     await page.evaluate(`document.querySelector('[data-part="made-audio"]').scrollIntoView({ block: "center" }); return "true";`);
     await shot("audio-player-390.jpg");
-    assert.match(player.caption, /^0:00 \/ 0:0\d ?marin · audio\/\d{8}-\d{6}-chao-anh-tuan[-a-z]*\.m4a$/, player.caption);
+    assert.match(player.caption, /^0:00 \/ 0:0\d ?marin · audio\/\d{8}-\d{6}-chao-anh-dung[-a-z]*\.m4a$/, player.caption);
     assert.deepEqual([player.status, player.type, player.range], [206, "audio/mp4", 100]);
 
     const lines = await inPage<string[]>(`return JSON.stringify([...document.querySelectorAll('[data-part="made-transcript"] p')].map((line) => line.textContent.replace(/\\s+/g, " ").trim()))`);

@@ -2,10 +2,11 @@
 # One eval run on the devbox with a subscription's short-lived token (PP-476). Run on the phone, where the token is a
 # pi-phone secret the owner approved on a secret_save card; name it on the command line so the app passes it:
 #
-#   EVAL_DEVBOX=<machine> EVAL_ANTHROPIC_TOKEN="$EVAL_ANTHROPIC_TOKEN" scripts/eval-on-devbox.sh scripts/prompt-eval.ts --compare origin/master
-#   EVAL_DEVBOX=<machine> scripts/eval-on-devbox.sh scripts/prompt-eval.ts --compare origin/master --dry-run     (the count only, no token)
+#   EVAL_DEVBOX=<machine> EVAL_ANTHROPIC_TOKEN="$EVAL_ANTHROPIC_TOKEN" scripts/eval-on-devbox.sh scripts/prompt-eval.ts --account anthropic~<account> --compare origin/master
+#   EVAL_DEVBOX=<machine> scripts/eval-on-devbox.sh scripts/prompt-eval.ts --account anthropic~<account> --compare origin/master --dry-run     (the count only, no token)
 #
-# EVAL_DEVBOX is the devbox's machine name for pi-ssh (Settings › Machines); it is not kept here.
+# EVAL_DEVBOX is the devbox's machine name for pi-ssh (Settings › Machines) and --account the subscription's account
+# id: both are the owner's, not kept here (on the devbox the eval gets only the token, so the account goes as --account).
 #
 # The token goes over pi-ssh on stdin, never in an argument or a file: on the devbox it lives in the eval's environment
 # alone, and the eval runs with a temporary HOME and TMPDIR (its auth.json is in there), removed when it ends however it

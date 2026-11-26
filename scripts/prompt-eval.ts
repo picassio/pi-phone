@@ -8,13 +8,14 @@
  * times (a scenario's `rounds`); the next call is the one checked. The wiki scenarios (PP-463) check the wiki call
  * that is a lead-in elsewhere: did Pi consult the wiki before acting?
  *
- *   EVAL_ANTHROPIC_TOKEN=… node scripts/prompt-eval.ts [--compare <git ref>] [--model <anthropic id>] [--runs 3]
- *       [--only core | id,id] [--jobs 4] [--account anthropic~han-acc] [--dry-run] [--out report.md]
+ *   EVAL_ANTHROPIC_TOKEN=… node scripts/prompt-eval.ts --account anthropic~<account> [--compare <git ref>]
+ *       [--model <anthropic id>] [--runs 3] [--only core | id,id] [--jobs 4] [--dry-run] [--out report.md]
  *
  * Evals never run on OpenRouter (the owner's rule, PP-476: it is too expensive). EVAL_ANTHROPIC_TOKEN is a short-lived
  * OAuth access token of a Claude subscription (`sk-ant-oat…`), which the owner approves for one run;
  * `scripts/eval-on-devbox.sh` brings it to the devbox and takes it away again. It is never refreshed: once it expires
- * the run stops and says so. `--account` names whose token it is, for the report: it is that account's quota.
+ * the run stops and says so. `--account` (or EVAL_ACCOUNT) names whose token it is, for the report: it is that
+ * account's quota. It is the owner's, so it is not kept here: a run without it stops.
  * `--dry-run` prints the requests a run would make and exits, without the token: the owner is asked with that number
  * before every run.
  *
@@ -39,8 +40,8 @@ import { PhoneSettingsFile } from "../src/server/phone-settings.ts";
 
 /** The owner's Opus in Pi's catalog for Anthropic; `--model` takes other Anthropic models. */
 const DEFAULT_MODEL = "claude-opus-5-5";
-/** Whose subscription the token is: printed in the report, so the owner knows whose quota the run used. */
-const DEFAULT_ACCOUNT = "anthropic~han-acc";
+/** What an account's id looks like, for the messages: the account itself is the owner's, never kept here. */
+const ACCOUNT_EXAMPLE = "anthropic~work";
 /** Rounds of lead-ins answered before the run stops without a call to check. */
 const MAX_LEAD_INS = 3;
 /** Tries of one request when the provider fails in passing (a 429, a dropped stream). */
@@ -58,7 +59,7 @@ const { values } = parseArgs({
     options: {
         compare: { type: "string" },
         model: { type: "string", default: DEFAULT_MODEL },
-        account: { type: "string", default: DEFAULT_ACCOUNT },
+        account: { type: "string" },
         runs: { type: "string", default: "3" },
         only: { type: "string" },
         jobs: { type: "string", default: "4" },
@@ -78,8 +79,15 @@ if (!anthropicProvider().getModels().some((each) => each.id === MODEL)) {
     refuse(`Anthropic has no model ${values.model} in Pi's catalog. Give an Anthropic id such as ${DEFAULT_MODEL}.`);
 }
 
-if (!/^anthropic(~[a-z0-9-]+)?$/.test(values.account)) {
-    refuse(`--account ${values.account} is not a subscription account of Anthropic (like ${DEFAULT_ACCOUNT}), and ${NEVER_OPENROUTER}.`);
+/** Whose subscription the token is (`--account`, else EVAL_ACCOUNT): printed in the report, so the owner knows whose quota the run used. */
+const ACCOUNT = values.account ?? process.env.EVAL_ACCOUNT ?? "";
+
+if (ACCOUNT === "") {
+    refuse(`Name the Claude subscription account whose token this run uses: --account anthropic~<account> (or EVAL_ACCOUNT), like ${ACCOUNT_EXAMPLE}.`);
+}
+
+if (!/^anthropic(~[a-z0-9-]+)?$/.test(ACCOUNT)) {
+    refuse(`--account ${ACCOUNT} is not a subscription account of Anthropic (like ${ACCOUNT_EXAMPLE}), and ${NEVER_OPENROUTER}.`);
 }
 
 /** The subscription's token, or a refusal: OpenRouter's key alone, no token, or an API key in its place. */
@@ -91,7 +99,7 @@ function subscriptionToken(): string {
     }
 
     if (token === "") {
-        refuse(`EVAL_ANTHROPIC_TOKEN is needed: a short-lived OAuth token of ${values.account}'s Claude subscription, which the owner approves for this run (scripts/eval-on-devbox.sh).`);
+        refuse(`EVAL_ANTHROPIC_TOKEN is needed: a short-lived OAuth token of ${ACCOUNT}'s Claude subscription, which the owner approves for this run (scripts/eval-on-devbox.sh).`);
     }
 
     if (!token.startsWith("sk-ant-oat")) {
@@ -131,7 +139,7 @@ const most = scenarios.reduce((sum, scenario) => sum + ((scenario.rounds ?? MAX_
 
 console.log(
     `Planned: ${planned} requests (${scenarios.length} scenarios × ${RUNS} runs × ${TREES} tree${TREES === 1 ? "" : "s"}), at most ${most} with lead-ins; ` +
-        `a provider's passing error is tried again, at most ${TRIES - 1} times a request. Model ${MODEL} on Anthropic, account ${values.account}.`,
+        `a provider's passing error is tried again, at most ${TRIES - 1} times a request. Model ${MODEL} on Anthropic, account ${ACCOUNT}.`,
 );
 
 if (values["dry-run"]) {
@@ -414,7 +422,7 @@ const requests = (tree: number) => results.filter((result) => result.job.tree ==
 const report = [
     `# prompt-eval, ${new Date().toISOString().slice(0, 10)}`,
     "",
-    `Model ${MODEL} on Anthropic, subscription account ${values.account}, ${RUNS} run${RUNS === 1 ? "" : "s"} of each of ${scenarios.length} scenarios (${(["phone", "machine", "pinned", "mcp", "mcp-loaded"] as const).map((variant) => `${scenarios.filter((each) => each.variant === variant).length} ${variant}`).join(", ")}).`,
+    `Model ${MODEL} on Anthropic, subscription account ${ACCOUNT}, ${RUNS} run${RUNS === 1 ? "" : "s"} of each of ${scenarios.length} scenarios (${(["phone", "machine", "pinned", "mcp", "mcp-loaded"] as const).map((variant) => `${scenarios.filter((each) => each.variant === variant).length} ${variant}`).join(", ")}).`,
     "",
     `| Scenario | Variant | ${trees.map((tree) => tree.label).join(" | ")} |`,
     `|---|---|${trees.map(() => "---|").join("")}`,
@@ -422,7 +430,7 @@ const report = [
     `| All | | ${trees.map((_, tree) => pct(total(tree).passed, total(tree).runs)).join(" | ")} |`,
     "",
     ...trees.map((tree, index) => `- ${tree.label}: ${requests(index)} requests.`),
-    `- ${values.account}'s quota: ${trees.reduce((sum, _, index) => sum + requests(index), 0)} requests of ${planned} planned (at most ${most}), ${Math.round(elapsed / 1000)} s. Tokens: ${tokens.input} input, ${tokens.cacheRead} read from the cache, ${tokens.cacheWrite} written to it, ${tokens.output} output.`,
+    `- ${ACCOUNT}'s quota: ${trees.reduce((sum, _, index) => sum + requests(index), 0)} requests of ${planned} planned (at most ${most}), ${Math.round(elapsed / 1000)} s. Tokens: ${tokens.input} input, ${tokens.cacheRead} read from the cache, ${tokens.cacheWrite} written to it, ${tokens.output} output.`,
     "",
     ...(errors.length === 0 ? [] : [`Incomplete: ${errors.length} runs failed with the provider's error, left out of the passes above: ${errors.map((result) => `${trees[result.job.tree]!.label} ${result.job.scenario.id} (${result.outcome.why.slice(0, 80)})`).join("; ")}.`, ""]),
     ...(trees.length === 2 ? [drops.length === 0 ? "No scenario dropped." : `Dropped: ${drops.join(", ")}. With few runs a drop is often the model's chance: confirm with --only ${drops.join(",")} --runs 10.`, ""] : []),
