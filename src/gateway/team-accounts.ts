@@ -14,6 +14,7 @@ import { join } from "node:path";
 import type { Api, AssistantMessageEventStream, AuthPrompt, Context, Model, Provider, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { ACCOUNT_PROVIDERS, accountProvider, baseProvider, isTeamAccount, TEAM_SEPARATOR } from "../server/accounts.ts";
+import { AGY_NAME, AGY_PROVIDER, type AgyOptions, type AgyRuntime, antigravity } from "../server/antigravity.ts";
 import { patchClaudeCodePayload } from "../server/cc-patch.ts";
 import { DEFAULT_SETTINGS, raiseClaudeCodeVersion } from "../server/phone-settings.ts";
 import { type AccountUsage, UsageLimits } from "../server/usage-limits.ts";
@@ -83,17 +84,25 @@ export class TeamAccounts {
     readonly #now: () => number;
     #runtime: ModelRuntime | undefined;
     readonly #flows = new Map<string, Flow>();
+    /** Each team account's provider instance, made once. */
+    readonly #instances = new Map<string, Provider>();
+    /** Google Antigravity's runtime, made at its first team account; tests answer for Google with `agyOptions.send`. */
+    #agy: AgyRuntime | undefined;
+    readonly #agyOptions: Partial<AgyOptions>;
 
     /** The team subscriptions' plan limits (PP-74), asked with their sign-ins here; kept a minute. */
     readonly #usage: UsageLimits;
     /** Claude Code's version for the billing patch and the usage endpoint: the last caller's setting (`phone.json`). */
     #claudeVersion = DEFAULT_SETTINGS.claudeCodeBilling.version;
 
-    constructor(rows: TeamAccountRows, dataDir: string, now: () => number = Date.now, usageFetch?: typeof fetch) {
+    constructor(rows: TeamAccountRows, dataDir: string, now: () => number = Date.now, usageFetch?: typeof fetch, agyOptions: Partial<AgyOptions> = {}) {
         this.#rows = rows;
         this.#dir = join(dataDir, "team-providers");
         this.#now = now;
+        this.#agyOptions = agyOptions;
         this.#usage = new UsageLimits({
+            // Antigravity's quota is what its background reads keep (never a call of its own).
+            antigravity: (provider) => this.#antigravity().background.usage(provider),
             models: () => this.runtime,
             claudeVersion: () => this.#claudeVersion,
             publish: () => undefined,
@@ -131,6 +140,35 @@ export class TeamAccounts {
         }
 
         await this.#runtime.getAvailable().catch(() => []);
+        // Google Antigravity's models come from its own list: restored from the store, then asked again, as a pi-phone does.
+        const agy = this.#rows.teamAccounts().filter((account) => account.provider === AGY_PROVIDER).map((account) => account.id);
+
+        if (agy.length > 0) {
+            void this.#runtime.refresh({ providers: agy, allowNetwork: true }).catch((error: unknown) => this.#agyLog(`models not loaded: ${error instanceof Error ? error.message : String(error)}`));
+        }
+    }
+
+    /**
+     * Google Antigravity on the team server (`antigravity.ts`): made at its first team account, with this runtime's
+     * sign-ins; each team account an instance of its own (its catalog, background reads, quota and telemetry).
+     */
+    #antigravity(): AgyRuntime {
+        this.#agy ??= antigravity({
+            auth: async (provider) => (await this.runtime.getAuth(provider))?.auth.apiKey,
+            log: (line) => this.#agyLog(line),
+            ...this.#agyOptions,
+        });
+
+        return this.#agy;
+    }
+
+    #agyLog(line: string): void {
+        console.error(`team accounts: ${AGY_PROVIDER}: ${line}`);
+    }
+
+    /** No more Antigravity reads or telemetry: the gateway closes. */
+    close(): void {
+        this.#agy?.close();
     }
 
     get runtime(): ModelRuntime {
@@ -141,12 +179,20 @@ export class TeamAccounts {
         return this.#runtime;
     }
 
-    /** The provider a team account is made from: a new instance for the subscription ones, else the runtime's own. */
-    #base(provider: string): Provider {
-        const make = ACCOUNT_PROVIDERS[provider];
-        const base = make === undefined ? this.runtime.getProvider(provider) : make();
+    /**
+     * The provider a team account is made from: a new instance for the subscription ones (Google Antigravity's for the
+     * account `id`), else the runtime's own.
+     */
+    #base(provider: string, id = `${provider}${TEAM_SEPARATOR}check`): Provider {
+        if (isTeamAccount(provider) || provider.includes("~")) {
+            throw new HttpError(400, `No provider ${provider} here.`);
+        }
 
-        if (base === undefined || isTeamAccount(provider) || provider.includes("~")) {
+        const make = ACCOUNT_PROVIDERS[provider];
+        const base =
+            provider === AGY_PROVIDER ? this.#antigravity().accountProvider(id) : make === undefined ? this.runtime.getProvider(provider) : make();
+
+        if (base === undefined) {
             throw new HttpError(400, `No provider ${provider} here.`);
         }
 
@@ -154,8 +200,12 @@ export class TeamAccounts {
     }
 
     #register(account: TeamAccount): void {
+        // One instance per account: a rename keeps what it holds (Antigravity's model list).
+        const base = this.#instances.get(account.id) ?? this.#base(account.provider, account.id);
+
+        this.#instances.set(account.id, base);
         // The name a model menu shows after the provider's: "Team Work" (`<provider> · Team Work account`).
-        this.runtime.registerNativeProvider(accountProvider(this.#base(account.provider), account.id, `Team ${account.name}`));
+        this.runtime.registerNativeProvider(accountProvider(base, account.id, `Team ${account.name}`));
     }
 
     get(id: string): TeamAccount | undefined {
@@ -180,7 +230,7 @@ export class TeamAccounts {
 
             return {
                 ...account,
-                providerName: runtime.getProvider(account.provider)?.name ?? account.provider,
+                providerName: runtime.getProvider(account.provider)?.name ?? (account.provider === AGY_PROVIDER ? AGY_NAME : account.provider),
                 configured: status.configured,
                 oauth: runtime.isUsingOAuth(account.id),
                 // What it can be signed in with: the provider's own subscription sign-in, an API key, or both.
@@ -232,6 +282,8 @@ export class TeamAccounts {
         this.#need(id);
         await this.runtime.logout(id).catch(() => undefined);
         this.runtime.unregisterProvider(id);
+        this.#instances.delete(id);
+        this.#agy?.background.stop(id);
         this.#rows.deleteTeamAccount(id);
     }
 
@@ -357,6 +409,16 @@ export class TeamAccounts {
             .login(id, type, interaction as never, { getDeviceId: () => this.#rows.deviceId() })
             .then(
                 async () => {
+                    // Google Antigravity's models come from its own list: asked now, as a pi-phone asks at a sign-in.
+                    if (baseProvider(id) === AGY_PROVIDER) {
+                        const refreshed = await this.runtime.refresh({ providers: [id], allowNetwork: true, force: true });
+                        const failed = refreshed.errors.get(id);
+
+                        if (failed !== undefined) {
+                            this.#agyLog(`${id}: models not loaded after signing in: ${failed.message}`);
+                        }
+                    }
+
                     await this.runtime.getAvailable(id).catch(() => []);
                     push({ step: "done", ok: true, loginType: type });
                 },
