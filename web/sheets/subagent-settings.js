@@ -22,7 +22,7 @@ const nameOf = (spec) => modelOf(spec)?.name ?? spec;
 
 /** A model's facts in one line: provider, context, its account's plan figures. */
 function factsOf(model) {
-    const usage = usageLine(model.provider);
+    const usage = usageLine(model.provider, model.id);
 
     return [
         model.provider,
@@ -151,7 +151,7 @@ function Allowed() {
         ${allowed.length === 0 && html`<p class="muted small">${t("None: Pi uses only the model above, unless you allow another on a card.")}</p>`}
         ${allowed.map((spec) => {
             const model = modelOf(spec);
-            const peak = model === undefined ? undefined : usagePeak(model.provider);
+            const peak = model === undefined ? undefined : usagePeak(model.provider, model.id);
 
             return html`<div class="sam-model" data-part="allowed-model" data-model=${spec}>
                 <span class=${`sam-dot ${model === undefined || model.signIn ? "off" : peak !== undefined && peak >= 70 ? "near" : ""}`} aria-hidden="true"></span>
@@ -161,7 +161,7 @@ function Allowed() {
                     ${
                         model !== undefined &&
                         peak !== undefined &&
-                        html`<span class="sam-meter"><span class="sam-track"><i class=${levelOf(peak)} style=${`width:${Math.max(2, peak)}%`}></i></span><span>${usageLine(model.provider)}</span></span>`
+                        html`<span class="sam-meter"><span class="sam-track"><i class=${levelOf(peak)} style=${`width:${Math.max(2, peak)}%`}></i></span><span>${usageLine(model.provider, model.id)}</span></span>`
                     }
                 </span>
                 <button class="icon-button" type="button" aria-label=${t("Take {model} off", { model: nameOf(spec) })} onClick=${() => save(spec, false)}>

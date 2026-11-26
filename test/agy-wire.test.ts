@@ -9,6 +9,8 @@ import https from "node:https";
 import { gzipSync } from "node:zlib";
 import { after, mock, test } from "node:test";
 import { AGY_START, AgyBackground, agyAgent, agyTransport, goHeaders, parseAgyQuota } from "../src/server/agy-wire.ts";
+import { windowsOf } from "../src/server/usage-limits.ts";
+import { ENTERPRISE_FULL_QUOTA } from "./support/enterprise-catalog.ts";
 import { antigravity, type AgySend } from "../src/server/antigravity.ts";
 import { type OAuthCredential } from "@earendil-works/pi-ai";
 
@@ -255,6 +257,25 @@ test("the quota as usage bars: each group's windows, the share used and the rese
     ]);
     assert.throws(() => parseAgyQuota({}), /no quota groups/);
     assert.throws(() => parseAgyQuota({ groups: [{ buckets: [{ window: "5h", remainingFraction: "x" }] }] }), /not a number/);
+});
+
+test("a Gemini Enterprise license's quota is per model: each window is its model's, named as agy names it, without Google's one group for all", () => {
+    const windows = parseAgyQuota(ENTERPRISE_FULL_QUOTA);
+
+    assert.deepEqual(windows.slice(0, 3), [
+        { label: "Gemini 4 Carbon (Medium)", usedPercent: 0, model: "gemini-4-carbon-medium" },
+        { label: "Gemini 4 Carbon (High)", usedPercent: 25, model: "gemini-4-carbon-high" },
+        { label: "Gemini 4 Carbon (Low)", usedPercent: 0, model: "gemini-4-carbon-low" },
+    ]);
+    assert.equal(windows.some((window) => window.group !== undefined), false, "no \"All Models\"");
+    // The windows of one model of a family: its efforts' (`usage-limits.ts`, as the model menu picks them).
+    assert.deepEqual(
+        windowsOf(windows, "gemini-4-carbon").map((window) => window.model),
+        ["gemini-4-carbon-medium", "gemini-4-carbon-high", "gemini-4-carbon-low"],
+    );
+    assert.deepEqual(windowsOf(windows, "gemini-4-hydrogen-high").map((window) => window.usedPercent), [50]);
+    // Another provider's windows count every model.
+    assert.equal(windowsOf(parseAgyQuota(QUOTA), "gemini-4-carbon").length, 3);
 });
 
 /** agy 1.5.15's reads when it starts, in its order (mitmproxy on the devbox, 2026-11-23; its picture and gstatic's lists left out). */

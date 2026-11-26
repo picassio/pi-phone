@@ -37,6 +37,42 @@ export function windowTitle(window) {
     return window.group ? `${window.group} · ${windowName(window.label)}` : windowName(window.label);
 }
 
+/** An effort at the end of a per-model window's name: "Gemini 4 Carbon (High)" is High of Gemini 4 Carbon. */
+const EFFORT = /^(.*) \(([^()]+)\)$/;
+
+/**
+ * The windows to show for an account, and for one of its models when given. A Gemini Enterprise license's windows are
+ * per model (`window.model`, src/server/usage-limits.ts): for a model, only its own (a family's model has those of its
+ * efforts, named by the effort alone: "High"); for the account, one per family, its fullest, named by the family
+ * ("Gemini 4 Carbon"). Other providers' windows are the account's: all of them, as they are.
+ */
+export function windowsFor(provider, modelId) {
+    const windows = store.state.usage[provider]?.windows ?? [];
+
+    if (!windows.some((window) => window.model !== undefined)) {
+        return windows;
+    }
+
+    if (modelId !== undefined) {
+        return windows
+            .filter((window) => window.model === undefined || window.model === modelId || window.model.startsWith(`${modelId}-`))
+            .map((window) => (window.model === modelId ? window : { ...window, label: EFFORT.exec(window.label)?.[2] ?? window.label }));
+    }
+
+    const families = new Map();
+
+    for (const window of windows) {
+        const name = EFFORT.exec(window.label)?.[1] ?? window.label;
+        const kept = families.get(name);
+
+        if (kept === undefined || window.usedPercent > kept.usedPercent) {
+            families.set(name, { ...window, label: name });
+        }
+    }
+
+    return [...families.values()];
+}
+
 /** How close to the limit: under 70% fine, under 90% near, else at it. */
 const level = (percent) => (percent >= 90 ? "high" : percent >= 70 ? "near" : "low");
 
@@ -61,37 +97,47 @@ export function resetText(at) {
     return t("resets {date}", { date: when.toLocaleDateString([], { day: "numeric", month: "short" }) });
 }
 
-/** An account's figures in one short line, "5h 42% · wk 61%"; undefined without figures. */
-export function usageLine(provider) {
+/**
+ * An account's figures in one short line, "5h 42% · wk 61%", those of one model when given (`windowsFor`); undefined
+ * without figures.
+ */
+export function usageLine(provider, modelId) {
     const usage = store.state.usage[provider];
 
     if (usage === undefined || usage.windows === undefined) {
         return undefined;
     }
 
-    return usage.windows.map((window) => `${window.group ? `${window.group} ` : ""}${SHORT[window.label] ?? window.label} ${Math.round(window.usedPercent)}%`).join(" · ");
+    const windows = windowsFor(provider, modelId);
+
+    if (windows.length === 0) {
+        return undefined;
+    }
+
+    return windows.map((window) => `${window.group ? `${window.group} ` : ""}${SHORT[window.label] ?? window.label} ${Math.round(window.usedPercent)}%`).join(" · ");
 }
 
 /**
  * When an account near its limit can be used again: its fullest window's reset ("resets Fri 09:00"), once that window is
  * 90% used or more (PP-409: a capture failed on an account at its weekly limit); undefined otherwise.
  */
-export function usageReset(provider) {
-    const windows = store.state.usage[provider]?.windows ?? [];
+export function usageReset(provider, modelId) {
+    const windows = windowsFor(provider, modelId);
     const fullest = windows.reduce((most, window) => (most === undefined || window.usedPercent > most.usedPercent ? window : most), undefined);
 
     return fullest !== undefined && fullest.usedPercent >= 90 && fullest.resetsAt !== undefined ? resetText(fullest.resetsAt) : undefined;
 }
 
-/** The highest share used of an account's windows, for the meter's color. */
-export function usagePeak(provider) {
+/** The highest share used of an account's windows (one model's when given), for the meter's color. */
+export function usagePeak(provider, modelId) {
     const usage = store.state.usage[provider];
+    const windows = windowsFor(provider, modelId);
 
-    return usage?.windows === undefined ? undefined : Math.max(...usage.windows.map((window) => window.usedPercent));
+    return usage?.windows === undefined || windows.length === 0 ? undefined : Math.max(...windows.map((window) => window.usedPercent));
 }
 
-/** An account's windows as bars, or why there are none. */
-export function UsageBars({ provider }) {
+/** An account's windows as bars (one model's when given, `windowsFor`), or why there are none. */
+export function UsageBars({ provider, model }) {
     const usage = store.state.usage[provider];
 
     if (usage === undefined) {
@@ -103,7 +149,7 @@ export function UsageBars({ provider }) {
     }
 
     return html`<div class="usage-bars">
-        ${usage.windows.map(
+        ${windowsFor(provider, model).map(
             (window) => html`<div class="usage-window">
                 <div class="usage-head small">
                     <span>${windowTitle(window)}</span>
@@ -125,7 +171,7 @@ export function UsageBars({ provider }) {
  * a tap opens every window with its reset, over the conversation, as a pop-up: a tap on the meter, anywhere outside it,
  * or Escape closes it, and another session starts with it closed (`SessionUsage` is keyed by the session).
  */
-export function UsageMeter({ provider }) {
+export function UsageMeter({ provider, model }) {
     const [open, setOpen] = useState(false);
     const box = useRef(null);
     const usage = store.state.usage[provider];
@@ -157,23 +203,26 @@ export function UsageMeter({ provider }) {
         };
     }, [open]);
 
-    if (usage === undefined || usage.windows === undefined || usage.windows.length === 0) {
+    // A per-model account's meter is the session model's fullest window (`windowsFor`), another's its first window.
+    const windows = windowsFor(provider, model);
+
+    if (usage === undefined || usage.windows === undefined || windows.length === 0) {
         return null;
     }
 
     const toggle = () => setOpen(!open);
-    const first = usage.windows[0];
+    const first = windows.some((window) => window.model !== undefined) ? windows.reduce((a, b) => (b.usedPercent > a.usedPercent ? b : a)) : windows[0];
 
     return html`<div class="usage-meter-wrap" ref=${box}>
         <button
-            class=${`usage-meter ${level(usagePeak(provider))}`}
+            class=${`usage-meter ${level(usagePeak(provider, model))}`}
             aria-expanded=${open ? "true" : "false"}
             title=${t("Plan usage of this session's account")}
             onClick=${toggle}
         >
             ${SHORT[first.label] ?? first.label} ${Math.round(first.usedPercent)}%
         </button>
-        ${open && html`<div class="usage-meter-panel"><${UsageBars} provider=${provider} /></div>`}
+        ${open && html`<div class="usage-meter-panel"><${UsageBars} provider=${provider} model=${model} /></div>`}
     </div>`;
 }
 
@@ -224,7 +273,8 @@ export function UsageWarning() {
     const provider = view.agent?.model?.provider;
     const modelId = view.agent?.model?.modelId;
     const usage = provider === undefined ? undefined : store.state.usage[provider];
-    const window = usage?.windows?.filter((each) => each.usedPercent >= 90).sort((a, b) => b.usedPercent - a.usedPercent)[0];
+    // The session model's windows only, when the account's are per model (`windowsFor`).
+    const window = usage?.windows === undefined ? undefined : windowsFor(provider, modelId).filter((each) => each.usedPercent >= 90).sort((a, b) => b.usedPercent - a.usedPercent)[0];
     const key = window === undefined ? "" : `pi-phone.usage-warned:${provider}:${window.label}:${window.resetsAt ?? ""}`;
     const [, redraw] = useState(0);
     // With two or more other accounts: the one picked in the dropdown (the emptiest until another is picked).

@@ -30,7 +30,7 @@ import { TeamAccountsClient } from "./team-accounts.ts";
 import { TeamMachinesClient } from "./team-machines.ts";
 import { machinePaths } from "./machine-paths.ts";
 import { PhoneSettingsFile } from "./phone-settings.ts";
-import { UsageLimits, type UsageWindow } from "./usage-limits.ts";
+import { UsageLimits, type UsageWindow, windowsOf } from "./usage-limits.ts";
 import { LimitGate, type LimitTuning, noWait, type WaitView, type Waiting } from "./limit-gate.ts";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
@@ -2682,7 +2682,9 @@ export class PocketApp {
             return new HttpError(409, `${name} is waiting for a limit of its own: pick another account, or wait.`);
         }
 
-        const windows = await (fresh ? this.#usageWindows(to) : this.#usageKnown(to)).catch(() => undefined);
+        // A per-model window of another model (a Gemini Enterprise license's) does not say whether this one has room.
+        const known = await (fresh ? this.#usageWindows(to) : this.#usageKnown(to)).catch(() => undefined);
+        const windows = known === undefined ? undefined : windowsOf(known, modelId);
 
         if (windows === undefined || windows.length === 0) {
             return new HttpError(409, `${name}'s usage is not known now: pick another account, or wait.`);

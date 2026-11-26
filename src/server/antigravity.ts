@@ -484,8 +484,10 @@ function numericId(seed: string | undefined): string {
 /** The models `agy models` lists: one per family with agy's efforts as thinking levels, and the rest as they are. */
 export function catalogModels(catalog: AgyCatalog): Model<Api>[] {
     const infos = catalog.models ?? {};
-    const groups = catalog.groupedModels ?? {};
     const listed = [...new Set((catalog.agentModelSorts ?? []).flatMap((sort) => sort.groups ?? []).flatMap((group) => group.modelIds ?? []))];
+    // A Gemini Enterprise license's catalog has no families: one model per effort (`gemini-4-carbon-medium`). Its
+    // families are read from the ids and names, as agy's picker groups them.
+    const groups = catalog.groupedModels ?? familiesOf(listed, infos);
     const models: Model<Api>[] = [];
     const done = new Set<string>();
 
@@ -545,6 +547,32 @@ export function catalogModels(catalog: AgyCatalog): Model<Api>[] {
     }
 
     return models;
+}
+
+/** The efforts agy writes at the end of a model's id, and in its name: `gemini-4-carbon-high`, "Gemini 4 Carbon (High)". */
+const EFFORT = /^(.+)-(minimal|low|medium|high|xhigh|max)$/;
+const EFFORT_NAME = / \((?:Minimal|Low|Medium|High|XHigh|Max)\)$/i;
+
+/**
+ * Families for a catalog that names none (Gemini Enterprise's): the listed ids that end in an effort, by what comes
+ * before it, each with its efforts in the order listed and its name without the effort ("Gemini 4 Carbon").
+ */
+function familiesOf(listed: readonly string[], infos: Record<string, ModelInfo>): NonNullable<AgyCatalog["groupedModels"]> {
+    const families: NonNullable<AgyCatalog["groupedModels"]> = {};
+
+    for (const id of listed) {
+        const found = EFFORT.exec(id);
+
+        if (found === null || infos[id] === undefined) {
+            continue;
+        }
+
+        const family = (families[found[1]!] ??= { displayName: (infos[id]!.displayName ?? found[1]!).replace(EFFORT_NAME, ""), supportedThinkingLevels: [] });
+
+        family.supportedThinkingLevels!.push({ thinkingSuffix: found[2]! });
+    }
+
+    return families;
 }
 
 /** agy's generation settings for one of its models: its most output, and its thinking as it sends it. */
