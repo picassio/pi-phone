@@ -208,14 +208,16 @@ export const AGY_QUOTA_AFTER_MS = 60_000;
 export const AGY_IDLE_MS = 30 * 60_000;
 
 /** A plan window as the usage bars show it (`usage-limits.ts`'s `UsageWindow`). */
-export type AgyWindow = { label: string; usedPercent: number; resetsAt?: number; group?: string };
+export type AgyWindow = { label: string; usedPercent: number; resetsAt?: number; group?: string; model?: string };
 
 /**
  * `retrieveUserQuotaSummary`'s answer as usage bars: each group's buckets (`5h`, `weekly`), the share used
- * (1 − `remainingFraction`) and when it resets. Another shape is an error, never a guess.
+ * (1 − `remainingFraction`) and when it resets. A Gemini Enterprise license's buckets are per model, with no window:
+ * each is that model's (`model`, its id with the effort), named as agy names it, without Google's one group name for all
+ * of them ("All Models"). Another shape is an error, never a guess.
  */
 export function parseAgyQuota(json: unknown): AgyWindow[] {
-    type Bucket = { window?: unknown; displayName?: unknown; remainingFraction?: unknown; resetTime?: unknown };
+    type Bucket = { bucketId?: unknown; window?: unknown; displayName?: unknown; remainingFraction?: unknown; resetTime?: unknown };
     const groups = (json as { groups?: { displayName?: unknown; buckets?: Bucket[] }[] } | null)?.groups;
 
     if (!Array.isArray(groups)) {
@@ -245,12 +247,13 @@ export function parseAgyQuota(json: unknown): AgyWindow[] {
             }
 
             const resetsAt = typeof bucket.resetTime === "string" ? Date.parse(bucket.resetTime) : Number.NaN;
+            const model = bucket.window === undefined && typeof bucket.bucketId === "string" ? bucket.bucketId : undefined;
 
             windows.push({
                 label,
                 usedPercent: Math.max(0, Math.min(100, (1 - left) * 100)),
                 ...(Number.isNaN(resetsAt) ? {} : { resetsAt }),
-                ...(typeof group.displayName === "string" ? { group: group.displayName } : {}),
+                ...(model !== undefined ? { model } : typeof group.displayName === "string" ? { group: group.displayName } : {}),
             });
         }
     }

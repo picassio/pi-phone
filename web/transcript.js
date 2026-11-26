@@ -77,7 +77,7 @@ import {
     Thumb,
 } from "./ui.js";
 import { LimitSwitch, windowName } from "./usage.js";
-import { t, timeAgo, tn, tx } from "./i18n.js";
+import { t, timeAgo, tn, tServer, tx } from "./i18n.js";
 
 const REPORT = /^\[subagent (\S+) (answered|failed)([^\]]*)\]\s?([\s\S]*)$/;
 /**
@@ -2883,7 +2883,8 @@ function AnswerEnd({ entry }) {
 
     return html`${
         entry.stopReason === "error" &&
-        html`<div class="error-box">${entry.error ?? t("The model request failed.")}</div>
+        // A provider's error as it came; one the server words itself (a license's refusal) in the person's language.
+        html`<div class="error-box">${entry.error === undefined ? t("The model request failed.") : tServer(entry.error)}</div>
             <${LimitSwitch} error=${entry.error} />`
     }
     ${entry.stopReason === "aborted" && html`<div class="muted small">${t("Stopped.")}</div>`}

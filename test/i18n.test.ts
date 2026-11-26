@@ -104,6 +104,20 @@ test("the server's messages: found in its source, and shown in the person's lang
     assert.equal(tServer("There is no folder /srv/app on box."), "There is no folder /srv/app on box.", "English as it came");
 });
 
+test("a turn's error the server words itself (a Gemini Enterprise license's refusal, antigravity.ts) is in both catalogs", () => {
+    const error = "Google Antigravity (403): Gemini 4 Neon is not enabled for this Gemini Enterprise license. Pick another model, or ask the license's administrator to enable it.";
+    const catalog = (locale: string) => JSON.parse(readFileSync(new URL(`../web/i18n/${locale}.server.json`, import.meta.url), "utf8")) as Record<string, string>;
+
+    try {
+        useCatalog("vi", {}, catalog("vi"));
+        assert.equal(tServer(error), "Google Antigravity (403): Gemini 4 Neon chưa được admin bật trong license Gemini Enterprise này. Hãy chọn model khác, hoặc nhờ admin của license bật nó.");
+        useCatalog("zh-CN", {}, catalog("zh-CN"));
+        assert.equal(tServer(error), "Google Antigravity (403)：此 Gemini Enterprise 许可的管理员尚未启用 Gemini 4 Neon。请选择其他模型，或请许可管理员启用它。");
+    } finally {
+        useCatalog("en", {});
+    }
+});
+
 test("the language: a choice, else the browser's when the app speaks it, else English", () => {
     assert.equal(resolveLanguage("zh-CN", ["en-US"]), "zh-CN");
     assert.equal(resolveLanguage("auto", ["zh-TW", "en"]), "zh-CN", "Chinese of any script reads Simplified for now");

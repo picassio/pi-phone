@@ -417,7 +417,7 @@ export function ModelPicker() {
                         <span class="pop-menu-row-text">
                             <span class="pop-menu-row-name">${model.name}</span>
                             <span class="pop-menu-row-sub">
-                                ${model.account ? `${model.provider.split("~")[0]} · ${model.account} account` : model.provider}${!forDefault && isDefault(model) ? " · default" : ""}${model.signIn ? " · needs sign-in" : ""}${usageLine(model.provider) ? ` · ${usageLine(model.provider)}` : ""}${usageReset(model.provider) ? ` · ${usageReset(model.provider)}` : ""}
+                                ${model.account ? `${model.provider.split("~")[0]} · ${model.account} account` : model.provider}${!forDefault && isDefault(model) ? " · default" : ""}${model.signIn ? " · needs sign-in" : ""}${usageLine(model.provider, model.id) ? ` · ${usageLine(model.provider, model.id)}` : ""}${usageReset(model.provider, model.id) ? ` · ${usageReset(model.provider, model.id)}` : ""}
                             </span>
                         </span>
                         ${isFavoriteModel(model) && html`<span class="model-star" title=${t("Favorite")} aria-label=${t("Favorite")}><${Icon} name="star" size=${16} /></span>`}

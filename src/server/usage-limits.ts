@@ -19,6 +19,11 @@ export type UsageWindow = {
     label: string;
     /** The group of models it counts, in the provider's words ("Gemini Models"), when its windows are per group. */
     group?: string;
+    /**
+     * The one model it counts, when the provider's windows are per model (a Gemini Enterprise license's): the model's id
+     * with its effort (`gemini-4-carbon-high`); a model of a family (`gemini-4-carbon`) has those of its efforts.
+     */
+    model?: string;
     /** 0–100. */
     usedPercent: number;
     /** When it resets, in ms; undefined when the provider does not say. */
@@ -26,6 +31,14 @@ export type UsageWindow = {
     /** More, in words: "240 of 300 left". */
     detail?: string;
 };
+
+/**
+ * The windows that count a model: all of them, except a per-model window of another model (a Gemini Enterprise
+ * license's), as `web/usage.js` picks them too. A family's model (`gemini-4-carbon`) has its efforts' windows.
+ */
+export function windowsOf(windows: readonly UsageWindow[], modelId: string): UsageWindow[] {
+    return windows.filter((window) => window.model === undefined || window.model === modelId || window.model.startsWith(`${modelId}-`));
+}
 
 export type AccountUsage =
     | { provider: string; at: number; windows: UsageWindow[]; plan?: string }

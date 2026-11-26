@@ -129,14 +129,14 @@ function ChangesButton() {
  * The plan usage of the session's account, in the top bar (web/usage.js): asked once when a session on a subscription
  * account opens without figures; runs on it bring new ones.
  */
-function SessionUsage({ provider }) {
+function SessionUsage({ provider, model }) {
     useEffect(() => {
         if (provider !== undefined && store.state.usage[provider] === undefined) {
             void loadUsage();
         }
     }, [provider]);
 
-    return provider === undefined ? null : html`<${UsageMeter} provider=${provider} />`;
+    return provider === undefined ? null : html`<${UsageMeter} provider=${provider} model=${model} />`;
 }
 
 function Topbar() {
@@ -242,7 +242,7 @@ function Topbar() {
                 }
             </span>
         </div>
-        <${SessionUsage} key=${conversationId} provider=${view.agent?.model?.provider} />
+        <${SessionUsage} key=${conversationId} provider=${view.agent?.model?.provider} model=${view.agent?.model?.modelId} />
         ${
             busySubagents > 0 &&
             html`<button
