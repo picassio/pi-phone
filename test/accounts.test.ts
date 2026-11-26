@@ -2,13 +2,14 @@
 // model uses it; the default account is untouched; accounts outlive a restart; only the owner manages them.
 import { type App, cleanUp, lastText, newSession, openApp, owner, root, say, scriptedModel } from "./helpers.ts";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import type { Message } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText } from "@earendil-works/pi-ai/providers/faux";
 import { createHandler } from "../src/server/http.ts";
+import { Accounts } from "../src/server/accounts.ts";
 
 let requested: Message[] = [];
 // A wide window: with the app's whole prompt (every tool offered), a background compaction's request must not be the
@@ -101,6 +102,53 @@ test("Google Antigravity has more accounts, as Claude does: Add account on its r
     await app.accounts.remove(account.id);
     assert.equal(app.models.getProvider(account.id), undefined);
     assert.ok(app.models.getProvider(AGY));
+});
+
+test("a build without a provider opens all the same: its accounts are left out, said in the log, and kept; Antigravity's are kept apart (newer), where builds from before them never read them", async () => {
+    // As the app saves them: an Antigravity account goes under `newer`, never under `accounts`, which older builds read.
+    const han = app.accounts.add("google-antigravity", "Han");
+    const saved = () => JSON.parse(readFileSync(join(dataDir, "accounts.json"), "utf8")) as { accounts: { id: string }[]; newer?: { id: string }[] };
+
+    try {
+        assert.equal(saved().accounts.some((each) => each.id === han.id), false);
+        assert.deepEqual(saved().newer?.map((each) => each.id), [han.id]);
+    } finally {
+        await app.accounts.remove(han.id);
+    }
+
+    assert.equal(saved().newer, undefined, "none left: no newer list");
+
+    // A file a newer build wrote: an account of a provider this one lacks, in either list.
+    const dir = join(root, "accounts-older-build");
+
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+        join(dir, "accounts.json"),
+        JSON.stringify({
+            accounts: [
+                { id: "faux~kept", provider: "faux", name: "Kept", createdAt: 1 },
+                { id: "future~a", provider: "future", name: "A", createdAt: 2 },
+            ],
+            newer: [{ id: "google-antigravity~b", provider: "google-antigravity", name: "B", createdAt: 3 }],
+        }),
+    );
+    const logged: string[] = [];
+    const older = new Accounts(dir, () => app.models, { faux: () => model.provider as never }, { apart: new Set(["google-antigravity"]), log: (line) => logged.push(line) });
+
+    older.registerAll();
+    assert.ok(app.models.getProvider("faux~kept"), "the accounts it has are there");
+    assert.equal(app.models.getProvider("future~a"), undefined);
+    assert.deepEqual(logged, [
+        "accounts: future~a left out: this build has no provider future",
+        "accounts: google-antigravity~b left out: this build has no provider google-antigravity",
+    ]);
+    // Saved again (a rename): the ones it left out are still there, each in its list.
+    older.rename("faux~kept", "Kept 2");
+    const file = JSON.parse(readFileSync(join(dir, "accounts.json"), "utf8")) as { accounts: { id: string }[]; newer: { id: string }[] };
+
+    assert.deepEqual(file.accounts.map((each) => each.id), ["faux~kept", "future~a"]);
+    assert.deepEqual(file.newer.map((each) => each.id), ["google-antigravity~b"]);
+    await older.remove("faux~kept");
 });
 
 test("only the owner adds, renames, or removes accounts", async () => {
