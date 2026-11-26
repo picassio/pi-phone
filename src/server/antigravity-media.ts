@@ -16,6 +16,10 @@
  *
  * Nothing here is sent before the owner signs in to Google Antigravity (Settings › Providers); its models show only then.
  *
+ * Accounts (`accounts.ts`): images are made on the account their model names (`google-antigravity/<model>` the
+ * original's, `google-antigravity~<slug>/<model>` another's), each on its own sign-in, catalog and background reads.
+ * Dictation and transcription have no account in their settings: they are the original account's.
+ *
  * On the wire as agy (PP-558's `agy-wire.ts`): the Cloud Code calls go on the provider's own transport (HTTP/1.1, Go's
  * headers and TLS, one pool of connections), the catalog is the provider's (which agy's background reads refresh), and a
  * media call starts agy's background reads as a turn does. The dictation's gRPC goes on Node's HTTP/2 with grpc-go's
@@ -30,7 +34,7 @@ import type { Socket } from "node:net";
 import tls from "node:tls";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import { AGY_GRPC_TLS, agyTransport } from "./agy-wire.ts";
-import { AGY_HOST, AGY_NAME, type AgyAuth, type AgyCatalog, type AgySend, type AgyStep, cloudCodeHeaders, errorText, parseAuth, readText } from "./antigravity.ts";
+import { AGY_HOST, AGY_NAME, AGY_PROVIDER, type AgyAuth, type AgyCatalog, type AgySend, type AgyStep, cloudCodeHeaders, errorText, parseAuth, readText } from "./antigravity.ts";
 import { imageType } from "./image-meta.ts";
 
 /** agy's dictation endpoint: gRPC on HTTP/2. */
@@ -68,19 +72,27 @@ export type AgyImages = { images: AgyImage[]; text: string; tokens: { input: num
 /** One stretch of speech in a file: from and to in ms, and what was said. */
 export type AgyUtterance = { start: number; end: number; text: string };
 
+/** An Antigravity account signed in now: the original (`google-antigravity`) or one more (`accounts.ts`), with its name. */
+export type AgyAccount = { id: string; name?: string };
+
 export interface AgyMediaOptions {
-    /** The sign-in's request auth (pi's `toAuth` key, renewed when it ran out), or undefined when not signed in. */
-    apiKey(): Promise<string | undefined>;
+    /** An account's request auth (pi's `toAuth` key, renewed when it ran out), or undefined when it is not signed in. */
+    apiKey(account: string): Promise<string | undefined>;
+    /** The accounts signed in now, the original first when it is. Default: the original's alone, when signed in. */
+    accounts?: () => Promise<AgyAccount[]>;
     /** The provider's transport (`AgyRuntime.send`); tests answer for Cloud Code. Default: a transport of agy's own. */
     send?: AgySend;
-    /** The provider's catalog (`AgyRuntime.catalog`). Default: asked here, kept an hour. */
-    catalog?: (auth: AgyAuth, signal?: AbortSignal) => Promise<AgyCatalog>;
-    /** Before a media call: agy's background reads start as for a turn (awaited unless `wait` is false). */
-    beforeUse?: (auth: AgyAuth, wait: boolean) => Promise<void>;
-    /** After a media call: agy's read of the quota after a turn. */
-    afterUse?: () => void;
-    /** The agent request a session's tool call came from (its trajectory and step), when the session is on Antigravity. */
-    stepOf?: (conversationId: ConversationId) => Promise<AgyStep | undefined>;
+    /** An account's catalog (`AgyRuntime.catalog`). Default: asked here, kept an hour. */
+    catalog?: (account: string, auth: AgyAuth, signal?: AbortSignal) => Promise<AgyCatalog>;
+    /** Before a media call: the account's background reads start as for a turn (awaited unless `wait` is false). */
+    beforeUse?: (account: string, auth: AgyAuth, wait: boolean) => Promise<void>;
+    /** After a media call: agy's read of the account's quota after a turn. */
+    afterUse?: (account: string) => void;
+    /**
+     * The agent request a session's tool call came from (its trajectory and step), when the session is on `account`'s
+     * models: a session on another account's (or another provider's) has no trajectory of this account's.
+     */
+    stepOf?: (conversationId: ConversationId, account: string) => Promise<AgyStep | undefined>;
     /** Tests answer for the dictation endpoint (an h2c server). */
     dictationUrl?: string;
     now?: () => number;
@@ -523,7 +535,7 @@ type Dictation = { listen: AgyListen; at: number; userId: string; failed?: strin
 export class AgyMedia {
     readonly #options: AgyMediaOptions;
     readonly #send: AgySend;
-    #catalog: { at: number; catalog: Catalog } | undefined;
+    readonly #catalogs = new Map<string, { at: number; catalog: Catalog }>();
     readonly #dictations = new Map<string, Dictation>();
 
     constructor(options: AgyMediaOptions) {
@@ -535,25 +547,39 @@ export class AgyMedia {
         return (this.#options.now ?? Date.now)();
     }
 
-    /** The sign-in's auth, or undefined when there is none. */
-    async #auth(): Promise<AgyAuth | undefined> {
-        const key = await this.#options.apiKey();
+    /** An account's auth, or undefined when it is not signed in. */
+    async #auth(account: string): Promise<AgyAuth | undefined> {
+        const key = await this.#options.apiKey(account);
 
         return key === undefined || key === "" ? undefined : parseAuth(key);
     }
 
-    async #signedInAuth(): Promise<AgyAuth> {
-        const auth = await this.#auth();
+    async #signedInAuth(account: string): Promise<AgyAuth> {
+        const auth = await this.#auth(account);
 
         if (auth === undefined) {
-            throw new Error(`${AGY_NAME} is not signed in: sign in in Settings › Providers.`);
+            throw new Error(
+                account === AGY_PROVIDER
+                    ? `${AGY_NAME} is not signed in: sign in in Settings › Providers.`
+                    : `The ${AGY_NAME} account ${account} is not signed in: sign in to it in Settings › Providers.`,
+            );
         }
 
         return auth;
     }
 
-    async signedIn(): Promise<boolean> {
-        return (await this.#options.apiKey().catch(() => undefined)) !== undefined;
+    /** Whether the account (the original by default) is signed in. */
+    async signedIn(account: string = AGY_PROVIDER): Promise<boolean> {
+        return (await this.#options.apiKey(account).catch(() => undefined)) !== undefined;
+    }
+
+    /** The accounts signed in now, the original first when it is. */
+    async accounts(): Promise<AgyAccount[]> {
+        if (this.#options.accounts !== undefined) {
+            return this.#options.accounts();
+        }
+
+        return (await this.signedIn(AGY_PROVIDER)) ? [{ id: AGY_PROVIDER }] : [];
     }
 
     /** One Cloud Code call with agy's headers, in Go's order; Google's error as the message. */
@@ -574,42 +600,43 @@ export class AgyMedia {
      * The catalog's media models: the provider's (agy's background reads keep it current), or else asked here
      * (`fetchAvailableModels`, as agy asks it) and kept an hour; a failed ask is not kept.
      */
-    async #media(auth: AgyAuth): Promise<Catalog> {
+    async #media(account: string, auth: AgyAuth): Promise<Catalog> {
         if (this.#options.catalog !== undefined) {
-            return this.#options.catalog(auth, AbortSignal.timeout(30_000));
+            return this.#options.catalog(account, auth, AbortSignal.timeout(30_000));
         }
 
         const now = this.#now();
+        const kept = this.#catalogs.get(account);
 
-        if (this.#catalog !== undefined && now - this.#catalog.at < CATALOG_MS) {
-            return this.#catalog.catalog;
+        if (kept !== undefined && now - kept.at < CATALOG_MS) {
+            return kept.catalog;
         }
 
         const answer = await this.#cloudCode("fetchAvailableModels", auth, { project: auth.project }, AbortSignal.timeout(30_000));
         const catalog = (isRecord(answer) ? answer : {}) as Catalog;
 
-        this.#catalog = { at: now, catalog };
+        this.#catalogs.set(account, { at: now, catalog });
 
         return catalog;
     }
 
-    /** The image models Antigravity offers, with their names; none when not signed in. */
-    async imageModels(): Promise<AgyImageModel[]> {
-        const auth = await this.#auth();
+    /** The image models an account (the original by default) offers, with their names; none when it is not signed in. */
+    async imageModels(account: string = AGY_PROVIDER): Promise<AgyImageModel[]> {
+        const auth = await this.#auth(account);
 
         if (auth === undefined) {
             return [];
         }
 
-        const catalog = await this.#media(auth);
+        const catalog = await this.#media(account, auth);
 
         return (catalog.imageGenerationModelIds ?? []).map((id) => ({ id, name: catalog.models?.[id]?.displayName ?? id }));
     }
 
-    /** The transcription model Antigravity offers now (agy's dictation model). */
+    /** The transcription model Antigravity offers now (agy's dictation model), on the original account. */
     async transcribeModel(): Promise<string> {
-        const auth = await this.#signedInAuth();
-        const model = (await this.#media(auth)).audioTranscriptionModelIds?.[0];
+        const auth = await this.#signedInAuth(AGY_PROVIDER);
+        const model = (await this.#media(AGY_PROVIDER, auth)).audioTranscriptionModelIds?.[0];
 
         if (model === undefined) {
             throw new Error(`${AGY_NAME} lists no transcription model for this account now.`);
@@ -619,13 +646,13 @@ export class AgyMedia {
     }
 
     /** A media call as agy makes one while it runs: its background reads first, its quota read after. */
-    async #use<T>(auth: AgyAuth, wait: boolean, call: () => Promise<T>): Promise<T> {
-        await this.#options.beforeUse?.(auth, wait);
+    async #use<T>(account: string, auth: AgyAuth, wait: boolean, call: () => Promise<T>): Promise<T> {
+        await this.#options.beforeUse?.(account, auth, wait);
 
         try {
             return await call();
         } finally {
-            this.#options.afterUse?.();
+            this.#options.afterUse?.(account);
         }
     }
 
@@ -633,14 +660,22 @@ export class AgyMedia {
      * agy's image request id: `image_gen/<ms>/<the calling trajectory>/<the step after the agent request>`. A session on
      * Antigravity gives its own; another session has no agy trajectory, so it gets a new one, as a first tool call (step 2).
      */
-    async #imageRequestId(conversationId: ConversationId | undefined): Promise<string> {
-        const step = conversationId === undefined ? undefined : await this.#options.stepOf?.(conversationId).catch(() => undefined);
+    async #imageRequestId(account: string, conversationId: ConversationId | undefined): Promise<string> {
+        const step = conversationId === undefined ? undefined : await this.#options.stepOf?.(conversationId, account).catch(() => undefined);
 
         return `image_gen/${this.#now()}/${step?.trajectory ?? randomUUID()}/${step === undefined ? 2 : step.step + 1}`;
     }
 
-    /** One picture, or an edit of up to three, as agy's image tool asks for it. */
-    async makeImage(request: { model: string; prompt: string; inputs: AgyImage[]; aspect?: string; signal?: AbortSignal; conversationId?: ConversationId }): Promise<AgyImages> {
+    /** One picture, or an edit of up to three, as agy's image tool asks for it, on `account` (the original by default). */
+    async makeImage(request: {
+        model: string;
+        prompt: string;
+        inputs: AgyImage[];
+        aspect?: string;
+        signal?: AbortSignal;
+        conversationId?: ConversationId;
+        account?: string;
+    }): Promise<AgyImages> {
         if (request.inputs.length > AGY_MAX_INPUTS) {
             throw new Error(`${AGY_NAME} edits at most ${AGY_MAX_INPUTS} images at once.`);
         }
@@ -651,15 +686,21 @@ export class AgyMedia {
             throw new Error(`${AGY_NAME} takes the aspect ratios ${AGY_ASPECTS.join(", ")}.`);
         }
 
-        const auth = await this.#signedInAuth();
+        const account = request.account ?? AGY_PROVIDER;
+        const auth = await this.#signedInAuth(account);
 
-        return this.#use(auth, true, () => this.#makeImage(auth, request, aspect));
+        return this.#use(account, auth, true, () => this.#makeImage(account, auth, request, aspect));
     }
 
-    async #makeImage(auth: AgyAuth, request: { model: string; prompt: string; inputs: AgyImage[]; signal?: AbortSignal; conversationId?: ConversationId }, aspect: string): Promise<AgyImages> {
+    async #makeImage(
+        account: string,
+        auth: AgyAuth,
+        request: { model: string; prompt: string; inputs: AgyImage[]; signal?: AbortSignal; conversationId?: ConversationId },
+        aspect: string,
+    ): Promise<AgyImages> {
         const body = {
             project: auth.project,
-            requestId: await this.#imageRequestId(request.conversationId),
+            requestId: await this.#imageRequestId(account, request.conversationId),
             request: {
                 contents: [
                     {
@@ -711,9 +752,9 @@ export class AgyMedia {
         };
     }
 
-    /** A new dictation stream on the sign-in, with the catalog's transcription model. */
+    /** A new dictation stream on the original account's sign-in, with the catalog's transcription model. */
     async listen(): Promise<{ listen: AgyListen; model: string }> {
-        const auth = await this.#signedInAuth();
+        const auth = await this.#signedInAuth(AGY_PROVIDER);
         const model = await this.transcribeModel();
 
         return { listen: await AgyListen.open(this.#options.dictationUrl ?? AGY_DICTATION_URL, auth.token, model, this.#options.idleMs ?? IDLE_MS), model };
@@ -724,9 +765,9 @@ export class AgyMedia {
      * another, sent at once, its transcript once Google is done with it.
      */
     async transcribe(pcm: Uint8Array, signal?: AbortSignal): Promise<{ model: string; utterances: AgyUtterance[] }> {
-        const auth = await this.#signedInAuth();
+        const auth = await this.#signedInAuth(AGY_PROVIDER);
 
-        return this.#use(auth, true, () => this.#transcribe(pcm, signal));
+        return this.#use(AGY_PROVIDER, auth, true, () => this.#transcribe(pcm, signal));
     }
 
     async #transcribe(pcm: Uint8Array, signal?: AbortSignal): Promise<{ model: string; utterances: AgyUtterance[] }> {
@@ -759,7 +800,7 @@ export class AgyMedia {
     async startDictation(userId: string): Promise<{ dictation: string; model: string; rate: number }> {
         this.#sweep();
         // agy's background reads start beside it: the mic does not wait for them.
-        await this.#options.beforeUse?.(await this.#signedInAuth(), false);
+        await this.#options.beforeUse?.(AGY_PROVIDER, await this.#signedInAuth(AGY_PROVIDER), false);
         const { listen, model } = await this.listen();
         const id = randomUUID();
 
@@ -814,7 +855,7 @@ export class AgyMedia {
         try {
             return { text: await found.listen.finish() };
         } finally {
-            this.#options.afterUse?.();
+            this.#options.afterUse?.(AGY_PROVIDER);
         }
     }
 

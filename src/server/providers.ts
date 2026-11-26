@@ -13,6 +13,7 @@
 import { randomUUID } from "node:crypto";
 import type { AuthPrompt } from "@earendil-works/pi-ai";
 import type { ModelRef } from "@earendil-works/pi-durable";
+import { baseProvider } from "./accounts.ts";
 import { AGY_NAME, AGY_PROVIDER } from "./antigravity.ts";
 import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
@@ -358,17 +359,17 @@ export class Providers {
 
     /**
      * A sign-in that worked: Pi checks it, and a provider whose models come from its own list (Google Antigravity's,
-     * PP-555) gets them now, as Pi asks only its cache at a sign-in.
+     * PP-555, and each more account of it) gets them now, as Pi asks only its cache at a sign-in.
      */
     async #signedIn(providerId: string): Promise<void> {
         const models = this.#app.models;
 
-        if (providerId === AGY_PROVIDER) {
+        if (baseProvider(providerId) === AGY_PROVIDER) {
             const refreshed = await models.refresh({ providers: [providerId], allowNetwork: true, force: true });
             const failed = refreshed.errors.get(providerId);
 
             if (failed !== undefined) {
-                this.#app.log(`${AGY_NAME}: models not loaded after signing in: ${describe(failed)}`);
+                this.#app.log(`${providerId === AGY_PROVIDER ? AGY_NAME : providerId}: models not loaded after signing in: ${describe(failed)}`);
             }
         }
 

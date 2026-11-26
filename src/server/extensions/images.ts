@@ -16,6 +16,7 @@ import { arr, int, obj, opt, str, union } from "@earendil-works/pi-schema";
 import { literal } from "../tool-schema.ts";
 import { defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 import type { PocketHost } from "../host.ts";
+import { baseProvider } from "../accounts.ts";
 import { AGY_NAME, AGY_PROVIDER } from "../antigravity.ts";
 import { imageType } from "../image-meta.ts";
 import { ASPECTS, type Aspect, CODEX_PROVIDER, type ImageInput, MAX_COUNT, MAX_INPUT_IMAGES } from "../image-gen.ts";
@@ -214,7 +215,8 @@ export default function createImages(host: PocketHost) {
             }
 
             const codex = choice.provider === CODEX_PROVIDER;
-            const agy = choice.provider === AGY_PROVIDER;
+            // The original account's or one more account's (`google-antigravity~<slug>/<model>`).
+            const agy = baseProvider(choice.provider) === AGY_PROVIDER;
             const cost = codex
                 ? "on the ChatGPT plan (no charge in money)"
                 : agy

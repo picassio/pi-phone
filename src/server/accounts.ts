@@ -29,7 +29,17 @@ export type Account = {
     createdAt: number;
 };
 
-/** The providers that may have more than one account, by id: a new instance of each. */
+/**
+ * A new instance of a provider for the account `id` (`<provider>~<slug>`). pi-ai's factories need no id; the app's own
+ * providers whose instance keeps state per account (Google Antigravity's catalog and background reads) take it.
+ */
+export type AccountFactory = (id: string) => Provider;
+
+/**
+ * The providers that may have more than one account, by id: a new instance of each. The app adds its own that need the
+ * running app (Google Antigravity, `antigravity.ts`: its transport and reads are the app's), so a team server, which
+ * has none of them, offers only these.
+ */
 export const ACCOUNT_PROVIDERS: Readonly<Record<string, () => Provider>> = {
     anthropic: () => anthropicProvider() as unknown as Provider,
     "openai-codex": () => openaiCodexProvider() as unknown as Provider,
@@ -94,10 +104,15 @@ export function accountProvider(base: Provider, id: string, name: string): Provi
 export class Accounts {
     readonly #file: string;
     readonly #models: () => ModelRuntime;
-    readonly #bases: Readonly<Record<string, () => Provider>>;
+    readonly #bases: Readonly<Record<string, AccountFactory>>;
+    /**
+     * Each account's instance of its provider, made once: a rename wraps the same one under the new name, so what it
+     * holds (a model list fetched from the provider, as Google Antigravity's) stays.
+     */
+    readonly #instances = new Map<string, Provider>();
     #accounts: Account[];
 
-    constructor(dataDir: string, models: () => ModelRuntime, bases = ACCOUNT_PROVIDERS) {
+    constructor(dataDir: string, models: () => ModelRuntime, bases: Readonly<Record<string, AccountFactory>> = ACCOUNT_PROVIDERS) {
         this.#file = join(dataDir, FILE);
         this.#models = models;
         this.#bases = bases;
@@ -170,6 +185,7 @@ export class Accounts {
         }
 
         models.unregisterProvider(id);
+        this.#instances.delete(id);
         this.#accounts = this.#accounts.filter((each) => each.id !== id);
         this.#save();
     }
@@ -191,7 +207,10 @@ export class Accounts {
             throw new Error(`No provider ${account.provider} for the account ${account.name}`);
         }
 
-        this.#models().registerNativeProvider(accountProvider(make(), account.id, account.name));
+        const base = this.#instances.get(account.id) ?? make(account.id);
+
+        this.#instances.set(account.id, base);
+        this.#models().registerNativeProvider(accountProvider(base, account.id, account.name));
     }
 
     #save(): void {

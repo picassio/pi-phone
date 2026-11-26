@@ -11,7 +11,7 @@ import { execFile, spawn } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { promisify } from "node:util";
 import { sshArguments } from "@earendil-works/pi-env";
-import { Accounts, baseProvider, isTeamAccount } from "./accounts.ts";
+import { ACCOUNT_PROVIDERS, Accounts, baseProvider, isTeamAccount } from "./accounts.ts";
 import { AGY_PROVIDER, type AgyOptions, antigravity } from "./antigravity.ts";
 import { AgyMedia, type AgyMediaOptions } from "./antigravity-media.ts";
 import { CustomProviders, NO_KEY } from "./custom-providers.ts";
@@ -853,7 +853,11 @@ export class PocketApp {
         this.mcpTools.onChange(() => this.#mcpChanged());
         // The team server's machines this person may use (PP-82): into Machines, reached through its relay and agent.
         this.teamMachines = new TeamMachinesClient(this.#teamServer, sshDir, (line) => this.log(line), (entries, manage) => this.machines.setTeam(entries, manage));
-        this.accounts = new Accounts(options.dataDir, () => this.models, options.accountProviders);
+        // Google Antigravity's more accounts too (PP-555): each an instance of the app's provider, its reads its own.
+        this.accounts = new Accounts(options.dataDir, () => this.models, {
+            ...(options.accountProviders ?? ACCOUNT_PROVIDERS),
+            [AGY_PROVIDER]: (id) => this.#antigravity.accountProvider(id),
+        });
         this.customProviders = new CustomProviders({
             secrets: this.secrets,
             models: () => this.models,
@@ -872,33 +876,42 @@ export class PocketApp {
             ...options.videos,
         });
         this.agyMedia = new AgyMedia({
-            apiKey: async () => {
-                if (!this.models.hasConfiguredAuth(AGY_PROVIDER)) {
+            // An account's own sign-in: the original's, or one more account's (`google-antigravity~<slug>`).
+            apiKey: async (account) => {
+                if (baseProvider(account) !== AGY_PROVIDER || !this.models.hasConfiguredAuth(account)) {
                     return undefined;
                 }
 
-                const key = (await this.models.getAuth(AGY_PROVIDER))?.auth.apiKey;
+                const key = (await this.models.getAuth(account))?.auth.apiKey;
 
                 return key === undefined || key === "" ? undefined : key;
             },
-            // As one agy: the provider's transport, catalog and background reads (PP-558).
+            accounts: async () =>
+                [
+                    { id: AGY_PROVIDER },
+                    ...this.accounts
+                        .list()
+                        .filter((account) => account.provider === AGY_PROVIDER)
+                        .map((account) => ({ id: account.id, name: account.name })),
+                ].filter((account) => this.models.getProvider(account.id) !== undefined && this.models.hasConfiguredAuth(account.id)),
+            // As one agy: the provider's transport, and each account's catalog and background reads (PP-558).
             send: this.#antigravity.send,
-            catalog: (auth, signal) => this.#antigravity.catalog(auth, signal),
-            beforeUse: async (auth, wait) => {
-                const started = this.#antigravity.background.beforeTurn(AGY_PROVIDER, auth, undefined);
+            catalog: (account, auth, signal) => this.#antigravity.catalog(account, auth, signal),
+            beforeUse: async (account, auth, wait) => {
+                const started = this.#antigravity.background.beforeTurn(account, auth, undefined);
 
                 if (wait) {
                     await started;
                 } else {
-                    started.catch((error: unknown) => this.log(`${AGY_PROVIDER}: background reads: ${describe(error)}`));
+                    started.catch((error: unknown) => this.log(`${account}: background reads: ${describe(error)}`));
                 }
             },
-            afterUse: () => this.#antigravity.background.afterTurn(AGY_PROVIDER),
-            // A tool call of a session on Antigravity: the agent request it came from.
-            stepOf: async (id) => {
+            afterUse: (account) => this.#antigravity.background.afterTurn(account),
+            // A tool call of a session on this Antigravity account's models: the agent request it came from.
+            stepOf: async (id, account) => {
                 const model = (await this.agentState(id))?.model;
 
-                if (model?.provider !== AGY_PROVIDER) {
+                if (model?.provider !== account) {
                     return undefined;
                 }
 
@@ -8246,8 +8259,7 @@ export class PocketApp {
         this.#closing ??= (async () => {
             clearTimeout(this.#sessionsTimer);
             clearInterval(this.#browserSweep);
-            this.#antigravity.background.stop();
-            this.#antigravity.clearcut.close();
+            this.#antigravity.close();
             // First: a look at idle sessions that fired while the rest closes read a closed storage ("Session is closed").
             this.paraCapture.stop();
             this.phoneControl.close();

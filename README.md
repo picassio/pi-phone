@@ -214,9 +214,11 @@ No Termux, no laptop, no cloud VM.
   model comes right after the current one in your model picker, which gets a **Favorites** filter. Stars are yours, on
   every device; they allow nothing (subagents' models are in Menu › Subagents). Pi sees them in its `models` tool
   (`favorites: true` lists only them) and changes them on a card (`models.favorites`).
-- **More than one account.** Add a second (or third) Claude, Codex, or Copilot account in Providers; each has its
-  own sign-in, and its models are listed per account ("Claude Opus · Work"). A session uses the account of the
-  model you pick for it, so you can start a session on any account or move one to another.
+- **More than one account.** Add a second (or third) Claude, Codex, Copilot, or Google Antigravity account in
+  Providers; each has its own sign-in, and its models are listed per account ("Claude Opus · Work"). A session uses
+  the account of the model you pick for it, so you can start a session on any account or move one to another. An
+  Antigravity account has its own Google project, quota bars and image models (`google-antigravity~work/…` in
+  Menu › Images); Antigravity's dictation and transcription stay on the first account.
 - **Plan usage.** Each Claude, Codex, Copilot, and Google Antigravity account's limits as its own app shows them: the
   5-hour and weekly windows (Copilot: the month's premium requests; Antigravity: per group of models), with reset times, as bars in Providers, in the model menu, and as a
   meter in the session's top bar that opens to every window. At 90% of a window the session says so, with **Switch to** your other
