@@ -8,6 +8,7 @@ import { appSettings } from "../src/server/settings-registry.ts";
 import type { User } from "../src/server/config.ts";
 import { createHandler } from "../src/server/http.ts";
 import { FakeOpenAI, TOKEN } from "./support/fake-openai.ts";
+import { keyedProvider } from "./support/keyed-provider.ts";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
@@ -103,7 +104,12 @@ before(async () => {
     openai = await new FakeOpenAI().start();
     app = await openApp(scriptedModel(), join(root, "voice-data"), () => clock, {
         log: (line) => logs.push(line),
-        voice: { endpoints: openai.endpoints, auth: async () => ({ token: TOKEN, account: "acct-1" }) },
+        // The original ChatGPT account, and one more (accounts.ts) told apart by its ChatGPT account id; `openai-codex~off` is not signed in.
+        voice: {
+            endpoints: openai.endpoints,
+            auth: async (account) => (account === "openai-codex" ? { token: TOKEN, account: "acct-1" } : account === "openai-codex~work" ? { token: TOKEN, account: "acct-work" } : undefined),
+        },
+        accountProviders: { "openai-codex": () => keyedProvider(scriptedModel().provider as never) },
     });
     server = createServer(createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }));
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -470,6 +476,45 @@ test("Codex dictation: a key for a transcription session with the dictation mode
     assert.equal((await call(`voice/dictation/${dictation.dictation}/end`, {})).status, 200);
     assert.equal(app.spend.voiceSummary().today.dictation, before + 12);
     await app.setVoice(owner(app), { engine: "android", language: "auto" });
+});
+
+test("Settings › Voice's ChatGPT account (voice.codexAccount): calls and Codex dictation run on it, its models checked when it changes; one not signed in is refused; the original stays the default", async () => {
+    assert.equal(app.config.voice.codexAccount, "openai-codex", "the original by default");
+    app.accounts.add("openai-codex", "Work");
+    app.accounts.add("openai-codex", "Off");
+
+    try {
+        await assert.rejects(app.setVoice(owner(app), { codexAccount: "openai-codex~nope" }), /There is no account openai-codex~nope/);
+        await assert.rejects(app.setVoice(owner(app), { codexAccount: "anthropic" }), /voice.codexAccount is openai-codex/);
+        await assert.rejects(app.setVoice(owner(app), { codexAccount: "openai-codex~off" }), /openai-codex~off, which is not signed in/);
+        assert.equal(app.config.voice.codexAccount, "openai-codex", "a refusal keeps nothing");
+
+        const checked = openai.requests.length;
+
+        await app.setVoice(owner(app), { codexAccount: "openai-codex~work", engine: "codex" });
+        assert.equal(app.config.voice.codexAccount, "openai-codex~work");
+        const checks = openai.requests.slice(checked);
+
+        assert.ok(checks.length >= 2, "the live and dictation models are checked again on it");
+        assert.ok(checks.every((each) => each.headers["chatgpt-account-id"] === "acct-work"));
+
+        const from = openai.requests.length;
+        const answer = await call("voice/dictation", {});
+
+        assert.equal(answer.status, 200, answer.text);
+        assert.deepEqual(
+            openai.requests.slice(from).map((each) => each.headers["chatgpt-account-id"]),
+            ["acct-work"],
+            "Codex dictation's key is minted on the account",
+        );
+        assert.equal((await call(`voice/dictation/${(answer.json as { dictation: string }).dictation}/end`, {})).status, 200);
+    } finally {
+        await app.setVoice(owner(app), { codexAccount: "openai-codex", engine: "android" });
+        await app.accounts.remove("openai-codex~work");
+        await app.accounts.remove("openai-codex~off");
+    }
+
+    assert.ok(openai.requests.at(-1)!.headers["chatgpt-account-id"] === "acct-1", "back on the original, checked on it");
 });
 
 test("voice is the owner's: another person cannot call on the owner's sign-in", async () => {

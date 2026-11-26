@@ -29,7 +29,17 @@ export type Account = {
     createdAt: number;
 };
 
-/** The providers that may have more than one account, by id: a new instance of each. */
+/**
+ * A new instance of a provider for the account `id` (`<provider>~<slug>`). pi-ai's factories need no id; the app's own
+ * providers whose instance keeps state per account (Google Antigravity's catalog and background reads) take it.
+ */
+export type AccountFactory = (id: string) => Provider;
+
+/**
+ * The providers that may have more than one account, by id: a new instance of each. The app adds its own that need the
+ * running app (Google Antigravity, `antigravity.ts`: its transport and reads are the app's), so a team server, which
+ * has none of them, offers only these.
+ */
 export const ACCOUNT_PROVIDERS: Readonly<Record<string, () => Provider>> = {
     anthropic: () => anthropicProvider() as unknown as Provider,
     "openai-codex": () => openaiCodexProvider() as unknown as Provider,
@@ -52,6 +62,24 @@ export function baseProvider(providerId: string): string {
 
     return at === -1 ? providerId : providerId.slice(0, at);
 }
+
+/** Whether `id` is `base` itself or one more account of it made here (`openai-codex~work`; not a team account). */
+export const isAccountOf = (id: string, base: string): boolean =>
+    id === base || (id.startsWith(`${base}${SEPARATOR}`) && !isTeamAccount(id) && /^[a-z0-9-]+$/.test(id.slice(base.length + 1)));
+
+/**
+ * A setting's value that may name an account (`openai-codex~work/gpt-4o-transcribe`): the account, when its first part
+ * is one more account of `base`, and the rest; otherwise `base` itself (the original account) and the whole value.
+ */
+export function accountPart(value: string, base: string): { account: string; rest: string } {
+    const slash = value.indexOf("/");
+    const head = slash === -1 ? "" : value.slice(0, slash);
+
+    return head !== base && isAccountOf(head, base) ? { account: head, rest: value.slice(slash + 1) } : { account: base, rest: value };
+}
+
+/** One account of a provider as a setting offers it: its id, and its name when it is one more account (`accounts.ts`). */
+export type AccountChoice = { id: string; name?: string };
 
 /**
  * A provider for an account: `base` (a new instance) under `id`, its name with the account's, its models labelled with
@@ -94,22 +122,49 @@ export function accountProvider(base: Provider, id: string, name: string): Provi
 export class Accounts {
     readonly #file: string;
     readonly #models: () => ModelRuntime;
-    readonly #bases: Readonly<Record<string, () => Provider>>;
+    readonly #bases: Readonly<Record<string, AccountFactory>>;
+    /**
+     * Each account's instance of its provider, made once: a rename wraps the same one under the new name, so what it
+     * holds (a model list fetched from the provider, as Google Antigravity's) stays.
+     */
+    readonly #instances = new Map<string, Provider>();
+    /** Providers whose accounts are kept apart in the file (`newer`), where builds before them do not read them. */
+    readonly #apart: ReadonlySet<string>;
+    readonly #log: (line: string) => void;
     #accounts: Account[];
 
-    constructor(dataDir: string, models: () => ModelRuntime, bases = ACCOUNT_PROVIDERS) {
+    constructor(
+        dataDir: string,
+        models: () => ModelRuntime,
+        bases: Readonly<Record<string, AccountFactory>> = ACCOUNT_PROVIDERS,
+        options: { apart?: ReadonlySet<string>; log?: (line: string) => void } = {},
+    ) {
         this.#file = join(dataDir, FILE);
         this.#models = models;
         this.#bases = bases;
-        this.#accounts = existsSync(this.#file)
-            ? (JSON.parse(readFileSync(this.#file, "utf8")) as { accounts: Account[] }).accounts
-            : [];
+        this.#apart = options.apart ?? new Set();
+        this.#log = options.log ?? (() => {});
+        const stored = existsSync(this.#file) ? (JSON.parse(readFileSync(this.#file, "utf8")) as { accounts?: Account[]; newer?: Account[] }) : {};
+
+        this.#accounts = [...(stored.accounts ?? []), ...(stored.newer ?? [])];
     }
 
-    /** Each account as a provider: as the app opens, before any session resumes. */
+    /**
+     * Each account as a provider: as the app opens, before any session resumes. An account of a provider this build
+     * does not have (one a newer build made) is left out, said in the log, and kept in the file for that build.
+     */
     registerAll(): void {
         for (const account of this.#accounts) {
-            this.#register(account);
+            if (this.#bases[account.provider] === undefined) {
+                this.#log(`accounts: ${account.id} left out: this build has no provider ${account.provider}`);
+                continue;
+            }
+
+            try {
+                this.#register(account);
+            } catch (error) {
+                this.#log(`accounts: ${account.id} left out: ${error instanceof Error ? error.message : String(error)}`);
+            }
         }
     }
 
@@ -170,6 +225,7 @@ export class Accounts {
         }
 
         models.unregisterProvider(id);
+        this.#instances.delete(id);
         this.#accounts = this.#accounts.filter((each) => each.id !== id);
         this.#save();
     }
@@ -191,11 +247,21 @@ export class Accounts {
             throw new Error(`No provider ${account.provider} for the account ${account.name}`);
         }
 
-        this.#models().registerNativeProvider(accountProvider(make(), account.id, account.name));
+        const base = this.#instances.get(account.id) ?? make(account.id);
+
+        this.#instances.set(account.id, base);
+        this.#models().registerNativeProvider(accountProvider(base, account.id, account.name));
     }
 
+    /**
+     * The file: `accounts` holds the accounts every build with accounts reads; `newer` those of providers added later
+     * (Google Antigravity), which a build from before them never reads, so going back to one does not stop its start.
+     */
     #save(): void {
-        writeFileSync(this.#file, `${JSON.stringify({ accounts: this.#accounts }, null, 2)}\n`, { mode: 0o600 });
+        const accounts = this.#accounts.filter((each) => !this.#apart.has(each.provider));
+        const newer = this.#accounts.filter((each) => this.#apart.has(each.provider));
+
+        writeFileSync(this.#file, `${JSON.stringify({ accounts, ...(newer.length === 0 ? {} : { newer }) }, null, 2)}\n`, { mode: 0o600 });
     }
 }
 

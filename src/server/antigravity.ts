@@ -489,19 +489,33 @@ export function antigravityProvider(options: AgyOptions = {}): Provider {
 /** A conversation's last agent request: its trajectory and the number its `requestId` ends with. */
 export type AgyStep = { trajectory: string; step: number };
 
-/** What `antigravity()` gives the app: the provider, and what agy's other features share with it, as in one agy. */
+/**
+ * What `antigravity()` gives the app: the provider, and what agy's other features share with it, as in one agy. Each
+ * account (`google-antigravity` and the more accounts of `accounts.ts`, `google-antigravity~<slug>`) has its own
+ * catalog, background reads and telemetry, keyed by its provider id; the transport and the conversations' steps are one.
+ */
 export type AgyRuntime = {
+    /** The original account's provider. */
     provider: Provider;
+    /**
+     * A provider instance for one more account (`accounts.ts` wraps it under the account's id): its id is the original's,
+     * as the wrapper hands it the models under that id, and what it keeps (catalog, reads, telemetry) is `account`'s.
+     */
+    accountProvider: (account: string) => Provider;
     /** agy's background reads for its accounts (the usage bars read the quota from them). */
     background: AgyBackground<AgyAuth>;
     /** The one transport (one pool of connections, as Go's one transport) every HTTP/1.1 request of agy's goes on. */
     send: AgySend;
-    /** The model list Google gave last (refreshed by the background reads), asked once when there is none. */
-    catalog: (auth: AgyAuth, signal?: AbortSignal) => Promise<AgyCatalog>;
+    /** The model list Google gave an account last (refreshed by its background reads), asked once when there is none. */
+    catalog: (account: string, auth: AgyAuth, signal?: AbortSignal) => Promise<AgyCatalog>;
     /** A conversation's last agent request (by Pi's provider session id), for the ids of a tool call it made. */
     lastStep: (sessionId: string) => AgyStep | undefined;
-    /** Clearcut telemetry client for session events (PP-559). */
+    /** Clearcut telemetry client for session events of the original account (PP-559). */
     clearcut: ClearcutClient;
+    /** An account's Clearcut client, on that account's own token. */
+    clearcutFor: (account: string) => ClearcutClient;
+    /** The app closes: no more background reads nor telemetry, for any account. */
+    close: () => void;
 };
 
 /** How many conversations' last steps are kept. */
@@ -513,28 +527,39 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
     const send = options.send ?? agyTlsTransport({ appRoot: APP_ROOT, fallback: agyTransport(), ...(options.log === undefined ? {} : { log: options.log }) });
     const now = options.now ?? Date.now;
     const sleep = options.sleep ?? sleepFor;
-    /** The last model list Google gave, for each request's model and settings; asked once after a start. */
-    let catalog: AgyCatalog | undefined;
-    let asking: Promise<AgyCatalog> | undefined;
+    /** The last model list Google gave each account, for each request's model and settings; asked once after a start. */
+    const catalogs = new Map<string, AgyCatalog>();
+    const asking = new Map<string, Promise<AgyCatalog>>();
     /** Each conversation's last agent request, newest last. */
     const steps = new Map<string, AgyStep>();
 
-    // Clearcut telemetry client (PP-559): sends usage events to play.googleapis.com as agy does.
-    const clearcut = new ClearcutClient({
-        send,
-        auth: async () => {
-            const apiKey = await options.auth?.(AGY_PROVIDER);
-            if (!apiKey) return undefined;
-            try {
-                const auth = parseAuth(apiKey);
-                return { token: auth.token };
-            } catch {
-                return undefined;
-            }
-        },
-        platform: options.platform,
-        log: options.log,
-    });
+    // Clearcut telemetry clients (PP-559), one per account on its own token: usage events to play.googleapis.com as agy sends them.
+    const clearcuts = new Map<string, ClearcutClient>();
+    const clearcutFor = (account: string): ClearcutClient => {
+        let client = clearcuts.get(account);
+
+        if (client === undefined) {
+            client = new ClearcutClient({
+                send,
+                auth: async () => {
+                    const apiKey = await options.auth?.(account);
+                    if (!apiKey) return undefined;
+                    try {
+                        const auth = parseAuth(apiKey);
+                        return { token: auth.token };
+                    } catch {
+                        return undefined;
+                    }
+                },
+                platform: options.platform,
+                log: options.log,
+            });
+            clearcuts.set(account, client);
+        }
+
+        return client;
+    };
+    const clearcut = clearcutFor(AGY_PROVIDER);
 
     const post = async (url: string, headers: Record<string, string>, body: string | undefined, signal?: AbortSignal): Promise<string> => {
         const response = await send(url, { ...(body === undefined ? { method: "GET" as const } : { body }), headers, ...(signal === undefined ? {} : { signal }) });
@@ -559,7 +584,7 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
         JSON.parse(await post(url, goHeaders(url, { "User-Agent": userAgent, Authorization: `Bearer ${auth.token}` }), undefined));
 
     /** agy's background reads, each as agy sends it. */
-    const read = async (_provider: string, auth: AgyAuth, name: AgyRead): Promise<unknown> => {
+    const read = async (account: string, auth: AgyAuth, name: AgyRead): Promise<unknown> => {
         switch (name) {
             case "userinfo":
                 return getJson(USERINFO_URL, auth, "Go-http-client/1.1");
@@ -569,10 +594,13 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
                 return getJson(`${HOST}/v1internal/cascadeNuxes?page_size=1000`, auth);
             case "loadCodeAssist":
                 return cloudCode(name, auth, { metadata: { ideType: "ANTIGRAVITY" } });
-            case "fetchAvailableModels":
-                catalog = await cloudCode<AgyCatalog>(name, auth, { project: auth.project });
+            case "fetchAvailableModels": {
+                const answer = await cloudCode<AgyCatalog>(name, auth, { project: auth.project });
 
-                return catalog;
+                catalogs.set(account, answer);
+
+                return answer;
+            }
             default:
                 return cloudCode(name, auth, { project: auth.project });
         }
@@ -589,23 +617,30 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
         now,
     });
 
-    const fetchCatalog = (auth: AgyAuth, signal?: AbortSignal): Promise<AgyCatalog> =>
+    const fetchCatalog = (account: string, auth: AgyAuth, signal?: AbortSignal): Promise<AgyCatalog> =>
         cloudCode<AgyCatalog>("fetchAvailableModels", auth, { project: auth.project }, signal).then((answer) => {
-            catalog = answer;
+            catalogs.set(account, answer);
 
             return answer;
         });
 
-    const catalogFor = (auth: AgyAuth, signal?: AbortSignal): Promise<AgyCatalog> => {
-        if (catalog !== undefined) {
-            return Promise.resolve(catalog);
+    const catalogFor = (account: string, auth: AgyAuth, signal?: AbortSignal): Promise<AgyCatalog> => {
+        const kept = catalogs.get(account);
+
+        if (kept !== undefined) {
+            return Promise.resolve(kept);
         }
 
-        asking ??= fetchCatalog(auth, signal).finally(() => {
-            asking = undefined;
-        });
+        let pending = asking.get(account);
 
-        return asking;
+        if (pending === undefined) {
+            pending = fetchCatalog(account, auth, signal).finally(() => {
+                asking.delete(account);
+            });
+            asking.set(account, pending);
+        }
+
+        return pending;
     };
 
     /** Google's token endpoint, as agy's Go client asks it: the form by name, agy's client in it. */
@@ -703,7 +738,7 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
      * Sign in as agy does on a machine with no browser: Google's consent page (agy's client, PKCE S256, its scopes, its
      * redirect), the code its page shows pasted back, traded for tokens, then the account's project.
      */
-    const login = async (interaction: ProviderAuthInteraction): Promise<OAuthCredential> => {
+    const login = async (account: string, interaction: ProviderAuthInteraction): Promise<OAuthCredential> => {
         interaction.notify({ type: "info", message: AGY_RISK });
         // Go's oauth2.GenerateVerifier: 32 random bytes; agy's state: 16.
         const verifier = randomBytes(32).toString("base64url");
@@ -740,12 +775,23 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
         };
         const projectId = await projectOf(authOf(credential), interaction);
 
-        catalog = undefined;
+        // Another Google account may be signed in now: its own catalog, asked again.
+        catalogs.delete(account);
 
         return { ...credential, projectId };
     };
 
-    const stream = (model: Model<Api>, context: TranscriptContext, streamOptions: StreamOptions | undefined, reasoning: ModelThinkingLevel | undefined) => {
+    /**
+     * One turn on `account`'s sign-in (`streamOptions.apiKey` is its `toAuth`). The model comes with the original's id
+     * (`accounts.ts` hands it so), so the account is the instance's, not the model's.
+     */
+    const stream = (
+        account: string,
+        model: Model<Api>,
+        context: TranscriptContext,
+        streamOptions: StreamOptions | undefined,
+        reasoning: ModelThinkingLevel | undefined,
+    ) => {
         const events$ = createAssistantMessageEventStream();
         const normalized = collapseSystemMessages(context);
 
@@ -769,12 +815,12 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
                 const signal = streamOptions?.signal;
 
                 // agy's start when it is not running for this account, and its reads at a conversation's first turn.
-                await background.beforeTurn(model.provider, auth, streamOptions?.sessionId);
-                ended = () => background.afterTurn(model.provider);
+                await background.beforeTurn(account, auth, streamOptions?.sessionId);
+                ended = () => background.afterTurn(account);
                 const level = model.reasoning ? clampThinkingLevel(model, reasoning ?? "off") : undefined;
                 const suffix = level === undefined ? undefined : model.thinkingLevelMap?.[level];
                 const agyId = typeof suffix === "string" ? `${model.id}-${suffix}` : model.id;
-                const info = (await catalogFor(auth, signal)).models?.[agyId];
+                const info = (await catalogFor(account, auth, signal)).models?.[agyId];
 
                 if (info === undefined) {
                     throw new Error(`Antigravity does not offer ${agyId} now: refresh the models (Settings › Providers › Refresh models).`);
@@ -972,29 +1018,53 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
         return events$;
     };
 
-    const provider = createProvider({
-        id: AGY_PROVIDER,
-        name: AGY_NAME,
-        baseUrl: HOST,
-        auth: {
-            oauth: {
-                name: AGY_NAME,
-                isSubscription: true,
-                loginLabel: "Sign in with Google",
-                login,
-                refresh: async (credential, signal) => renew(agyCredential(credential), signal),
-                toAuth: async (credential): Promise<ModelAuth> => ({ apiKey: JSON.stringify(authOf(agyCredential(credential))) }),
+    /** The provider for one account, under the original's id: each account's sign-in, catalog and reads are its own. */
+    const providerFor = (account: string): Provider =>
+        createProvider({
+            id: AGY_PROVIDER,
+            name: AGY_NAME,
+            baseUrl: HOST,
+            auth: {
+                oauth: {
+                    name: AGY_NAME,
+                    isSubscription: true,
+                    loginLabel: "Sign in with Google",
+                    login: (interaction) => login(account, interaction),
+                    refresh: async (credential, signal) => renew(agyCredential(credential), signal),
+                    toAuth: async (credential): Promise<ModelAuth> => ({ apiKey: JSON.stringify(authOf(agyCredential(credential))) }),
+                },
             },
-        },
-        models: [],
-        fetchModels: async (context) => catalogModels(await fetchCatalog(authOf(agyCredential(context.credential)), context.signal)),
-        api: {
-            stream: (model, context, streamOptions) => stream(model, context, streamOptions, undefined),
-            streamSimple: (model, context, streamOptions?: SimpleStreamOptions) => stream(model, context, streamOptions, streamOptions?.reasoning),
-        },
-    });
+            models: [],
+            fetchModels: async (context) => catalogModels(await fetchCatalog(account, authOf(agyCredential(context.credential)), context.signal)),
+            api: {
+                stream: (model, context, streamOptions) => stream(account, model, context, streamOptions, undefined),
+                streamSimple: (model, context, streamOptions?: SimpleStreamOptions) => stream(account, model, context, streamOptions, streamOptions?.reasoning),
+            },
+        });
 
-    return { provider, background, send, catalog: catalogFor, lastStep: (sessionId) => steps.get(sessionId), clearcut };
+    return {
+        provider: providerFor(AGY_PROVIDER),
+        accountProvider: (account) => {
+            if (account === AGY_PROVIDER || !account.startsWith(`${AGY_PROVIDER}~`)) {
+                throw new Error(`${account} is not an account of ${AGY_PROVIDER}`);
+            }
+
+            return providerFor(account);
+        },
+        background,
+        send,
+        catalog: catalogFor,
+        lastStep: (sessionId) => steps.get(sessionId),
+        clearcut,
+        clearcutFor,
+        close: () => {
+            background.stop();
+
+            for (const client of clearcuts.values()) {
+                client.close();
+            }
+        },
+    };
 }
 
 /**

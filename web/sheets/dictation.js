@@ -13,6 +13,10 @@ export function DictationSheet() {
     // Google Antigravity (PP-557): offered while it is signed in; picked, it says so even when signed out since.
     const agy = voice?.settings.engine === "antigravity";
     const android = !codex && !agy;
+    // The account who listens is on (src/server/accounts.ts): offered when more than one of its accounts is signed in.
+    const accounts = codex ? (voice?.accounts?.codex ?? []) : agy ? (voice?.accounts?.agy ?? []) : [];
+    const accountKey = codex ? "codexAccount" : "agyAccount";
+    const account = voice?.settings[accountKey];
     const language = voice?.settings.language ?? "auto";
     // The mic in the message box (PP-384): the person's, on all their devices; Pi's `dictation.micButton`. Hidden until
     // turned on: a missing value is off.
@@ -62,6 +66,19 @@ export function DictationSheet() {
                         <button class="link small" onClick=${() => openSheet({ type: "voice" })}>${t("Voice settings")}</button>
                     </p>
                 </div>
+            </div>`
+        }
+        ${
+            (accounts.length > 1 || (account !== undefined && accounts.length > 0 && !accounts.some((each) => each.id === account))) &&
+            html`<div class="field" data-part="dictation-account">
+                <div class="label">${t("Account")}</div>
+                <${Choice}
+                    label=${t("Account")}
+                    value=${account}
+                    options=${accounts.map((each) => ({ value: each.id, label: each.name ?? t("Default account") }))}
+                    onChange=${(value) => attempt(() => api("settings", { voice: { [accountKey]: value } }))}
+                />
+                <p class="muted small">${codex ? t("Codex dictation and voice calls run on this ChatGPT account.") : t("Google Antigravity's dictation runs on this account.")}</p>
             </div>`
         }
         <div class="field" data-part="dictation-language">

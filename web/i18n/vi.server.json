@@ -767,10 +767,10 @@
     "Send a thinking level: {1}, or session.": "Gửi một mức suy nghĩ: {1}, hoặc session.",
     "Thinking is one of {1}, or session.": "Mức suy nghĩ là một trong {1}, hoặc session.",
     "Thinking is one of {1}, session, or inherit.": "Mức suy nghĩ là một trong {1}, session, hoặc inherit.",
-    "{1} is not a transcription model: {2}.": "{1} không phải mô hình chép lời: {2}.",
+    "{1} is not a transcription model: {2}, or one of them on another account (Menu › Audio lists them).": "{1} không phải mô hình chép lời: {2}, hoặc một trong số đó trên tài khoản khác (Menu › Âm thanh liệt kê chúng).",
     "This server has no ffmpeg to make the sample with.": "Máy chủ này không có ffmpeg để tạo mẫu.",
     "Choose one of: {1}, or none for the default.": "Chọn một trong: {1}, hoặc none để dùng mặc định.",
-    "{1} is not a speaking model: {2}.": "{1} không phải mô hình đọc: {2}.",
+    "{1} is not a speaking model: {2}, or one of them on another account (Menu › Audio lists them).": "{1} không phải mô hình đọc: {2}, hoặc một trong số đó trên tài khoản khác (Menu › Âm thanh liệt kê chúng).",
     "{1} is not a voice: {2}.": "{1} không phải một giọng: {2}.",
     "Audio needs the ChatGPT (Codex) sign-in: add it in Settings › Providers.": "Âm thanh cần đăng nhập ChatGPT (Codex): thêm trong Cài đặt › Nhà cung cấp.",
     "Rank with Jev takes a Jev model's OpenRouter id (typesafe/jev-1.14), off, or default.": "Xếp hạng bằng Jev nhận mã OpenRouter của một mô hình Jev (typesafe/jev-1.14), off, hoặc default.",
@@ -841,5 +841,12 @@
     "There is no MCP server {1}.": "Không có máy chủ MCP {1}.",
     "enabled is true or false.": "enabled là true hoặc false.",
     "There is no MCP server {1}. MCP servers: {2}.": "Không có máy chủ MCP {1}. Các máy chủ MCP: {2}.",
-    "{1} changed since it was approved: turn it on with set_mcp_server (action enable), whose card shows the entry.": "{1} đã đổi từ lúc được duyệt: bật nó bằng set_mcp_server (action enable), thẻ của lệnh đó hiện toàn bộ mục."
+    "{1} changed since it was approved: turn it on with set_mcp_server (action enable), whose card shows the entry.": "{1} đã đổi từ lúc được duyệt: bật nó bằng set_mcp_server (action enable), thẻ của lệnh đó hiện toàn bộ mục.",
+    "Dictation by Google Antigravity on {1} needs that account's sign-in: sign in to it in Settings › Providers first.": "Nhập giọng nói bằng Google Antigravity trên {1} cần đăng nhập tài khoản đó: hãy đăng nhập nó ở Cài đặt › Nhà cung cấp trước.",
+    "There is no account {1}: Settings › Providers lists them.": "Không có tài khoản {1}: Cài đặt › Nhà cung cấp liệt kê các tài khoản.",
+    "The transcription model {1} needs that {2} account's sign-in: sign in to it in Settings › Providers, or pick another model in Menu › Audio.": "Mô hình chép lời {1} cần đăng nhập tài khoản {2} đó: đăng nhập nó ở Cài đặt › Nhà cung cấp, hoặc chọn mô hình khác ở Menu › Âm thanh.",
+    "Audio on {1} needs that ChatGPT account's sign-in: sign in to it in Settings › Providers, or pick another model in Menu › Audio.": "Âm thanh trên {1} cần đăng nhập tài khoản ChatGPT đó: đăng nhập nó ở Cài đặt › Nhà cung cấp, hoặc chọn mô hình khác ở Menu › Âm thanh.",
+    "voice.codexAccount is openai-codex, or one more ChatGPT account's id, like openai-codex~work.": "voice.codexAccount là openai-codex, hoặc id của một tài khoản ChatGPT khác, như openai-codex~work.",
+    "voice.agyAccount is google-antigravity, or one more Google Antigravity account's id, like google-antigravity~work.": "voice.agyAccount là google-antigravity, hoặc id của một tài khoản Google Antigravity khác, như google-antigravity~work.",
+    "Voice is set to the ChatGPT account {1}, which is not signed in: sign in to it in Settings › Providers, or pick another account in Settings › Voice.": "Giọng nói đang đặt tài khoản ChatGPT {1}, tài khoản này chưa đăng nhập: đăng nhập nó ở Cài đặt › Nhà cung cấp, hoặc chọn tài khoản khác ở Cài đặt › Giọng nói."
 }

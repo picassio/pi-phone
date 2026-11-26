@@ -20,6 +20,7 @@
  * image model, else Antigravity's first, else none: then the tool fails, saying to set up a provider.
  */
 import type { ConversationId } from "@earendil-works/pi-durable";
+import { type AccountChoice, baseProvider } from "./accounts.ts";
 import { AGY_NAME, AGY_PROVIDER } from "./antigravity.ts";
 import type { AgyMedia } from "./antigravity-media.ts";
 import { HttpError } from "./errors.ts";
@@ -62,7 +63,14 @@ export type ImageModelChoice = {
     price?: { imageOut?: number; input?: number };
     /** Whether the model answers with text beside its images (OpenRouter's output_modalities). */
     text: boolean;
+    /** The name of the account it is made on, for one more account of a provider (`accounts.ts`). */
+    account?: string;
 };
+
+/** Whether a provider id is Google Antigravity's, the original account or one more. */
+const isAgy = (provider: string) => baseProvider(provider) === AGY_PROVIDER;
+/** Whether a provider id is ChatGPT's (Codex), the original account or one more. */
+const isCodex = (provider: string) => baseProvider(provider) === CODEX_PROVIDER;
 
 export type ImageInput = { mimeType: string; data: Uint8Array };
 
@@ -82,8 +90,10 @@ export type CustomImageProvider = { id: string; name: string; baseUrl: string; h
 type OpenRouterModel = { id: string; name: string; text: boolean; price?: { imageOut?: number; input?: number } };
 
 export type ImageGenOptions = {
-    /** The ChatGPT sign-in's token and account, or undefined when there is none. */
-    codexAuth(): Promise<{ token: string; account?: string } | undefined>;
+    /** A ChatGPT (Codex) account's token and ChatGPT account id (`openai-codex` or `openai-codex~<slug>`), or undefined when it is not signed in. */
+    codexAuth(account: string): Promise<{ token: string; account?: string } | undefined>;
+    /** The ChatGPT accounts there are, the original first; those signed in list ChatGPT Images. Default: the original alone. */
+    codexAccounts?(): Promise<AccountChoice[]>;
     /** The OpenRouter sign-in's key, or undefined. */
     openRouterKey(): Promise<string | undefined>;
     /** The owner's OpenAI-compatible providers Pi can use now, and their key (undefined: none, as for a local server). */
@@ -94,7 +104,7 @@ export type ImageGenOptions = {
     /** Images made on the ChatGPT plan: counted in Spend, not in money. */
     codexMade(count: number): void;
     /** Google Antigravity's image models and requests, when the app has them (PP-556); its models list only when signed in. */
-    agy?: Pick<AgyMedia, "imageModels" | "makeImage">;
+    agy?: Pick<AgyMedia, "accounts" | "imageModels" | "makeImage">;
     endpoints?: { codex?: string; openRouter?: string };
     fetch?: typeof fetch;
     now?: () => number;
@@ -222,8 +232,18 @@ export class ImageGen {
         const models: ImageModelChoice[] = [];
         const problems: string[] = [];
 
-        if ((await this.#options.codexAuth()) !== undefined) {
-            models.push({ id: `${CODEX_PROVIDER}/${CODEX_IMAGE_MODEL}`, provider: CODEX_PROVIDER, model: CODEX_IMAGE_MODEL, name: CODEX_IMAGE_NAME, text: false });
+        // Each ChatGPT account signed in, the original first: ChatGPT Images under its id, made on its own sign-in.
+        for (const account of (await this.#options.codexAccounts?.()) ?? [{ id: CODEX_PROVIDER }]) {
+            if ((await this.#options.codexAuth(account.id).catch(() => undefined)) !== undefined) {
+                models.push({
+                    id: `${account.id}/${CODEX_IMAGE_MODEL}`,
+                    provider: account.id,
+                    model: CODEX_IMAGE_MODEL,
+                    name: account.name === undefined ? CODEX_IMAGE_NAME : `${CODEX_IMAGE_NAME} · ${account.name}`,
+                    text: false,
+                    ...(account.name === undefined ? {} : { account: account.name }),
+                });
+            }
         }
 
         if ((await this.#options.openRouterKey()) !== undefined) {
@@ -238,8 +258,18 @@ export class ImageGen {
 
         if (this.#options.agy !== undefined) {
             try {
-                for (const each of await this.#options.agy.imageModels()) {
-                    models.push({ id: `${AGY_PROVIDER}/${each.id}`, provider: AGY_PROVIDER, model: each.id, name: each.name, text: false });
+                // Each account signed in, the original first: its models under its own id, made on its own sign-in.
+                for (const account of await this.#options.agy.accounts()) {
+                    for (const each of await this.#options.agy.imageModels(account.id)) {
+                        models.push({
+                            id: `${account.id}/${each.id}`,
+                            provider: account.id,
+                            model: each.id,
+                            name: account.name === undefined ? each.name : `${each.name} · ${account.name}`,
+                            text: false,
+                            ...(account.name === undefined ? {} : { account: account.name }),
+                        });
+                    }
                 }
             } catch (error) {
                 problems.push(error instanceof Error ? error.message : String(error));
@@ -257,7 +287,7 @@ export class ImageGen {
 
     /** The default when the owner picked none: Codex's, else OpenRouter's first, else Antigravity's first, else none. */
     static defaultOf(models: readonly ImageModelChoice[]): ImageModelChoice | undefined {
-        return models.find((each) => each.provider === CODEX_PROVIDER) ?? models.find((each) => each.provider === OPENROUTER) ?? models.find((each) => each.provider === AGY_PROVIDER);
+        return models.find((each) => isCodex(each.provider)) ?? models.find((each) => each.provider === OPENROUTER) ?? models.find((each) => isAgy(each.provider));
     }
 
     /**
@@ -330,11 +360,11 @@ export class ImageGen {
             throw new Error(`At most ${MAX_INPUT_IMAGES} images to edit at once.`);
         }
 
-        const plan = choice.provider === CODEX_PROVIDER || choice.provider === AGY_PROVIDER;
+        const plan = isCodex(choice.provider) || isAgy(choice.provider);
         const made: MadeImages = { choice, images: [], cost: plan ? undefined : 0, tokens: { input: 0, output: 0 }, text: "" };
 
         for (let index = 0; index < request.count; index++) {
-            const one = choice.provider === CODEX_PROVIDER ? await this.#codex(request) : choice.provider === AGY_PROVIDER ? await this.#agy(choice, request) : await this.#chat(choice, request);
+            const one = isCodex(choice.provider) ? await this.#codex(choice.provider, request) : isAgy(choice.provider) ? await this.#agy(choice, request) : await this.#chat(choice, request);
 
             made.images.push(...one.images);
             made.tokens.input += one.tokens.input;
@@ -345,7 +375,7 @@ export class ImageGen {
                 made.cost = one.cost === undefined ? undefined : made.cost + one.cost;
             }
 
-            if (choice.provider === CODEX_PROVIDER) {
+            if (isCodex(choice.provider)) {
                 this.#options.codexMade(one.images.length);
             }
         }
@@ -363,6 +393,8 @@ export class ImageGen {
 
         try {
             made = await this.#options.agy.makeImage({
+                // The account the model is listed under: the original's, or one more account's.
+                account: choice.provider,
                 model: choice.model,
                 prompt: request.prompt,
                 inputs: request.inputs,
@@ -379,11 +411,15 @@ export class ImageGen {
     }
 
     /** One request to Codex's images endpoint, as pi-codex-imagegen makes it. */
-    async #codex(request: { prompt: string; inputs: ImageInput[]; aspect?: Aspect; signal?: AbortSignal }) {
-        const auth = await this.#options.codexAuth();
+    async #codex(provider: string, request: { prompt: string; inputs: ImageInput[]; aspect?: Aspect; signal?: AbortSignal }) {
+        const auth = await this.#options.codexAuth(provider);
 
         if (auth === undefined) {
-            throw new Error(`ChatGPT is not signed in: sign in to ChatGPT (Codex) in Settings › Providers, or pick another image model in ${SETTING_HINT}.`);
+            throw new Error(
+                provider === CODEX_PROVIDER
+                    ? `ChatGPT is not signed in: sign in to ChatGPT (Codex) in Settings › Providers, or pick another image model in ${SETTING_HINT}.`
+                    : `The ChatGPT account ${provider} is not signed in: sign in to it in Settings › Providers, or pick another image model in ${SETTING_HINT}.`,
+            );
         }
 
         const account = auth.account ?? chatgptAccount(auth.token);

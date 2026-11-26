@@ -18,6 +18,7 @@ import { UsageDoc } from "@earendil-works/pi-durable";
 import createImages, { ownModelNote, slugOf } from "../src/server/extensions/images.ts";
 import { ImageGen, openRouterImageModels } from "../src/server/image-gen.ts";
 import { pathsOf } from "../src/server/extensions/secrets.ts";
+import { keyedProvider } from "./support/keyed-provider.ts";
 import { appSettings } from "../src/server/settings-registry.ts";
 
 /** A picture of one colour, as a PNG or a JPEG. */
@@ -140,8 +141,15 @@ before(async () => {
     await new Promise<void>((resolve) => stub.listen(0, "127.0.0.1", resolve));
     base = `http://127.0.0.1:${(stub.address() as AddressInfo).port}`;
     // The ChatGPT sign-in stood in as voice's tests do; OpenRouter's key as the app keeps one.
-    app = await openApp(scriptedModel(route), undefined, undefined, {
-        images: { endpoints: { codex: `${base}/codex`, openRouter: `${base}/api/v1` }, codexAuth: async () => ({ token: CODEX_TOKEN }) },
+    // More ChatGPT accounts (accounts.ts): a stand-in a test signs in with a token of its own (`App.codexAuth`).
+    const model = scriptedModel(route);
+
+    app = await openApp(model, undefined, undefined, {
+        accountProviders: { faux: () => model.provider as never, "openai-codex": () => keyedProvider(model.provider as never) },
+        images: {
+            endpoints: { codex: `${base}/codex`, openRouter: `${base}/api/v1` },
+            codexAuth: async (account) => (account === "openai-codex" ? { token: CODEX_TOKEN } : app.codexAuth(account)),
+        },
     });
     await app.models.setRuntimeApiKey("openrouter", "or-test-key");
     writeFileSync(join(work, "photo.png"), PHOTO);
@@ -260,6 +268,38 @@ test("generate with the ChatGPT sign-in: Codex's request, the file saved under i
     await app.spend.voiceStored();
     assert.deepEqual(app.spend.summary(owner(app)).images, { today: 1, month: 1 });
     assert.equal(app.spend.sessionSpent(id as never), 0);
+});
+
+test("ChatGPT Images on one more ChatGPT account (openai-codex~work): listed under its id, made with its own token and ChatGPT account id", async () => {
+    app.accounts.add("openai-codex", "Work");
+    const claims = Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: "acct-work" } })).toString("base64url");
+    const workToken = `e30.${claims}.c2ln`;
+
+    try {
+        assert.equal((await app.images.models()).models.some((each) => each.id === "openai-codex~work/gpt-image-2.5"), false, "not signed in: not listed");
+        await app.models.setRuntimeApiKey("openai-codex~work", workToken);
+        const listed = (await app.images.models()).models.filter((each) => each.provider.startsWith("openai-codex"));
+
+        assert.deepEqual(
+            listed.map((each) => [each.id, each.account]),
+            [
+                ["openai-codex/gpt-image-2.5", undefined],
+                ["openai-codex~work/gpt-image-2.5", "Work"],
+            ],
+        );
+        assert.equal((await app.images.resolve()).id, "openai-codex/gpt-image-2.5", "Automatic stays the original's");
+        const before = seen.length;
+        const made = await app.images.generate(await app.images.resolve("openai-codex~work/gpt-image-2.5"), { prompt: "a kite", inputs: [], count: 1 });
+        const request = seen.slice(before);
+
+        assert.equal(made.images.length, 1);
+        assert.equal(made.cost, undefined, "on the plan");
+        assert.equal(request.length, 1);
+        assert.equal(request[0]!.headers.authorization, `Bearer ${workToken}`);
+        assert.equal(request[0]!.headers["chatgpt-account-id"], "acct-work");
+    } finally {
+        await app.accounts.remove("openai-codex~work");
+    }
 });
 
 test("edit with OpenRouter (the call's own model): the input images as image_url parts, two images, its cost in the session's spend", async () => {

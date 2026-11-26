@@ -612,16 +612,19 @@ export default function createMedia(host: PocketHost) {
             model: opt(union(TRANSCRIBE_MODELS.map((each) => literal(each)), { description: "The transcription model for this call only" })),
         }, { open: true }),
         execute: async (args, api, context) => {
-            let model;
+            let choice;
 
             try {
-                model = host.audio.transcribeModel(args.model);
+                choice = host.audio.transcribeModel(args.model);
             } catch (error) {
                 return reply(error instanceof Error ? error.message : String(error), true);
             }
 
+            // The model, and the account it runs on (`openai-codex~<slug>` or `google-antigravity~<slug>` besides the originals).
+            const { model, account } = choice;
             // Google Antigravity's model (PP-557) hears the language itself and takes no words: asking for them is refused.
-            const agy = model === AGY_TRANSCRIBE;
+            const agy = choice.agy;
+            const on = account === "openai-codex" || account === "google-antigravity" ? "" : ` on ${account}`;
 
             if (agy && (args.language !== undefined || args.prompt !== undefined)) {
                 return reply(`${AGY_NAME}'s transcription (audio.transcribeModel ${AGY_TRANSCRIBE}) takes no language or prompt: it hears the language itself. Call without them, or name another model.`, true);
@@ -662,7 +665,7 @@ export default function createMedia(host: PocketHost) {
 
             const base = `${folder.value}/${stamp(new Date())}-${slugOf(args.path.split("/").pop()?.replace(/\.[^.]+$/, "") ?? "audio")}`;
             const hints = agy ? {} : host.audio.transcribeHints({ ...(args.language === undefined ? {} : { language: args.language }), ...(args.prompt === undefined ? {} : { prompt: args.prompt }) });
-            let used: string = model;
+            let used = `${model}${on}`;
             const parts = Math.max(1, Math.ceil(info.duration / PART_SECONDS));
             const utterances: Utterance[] = [];
             const tokens = { input: 0, output: 0 };
@@ -686,10 +689,10 @@ export default function createMedia(host: PocketHost) {
 
                 try {
                     const heard = agy
-                        ? { ...(await host.audio.transcribeAgy(pcm, context.abortSignal)), usage: { input: 0, output: 0 } }
-                        : { model, ...(await host.audio.transcribePart(pcm, { model, ...hints }, context.abortSignal)) };
+                        ? { ...(await host.audio.transcribeAgy(pcm, context.abortSignal, account)), usage: { input: 0, output: 0 } }
+                        : { model, ...(await host.audio.transcribePart(pcm, { model, account, ...hints }, context.abortSignal)) };
 
-                    used = agy ? `${AGY_TRANSCRIBE} (${AGY_NAME}, ${heard.model})` : model;
+                    used = agy ? `${AGY_TRANSCRIBE} (${AGY_NAME}${on}, ${heard.model})` : `${model}${on}`;
                     utterances.push(...heard.utterances.map((each) => ({ ...each, start: each.start + part * PART_SECONDS * 1000, end: each.end + part * PART_SECONDS * 1000 })));
                     tokens.input += heard.usage.input;
                     tokens.output += heard.usage.output;

@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
+import { openaiCodexProvider } from "@earendil-works/pi-ai/providers/openai-codex";
 import { accountProvider } from "../src/server/accounts.ts";
 import { type AccountUsage, parseClaudeUsage, parseCodexUsage, parseCopilotUsage, UsageLimits } from "../src/server/usage-limits.ts";
 
@@ -123,4 +124,37 @@ test("an account's figures are asked with its own sign-in, kept a minute, and to
         "every signed-in subscription account",
     );
     assert.equal(asked.find((each) => each.headers.authorization === "Bearer default-token") !== undefined, true);
+});
+
+test("a ChatGPT (Codex) account's figures are asked with its own token and ChatGPT account id, never the original's", async () => {
+    const folder = mkdtempSync(join(tmpdir(), "pi-phone-usage-codex-"));
+    const authPath = join(folder, "auth.json");
+    const later = Date.now() + 3_600_000;
+    const jwt = (account: string) => `e30.${Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: account } })).toString("base64url")}.c2ln`;
+
+    writeFileSync(
+        authPath,
+        JSON.stringify({
+            "openai-codex": { type: "oauth", access: jwt("acct-default"), refresh: "r1", expires: later, accountId: "acct-default" },
+            "openai-codex~work": { type: "oauth", access: jwt("acct-work"), refresh: "r2", expires: later, accountId: "acct-work" },
+        }),
+    );
+    const models = await ModelRuntime.create({ authPath, modelsPath: null, refreshOnCreate: false });
+
+    models.registerNativeProvider(accountProvider(openaiCodexProvider() as never, "openai-codex~work", "Work"));
+    const asked: Record<string, string>[] = [];
+    const limits = new UsageLimits({
+        models: () => models,
+        claudeVersion: () => "2.1.322",
+        publish: () => undefined,
+        fetch: (async (_url: string, init: { headers: Record<string, string> }) => {
+            asked.push(init.headers);
+
+            return new Response(JSON.stringify({ plan_type: "pro", rate_limit: { primary_window: { used_percent: 12, reset_at: 1_792_400_000, limit_window_seconds: 18_000 } } }), { status: 200 });
+        }) as never,
+    });
+    const work = await limits.get("openai-codex~work");
+
+    assert.deepEqual("windows" in work! ? [work.plan, work.windows.map((each) => each.usedPercent)] : work, ["pro", [12]]);
+    assert.deepEqual(asked.map((each) => [each.authorization, each["chatgpt-account-id"]]), [[`Bearer ${jwt("acct-work")}`, "acct-work"]]);
 });

@@ -14,6 +14,7 @@ import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { WebSocketServer } from "ws";
 import { TOKEN } from "./support/fake-openai.ts";
+import { keyedProvider } from "./support/keyed-provider.ts";
 import { Audio, cuesOf, m4aArgs, PART_SECONDS, saidAsWritten, speakParts, srtOf, vttOf, wavData, wavOf } from "../src/server/audio.ts";
 import { localEngine } from "../src/server/media.ts";
 
@@ -26,12 +27,12 @@ const http = createServer();
 const sockets = new WebSocketServer({ server: http });
 
 /** Each realtime model a text was read with: its URL, its session, and the text asked. */
-const speeches: { url: string; update?: { session: { instructions: string; audio: { output: { voice: string } } } }; text?: string }[] = [];
+const speeches: { url: string; headers?: Record<string, unknown>; update?: { session: { instructions: string; audio: { output: { voice: string } } } }; text?: string }[] = [];
 let misread = 0;
 
 sockets.on("connection", (socket, request) => {
     if (request.url?.includes("?model=") === true) {
-        const speech: (typeof speeches)[number] = { url: request.url };
+        const speech: (typeof speeches)[number] = { url: request.url, headers: request.headers };
 
         speeches.push(speech);
         socket.on("message", (data) => {
@@ -120,7 +121,17 @@ let app: App;
 
 before(async () => {
     await new Promise<void>((resolve) => http.listen(0, "127.0.0.1", resolve));
-    app = await openApp(scriptedModel(route), undefined, undefined, { audio: { endpoints: { socket: `ws://127.0.0.1:${(http.address() as AddressInfo).port}` }, auth: async () => ({ token: TOKEN, account: "acct-1" }) } });
+    // The original ChatGPT account stood in; another account's is its own sign-in (`App.codexAuth`).
+    const model = scriptedModel(route);
+
+    app = await openApp(model, undefined, undefined, {
+        // More ChatGPT accounts (accounts.ts): a stand-in that takes a key, so a test signs one in with a token of its own.
+        accountProviders: { faux: () => model.provider as never, "openai-codex": () => keyedProvider(model.provider as never) },
+        audio: {
+            endpoints: { socket: `ws://127.0.0.1:${(http.address() as AddressInfo).port}` },
+            auth: async (account) => (account === "openai-codex" ? { token: TOKEN, account: "acct-1" } : app.codexAuth(account)),
+        },
+    });
 
     if (engine !== undefined) {
         // Ten minutes and ten seconds: two parts.
@@ -180,13 +191,69 @@ test("the model and the hints: asked, else the setting, else the default; Settin
     let language = "auto";
     const audio = new Audio({ auth: async () => undefined, transcribeSetting: () => null, voice: () => ({ language, words: " Pi, pi-phone " }) });
 
-    assert.equal(audio.transcribeModel(), "gpt-4o-transcribe");
-    assert.equal(audio.transcribeModel("whisper-1"), "whisper-1");
+    assert.deepEqual(audio.transcribeModel(), { model: "gpt-4o-transcribe", account: "openai-codex", agy: false });
+    assert.equal(audio.transcribeModel("whisper-1").model, "whisper-1");
     assert.throws(() => audio.transcribeModel("gpt-5"), /not a transcription model/);
     assert.deepEqual(audio.transcribeHints({}), { prompt: "Pi, pi-phone" });
     language = "vi";
     assert.deepEqual(audio.transcribeHints({ language: "en", prompt: "ZeroHop" }), { language: "en", prompt: "ZeroHop" });
     assert.deepEqual(audio.transcribeHints({}), { language: "vi", prompt: "Pi, pi-phone" });
+});
+
+test("a setting names its account: a ChatGPT account's models as <account>/<model>, Antigravity's by its id; a model asked for one call stays on the setting's account; old values are the originals'", async () => {
+    let transcribe: string | null = "openai-codex~work/gpt-4o-mini-transcribe";
+    let speak: string | null = "openai-codex~work/gpt-realtime";
+    const tokens: Record<string, string> = { "openai-codex": "tok-default", "openai-codex~work": "tok-work" };
+    const asked: string[] = [];
+    const audio = new Audio({
+        auth: async (account) => {
+            asked.push(account);
+
+            return tokens[account] === undefined ? undefined : { token: tokens[account]! };
+        },
+        codexAccounts: async () => [{ id: "openai-codex" }, { id: "openai-codex~work", name: "Work" }, { id: "openai-codex~gone", name: "Gone" }],
+        agy: {
+            signedIn: async () => true,
+            transcribe: async () => ({ model: "m", utterances: [] }),
+            accounts: async () => [{ id: "google-antigravity" }, { id: "google-antigravity~han", name: "Han" }],
+        },
+        transcribeSetting: () => transcribe,
+        speakSetting: () => speak,
+        voice: () => ({ language: "auto", words: "" }),
+    });
+
+    assert.deepEqual(audio.transcribeModel(), { model: "gpt-4o-mini-transcribe", account: "openai-codex~work", agy: false });
+    assert.deepEqual(audio.transcribeModel("whisper-1"), { model: "whisper-1", account: "openai-codex~work", agy: false }, "one call's model, on the setting's account");
+    assert.deepEqual(audio.speakChoice({}), { model: "gpt-realtime", voice: "marin", account: "openai-codex~work" });
+    assert.equal(audio.speakChoice({ model: "gpt-realtime-mini" }).account, "openai-codex~work");
+    assert.throws(() => audio.transcribeModel("openai-codex~team-x/whisper-1"), /not a transcription model/, "a team account is not one of these");
+
+    transcribe = "google-antigravity~han";
+    assert.deepEqual(audio.transcribeModel(), { model: "antigravity", account: "google-antigravity~han", agy: true });
+    assert.equal(audio.transcribeModel("whisper-1").account, "openai-codex", "an OpenAI model asked beside Antigravity's setting: the original ChatGPT account");
+    // The values from before accounts are the originals'.
+    transcribe = "antigravity";
+    assert.deepEqual(audio.transcribeModel(), { model: "antigravity", account: "google-antigravity", agy: true });
+    transcribe = "gpt-4o-transcribe";
+    speak = "gpt-realtime-mini";
+    assert.equal(audio.transcribeModel().account, "openai-codex");
+    assert.equal(audio.speakChoice({}).account, "openai-codex");
+
+    // Only the accounts signed in are offered (Gone has no token).
+    assert.deepEqual(await audio.transcribeModels(), [
+        "gpt-4o-transcribe",
+        "gpt-4o-mini-transcribe",
+        "whisper-1",
+        "openai-codex~work/gpt-4o-transcribe",
+        "openai-codex~work/gpt-4o-mini-transcribe",
+        "openai-codex~work/whisper-1",
+        "antigravity",
+        "google-antigravity~han",
+    ]);
+    assert.deepEqual(await audio.speakModels(), ["gpt-realtime-mini", "gpt-realtime", "openai-codex~work/gpt-realtime-mini", "openai-codex~work/gpt-realtime"]);
+    assert.deepEqual(await audio.accountNames(), { "openai-codex~work": "Work", "google-antigravity~han": "Han" });
+    assert.equal(await audio.signedIn("openai-codex~gone"), false);
+    await assert.rejects(audio.transcribePart(new Uint8Array(4), { model: "whisper-1", account: "openai-codex~gone" }), /Audio on openai-codex~gone needs that ChatGPT account's sign-in/);
 });
 
 test("audio_transcribe: a ten-minute-and-more file in two parts, each its own session, times offset, saved as SRT and text", real, async () => {
@@ -263,4 +330,38 @@ test("audio_speak: a long text read in parts, a part read wrong read again, join
 
     assert.match(await ask(id, "read the impossible"), /did not read part 1 of 1 as written, twice\. It was to read: "This one is NEVER read\."\. It said: "Sure, I can help with that\."/);
     assert.equal(readdirSync(join(work, "audio")).length, before);
+});
+
+test("audio_transcribe and audio_speak on one more ChatGPT account (openai-codex~work): its own token and ChatGPT account id, set in Menu › Audio", real, async () => {
+    app.accounts.add("openai-codex", "Work");
+    // Its own sign-in: a token whose ChatGPT account is acct-work.
+    const claims = Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: "acct-work" } })).toString("base64url");
+    const workToken = `e30.${claims}.c2ln`;
+
+    await app.models.setRuntimeApiKey("openai-codex~work", workToken);
+    assert.deepEqual(await app.codexAuth("openai-codex~work"), { token: workToken, account: "acct-work" });
+    assert.equal(await app.codexAuth("openai-codex~nope"), undefined, "an account that is not here has no token");
+    assert.equal(await app.codexAuth("anthropic"), undefined, "another provider's token is never read");
+    await assert.rejects(app.setAudioChoice(owner(app), "transcribeModel", "openai-codex~nope/gpt-4o-transcribe"), /Choose one of/);
+
+    try {
+        await app.setAudioChoice(owner(app), "transcribeModel", "openai-codex~work/gpt-4o-transcribe");
+        await app.setAudioChoice(owner(app), "speakModel", "openai-codex~work/gpt-realtime-mini");
+        const from = { sessions: sessions.length, speeches: speeches.length };
+        const id = await newSession(app);
+
+        assert.match(await ask(id, "transcribe the talk"), /with gpt-4o-transcribe on openai-codex~work: /);
+        // A model asked for one call (gpt-realtime) stays on the setting's account.
+        assert.match(await ask(id, "read it as wav"), /with gpt-realtime, voice cedar: /);
+        assert.ok(sessions.length > from.sessions && speeches.length > from.speeches);
+
+        for (const each of [...sessions.slice(from.sessions), ...speeches.slice(from.speeches)]) {
+            assert.equal(each.headers!.authorization, `Bearer ${workToken}`);
+            assert.equal(each.headers!["chatgpt-account-id"], "acct-work");
+        }
+    } finally {
+        await app.setAudioChoice(owner(app), "transcribeModel", null);
+        await app.setAudioChoice(owner(app), "speakModel", null);
+        await app.accounts.remove("openai-codex~work");
+    }
 });

@@ -71,11 +71,26 @@ export function VoiceSheet() {
     </div>`;
     const live = check?.live ?? [];
     const when = check ? new Date(check.at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : null;
+    // The ChatGPT account calls and Codex dictation run on (src/server/accounts.ts): offered when there are more.
+    const codexAccounts = voice.accounts?.codex ?? [];
 
     return html`<${Sheet} title=${t("Voice")} onClose=${closeSheet} className="phone-control-sheet assistant-sheet voice-sheet">
         <p class="muted small">
             ${t("Talk with Pi as on a call, with your ChatGPT (Codex) sign-in. Audio goes straight between this device and OpenAI; the sign-in stays on pi-phone's server.")}
         </p>
+        ${
+            (codexAccounts.length > 1 || (codexAccounts.length > 0 && !codexAccounts.some((each) => each.id === settings.codexAccount))) &&
+            html`<div class="phone-section-title">${t("ChatGPT account")}</div>
+                <div data-part="voice-account">
+                    <${Choice}
+                        label=${t("ChatGPT account")}
+                        value=${settings.codexAccount}
+                        options=${codexAccounts.map((each) => ({ value: each.id, label: each.name ?? t("Default account") }))}
+                        onChange=${(value) => change({ codexAccount: value })}
+                    />
+                    <p class="muted small">${t("Calls and Codex dictation run on this account; its models are checked with OpenAI when you change it.")}</p>
+                </div>`
+        }
 
         <div class="phone-section-title">${t("Live model")}</div>
         ${

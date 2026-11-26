@@ -24,6 +24,7 @@ import { CODEX_PROVIDER, ImageGen } from "./image-gen.ts";
 import { DEFAULT_ASK_MODEL, DEFAULT_MAKE_MODEL } from "./video-gen.ts";
 import { DEFAULT_SPEAK_MODEL, DEFAULT_TRANSCRIBE_MODEL, DEFAULT_VOICE, SPEAK_MODELS, TRANSCRIBE_MODELS, VOICES as SPEAK_VOICES } from "./audio.ts";
 import { AGY_TRANSCRIBE } from "./antigravity-media.ts";
+import { baseProvider } from "./accounts.ts";
 import { AGY_PROVIDER } from "./antigravity.ts";
 import { PERMISSION_MODES, POPUP_MODES } from "./browser/pi-browser.ts";
 import { CHROME_FEATURES_MAX, MACHINE_BROWSER_MODES } from "./browser/machine-engine.ts";
@@ -805,7 +806,7 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             choices: async () => {
                 const { models, problems } = await app.images.models();
 
-                return ["auto", ...models.map((model) => `${model.id}${model.provider === CODEX_PROVIDER ? ` (${model.name})` : model.price?.imageOut === undefined ? "" : ` ($${model.price.imageOut}/M image tokens)`}`), ...problems.map((problem) => `(${problem})`)];
+                return ["auto", ...models.map((model) => `${model.id}${baseProvider(model.provider) === CODEX_PROVIDER ? ` (${model.name})` : model.price?.imageOut === undefined ? "" : ` ($${model.price.imageOut}/M image tokens)`}`), ...problems.map((problem) => `(${problem})`)];
             },
             apply: (user, value) => app.setImageModel(user, /^auto$/i.test(value.trim()) || NONE.test(value.trim()) ? null : value.trim().replace(/\s+\(.*\)$/, "")),
         },
@@ -843,11 +844,13 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             title,
             help:
                 key === "transcribeModel"
-                    ? `One of ${choices.join(", ")} (on the ChatGPT (Codex) sign-in), ${AGY_TRANSCRIBE} (Google Antigravity's, while it is signed in; it takes no language or prompt), or auto: ${fallback}. Menu › Audio. Pi may name another OpenAI model for one call.`
-                    : `One of ${choices.join(", ")}, or auto: ${fallback}. On the ChatGPT (Codex) sign-in (Menu › Audio). Pi may name another for one call.`,
+                    ? `One of ${choices.join(", ")} (on the ChatGPT (Codex) sign-in; openai-codex~<account>/<model> on another ChatGPT account), ${AGY_TRANSCRIBE} (Google Antigravity's, while it is signed in; google-antigravity~<account> on another of its accounts; it takes no language or prompt), or auto: ${fallback}. Menu › Audio. Pi may name another OpenAI model for one call, on the same account.`
+                    : key === "speakModel"
+                      ? `One of ${choices.join(", ")} (openai-codex~<account>/<model> on another ChatGPT account), or auto: ${fallback}. On the ChatGPT (Codex) sign-in (Menu › Audio). Pi may name another for one call, on the same account.`
+                      : `One of ${choices.join(", ")}, or auto: ${fallback}. On the ChatGPT (Codex) sign-in (Menu › Audio). Pi may name another for one call.`,
             owner: true,
             read: () => app.config.audioChoice(stored) ?? `auto (${fallback})`,
-            choices: async () => ["auto", ...(key === "transcribeModel" ? await app.audio.transcribeModels() : choices)],
+            choices: async () => ["auto", ...(key === "transcribeModel" ? await app.audio.transcribeModels() : key === "speakModel" ? await app.audio.speakModels() : choices)],
             apply: (user: User, value: string) => app.setAudioChoice(user, key, /^auto$/i.test(value.trim()) || NONE.test(value.trim()) ? null : value.trim()),
         })),
         {
@@ -1331,8 +1334,28 @@ export function appSettings(app: PocketApp): { settings: Setting[]; actions: App
             help: "android (the phone's recognizer, free), codex (the dictation model, on the ChatGPT sign-in), or antigravity (Google Antigravity's dictation model, on its sign-in; offered only while signed in).",
             owner: true,
             read: () => app.config.voice.engine,
-            choices: () => ["android", "codex", ...(app.models.hasConfiguredAuth(AGY_PROVIDER) ? ["antigravity"] : [])],
+            choices: () => ["android", "codex", ...(app.signedInAccounts(AGY_PROVIDER).length > 0 ? ["antigravity"] : [])],
             apply: (user, value) => app.setVoice(user, { engine: value.trim().toLowerCase() }),
+        },
+        {
+            id: "voice.codexAccount",
+            area: "voice",
+            title: "ChatGPT account of voice calls and Codex dictation",
+            help: "openai-codex (the first ChatGPT account), or one more ChatGPT account's id (openai-codex~work), signed in. Its live and dictation models are checked with OpenAI when it changes. Settings › Voice.",
+            owner: true,
+            read: () => app.config.voice.codexAccount,
+            choices: () => app.signedInAccounts("openai-codex").map((account) => account.id),
+            apply: (user, value) => app.setVoice(user, { codexAccount: value.trim() }),
+        },
+        {
+            id: "voice.agyAccount",
+            area: "voice",
+            title: "Google Antigravity account of its dictation",
+            help: "google-antigravity (the first Antigravity account), or one more Antigravity account's id (google-antigravity~work), signed in: the account voice.engine antigravity listens on. Menu › Dictation.",
+            owner: true,
+            read: () => app.config.voice.agyAccount,
+            choices: () => app.signedInAccounts(AGY_PROVIDER).map((account) => account.id),
+            apply: (user, value) => app.setVoice(user, { agyAccount: value.trim() }),
         },
         {
             id: "voice.voice",

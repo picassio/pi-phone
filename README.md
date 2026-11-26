@@ -214,9 +214,15 @@ No Termux, no laptop, no cloud VM.
   model comes right after the current one in your model picker, which gets a **Favorites** filter. Stars are yours, on
   every device; they allow nothing (subagents' models are in Menu › Subagents). Pi sees them in its `models` tool
   (`favorites: true` lists only them) and changes them on a card (`models.favorites`).
-- **More than one account.** Add a second (or third) Claude, Codex, or Copilot account in Providers; each has its
-  own sign-in, and its models are listed per account ("Claude Opus · Work"). A session uses the account of the
-  model you pick for it, so you can start a session on any account or move one to another.
+- **More than one account.** Add a second (or third) Claude, Codex, Copilot, or Google Antigravity account in
+  Providers; each has its own sign-in, and its models are listed per account ("Claude Opus · Work"). A session uses
+  the account of the model you pick for it, so you can start a session on any account or move one to another. An
+  Antigravity account has its own Google project and quota bars. What runs outside a session's model picks its
+  account in its setting, each on that account's own sign-in: ChatGPT Images and Antigravity's image models per
+  account in Menu › Images (`openai-codex~work/gpt-image-2.5`, `google-antigravity~work/…`); transcription and
+  reading aloud in Menu › Audio (`openai-codex~work/gpt-4o-transcribe`, `google-antigravity~work`); voice calls and
+  Codex dictation in Settings › Voice (ChatGPT account), Antigravity's dictation in Menu › Dictation. The first
+  account stays the default everywhere. A team server can share an Antigravity account as a team account too.
 - **Plan usage.** Each Claude, Codex, Copilot, and Google Antigravity account's limits as its own app shows them: the
   5-hour and weekly windows (Copilot: the month's premium requests; Antigravity: per group of models), with reset times, as bars in Providers, in the model menu, and as a
   meter in the session's top bar that opens to every window. At 90% of a window the session says so, with **Switch to** your other

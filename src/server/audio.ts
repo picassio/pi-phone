@@ -10,11 +10,19 @@
  *   file in 16 kHz parts, each stretch of speech in a stream of its own (`antigravity-media.ts`); its times are those
  *   stretches. It takes no language or words: Google hears the language itself. There is no Antigravity voice to read
  *   aloud: `audio_speak` stays on the ChatGPT sign-in.
+ *
+ * Accounts (`accounts.ts`): a setting names the account it runs on. `gpt-4o-transcribe` and `gpt-realtime-mini` are the
+ * original ChatGPT account's, `openai-codex~work/gpt-4o-transcribe` one more account's; `antigravity` is the original
+ * Google Antigravity account's, `google-antigravity~work` one more. Each runs on that account's own sign-in only.
  */
 import { WebSocket } from "ws";
-import { AGY_NAME } from "./antigravity.ts";
+import { type AccountChoice, accountPart, isAccountOf } from "./accounts.ts";
+import { AGY_NAME, AGY_PROVIDER } from "./antigravity.ts";
 import { AGY_TRANSCRIBE, type AgyMedia } from "./antigravity-media.ts";
 import { HttpError } from "./errors.ts";
+
+/** The ChatGPT (Codex) provider: the original account of audio's OpenAI models. */
+const CODEX = "openai-codex";
 
 /** The transcription models, best first. */
 export const TRANSCRIBE_MODELS = ["gpt-4o-transcribe", "gpt-4o-mini-transcribe", "whisper-1"] as const;
@@ -35,8 +43,16 @@ export type AudioAuth = { token: string; account?: string };
 export type Utterance = { start: number; end: number; text: string };
 export type TranscribeUsage = { input: number; output: number };
 
+/** A transcription setting read: the model, the account it runs on, and whether it is Google Antigravity's. */
+export type TranscribeChoice = { model: string; account: string; agy: boolean };
+/** A reading setting read: the model, the voice, and the ChatGPT account it runs on. */
+export type SpeakChoice = { model: string; voice: string; account: string };
+
 export interface AudioOptions {
-    auth: () => Promise<AudioAuth | undefined>;
+    /** A ChatGPT (Codex) account's sign-in: `openai-codex`, or one more account (`openai-codex~<slug>`). */
+    auth: (account: string) => Promise<AudioAuth | undefined>;
+    /** The ChatGPT accounts there are, the original first: those signed in offer their models. Default: the original alone. */
+    codexAccounts?: () => Promise<AccountChoice[]>;
     /** The transcription model the owner set (`audio.transcribeModel`), or null for the default. */
     transcribeSetting: () => string | null;
     /** Settings › Voice's language (`auto`, or a code) and words to listen for (the hint), which transcriptions use too. */
@@ -46,7 +62,22 @@ export interface AudioOptions {
     voiceSetting?: () => string | null;
     endpoints?: { socket: string };
     /** Google Antigravity's transcription, when the app has it (PP-557). */
-    agy?: Pick<AgyMedia, "signedIn" | "transcribe">;
+    agy?: Pick<AgyMedia, "signedIn" | "transcribe"> & Partial<Pick<AgyMedia, "accounts">>;
+}
+
+/** A transcription setting's value read, or undefined when it is none. */
+function readTranscribe(value: string): TranscribeChoice | undefined {
+    if (value === AGY_TRANSCRIBE) {
+        return { model: AGY_TRANSCRIBE, account: AGY_PROVIDER, agy: true };
+    }
+
+    if (value !== AGY_PROVIDER && isAccountOf(value, AGY_PROVIDER)) {
+        return { model: AGY_TRANSCRIBE, account: value, agy: true };
+    }
+
+    const { account, rest } = accountPart(value, CODEX);
+
+    return (TRANSCRIBE_MODELS as readonly string[]).includes(rest) ? { model: rest, account, agy: false } : undefined;
 }
 
 export class Audio {
@@ -57,33 +88,91 @@ export class Audio {
     }
 
     /**
-     * The model a transcription uses: `asked`, else the setting, else the default; refused when it is not one.
-     * `antigravity` is Google Antigravity's, whose sign-in is checked when it runs.
+     * The model a transcription uses and the account it runs on: `asked`, else the setting, else the default; refused
+     * when it is not one. `antigravity` (or `google-antigravity~<slug>`) is Google Antigravity's, whose sign-in is
+     * checked when it runs. A model asked for one call (a plain OpenAI model) runs on the setting's ChatGPT account.
      */
-    transcribeModel(asked?: string): string {
-        const model = asked ?? this.#options.transcribeSetting() ?? DEFAULT_TRANSCRIBE_MODEL;
+    transcribeModel(asked?: string): TranscribeChoice {
+        const setting = this.#options.transcribeSetting();
+        const value = asked ?? setting ?? DEFAULT_TRANSCRIBE_MODEL;
+        const choice = readTranscribe(value);
 
-        if (!(TRANSCRIBE_MODELS as readonly string[]).includes(model) && model !== AGY_TRANSCRIBE) {
-            throw new HttpError(400, `${model} is not a transcription model: ${[...TRANSCRIBE_MODELS, AGY_TRANSCRIBE].join(", ")}.`);
+        if (choice === undefined) {
+            throw new HttpError(400, `${value} is not a transcription model: ${[...TRANSCRIBE_MODELS, AGY_TRANSCRIBE].join(", ")}, or one of them on another account (Menu › Audio lists them).`);
         }
 
-        return model;
+        const set = asked === undefined || setting === null ? undefined : readTranscribe(setting);
+
+        return asked !== undefined && !choice.agy && !asked.includes("/") && set !== undefined && !set.agy ? { ...choice, account: set.account } : choice;
     }
 
-    /** The transcription models to pick from now: OpenAI's, and Antigravity's while it is signed in. */
-    async transcribeModels(): Promise<string[]> {
-        return [...TRANSCRIBE_MODELS, ...((await this.#options.agy?.signedIn()) === true ? [AGY_TRANSCRIBE] : [])];
+    /** The ChatGPT accounts besides the original that are signed in now. */
+    async #moreCodex(): Promise<AccountChoice[]> {
+        const more: AccountChoice[] = [];
+
+        for (const account of (await this.#options.codexAccounts?.()) ?? []) {
+            if (account.id !== CODEX && (await this.#options.auth(account.id).catch(() => undefined))?.token) {
+                more.push(account);
+            }
+        }
+
+        return more;
     }
 
-    /** A file part's 16 kHz pcm16 transcribed by Google Antigravity: its utterances, and the model Google named. */
-    async transcribeAgy(pcm: Uint8Array, signal?: AbortSignal): Promise<{ model: string; utterances: Utterance[] }> {
+    /** The Google Antigravity accounts signed in now, the original first when it is. */
+    async #agyAccounts(): Promise<AccountChoice[]> {
         const agy = this.#options.agy;
 
-        if (agy === undefined || !(await agy.signedIn())) {
-            throw new HttpError(409, `The transcription model ${AGY_TRANSCRIBE} needs the ${AGY_NAME} sign-in: sign in in Settings › Providers, or pick another model in Menu › Audio.`);
+        if (agy === undefined) {
+            return [];
         }
 
-        return agy.transcribe(pcm, signal);
+        return agy.accounts !== undefined ? agy.accounts() : (await agy.signedIn()) ? [{ id: AGY_PROVIDER }] : [];
+    }
+
+    /**
+     * The transcription models to pick from now: OpenAI's on the original ChatGPT account, then on each more account
+     * signed in (`openai-codex~work/gpt-4o-transcribe`), and Antigravity's on each of its accounts signed in.
+     */
+    async transcribeModels(): Promise<string[]> {
+        const more = await this.#moreCodex();
+        const agy = await this.#agyAccounts();
+
+        return [
+            ...TRANSCRIBE_MODELS,
+            ...more.flatMap((account) => TRANSCRIBE_MODELS.map((model) => `${account.id}/${model}`)),
+            ...agy.map((account) => (account.id === AGY_PROVIDER ? AGY_TRANSCRIBE : account.id)),
+        ];
+    }
+
+    /** The reading models to pick from now: on the original ChatGPT account, then on each more account signed in. */
+    async speakModels(): Promise<string[]> {
+        const more = await this.#moreCodex();
+
+        return [...SPEAK_MODELS, ...more.flatMap((account) => SPEAK_MODELS.map((model) => `${account.id}/${model}`))];
+    }
+
+    /** The names of the more accounts the models are listed on, by id, for Menu › Audio. */
+    async accountNames(): Promise<Record<string, string>> {
+        const named = [...(await this.#moreCodex()), ...(await this.#agyAccounts())];
+
+        return Object.fromEntries(named.flatMap((account) => (account.name === undefined ? [] : [[account.id, account.name]])));
+    }
+
+    /** A file part's 16 kHz pcm16 transcribed by Google Antigravity on `account`: its utterances, and the model Google named. */
+    async transcribeAgy(pcm: Uint8Array, signal?: AbortSignal, account: string = AGY_PROVIDER): Promise<{ model: string; utterances: Utterance[] }> {
+        const agy = this.#options.agy;
+
+        if (agy === undefined || !(await agy.signedIn(account))) {
+            throw new HttpError(
+                409,
+                account === AGY_PROVIDER
+                    ? `The transcription model ${AGY_TRANSCRIBE} needs the ${AGY_NAME} sign-in: sign in in Settings › Providers, or pick another model in Menu › Audio.`
+                    : `The transcription model ${account} needs that ${AGY_NAME} account's sign-in: sign in to it in Settings › Providers, or pick another model in Menu › Audio.`,
+            );
+        }
+
+        return agy.transcribe(pcm, signal, account);
     }
 
     /** A transcription's language and hint: those asked, else Settings › Voice's (none when it says auto, or has no words). */
@@ -95,25 +184,36 @@ export class Audio {
         return { ...(language === undefined ? {} : { language }), ...(prompt === undefined ? {} : { prompt }) };
     }
 
-    /** The speaking model and voice: asked, else the settings, else the defaults; refused when not one. */
-    speakChoice(asked: { model?: string; voice?: string }): { model: string; voice: string } {
-        const model = asked.model ?? this.#options.speakSetting?.() ?? DEFAULT_SPEAK_MODEL;
+    /**
+     * The speaking model, voice and ChatGPT account: asked, else the settings, else the defaults; refused when not one.
+     * A model asked for one call runs on the setting's account.
+     */
+    speakChoice(asked: { model?: string; voice?: string }): SpeakChoice {
+        const setting = this.#options.speakSetting?.() ?? null;
+        const value = asked.model ?? setting ?? DEFAULT_SPEAK_MODEL;
+        const { account, rest: model } = accountPart(value, CODEX);
         const voice = asked.voice ?? this.#options.voiceSetting?.() ?? DEFAULT_VOICE;
 
         if (!(SPEAK_MODELS as readonly string[]).includes(model)) {
-            throw new HttpError(400, `${model} is not a speaking model: ${SPEAK_MODELS.join(", ")}.`);
+            throw new HttpError(400, `${value} is not a speaking model: ${SPEAK_MODELS.join(", ")}, or one of them on another account (Menu › Audio lists them).`);
         }
 
         if (!(VOICES as readonly string[]).includes(voice)) {
             throw new HttpError(400, `${voice} is not a voice: ${VOICES.join(", ")}.`);
         }
 
-        return { model, voice };
+        const own = asked.model !== undefined && !asked.model.includes("/") && setting !== null ? accountPart(setting, CODEX).account : account;
+
+        return { model, voice, account: own };
     }
 
     /** One part of a text read aloud by a realtime model: its pcm16 at 24 kHz, what it says it said, and the tokens. */
-    async speakPart(text: string, settings: { model: string; voice: string; style?: string }, signal?: AbortSignal): Promise<{ pcm: Uint8Array; said: string; usage: TranscribeUsage }> {
-        const auth = await this.#auth();
+    async speakPart(
+        text: string,
+        settings: { model: string; voice: string; style?: string; account?: string },
+        signal?: AbortSignal,
+    ): Promise<{ pcm: Uint8Array; said: string; usage: TranscribeUsage }> {
+        const auth = await this.#auth(settings.account ?? CODEX);
         const socket = new WebSocket(`${this.#options.endpoints?.socket ?? "wss://api.openai.com/v1"}/realtime?model=${encodeURIComponent(settings.model)}`, {
             headers: { authorization: `Bearer ${auth.token}`, ...(auth.account === undefined ? {} : { "chatgpt-account-id": auth.account }), originator: "pi" },
         });
@@ -166,18 +266,23 @@ export class Audio {
         });
     }
 
-    /** Whether the ChatGPT (Codex) sign-in is there, for Menu › Audio. */
-    async signedIn(): Promise<boolean> {
-        const auth = await this.#options.auth();
+    /** Whether a ChatGPT (Codex) account (the original by default) is signed in, for Menu › Audio. */
+    async signedIn(account: string = CODEX): Promise<boolean> {
+        const auth = await this.#options.auth(account);
 
         return auth !== undefined && auth.token !== "";
     }
 
-    async #auth(): Promise<AudioAuth> {
-        const auth = await this.#options.auth();
+    async #auth(account: string): Promise<AudioAuth> {
+        const auth = await this.#options.auth(account);
 
         if (auth === undefined || auth.token === "") {
-            throw new HttpError(409, "Audio needs the ChatGPT (Codex) sign-in: add it in Settings › Providers.");
+            throw new HttpError(
+                409,
+                account === CODEX
+                    ? "Audio needs the ChatGPT (Codex) sign-in: add it in Settings › Providers."
+                    : `Audio on ${account} needs that ChatGPT account's sign-in: sign in to it in Settings › Providers, or pick another model in Menu › Audio.`,
+            );
         }
 
         return auth;
@@ -187,8 +292,12 @@ export class Audio {
      * One part's utterances (times from the part's start) and the tokens it took: the pcm sent at once, with silence
      * after it so the last utterance ends, into a transcription session with server VAD.
      */
-    async transcribePart(pcm: Uint8Array, settings: { model: string; language?: string; prompt?: string }, signal?: AbortSignal): Promise<{ utterances: Utterance[]; usage: TranscribeUsage }> {
-        const auth = await this.#auth();
+    async transcribePart(
+        pcm: Uint8Array,
+        settings: { model: string; account?: string; language?: string; prompt?: string },
+        signal?: AbortSignal,
+    ): Promise<{ utterances: Utterance[]; usage: TranscribeUsage }> {
+        const auth = await this.#auth(settings.account ?? CODEX);
         const socket = new WebSocket(`${this.#options.endpoints?.socket ?? "wss://api.openai.com/v1"}/realtime?intent=transcription`, {
             headers: { authorization: `Bearer ${auth.token}`, ...(auth.account === undefined ? {} : { "chatgpt-account-id": auth.account }), originator: "pi" },
         });

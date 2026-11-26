@@ -4,15 +4,16 @@
 // renews it; the models are agy's list, one per family with its efforts as thinking levels; a request is agy's (its
 // headers, envelope and thinking per model), and text, thinking, tool calls and pictures go and come back. Google is
 // stood in for.
-import { type App, cleanUp, fakeTab, openApp, owner, root, scriptedModel, until } from "./helpers.ts";
+import { type App, cleanUp, fakeTab, modelTexts, newSession, openApp, owner, root, say, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { type Api, type AssistantMessage, type AuthEvent, type AuthPrompt, type Context, type Model, normalizeContext, type OAuthCredential, type ProviderAuthInteraction } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText } from "@earendil-works/pi-ai/providers/faux";
+import { accountProvider } from "../src/server/accounts.ts";
 import { AGY_START } from "../src/server/agy-wire.ts";
-import { AGY_PROVIDER, type AgyCatalog, type AgySend, antigravityProvider, catalogModels } from "../src/server/antigravity.ts";
+import { AGY_PROVIDER, type AgyCatalog, type AgySend, antigravity, antigravityProvider, catalogModels } from "../src/server/antigravity.ts";
 import { appSettings } from "../src/server/settings-registry.ts";
 
 const UA = "antigravity/cli/1.5.15 (aidev_client; os_type=linux; arch=amd64; cl=1027820220; auth_method=consumer)";
@@ -627,4 +628,213 @@ test("in the app: listed in Providers off until signed in; Sign in with Google s
     await app.providers.logout(AGY_PROVIDER);
     assert.equal(listed()?.configured, false);
     assert.equal((await app.modelList()).some((model) => model.provider === AGY_PROVIDER), false);
+});
+
+// More accounts (accounts.ts): `google-antigravity~work` beside the original, each on its own sign-in.
+const WORK = `${AGY_PROVIDER}~work`;
+/** The work account's quota: other figures than the original's, to tell them apart. */
+const WORK_QUOTA = {
+    groups: [
+        {
+            buckets: [
+                { bucketId: "gemini-weekly", displayName: "Weekly Limit Remaining", window: "weekly", resetTime: "2026-11-30T10:00:00Z", remainingFraction: 0.1 },
+                { bucketId: "gemini-5h", displayName: "Five Hour Limit Remaining", window: "5h", resetTime: "2026-11-23T12:00:00Z", remainingFraction: 0.75 },
+            ],
+            displayName: "Gemini Models",
+        },
+    ],
+};
+const IMAGE_CATALOG: AgyCatalog = {
+    ...CATALOG,
+    models: { ...CATALOG.models, "gemini-3.1-flash-image": { displayName: "Gemini 3.1 Flash Image" } },
+    imageGenerationModelIds: ["gemini-3.1-flash-image"],
+};
+const DONE = sse({ response: { candidates: [{ content: { role: "model", parts: [{ text: "hi from work" }] }, finishReason: "STOP" }] } });
+
+test("each account of the runtime is its own: its turns, catalog, background reads and telemetry on its own sign-in, the original's untouched", async () => {
+    const keys: Record<string, string> = {
+        [AGY_PROVIDER]: JSON.stringify({ token: "ya29.default", project: "default-project", userAgent: UA }),
+        [WORK]: JSON.stringify({ token: "ya29.work", project: "work-project", userAgent: UA }),
+    };
+    const workCatalog: AgyCatalog = { ...CATALOG, imageGenerationModelIds: ["work-only-image"] };
+    const { sent, send } = google((request) => {
+        const work = request.headers.Authorization === "Bearer ya29.work";
+
+        return request.url.includes("fetchAvailableModels")
+            ? { body: JSON.stringify(work ? workCatalog : CATALOG) }
+            : request.url.includes("streamGenerateContent")
+              ? { body: DONE, headers: { "content-type": "text/event-stream" } }
+              : request.url.includes("retrieveUserQuotaSummary")
+                ? { body: JSON.stringify(work ? WORK_QUOTA : QUOTA) }
+                : { body: "{}" };
+    });
+    const runtime = antigravity({ send, auth: async (provider) => keys[provider], now: () => NOW, platform: PLATFORM });
+
+    try {
+        assert.throws(() => runtime.accountProvider(AGY_PROVIDER), /not an account of google-antigravity/, "the original is not made again");
+        // Under the account's id, as accounts.ts registers it; its models carry that id.
+        const work = accountProvider(runtime.accountProvider(WORK), WORK, "Work");
+        const model = { ...(catalogModels(CATALOG).find((each) => each.id === "gemini-3.8-flash")! as Model<Api>), provider: WORK };
+        const message = await work.streamSimple(model, normalizeContext({ messages: [{ role: "user", content: "hi", timestamp: NOW }] }), { apiKey: keys[WORK]!, reasoning: "high", sessionId: "s-work" }).result();
+
+        assert.equal(message.stopReason, "stop", message.errorMessage ?? "");
+        const turns = sent.filter((each) => each.url.includes("streamGenerateContent"));
+
+        assert.equal(turns.length, 1);
+        assert.equal(turns[0]!.headers.Authorization, "Bearer ya29.work");
+        assert.equal((JSON.parse(turns[0]!.body) as Body).project, "work-project");
+        assert.equal(sent.some((each) => each.headers.Authorization === "Bearer ya29.default"), false, "nothing on the original's token");
+        assert.equal(runtime.background.running(WORK), true, "agy runs for the account");
+        assert.equal(runtime.background.running(AGY_PROVIDER), false, "and not for the original");
+        assert.deepEqual(
+            (await runtime.background.usage(WORK)).windows.map((window) => Math.round(window.usedPercent)),
+            [90, 25],
+            "the account's quota, read on its token",
+        );
+
+        // Each account's catalog is its own.
+        assert.deepEqual((await runtime.catalog(WORK, JSON.parse(keys[WORK]!))).imageGenerationModelIds, ["work-only-image"]);
+        assert.equal((await runtime.catalog(AGY_PROVIDER, JSON.parse(keys[AGY_PROVIDER]!))).imageGenerationModelIds, undefined);
+
+        // Telemetry on the account's own token.
+        assert.equal(runtime.clearcutFor(AGY_PROVIDER), runtime.clearcut);
+        await runtime.clearcutFor(WORK).sendSessionStart();
+        const logged = sent.filter((each) => each.url === "https://play.googleapis.com/log");
+
+        assert.equal(logged.length, 1);
+        assert.equal(logged[0]!.headers.Authorization, "Bearer ya29.work");
+    } finally {
+        runtime.close();
+    }
+});
+
+test("in the app: Add account for Google Antigravity; it signs in with its own Google account and project, and its models, turns, quota and images use its token; the original stays as it was", async () => {
+    await app?.close();
+    const WORK_CODE = "4/0AeanS0-work-code";
+    const WORK_TOKENS = JSON.stringify({ access_token: "ya29.work-access", expires_in: 3599, refresh_token: "1//work-refresh", token_type: "Bearer", id_token: jwt({ email: "work@example.com" }) });
+    const { sent, send } = google((request) => {
+        const work = request.headers.Authorization === "Bearer ya29.work-access";
+
+        return request.url.endsWith("/token")
+            ? { body: new URLSearchParams(request.body).get("code") === WORK_CODE ? WORK_TOKENS : TOKENS }
+            : request.url.includes("fetchAvailableModels")
+              ? { body: JSON.stringify(IMAGE_CATALOG) }
+              : request.url.includes("loadCodeAssist")
+                ? { body: JSON.stringify({ cloudaicompanionProject: work ? "work-project" : "aicode-consumers", currentTier: { id: "free-tier" } }) }
+                : request.url.includes("retrieveUserQuotaSummary")
+                  ? { body: JSON.stringify(work ? WORK_QUOTA : QUOTA) }
+                  : request.url.includes("streamGenerateContent")
+                    ? { body: DONE, headers: { "content-type": "text/event-stream" } }
+                    : request.url.endsWith(":generateContent")
+                      ? {
+                            body: JSON.stringify({
+                                response: { candidates: [{ content: { role: "model", parts: [{ inlineData: { mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAwS2OUAAAAABJRU5ErkJggg==" } }] }, finishReason: "STOP" }] },
+                            }),
+                        }
+                      : { body: "{}" };
+    });
+
+    app = await openApp(scriptedModel(() => fauxAssistantMessage([fauxText("ok")])), join(root, "antigravity-accounts-data"), undefined, { antigravity: { send, platform: PLATFORM } });
+    const user = owner(app);
+    const tab = fakeTab(undefined, user);
+
+    app.attach(tab.client);
+    const signIn = async (provider: string, code: string) => {
+        const before = tab.events.length;
+        const flowId = app!.providers.startLogin(user, provider, "oauth");
+        const last = () => tab.events.slice(before).findLast((each) => each.event === "auth")?.data;
+
+        await until(() => last()?.step === "prompt", `${provider}'s code prompt`);
+        app!.providers.answerLogin(user, flowId, last()!.promptId as string, code);
+        await until(() => last()?.step === "done", `${provider}'s sign-in`);
+        assert.equal(last()?.ok, true, JSON.stringify(last()));
+    };
+    const listed = (id: string) => app!.providers.list(true).find((each) => each.id === id);
+    const keyOf = async (id: string) => JSON.parse((await app!.models.getAuth(id))!.auth.apiKey!) as { token: string; project: string };
+
+    await signIn(AGY_PROVIDER, CODE);
+    assert.equal(listed(AGY_PROVIDER)?.accounts, true, "Providers offers Add account for it");
+
+    // Add account, as the Providers sheet does; then its own Sign in with Google.
+    assert.equal(app.accounts.add(AGY_PROVIDER, "Work").id, WORK);
+    assert.deepEqual(
+        { name: listed(WORK)?.name, account: listed(WORK)?.account, oauth: listed(WORK)?.oauth, configured: listed(WORK)?.configured },
+        { name: "Google Antigravity · Work", account: { name: "Work", of: AGY_PROVIDER }, oauth: "Sign in with Google", configured: false },
+    );
+    await signIn(WORK, WORK_CODE);
+    assert.equal(listed(WORK)?.configured, true);
+    assert.deepEqual(await keyOf(WORK), { token: "ya29.work-access", project: "work-project", userAgent: UA }, "its own tokens and project");
+    assert.deepEqual(await keyOf(AGY_PROVIDER), { token: "ya29.new-access", project: "aicode-consumers", userAgent: UA }, "the original's are untouched");
+    assert.ok(
+        (await app.modelList()).some((model) => model.provider === WORK && model.id === "gemini-3.8-flash" && model.account === "Work"),
+        "its models carry its id",
+    );
+    // Renamed: the same instance under the new name, its model list kept.
+    app.accounts.rename(WORK, "Office");
+    assert.ok(
+        (await app.modelList()).some((model) => model.provider === WORK && model.id === "gemini-3.8-flash" && model.account === "Office"),
+        "a rename keeps the models Google listed",
+    );
+    app.accounts.rename(WORK, "Work");
+
+    // A session on the account's model: its turns go with the account's token and project.
+    const id = await newSession(app);
+
+    await app.commands.configure(id, user, { model: { provider: WORK, modelId: "gemini-3.8-flash" }, thinkingLevel: "high" });
+    const from = sent.length;
+
+    await say(app, id, "hello from work");
+    assert.match(JSON.stringify(await modelTexts(app, id)), /hi from work/);
+    const turns = sent.slice(from).filter((each) => each.url.includes("streamGenerateContent"));
+
+    assert.ok(turns.length > 0);
+
+    for (const each of turns) {
+        assert.equal(each.headers.Authorization, "Bearer ya29.work-access");
+        assert.equal((JSON.parse(each.body) as Body).project, "work-project");
+    }
+
+    // Its usage bars: its own quota.
+    const usage = await app.usageLimits.get(WORK, true);
+
+    assert.ok(usage !== undefined && "windows" in usage, JSON.stringify(usage));
+    assert.deepEqual(usage.windows.map((window) => Math.round(window.usedPercent)), [90, 25]);
+
+    // Images: each account's models under its id, made on its sign-in.
+    const { models } = await app.images.models();
+
+    assert.deepEqual(
+        models.filter((each) => each.provider.startsWith(AGY_PROVIDER)).map((each) => [each.id, each.account]),
+        [
+            [`${AGY_PROVIDER}/gemini-3.1-flash-image`, undefined],
+            [`${WORK}/gemini-3.1-flash-image`, "Work"],
+        ],
+    );
+    const before = sent.length;
+    const made = await app.images.generate(await app.images.resolve(`${WORK}/gemini-3.1-flash-image`), { prompt: "a cat", inputs: [], count: 1 });
+
+    assert.equal(made.images.length, 1);
+    const image = sent.slice(before).find((each) => each.url.endsWith(":generateContent"))!;
+
+    assert.equal(image.headers.Authorization, "Bearer ya29.work-access");
+    assert.equal((JSON.parse(image.body) as { project: string }).project, "work-project");
+
+    // Menu › Audio and Menu › Dictation pick it: its transcription by its id, its dictation as voice.agyAccount.
+    assert.ok((await app.audio.transcribeModels()).includes(WORK));
+    await app.setAudioChoice(user, "transcribeModel", WORK);
+    assert.deepEqual(app.audio.transcribeModel(), { model: "antigravity", account: WORK, agy: true });
+    await app.setAudioChoice(user, "transcribeModel", null);
+    await assert.rejects(app.setVoice(user, { engine: "antigravity", agyAccount: `${AGY_PROVIDER}~nope` }), /There is no account google-antigravity~nope/);
+    await app.setVoice(user, { engine: "antigravity", agyAccount: WORK });
+    assert.deepEqual([app.config.voice.engine, app.config.voice.agyAccount], ["antigravity", WORK]);
+    // The tabs learn it is signed in, and the accounts to pick from.
+    const voice = ((await app.hello(user)) as unknown as { server: { voice: { antigravity: boolean; accounts: unknown } } }).server.voice;
+
+    assert.deepEqual([voice.antigravity, voice.accounts], [true, { codex: [], agy: [{ id: AGY_PROVIDER }, { id: WORK, name: "Work" }] }]);
+    await app.setVoice(user, { engine: "android", agyAccount: AGY_PROVIDER });
+
+    // Removed: signed out and gone; the original still signed in.
+    await app.accounts.remove(WORK);
+    assert.equal(app.models.getProvider(WORK), undefined);
+    assert.equal(listed(AGY_PROVIDER)?.configured, true);
 });

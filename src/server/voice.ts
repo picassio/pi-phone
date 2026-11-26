@@ -17,6 +17,7 @@
  * the settings are validated live that way.
  */
 import { randomBytes, randomUUID } from "node:crypto";
+import { isAccountOf } from "./accounts.ts";
 import { HttpError } from "./errors.ts";
 
 export type VoiceMode = "work" | "chat" | "think";
@@ -65,6 +66,13 @@ export interface VoiceSettings {
     readonly dictationModel: string;
     /** Who listens to the message box's mic: Android's recognizer, Codex (`dictationModel`), or Google Antigravity. */
     readonly engine: DictationEngine;
+    /**
+     * The ChatGPT (Codex) account calls and Codex dictation run on: `openai-codex` (the original), or one more account
+     * (`openai-codex~<slug>`, `accounts.ts`). The model check is this account's.
+     */
+    readonly codexAccount: string;
+    /** The Google Antigravity account its dictation runs on: `google-antigravity`, or `google-antigravity~<slug>`. */
+    readonly agyAccount: string;
     readonly voice: string;
     /** "auto", or a language the model hears (ISO 639-1, "vi"). */
     readonly language: string;
@@ -111,6 +119,8 @@ export const DEFAULT_VOICE: VoiceSettings = {
     model: "gpt-realtime-2",
     dictationModel: "gpt-4o-transcribe",
     engine: "android",
+    codexAccount: "openai-codex",
+    agyAccount: "google-antigravity",
     voice: "marin",
     language: "auto",
     mode: "work",
@@ -162,6 +172,8 @@ const KEYS = [
     "model",
     "dictationModel",
     "engine",
+    "codexAccount",
+    "agyAccount",
     "voice",
     "language",
     "mode",
@@ -204,6 +216,8 @@ export function readVoice(stored: unknown): VoiceSettings {
         model: pick(stored.model, (value) => typeof value === "string" && MODEL_ID.test(value), DEFAULT_VOICE.model),
         dictationModel: pick(stored.dictationModel, (value) => typeof value === "string" && MODEL_ID.test(value), DEFAULT_VOICE.dictationModel),
         engine: pick(stored.engine, (value) => ENGINES.includes(value as DictationEngine), DEFAULT_VOICE.engine),
+        codexAccount: pick(stored.codexAccount, (value) => typeof value === "string" && isAccountOf(value, "openai-codex"), DEFAULT_VOICE.codexAccount),
+        agyAccount: pick(stored.agyAccount, (value) => typeof value === "string" && isAccountOf(value, "google-antigravity"), DEFAULT_VOICE.agyAccount),
         voice: pick(stored.voice, (value) => typeof value === "string" && /^[a-z]{2,20}$/.test(value), DEFAULT_VOICE.voice),
         language: pick(stored.language, (value) => typeof value === "string" && LANGUAGE.test(value), DEFAULT_VOICE.language),
         mode: pick(stored.mode, isVoiceMode, DEFAULT_VOICE.mode),
@@ -264,6 +278,23 @@ export function withVoice(current: VoiceSettings, patch: unknown): VoiceSettings
         }
 
         next.engine = patch.engine as DictationEngine;
+    }
+
+    // An account's id: whether it is signed in is checked where the setting is kept (`App.setVoice`).
+    if (patch.codexAccount !== undefined) {
+        if (typeof patch.codexAccount !== "string" || !isAccountOf(patch.codexAccount.trim(), "openai-codex")) {
+            throw new HttpError(400, "voice.codexAccount is openai-codex, or one more ChatGPT account's id, like openai-codex~work.");
+        }
+
+        next.codexAccount = patch.codexAccount.trim();
+    }
+
+    if (patch.agyAccount !== undefined) {
+        if (typeof patch.agyAccount !== "string" || !isAccountOf(patch.agyAccount.trim(), "google-antigravity")) {
+            throw new HttpError(400, "voice.agyAccount is google-antigravity, or one more Google Antigravity account's id, like google-antigravity~work.");
+        }
+
+        next.agyAccount = patch.agyAccount.trim();
     }
 
     if (patch.voice !== undefined) {
@@ -576,8 +607,8 @@ export interface Dictation {
 }
 
 export interface VoiceOptions {
-    /** The sign-in's token, fresh (refreshed when it ran out); undefined when there is none. */
-    auth(): Promise<VoiceAuth | undefined>;
+    /** A ChatGPT account's token, fresh (refreshed when it ran out); undefined when it is not signed in. */
+    auth(account: string): Promise<VoiceAuth | undefined>;
     settings(): VoiceSettings;
     check(): VoiceCheck | undefined;
     saveCheck(check: VoiceCheck): void;
@@ -619,12 +650,17 @@ export class VoiceService {
         return (this.#options.now ?? Date.now)();
     }
 
-    /** The sign-in, or a 409 that says where to add it. */
-    async auth(): Promise<VoiceAuth> {
-        const auth = await this.#options.auth();
+    /** The sign-in of Settings › Voice's ChatGPT account (or `account`), or a 409 that says where to add it. */
+    async auth(account: string = this.#options.settings().codexAccount): Promise<VoiceAuth> {
+        const auth = await this.#options.auth(account);
 
         if (auth === undefined || auth.token === "") {
-            throw new HttpError(409, "Voice needs the ChatGPT (Codex) sign-in: add it in Settings › Providers.");
+            throw new HttpError(
+                409,
+                account === "openai-codex"
+                    ? "Voice needs the ChatGPT (Codex) sign-in: add it in Settings › Providers."
+                    : `Voice is set to the ChatGPT account ${account}, which is not signed in: sign in to it in Settings › Providers, or pick another account in Settings › Voice.`,
+            );
         }
 
         return auth;
@@ -797,14 +833,17 @@ export class VoiceService {
      * updated with what this found.
      */
     async validate(current: VoiceSettings, next: VoiceSettings): Promise<void> {
-        const changed = (key: keyof VoiceSettings) => current[key] !== next[key];
+        // Another ChatGPT account: its own models, so the live and dictation models are checked again on it, and the
+        // check holds only what this one found.
+        const account = current.codexAccount !== next.codexAccount;
+        const changed = (key: keyof VoiceSettings) => account || current[key] !== next[key];
 
         if (!changed("model") && !changed("voice") && !changed("dictationModel") && !changed("language")) {
             return;
         }
 
-        const auth = await this.auth();
-        const before = this.#options.check();
+        const auth = await this.auth(next.codexAccount);
+        const before = account ? undefined : this.#options.check();
         let live = [...(before?.live ?? [])];
         let dictation = [...(before?.dictation ?? [])];
 
