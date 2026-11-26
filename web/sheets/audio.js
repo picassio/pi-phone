@@ -33,9 +33,23 @@ export function AudioSheet() {
             await api(`audio/${route}`, { value: value === "auto" ? null : value }, { method: "PUT" });
             await load();
         });
+    // A model on one more account (src/server/accounts.ts): `openai-codex~work/gpt-4o-transcribe`, or Google
+    // Antigravity's `google-antigravity~work`; shown as the model and the account's name.
+    const named = (each) => {
+        const slash = each.indexOf("/");
+        const account = slash === -1 ? (each.startsWith("google-antigravity~") ? each : undefined) : each.slice(0, slash);
+        const model = account === undefined ? each : slash === -1 ? "antigravity" : each.slice(slash + 1);
+        const name = NAMES[model] === undefined ? model : t(NAMES[model]);
+
+        return { name: account === undefined ? name : `${name} · ${state?.accounts?.[account] ?? account}`, model };
+    };
     const options = (list, fallback) => [
         { value: "auto", label: t("Automatic"), detail: t("Now {model}", { model: fallback }) },
-        ...list.map((each) => ({ value: each, label: NAMES[each] === undefined ? each : t(NAMES[each]), ...(DETAILS[each] === undefined ? {} : { detail: t(DETAILS[each]) }) })),
+        ...list.map((each) => {
+            const { name, model } = named(each);
+
+            return { value: each, label: name, ...(DETAILS[model] === undefined ? {} : { detail: t(DETAILS[model]) }) };
+        }),
     ];
     const voice = state?.voice ?? state?.defaults.voice;
     const sample = () => {

@@ -34,7 +34,7 @@ import type { ConversationId } from "@earendil-works/pi-durable";
 import { VOICES } from "../voice.ts";
 import { ImageGen } from "../image-gen.ts";
 import { DEFAULT_ASK_MODEL, DEFAULT_MAKE_MODEL } from "../video-gen.ts";
-import { DEFAULT_SPEAK_MODEL, DEFAULT_TRANSCRIBE_MODEL, DEFAULT_VOICE, SPEAK_MODELS, VOICES as SPEAK_VOICES } from "../audio.ts";
+import { DEFAULT_SPEAK_MODEL, DEFAULT_TRANSCRIBE_MODEL, DEFAULT_VOICE, VOICES as SPEAK_VOICES } from "../audio.ts";
 import { serveLocalVideo } from "./assets.ts";
 import { makeBackup, MAX_RESTORE, stageRestore } from "../backup.ts";
 import { addressOf, deviceName } from "../devices.ts";
@@ -1149,7 +1149,9 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 // Google Antigravity's while it is signed in (PP-557).
                 transcribeModels: await app.audio.transcribeModels(),
                 speakModel: app.config.audioChoice("audioSpeakModel"),
-                speakModels: SPEAK_MODELS,
+                // On each ChatGPT account signed in, and the names of the more accounts (`accounts.ts`).
+                speakModels: await app.audio.speakModels(),
+                accounts: await app.audio.accountNames(),
                 voice: app.config.audioChoice("audioVoice"),
                 voices: SPEAK_VOICES,
                 defaults: { transcribeModel: DEFAULT_TRANSCRIBE_MODEL, speakModel: DEFAULT_SPEAK_MODEL, voice: DEFAULT_VOICE },
@@ -2161,7 +2163,8 @@ export function createApi(options: HttpOptions, auth: Auth) {
             // Dictation by Google Antigravity (PP-557): the page sends its mic's 16 kHz pcm16, the server streams it to
             // Google as agy does and answers with what was heard so far; the end waits for the whole of it.
             if (second === "agy-dictation" && third === undefined && method === "POST") {
-                return json(response, 200, await withConflict(() => app.agyMedia.startDictation(user.id)));
+                // On Settings › Dictation's Antigravity account (`voice.agyAccount`).
+                return json(response, 200, await withConflict(() => app.agyMedia.startDictation(user.id, app.config.voice.agyAccount)));
             }
 
             if (second === "agy-dictation" && third !== undefined && parts[3] === "audio" && method === "POST") {

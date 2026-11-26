@@ -819,6 +819,20 @@ test("in the app: Add account for Google Antigravity; it signs in with its own G
     assert.equal(image.headers.Authorization, "Bearer ya29.work-access");
     assert.equal((JSON.parse(image.body) as { project: string }).project, "work-project");
 
+    // Menu › Audio and Menu › Dictation pick it: its transcription by its id, its dictation as voice.agyAccount.
+    assert.ok((await app.audio.transcribeModels()).includes(WORK));
+    await app.setAudioChoice(user, "transcribeModel", WORK);
+    assert.deepEqual(app.audio.transcribeModel(), { model: "antigravity", account: WORK, agy: true });
+    await app.setAudioChoice(user, "transcribeModel", null);
+    await assert.rejects(app.setVoice(user, { engine: "antigravity", agyAccount: `${AGY_PROVIDER}~nope` }), /There is no account google-antigravity~nope/);
+    await app.setVoice(user, { engine: "antigravity", agyAccount: WORK });
+    assert.deepEqual([app.config.voice.engine, app.config.voice.agyAccount], ["antigravity", WORK]);
+    // The tabs learn it is signed in, and the accounts to pick from.
+    const voice = ((await app.hello(user)) as unknown as { server: { voice: { antigravity: boolean; accounts: unknown } } }).server.voice;
+
+    assert.deepEqual([voice.antigravity, voice.accounts], [true, { codex: [], agy: [{ id: AGY_PROVIDER }, { id: WORK, name: "Work" }] }]);
+    await app.setVoice(user, { engine: "android", agyAccount: AGY_PROVIDER });
+
     // Removed: signed out and gone; the original still signed in.
     await app.accounts.remove(WORK);
     assert.equal(app.models.getProvider(WORK), undefined);

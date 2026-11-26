@@ -4016,5 +4016,10 @@
     "Google Antigravity": "Google Antigravity",
     "on your Google Antigravity plan": "tính vào gói Google Antigravity của bạn",
     "Google Antigravity sign-in": "Đăng nhập Google Antigravity",
-    "Google Antigravity sign-in · {account}": "Đăng nhập Google Antigravity · {account}"
+    "Google Antigravity sign-in · {account}": "Đăng nhập Google Antigravity · {account}",
+    "ChatGPT sign-in · {account}": "Đăng nhập ChatGPT · {account}",
+    "Codex dictation and voice calls run on this ChatGPT account.": "Nhập giọng nói bằng Codex và cuộc gọi thoại chạy trên tài khoản ChatGPT này.",
+    "Google Antigravity's dictation runs on this account.": "Nhập giọng nói của Google Antigravity chạy trên tài khoản này.",
+    "ChatGPT account": "Tài khoản ChatGPT",
+    "Calls and Codex dictation run on this account; its models are checked with OpenAI when you change it.": "Cuộc gọi và nhập giọng nói bằng Codex chạy trên tài khoản này; khi bạn đổi, các mô hình của nó được kiểm tra với OpenAI."
 }

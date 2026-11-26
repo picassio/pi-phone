@@ -768,10 +768,10 @@
     "Send a thinking level: {1}, or session.": "请发送思考级别：{1}，或 session。",
     "Thinking is one of {1}, or session.": "思考级别只能是 {1} 之一，或 session。",
     "Thinking is one of {1}, session, or inherit.": "思考级别只能是 {1}、session 或 inherit 之一。",
-    "{1} is not a transcription model: {2}.": "{1} 不是转写模型：{2}。",
+    "{1} is not a transcription model: {2}, or one of them on another account (Menu › Audio lists them).": "{1} 不是转写模型：{2}，或其中之一在另一个账号上（菜单 › 音频 中列出）。",
     "This server has no ffmpeg to make the sample with.": "这台服务器没有可用来生成试听的 ffmpeg。",
     "Choose one of: {1}, or none for the default.": "请选择：{1}，或 none 使用默认值。",
-    "{1} is not a speaking model: {2}.": "{1} 不是朗读模型：{2}。",
+    "{1} is not a speaking model: {2}, or one of them on another account (Menu › Audio lists them).": "{1} 不是朗读模型：{2}，或其中之一在另一个账号上（菜单 › 音频 中列出）。",
     "{1} is not a voice: {2}.": "{1} 不是可用的声音：{2}。",
     "Audio needs the ChatGPT (Codex) sign-in: add it in Settings › Providers.": "音频需要 ChatGPT（Codex）登录：在“设置 › 提供商”中添加。",
     "Rank with Jev takes a Jev model's OpenRouter id (typesafe/jev-1.14), off, or default.": "用 Jev 排序接受 Jev 模型的 OpenRouter id（typesafe/jev-1.14）、off 或 default。",
@@ -842,5 +842,12 @@
     "There is no MCP server {1}.": "没有 MCP 服务器 {1}。",
     "enabled is true or false.": "enabled 为 true 或 false。",
     "There is no MCP server {1}. MCP servers: {2}.": "没有 MCP 服务器 {1}。MCP 服务器：{2}。",
-    "{1} changed since it was approved: turn it on with set_mcp_server (action enable), whose card shows the entry.": "{1} 自批准后已被修改：请用 set_mcp_server（action enable）开启，其卡片会显示整个条目。"
+    "{1} changed since it was approved: turn it on with set_mcp_server (action enable), whose card shows the entry.": "{1} 自批准后已被修改：请用 set_mcp_server（action enable）开启，其卡片会显示整个条目。",
+    "Dictation by Google Antigravity on {1} needs that account's sign-in: sign in to it in Settings › Providers first.": "在 {1} 上使用 Google Antigravity 听写需要该账号登录：请先在 设置 › 提供方 中登录它。",
+    "There is no account {1}: Settings › Providers lists them.": "没有账号 {1}：设置 › 提供方 中列出了所有账号。",
+    "The transcription model {1} needs that {2} account's sign-in: sign in to it in Settings › Providers, or pick another model in Menu › Audio.": "转写模型 {1} 需要该 {2} 账号登录：请在 设置 › 提供方 中登录它，或在 菜单 › 音频 中选择其他模型。",
+    "Audio on {1} needs that ChatGPT account's sign-in: sign in to it in Settings › Providers, or pick another model in Menu › Audio.": "{1} 上的音频需要该 ChatGPT 账号登录：请在 设置 › 提供方 中登录它，或在 菜单 › 音频 中选择其他模型。",
+    "voice.codexAccount is openai-codex, or one more ChatGPT account's id, like openai-codex~work.": "voice.codexAccount 是 openai-codex，或另一个 ChatGPT 账号的 id，如 openai-codex~work。",
+    "voice.agyAccount is google-antigravity, or one more Google Antigravity account's id, like google-antigravity~work.": "voice.agyAccount 是 google-antigravity，或另一个 Google Antigravity 账号的 id，如 google-antigravity~work。",
+    "Voice is set to the ChatGPT account {1}, which is not signed in: sign in to it in Settings › Providers, or pick another account in Settings › Voice.": "语音设置的 ChatGPT 账号 {1} 尚未登录：请在 设置 › 提供方 中登录它，或在 设置 › 语音 中选择其他账号。"
 }

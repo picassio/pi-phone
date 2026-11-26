@@ -4036,5 +4036,10 @@
     "Google Antigravity": "Google Antigravity",
     "on your Google Antigravity plan": "计入你的 Google Antigravity 套餐",
     "Google Antigravity sign-in": "Google Antigravity 登录",
-    "Google Antigravity sign-in · {account}": "Google Antigravity 登录 · {account}"
+    "Google Antigravity sign-in · {account}": "Google Antigravity 登录 · {account}",
+    "ChatGPT sign-in · {account}": "ChatGPT 登录 · {account}",
+    "Codex dictation and voice calls run on this ChatGPT account.": "Codex 听写和语音通话使用这个 ChatGPT 账号。",
+    "Google Antigravity's dictation runs on this account.": "Google Antigravity 的听写使用这个账号。",
+    "ChatGPT account": "ChatGPT 账号",
+    "Calls and Codex dictation run on this account; its models are checked with OpenAI when you change it.": "通话和 Codex 听写使用这个账号；更改时会向 OpenAI 检查它的模型。"
 }

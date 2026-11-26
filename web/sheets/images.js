@@ -14,12 +14,15 @@ const perMillion = (amount) => `$${amount < 1 ? amount.toFixed(2) : String(Math.
  * openai-codex/gpt-image-2.5 names no model), any other by its name, or by its id when only that is known.
  */
 export function imageModelTitle(model) {
-    return model.id.startsWith("openai-codex/") ? t("ChatGPT Images (ChatGPT picks the model and quality)") : (model.name ?? model.id);
+    return isCodex(model.id.split("/")[0]) ? t("ChatGPT Images (ChatGPT picks the model and quality)") : (model.name ?? model.id);
 }
+
+/** ChatGPT's original account, or one more of it (`openai-codex~<slug>`, src/server/accounts.ts). */
+const isCodex = (provider) => provider === "openai-codex" || provider.startsWith("openai-codex~");
 
 /** A model's price, as OpenRouter gives it, or where it is paid. */
 function priceOf(model) {
-    if (model.provider === "openai-codex") {
+    if (isCodex(model.provider)) {
         return t("on your ChatGPT plan");
     }
 
@@ -39,8 +42,10 @@ const isAgy = (provider) => provider === "google-antigravity" || provider.starts
 
 /** Who a model is from, as a group's title; one more account of a provider with its name. */
 const providerTitle = (provider, account) =>
-    provider === "openai-codex"
-        ? t("ChatGPT sign-in")
+    isCodex(provider)
+        ? account === undefined
+            ? t("ChatGPT sign-in")
+            : t("ChatGPT sign-in · {account}", { account })
         : provider === "openrouter"
           ? "OpenRouter"
           : isAgy(provider)
@@ -99,7 +104,7 @@ export function ImagesSheet() {
                                               row(
                                                   model.id,
                                                   imageModelTitle(model),
-                                                  provider === "openai-codex" ? priceOf(model) : html`<span class="mono">${model.model}</span> · ${priceOf(model)}`,
+                                                  isCodex(provider) ? priceOf(model) : html`<span class="mono">${model.model}</span> · ${priceOf(model)}`,
                                                   state.model === model.id,
                                               ),
                                           )}

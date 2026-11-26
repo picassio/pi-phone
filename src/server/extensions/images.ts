@@ -214,8 +214,8 @@ export default function createImages(host: PocketHost) {
                 saved.push({ path, width: converted.width, height: converted.height });
             }
 
-            const codex = choice.provider === CODEX_PROVIDER;
-            // The original account's or one more account's (`google-antigravity~<slug>/<model>`).
+            // The original account's or one more account's (`openai-codex~<slug>/…`, `google-antigravity~<slug>/<model>`).
+            const codex = baseProvider(choice.provider) === CODEX_PROVIDER;
             const agy = baseProvider(choice.provider) === AGY_PROVIDER;
             const cost = codex
                 ? "on the ChatGPT plan (no charge in money)"

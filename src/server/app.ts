@@ -11,14 +11,14 @@ import { execFile, spawn } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { promisify } from "node:util";
 import { sshArguments } from "@earendil-works/pi-env";
-import { ACCOUNT_PROVIDERS, Accounts, baseProvider, isTeamAccount } from "./accounts.ts";
+import { ACCOUNT_PROVIDERS, type AccountChoice, Accounts, baseProvider, isAccountOf, isTeamAccount } from "./accounts.ts";
 import { AGY_PROVIDER, type AgyOptions, antigravity } from "./antigravity.ts";
 import { AgyMedia, type AgyMediaOptions } from "./antigravity-media.ts";
 import { CustomProviders, NO_KEY } from "./custom-providers.ts";
-import { ImageGen, type ImageGenOptions } from "./image-gen.ts";
+import { CODEX_PROVIDER, ImageGen, type ImageGenOptions } from "./image-gen.ts";
 import { JEV_ID, JevModels } from "./jev.ts";
 import { Videos, type VideosOptions } from "./video-gen.ts";
-import { Audio, type AudioOptions, m4aArgs, SPEAK_MODELS, VOICES as SPEAK_VOICES, wavOf } from "./audio.ts";
+import { Audio, type AudioOptions, m4aArgs, VOICES as SPEAK_VOICES, wavOf } from "./audio.ts";
 
 /** What a voice's sample says, in the person's language. */
 const AUDIO_SAMPLES: Record<"vi" | "zh-CN" | "en", string> = {
@@ -496,7 +496,7 @@ export interface OpenOptions {
      */
     gatewayUrl?: string;
     /** Where OpenAI is and whose sign-in voice uses (`voice.ts`): tests stand in a fake OpenAI and a token. */
-    voice?: { endpoints?: VoiceEndpoints; auth?: () => Promise<{ token: string; account?: string } | undefined>; fetch?: typeof fetch };
+    voice?: { endpoints?: VoiceEndpoints; auth?: (account: string) => Promise<{ token: string; account?: string } | undefined>; fetch?: typeof fetch };
     /** Where ChatGPT's and OpenRouter's image endpoints are, and whose ChatGPT sign-in (`image-gen.ts`): tests stand in fakes. */
     images?: Partial<Pick<ImageGenOptions, "endpoints" | "fetch" | "codexAuth">>;
     videos?: Partial<Pick<VideosOptions, "endpoints" | "fetch" | "pollMs">>;
@@ -854,10 +854,16 @@ export class PocketApp {
         // The team server's machines this person may use (PP-82): into Machines, reached through its relay and agent.
         this.teamMachines = new TeamMachinesClient(this.#teamServer, sshDir, (line) => this.log(line), (entries, manage) => this.machines.setTeam(entries, manage));
         // Google Antigravity's more accounts too (PP-555): each an instance of the app's provider, its reads its own.
-        this.accounts = new Accounts(options.dataDir, () => this.models, {
-            ...(options.accountProviders ?? ACCOUNT_PROVIDERS),
-            [AGY_PROVIDER]: (id) => this.#antigravity.accountProvider(id),
-        });
+        // Its accounts are kept apart in accounts.json (`newer`): a build from before them opens without them.
+        this.accounts = new Accounts(
+            options.dataDir,
+            () => this.models,
+            {
+                ...(options.accountProviders ?? ACCOUNT_PROVIDERS),
+                [AGY_PROVIDER]: (id) => this.#antigravity.accountProvider(id),
+            },
+            { apart: new Set([AGY_PROVIDER]), log: (line) => this.log(line) },
+        );
         this.customProviders = new CustomProviders({
             secrets: this.secrets,
             models: () => this.models,
@@ -886,14 +892,7 @@ export class PocketApp {
 
                 return key === undefined || key === "" ? undefined : key;
             },
-            accounts: async () =>
-                [
-                    { id: AGY_PROVIDER },
-                    ...this.accounts
-                        .list()
-                        .filter((account) => account.provider === AGY_PROVIDER)
-                        .map((account) => ({ id: account.id, name: account.name })),
-                ].filter((account) => this.models.getProvider(account.id) !== undefined && this.models.hasConfiguredAuth(account.id)),
+            accounts: async () => this.signedInAccounts(AGY_PROVIDER),
             // As one agy: the provider's transport, and each account's catalog and background reads (PP-558).
             send: this.#antigravity.send,
             catalog: (account, auth, signal) => this.#antigravity.catalog(account, auth, signal),
@@ -924,11 +923,9 @@ export class PocketApp {
         });
         this.audio = new Audio({
             agy: this.agyMedia,
-            auth: async () => {
-                const token = (await this.models.getAuth("openai-codex"))?.auth.apiKey;
-
-                return token === undefined || token === "" ? undefined : { token, ...withAccount(token) };
-            },
+            // Each ChatGPT account's own sign-in (`openai-codex`, or one more account `openai-codex~<slug>`).
+            auth: (account) => this.codexAuth(account),
+            codexAccounts: async () => this.accountsOf(CODEX_PROVIDER),
             transcribeSetting: () => this.config.audioChoice("audioTranscribeModel"),
             speakSetting: () => this.config.audioChoice("audioSpeakModel"),
             voiceSetting: () => this.config.audioChoice("audioVoice"),
@@ -936,11 +933,8 @@ export class PocketApp {
             ...options.audio,
         });
         this.images = new ImageGen({
-            codexAuth: async () => {
-                const token = (await this.models.getAuth("openai-codex"))?.auth.apiKey;
-
-                return token === undefined || token === "" ? undefined : { token, ...withAccount(token) };
-            },
+            codexAuth: (account) => this.codexAuth(account),
+            codexAccounts: async () => this.accountsOf(CODEX_PROVIDER),
             openRouterKey: async () => {
                 const key = (await this.models.getAuth("openrouter"))?.auth.apiKey;
 
@@ -998,13 +992,8 @@ export class PocketApp {
             antigravity: (provider) => this.#antigravity.background.usage(provider),
         });
         this.voice = new VoiceService({
-            auth:
-                options.voice?.auth ??
-                (async () => {
-                    const token = (await this.models.getAuth("openai-codex"))?.auth.apiKey;
-
-                    return token === undefined || token === "" ? undefined : { token, ...withAccount(token) };
-                }),
+            // Settings › Voice's ChatGPT account (`voice.codexAccount`): the original, or one more account.
+            auth: options.voice?.auth ?? ((account) => this.codexAuth(account)),
             settings: () => this.config.voice,
             check: () => this.config.voiceCheck,
             saveCheck: (check) => {
@@ -2897,9 +2886,28 @@ export class PocketApp {
         const current = this.config.voice;
         const next = withVoice(current, patch);
 
-        // Google Antigravity's dictation (PP-557) listens only on its sign-in.
-        if (next.engine === "antigravity" && current.engine !== "antigravity" && !this.models.hasConfiguredAuth(AGY_PROVIDER)) {
-            throw new HttpError(409, "Dictation by Google Antigravity needs its sign-in: sign in in Settings › Providers first.");
+        // A newly picked account that is not here (removed, or a typo) is refused whatever the engine.
+        for (const [before, account] of [
+            [current.codexAccount, next.codexAccount],
+            [current.agyAccount, next.agyAccount],
+        ] as const) {
+            if (before !== account && this.models.getProvider(account) === undefined) {
+                throw new HttpError(400, `There is no account ${account}: Settings › Providers lists them.`);
+            }
+        }
+
+        // Google Antigravity's dictation (PP-557) listens only on its account's sign-in (`voice.agyAccount`).
+        if (
+            next.engine === "antigravity" &&
+            (current.engine !== "antigravity" || current.agyAccount !== next.agyAccount) &&
+            (this.models.getProvider(next.agyAccount) === undefined || !this.models.hasConfiguredAuth(next.agyAccount))
+        ) {
+            throw new HttpError(
+                409,
+                next.agyAccount === AGY_PROVIDER
+                    ? "Dictation by Google Antigravity needs its sign-in: sign in in Settings › Providers first."
+                    : `Dictation by Google Antigravity on ${next.agyAccount} needs that account's sign-in: sign in to it in Settings › Providers first.`,
+            );
         }
 
         await this.voice.validate(current, next);
@@ -4856,6 +4864,39 @@ export class PocketApp {
         return this.accounts.list().some((each) => each.provider === provider) ? "Default" : undefined;
     }
 
+    /**
+     * A provider's accounts registered here, signed in or not: the original first, then each more account with its name
+     * (`accounts.ts`). What uses one asks for its sign-in when it runs.
+     */
+    accountsOf(base: string): AccountChoice[] {
+        return [
+            { id: base },
+            ...this.accounts
+                .list()
+                .filter((account) => account.provider === base && this.models.getProvider(account.id) !== undefined)
+                .map((account) => ({ id: account.id, name: account.name })),
+        ];
+    }
+
+    /** A provider's accounts signed in now, the original first when it is. */
+    signedInAccounts(base: string): AccountChoice[] {
+        return this.accountsOf(base).filter((account) => this.models.getProvider(account.id) !== undefined && this.models.hasConfiguredAuth(account.id));
+    }
+
+    /**
+     * A ChatGPT (Codex) account's token and its ChatGPT account id, as audio, images and voice send them: the original's
+     * (`openai-codex`) or one more account's (`openai-codex~<slug>`), never another's; undefined when it is not signed in.
+     */
+    async codexAuth(account: string = CODEX_PROVIDER): Promise<{ token: string; account?: string } | undefined> {
+        if (!isAccountOf(account, CODEX_PROVIDER) || this.models.getProvider(account) === undefined) {
+            return undefined;
+        }
+
+        const token = (await this.models.getAuth(account))?.auth.apiKey;
+
+        return token === undefined || token === "" ? undefined : { token, ...withAccount(token) };
+    }
+
     async hello(user: User) {
         return {
             user: {
@@ -4961,8 +5002,19 @@ export class PocketApp {
                 // What the phone's assistant sheet does (PP-146): the owner's, as only the owner uses the sheet.
                 ...(user.role === "owner" ? { assistant: this.config.assistant } : {}),
                 // Voice with the owner's ChatGPT sign-in (PP-185): its settings and what the last model check found.
-                // `antigravity`: whether Google Antigravity is signed in, for its dictation (PP-557).
-                ...(user.role === "owner" ? { voice: { settings: this.config.voice, check: this.config.voiceCheck ?? null, voices: VOICES, antigravity: this.models.hasConfiguredAuth(AGY_PROVIDER) } } : {}),
+                // `antigravity`: whether Settings › Dictation's Google Antigravity account is signed in, for its dictation
+                // (PP-557). `accounts`: the ChatGPT and Antigravity accounts signed in, to pick from when there are more.
+                ...(user.role === "owner"
+                    ? {
+                          voice: {
+                              settings: this.config.voice,
+                              check: this.config.voiceCheck ?? null,
+                              voices: VOICES,
+                              antigravity: this.models.getProvider(this.config.voice.agyAccount) !== undefined && this.models.hasConfiguredAuth(this.config.voice.agyAccount),
+                              accounts: { codex: this.signedInAccounts(CODEX_PROVIDER), agy: this.signedInAccounts(AGY_PROVIDER) },
+                          },
+                      }
+                    : {}),
                 // Pi using a phone (PP-141): the owner's tabs show the session's live line, with Stop.
                 phoneControl: user.role === "owner" ? this.phoneControl.view() : [],
                 computerControl: user.role === "owner" ? this.computerControl.view() : [],
@@ -7177,7 +7229,7 @@ export class PocketApp {
         }
 
         const language = resolveLanguage(user.language, this.config.voice.language === "auto" ? undefined : this.config.voice.language);
-        const { model } = this.audio.speakChoice({ voice });
+        const { model, account } = this.audio.speakChoice({ voice });
         const file = join(this.dataDir, "audio-samples", `${model}-${voice}-${language}.m4a`);
 
         if (existsSync(file)) {
@@ -7191,7 +7243,7 @@ export class PocketApp {
         }
 
         const text = AUDIO_SAMPLES[language];
-        const read = await this.audio.speakPart(text, { model, voice });
+        const read = await this.audio.speakPart(text, { model, voice, account });
         const wav = `${file}.wav`;
 
         mkdirSync(dirname(file), { recursive: true });
@@ -7213,7 +7265,8 @@ export class PocketApp {
         }
 
         // Google Antigravity's transcription is one only while it is signed in (PP-557).
-        const allowed: readonly string[] = key === "transcribeModel" ? await this.audio.transcribeModels() : key === "speakModel" ? SPEAK_MODELS : SPEAK_VOICES;
+        // Another ChatGPT or Antigravity account's (`openai-codex~work/gpt-4o-transcribe`) while it is signed in.
+        const allowed: readonly string[] = key === "transcribeModel" ? await this.audio.transcribeModels() : key === "speakModel" ? await this.audio.speakModels() : SPEAK_VOICES;
 
         if (value !== null && (typeof value !== "string" || !allowed.includes(value))) {
             throw new HttpError(400, `Choose one of: ${allowed.join(", ")}, or none for the default.`);

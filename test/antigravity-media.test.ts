@@ -176,6 +176,45 @@ test("a picture on one more account (accounts.ts) is made on its own sign-in, ca
     assert.equal(await signedOut.signedIn(WORK), false);
 });
 
+test("dictation and transcription on one more Antigravity account (voice.agyAccount, google-antigravity~<slug>): its own token, catalog and reads", async () => {
+    const WORK = `${AGY_PROVIDER}~work`;
+    const WORK_AUTH = JSON.stringify({ token: "ya29.work", project: "work-project", userAgent: UA });
+    const google = await dictationServer();
+    const { sent, send } = cloudCode(() => ({ body: JSON.stringify(CATALOG) }));
+    const used: string[] = [];
+    const media = new AgyMedia({
+        apiKey: async (account) => (account === WORK ? WORK_AUTH : account === AGY_PROVIDER ? AUTH : undefined),
+        send,
+        dictationUrl: google.url,
+        idleMs: 100,
+        beforeUse: async (account) => void used.push(`before ${account}`),
+        afterUse: (account) => void used.push(`after ${account}`),
+    });
+
+    try {
+        const started = await media.startDictation("owner", WORK);
+
+        media.dictationAudio("owner", started.dictation, pcm(["tone", 0.2]));
+        await media.endDictation("owner", started.dictation, false);
+        assert.equal(google.streams.at(-1)!.headers.authorization, "Bearer ya29.work", "dictation on the account's token");
+        assert.equal(sent.at(-1)!.headers.Authorization, "Bearer ya29.work", "its catalog on its token");
+
+        await media.transcribe(pcm(["quiet", 0.5], ["tone", 1], ["quiet", 1]), undefined, WORK);
+        assert.ok(google.streams.slice(1).every((each) => each.headers.authorization === "Bearer ya29.work"));
+        assert.deepEqual(used, [`before ${WORK}`, `after ${WORK}`, `before ${WORK}`, `after ${WORK}`]);
+
+        // The original, as before.
+        const original = await media.startDictation("owner");
+
+        media.dictationAudio("owner", original.dictation, pcm(["tone", 0.2]));
+        await media.endDictation("owner", original.dictation, false);
+        assert.equal(google.streams.at(-1)!.headers.authorization, "Bearer ya29.live");
+        await assert.rejects(media.startDictation("owner", `${AGY_PROVIDER}~off`), /account google-antigravity~off is not signed in/);
+    } finally {
+        await google.close();
+    }
+});
+
 test("speech goes as agy's /voice sends it: gRPC headers, the setup with the catalog's model, 40 ms messages, the end once Google is quiet; a file in its stretches of speech", async () => {
     const google = await dictationServer();
     const { send } = cloudCode(() => ({ body: JSON.stringify(CATALOG) }));
@@ -334,7 +373,7 @@ test("in the app: Antigravity's image model, its transcription and its dictation
         // Menu › Audio: Antigravity's transcription is one to pick now.
         assert.deepEqual(await app.audio.transcribeModels(), ["gpt-4o-transcribe", "gpt-4o-mini-transcribe", "whisper-1", AGY_TRANSCRIBE]);
         await app.setAudioChoice(user, "transcribeModel", AGY_TRANSCRIBE);
-        assert.equal(app.audio.transcribeModel(), AGY_TRANSCRIBE);
+        assert.deepEqual(app.audio.transcribeModel(), { model: AGY_TRANSCRIBE, account: AGY_PROVIDER, agy: true });
         assert.ok((await setting("audio.transcribeModel").choices!()).includes(AGY_TRANSCRIBE));
 
         // Settings › Dictation: Antigravity listens; the page's audio goes through the server to Google's stream.

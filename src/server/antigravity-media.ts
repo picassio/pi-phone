@@ -18,7 +18,8 @@
  *
  * Accounts (`accounts.ts`): images are made on the account their model names (`google-antigravity/<model>` the
  * original's, `google-antigravity~<slug>/<model>` another's), each on its own sign-in, catalog and background reads.
- * Dictation and transcription have no account in their settings: they are the original account's.
+ * Dictation runs on Settings › Dictation's account (`voice.agyAccount`), transcription on the one `audio.transcribeModel`
+ * names (`antigravity` the original's, `google-antigravity~<slug>` another's).
  *
  * On the wire as agy (PP-558's `agy-wire.ts`): the Cloud Code calls go on the provider's own transport (HTTP/1.1, Go's
  * headers and TLS, one pool of connections), the catalog is the provider's (which agy's background reads refresh), and a
@@ -530,7 +531,7 @@ export class AgyListen {
 }
 
 /** A dictation from the page: its stream, and when the page last sent audio. */
-type Dictation = { listen: AgyListen; at: number; userId: string; failed?: string };
+type Dictation = { listen: AgyListen; at: number; userId: string; account: string; failed?: string };
 
 export class AgyMedia {
     readonly #options: AgyMediaOptions;
@@ -633,10 +634,10 @@ export class AgyMedia {
         return (catalog.imageGenerationModelIds ?? []).map((id) => ({ id, name: catalog.models?.[id]?.displayName ?? id }));
     }
 
-    /** The transcription model Antigravity offers now (agy's dictation model), on the original account. */
-    async transcribeModel(): Promise<string> {
-        const auth = await this.#signedInAuth(AGY_PROVIDER);
-        const model = (await this.#media(AGY_PROVIDER, auth)).audioTranscriptionModelIds?.[0];
+    /** The transcription model Antigravity offers an account (the original by default) now: agy's dictation model. */
+    async transcribeModel(account: string = AGY_PROVIDER): Promise<string> {
+        const auth = await this.#signedInAuth(account);
+        const model = (await this.#media(account, auth)).audioTranscriptionModelIds?.[0];
 
         if (model === undefined) {
             throw new Error(`${AGY_NAME} lists no transcription model for this account now.`);
@@ -752,10 +753,10 @@ export class AgyMedia {
         };
     }
 
-    /** A new dictation stream on the original account's sign-in, with the catalog's transcription model. */
-    async listen(): Promise<{ listen: AgyListen; model: string }> {
-        const auth = await this.#signedInAuth(AGY_PROVIDER);
-        const model = await this.transcribeModel();
+    /** A new dictation stream on an account's sign-in (the original by default), with its catalog's transcription model. */
+    async listen(account: string = AGY_PROVIDER): Promise<{ listen: AgyListen; model: string }> {
+        const auth = await this.#signedInAuth(account);
+        const model = await this.transcribeModel(account);
 
         return { listen: await AgyListen.open(this.#options.dictationUrl ?? AGY_DICTATION_URL, auth.token, model, this.#options.idleMs ?? IDLE_MS), model };
     }
@@ -764,14 +765,14 @@ export class AgyMedia {
      * A file's 16 kHz pcm16 as utterances: each stretch of speech (`speechSegments`) in a stream of its own, one after
      * another, sent at once, its transcript once Google is done with it.
      */
-    async transcribe(pcm: Uint8Array, signal?: AbortSignal): Promise<{ model: string; utterances: AgyUtterance[] }> {
-        const auth = await this.#signedInAuth(AGY_PROVIDER);
+    async transcribe(pcm: Uint8Array, signal?: AbortSignal, account: string = AGY_PROVIDER): Promise<{ model: string; utterances: AgyUtterance[] }> {
+        const auth = await this.#signedInAuth(account);
 
-        return this.#use(AGY_PROVIDER, auth, true, () => this.#transcribe(pcm, signal));
+        return this.#use(account, auth, true, () => this.#transcribe(account, pcm, signal));
     }
 
-    async #transcribe(pcm: Uint8Array, signal?: AbortSignal): Promise<{ model: string; utterances: AgyUtterance[] }> {
-        const model = await this.transcribeModel();
+    async #transcribe(account: string, pcm: Uint8Array, signal?: AbortSignal): Promise<{ model: string; utterances: AgyUtterance[] }> {
+        const model = await this.transcribeModel(account);
         const utterances: AgyUtterance[] = [];
 
         for (const segment of speechSegments(pcm)) {
@@ -779,7 +780,7 @@ export class AgyMedia {
                 throw new Error("Stopped.");
             }
 
-            const { listen } = await this.listen();
+            const { listen } = await this.listen(account);
             const from = Math.floor((segment.start * BYTES_A_SECOND) / 1000 / 2) * 2;
             const to = Math.floor((segment.end * BYTES_A_SECOND) / 1000 / 2) * 2;
 
@@ -796,15 +797,15 @@ export class AgyMedia {
 
     // ---- the message box's dictation (Settings › Dictation › Google Antigravity) ----
 
-    /** Start a dictation for the page: its id. */
-    async startDictation(userId: string): Promise<{ dictation: string; model: string; rate: number }> {
+    /** Start a dictation for the page on an account (Settings › Dictation's, the original by default): its id. */
+    async startDictation(userId: string, account: string = AGY_PROVIDER): Promise<{ dictation: string; model: string; rate: number }> {
         this.#sweep();
         // agy's background reads start beside it: the mic does not wait for them.
-        await this.#options.beforeUse?.(AGY_PROVIDER, await this.#signedInAuth(AGY_PROVIDER), false);
-        const { listen, model } = await this.listen();
+        await this.#options.beforeUse?.(account, await this.#signedInAuth(account), false);
+        const { listen, model } = await this.listen(account);
         const id = randomUUID();
 
-        const dictation: Dictation = { listen, at: this.#now(), userId };
+        const dictation: Dictation = { listen, at: this.#now(), userId, account };
 
         this.#dictations.set(id, dictation);
         // Google closing it early (a refusal, the network) is said to the page's next audio.
@@ -855,7 +856,7 @@ export class AgyMedia {
         try {
             return { text: await found.listen.finish() };
         } finally {
-            this.#options.afterUse?.(AGY_PROVIDER);
+            this.#options.afterUse?.(found.account);
         }
     }
 
