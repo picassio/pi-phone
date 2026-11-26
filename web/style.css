@@ -4715,6 +4715,13 @@ pre.diff .del {
     overflow-wrap: anywhere;
 }
 
+/* A provider's own words in a failed sign-in (what to do in Google Cloud): long, so in the text colour to read, and
+   apart from the button under it. */
+.error-box .auth-error {
+    color: var(--text);
+    margin: 4px 0 12px;
+}
+
 .divider {
     text-align: center;
     color: var(--muted);

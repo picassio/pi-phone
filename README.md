@@ -209,7 +209,11 @@ No Termux, no laptop, no cloud VM.
   terms forbid third-party clients and accounts are being suspended for it: a suspension closes Antigravity, Gemini CLI
   and Code Assist, with one appeal. It sends nothing until you sign in; **Log out** signs it out. Signed in, it also
   makes images (Menu › Images), transcribes files (Menu › Audio) and listens to the message box's mic (Settings ›
-  Dictation), as agy does; it has no voice to read aloud.
+  Dictation), as agy does; it has no voice to read aloud. A Google Workspace account (Gemini Code Assist Standard or
+  Enterprise) has no project from Google: the card asks for the ID of a Google Cloud project of yours, as gemini-cli's
+  `GOOGLE_CLOUD_PROJECT`, with the Gemini for Google Cloud API (`cloudaicompanion.googleapis.com`) turned on and the
+  account allowed to use Gemini Code Assist there; signing in again uses it without asking, and Google's refusal (API
+  off, no access or license, no such project) shows on the card with what to do.
 - **Favorite models.** Providers › **Favorite models** lists every model you can pick, each with a star: a starred
   model comes right after the current one in your model picker, which gets a **Favorites** filter. Stars are yours, on
   every device; they allow nothing (subagents' models are in Menu › Subagents). Pi sees them in its `models` tool
