@@ -345,11 +345,15 @@ export class Providers {
                         step: "done",
                         ok: false,
                         loginType: type,
+                        // A provider's own words for the person (an `HttpError`: a Google Cloud project to set up, PP-555)
+                        // are shown as they are; anything else as the step it failed at, with the details beside it.
                         error:
-                            type === "oauth" && lastPromptType === "manual_code"
-                                ? "That code was not accepted."
-                                : "Sign-in did not finish. Try again.",
-                        details: describe(error),
+                            error instanceof HttpError
+                                ? error.message
+                                : type === "oauth" && lastPromptType === "manual_code"
+                                  ? "That code was not accepted."
+                                  : "Sign-in did not finish. Try again.",
+                        ...(error instanceof HttpError ? {} : { details: describe(error) }),
                     }),
             )
             .finally(() => this.#flows.delete(flow.id));

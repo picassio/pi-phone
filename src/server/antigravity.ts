@@ -4,7 +4,8 @@
  * with Google opens Google's consent page with agy's OAuth client, PKCE (S256), its scopes and its redirect to
  * `https://antigravity.google/oauth-callback`, which shows a code; the owner pastes it in the sign-in card, and this
  * server trades it for agy's tokens, as agy does. Then the account's project: `loadCodeAssist`, and `onboardUser` for an
- * account that has none yet. From then on the requests go from this server with agy's own shape: its host, User-Agent
+ * account that has none yet; a Workspace account (a tier that needs a project of the person's own) is asked for its
+ * Google Cloud project, used as gemini-cli uses `GOOGLE_CLOUD_PROJECT` (`ownProject`). From then on the requests go from this server with agy's own shape: its host, User-Agent
  * and headers, its request envelope (project, requestId, labels, sessionId, userAgent, requestType) and its thinking
  * settings per model, as captured from agy 1.5.15 (wiki: resources/antigravity-agy-fingerprint), the way `cc-patch.ts`
  * speaks as Claude Code. Its model list is what `agy models` lists (`fetchAvailableModels`), one model per family with
@@ -56,6 +57,7 @@ import { agyTlsTransport } from "./agy-tls-proxy.ts";
 import { AgyBackground, type AgyRead, agyTransport, goHeaders, type WireRequest, type WireResponse } from "./agy-wire.ts";
 import { APP_ROOT } from "./config.ts";
 import { ClearcutClient } from "./antigravity-clearcut.ts";
+import { HttpError } from "./errors.ts";
 
 export const AGY_PROVIDER = "google-antigravity";
 export const AGY_NAME = "Google Antigravity";
@@ -97,6 +99,67 @@ const CLIENT_ID = atob("MTA3MTAwNjA2MDU5MS10bWhzc2luMmgyMWxjcmUyMzV2dG9sb2poNGc0
 const CLIENT_SECRET = atob("R09DU1BYLUs1OEZXUjQ4NkxkTEoxbUxCOHNYQzR6NnFEQWY=");
 /** A token is renewed this long before Google's end of it, as pi-mono did. */
 const EARLY_MS = 5 * 60_000;
+/** The client agy says it is in Cloud Code's setup calls. */
+const AGY_METADATA = { ideType: "ANTIGRAVITY" };
+/** A Google Cloud project ID (not its number): 6 to 30 lowercase letters, digits and hyphens, a letter first. */
+const PROJECT_ID = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
+
+type AssistProject = string | { id?: unknown } | undefined;
+type AssistTier = { id?: string; name?: string; isDefault?: boolean; userDefinedCloudaicompanionProject?: boolean };
+/** `loadCodeAssist`'s answer, as much as signing in reads. */
+type Assist = {
+    cloudaicompanionProject?: AssistProject;
+    currentTier?: AssistTier;
+    paidTier?: AssistTier;
+    allowedTiers?: AssistTier[];
+    ineligibleTiers?: { reasonCode?: string; reasonMessage?: string; tierId?: string }[];
+};
+
+const projectIdOf = (project: AssistProject): string => (typeof project === "string" ? project : typeof project?.id === "string" ? project.id : "");
+
+/** Why Google offers an account no tier, in its own words. */
+const ineligibleOf = (assist: Assist): string =>
+    (assist.ineligibleTiers ?? [])
+        .map((each) => each.reasonMessage ?? each.reasonCode)
+        .filter((each): each is string => typeof each === "string" && each !== "")
+        .join("; ");
+
+/** What a Workspace account needs before it signs in, and why the last project was refused, if one was. */
+export function projectHelp(tier: string, refused: string): string {
+    return `${refused === "" ? "" : `${refused} `}This Google account (${tier}) needs a Google Cloud project of its own, as gemini-cli's GOOGLE_CLOUD_PROJECT: one with the Gemini for Google Cloud API (cloudaicompanion.googleapis.com) turned on, where this account may use Gemini Code Assist (a Standard or Enterprise license from your Workspace admin). Type the project's ID (like my-project-123), not its number.`;
+}
+
+/**
+ * Google refused a project for this account: what it said, and what to do about it in Google Cloud (the API turned
+ * off, no access or license, no such project).
+ */
+function projectRefused(project: string, error: unknown): Error {
+    if (!(error instanceof AgyHttpError)) {
+        return error instanceof Error ? error : new Error(String(error));
+    }
+
+    const said = error.message.replace(/^[^:]*\(\d+\):\s*/, "");
+
+    if (/SERVICE_DISABLED|has not been used in project|is disabled|cloudaicompanion\.googleapis\.com/i.test(said)) {
+        return new HttpError(
+            409,
+            `The Gemini for Google Cloud API is off in the project ${project}: turn on cloudaicompanion.googleapis.com in Google Cloud console › APIs & Services › Library for that project, wait a few minutes, then sign in again. Google said: ${said}`,
+        );
+    }
+
+    if (error.status === 403) {
+        return new HttpError(
+            403,
+            `Google refused the project ${project} for this account: the account needs a role there that may use Gemini Code Assist (such as Gemini for Google Cloud User) and a Gemini Code Assist Standard or Enterprise license from your Workspace admin. Then sign in again. Google said: ${said}`,
+        );
+    }
+
+    if (error.status === 404 || error.status === 400) {
+        return new HttpError(400, `Google knows no project ${project} this account may use: check the project ID (not its number) in Google Cloud console, then sign in again. Google said: ${said}`);
+    }
+
+    return new HttpError(409, `Google did not take the project ${project} (${error.status}): ${said}`);
+}
 
 /** What the owner reads before connecting (the sign-in's first words; Providers shows it translated). */
 export const AGY_RISK =
@@ -687,36 +750,10 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
      * The account's project, as agy finds it: `loadCodeAssist`, and for an account with none yet `onboardUser` on its
      * default tier (Google makes the project of a free one), asked again until Google says it is done.
      */
-    const projectOf = async (auth: AgyAuth, interaction: ProviderAuthInteraction): Promise<string> => {
-        type Project = string | { id?: unknown } | undefined;
-        const idOf = (project: Project) => (typeof project === "string" ? project : typeof project?.id === "string" ? project.id : "");
-        const metadata = { ideType: "ANTIGRAVITY" };
-        const assist = await cloudCode<{
-            cloudaicompanionProject?: Project;
-            currentTier?: { id?: string };
-            allowedTiers?: { id?: string; isDefault?: boolean; userDefinedCloudaicompanionProject?: boolean }[];
-        }>("loadCodeAssist", auth, { metadata }, interaction.signal);
-        const found = idOf(assist.cloudaicompanionProject);
-
-        if (found !== "") {
-            return found;
-        }
-
-        const tier = assist.allowedTiers?.find((each) => each.isDefault === true) ?? { id: "free-tier" };
-
-        if (assist.currentTier !== undefined || tier.userDefinedCloudaicompanionProject === true) {
-            throw new Error(
-                `This Google account needs a Google Cloud project of its own (${assist.currentTier?.id ?? tier.id ?? "its tier"}), as a Workspace account does: ${AGY_NAME} here signs in accounts Google gives a project to.`,
-            );
-        }
-
+    /** `onboardUser` on `tier`, asked again until Google says it is done: the project it made or took, or "". */
+    const onboard = async (auth: AgyAuth, body: Record<string, unknown>, interaction: ProviderAuthInteraction): Promise<string> => {
         interaction.notify({ type: "progress", message: "Setting up Antigravity for this account…" });
-        let operation = await cloudCode<{ name?: string; done?: boolean; response?: { cloudaicompanionProject?: Project } }>(
-            "onboardUser",
-            auth,
-            { tierId: tier.id ?? "free-tier", metadata },
-            interaction.signal,
-        );
+        let operation = await cloudCode<{ name?: string; done?: boolean; response?: { cloudaicompanionProject?: AssistProject } }>("onboardUser", auth, body, interaction.signal);
 
         for (let tries = 1; operation.done !== true && typeof operation.name === "string" && tries < ONBOARD_TRIES; tries++) {
             await sleep(ONBOARD_EVERY_MS, interaction.signal);
@@ -725,13 +762,124 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
             operation = JSON.parse(await post(url, cloudCodeHeaders(url, auth), undefined, interaction.signal)) as typeof operation;
         }
 
-        const made = idOf(operation.response?.cloudaicompanionProject);
-
-        if (operation.done !== true || made === "") {
+        if (operation.done !== true) {
             throw new Error("Google has not finished setting up Antigravity for this account: sign in again in a few minutes.");
         }
 
-        return made;
+        return projectIdOf(operation.response?.cloudaicompanionProject);
+    };
+
+    /**
+     * A project of the person's own for an account Google gives none (a Workspace account, Gemini Code Assist Standard
+     * or Enterprise), as gemini-cli's `setupUser` takes `GOOGLE_CLOUD_PROJECT`: `loadCodeAssist` again with it as
+     * `cloudaicompanionProject` and `metadata.duetProject`; an account Google has no tier for yet is onboarded on its
+     * default tier with that project. Google's refusal says what to do in Google Cloud.
+     */
+    const ownProject = async (auth: AgyAuth, project: string, interaction: ProviderAuthInteraction): Promise<string> => {
+        const metadata = { ...AGY_METADATA, duetProject: project };
+        let assist: Assist;
+
+        try {
+            assist = await cloudCode<Assist>("loadCodeAssist", auth, { cloudaicompanionProject: project, metadata }, interaction.signal);
+        } catch (error) {
+            throw projectRefused(project, error);
+        }
+
+        const ineligible = ineligibleOf(assist);
+
+        if (assist.currentTier !== undefined) {
+            return projectIdOf(assist.cloudaicompanionProject) || project;
+        }
+
+        const tier = assist.allowedTiers?.find((each) => each.isDefault === true);
+
+        if (tier?.id === undefined) {
+            throw new HttpError(
+                409,
+                `Google offers this account no Gemini Code Assist plan with the project ${project}${ineligible === "" ? "" : ` (${ineligible})`}: ask your Google Workspace admin for a Gemini Code Assist Standard or Enterprise license, then sign in again.`,
+            );
+        }
+
+        try {
+            return (await onboard(auth, { tierId: tier.id, cloudaicompanionProject: project, metadata }, interaction)) || project;
+        } catch (error) {
+            throw error instanceof AgyHttpError ? projectRefused(project, error) : error;
+        }
+    };
+
+    /**
+     * The account's project, as agy finds it: `loadCodeAssist`, and for an account with none yet `onboardUser` on its
+     * default tier (Google makes the project of a free one), asked again until Google says it is done. An account whose
+     * tier needs a project of its own (Workspace) uses the one it signed in with before, else asks for one.
+     */
+    const projectOf = async (account: string, auth: AgyAuth, interaction: ProviderAuthInteraction): Promise<string> => {
+        const assist = await cloudCode<Assist>("loadCodeAssist", auth, { metadata: AGY_METADATA }, interaction.signal);
+        const found = projectIdOf(assist.cloudaicompanionProject);
+
+        if (found !== "") {
+            return found;
+        }
+
+        const tier = assist.allowedTiers?.find((each) => each.isDefault === true) ?? { id: "free-tier" };
+
+        if (assist.currentTier === undefined && tier.userDefinedCloudaicompanionProject !== true) {
+            const made = await onboard(auth, { tierId: tier.id ?? "free-tier", metadata: AGY_METADATA }, interaction);
+
+            if (made === "") {
+                throw new Error("Google has not finished setting up Antigravity for this account: sign in again in a few minutes.");
+            }
+
+            return made;
+        }
+
+        // Signed in before with a project of its own: that one again, asked for only when Google refuses it now.
+        const saved = await savedProject(account);
+        let refused = "";
+
+        if (saved !== undefined) {
+            interaction.notify({ type: "info", message: `Using the Google Cloud project ${saved}, which this account signed in with before.` });
+
+            try {
+                return await ownProject(auth, saved, interaction);
+            } catch (error) {
+                refused = error instanceof Error ? error.message : String(error);
+            }
+        }
+
+        interaction.notify({
+            type: "info",
+            message: projectHelp(assist.currentTier?.id ?? tier.id ?? "standard-tier", refused),
+            links: [
+                { url: "https://console.cloud.google.com/apis/library/cloudaicompanion.googleapis.com", label: "Turn on the API" },
+                { url: "https://cloud.google.com/gemini/docs/discover/set-up-gemini", label: "Set up Gemini Code Assist" },
+            ],
+        });
+        const project = (await interaction.prompt({ type: "text", message: "Google Cloud project ID", placeholder: "my-project-123" })).trim();
+
+        if (project === "") {
+            throw new HttpError(400, "No Google Cloud project ID was given: this Google account needs one. Sign in again and type the project's ID.");
+        }
+
+        if (/^\d+$/.test(project)) {
+            throw new HttpError(400, `${project} is a project number: type the project's ID (like my-project-123), as the Google Cloud console shows it beside the name. Sign in again.`);
+        }
+
+        if (!PROJECT_ID.test(project)) {
+            throw new HttpError(400, `${project} is not a Google Cloud project ID: 6 to 30 lowercase letters, digits and hyphens, starting with a letter (like my-project-123). Sign in again.`);
+        }
+
+        return ownProject(auth, project, interaction);
+    };
+
+    /** The project a stored sign-in of this account has, when there is one. */
+    const savedProject = async (account: string): Promise<string | undefined> => {
+        try {
+            const project = parseAuth(await options.auth?.(account)).project;
+
+            return PROJECT_ID.test(project) ? project : undefined;
+        } catch {
+            return undefined;
+        }
     };
 
     /**
@@ -773,7 +921,7 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
             authMethod: AUTH_METHOD,
             ...(email === undefined ? {} : { email }),
         };
-        const projectId = await projectOf(authOf(credential), interaction);
+        const projectId = await projectOf(account, authOf(credential), interaction);
 
         // Another Google account may be signed in now: its own catalog, asked again.
         catalogs.delete(account);

@@ -15,6 +15,7 @@ import { accountProvider } from "../src/server/accounts.ts";
 import { AGY_START } from "../src/server/agy-wire.ts";
 import { AGY_PROVIDER, type AgyCatalog, type AgySend, antigravity, antigravityProvider, catalogModels } from "../src/server/antigravity.ts";
 import { appSettings } from "../src/server/settings-registry.ts";
+import { HttpError } from "../src/server/errors.ts";
 
 const UA = "antigravity/cli/1.5.15 (aidev_client; os_type=linux; arch=amd64; cl=1027820220; auth_method=consumer)";
 const NOW = Date.parse("2026-11-23T08:00:00Z");
@@ -95,14 +96,24 @@ const PLATFORM = { osType: "linux", arch: "amd64" };
 const jwt = (claims: Record<string, unknown>) => `e30.${Buffer.from(JSON.stringify(claims)).toString("base64url")}.c2ln`;
 const TOKENS = JSON.stringify({ access_token: "ya29.new-access", expires_in: 3599, refresh_token: "1//new-refresh", scope: "openid", token_type: "Bearer", id_token: jwt({ email: "owner@example.com" }) });
 
-/** A sign-in's card, as these tests answer it: each event kept, the code prompt answered by `paste` (from the consent page's address). */
-function card(paste: (url: URL) => string = () => CODE) {
+/**
+ * A sign-in's card, as these tests answer it: each event kept, the code prompt answered by `paste` (from the consent
+ * page's address), a text prompt (a Workspace account's Google Cloud project) by `typed`.
+ */
+function card(paste: (url: URL) => string = () => CODE, typed?: string) {
     const events: AuthEvent[] = [];
     const prompts: AuthPrompt[] = [];
     const interaction: ProviderAuthInteraction = {
         signal: new AbortController().signal,
         prompt: async (prompt) => {
             prompts.push(prompt);
+
+            if (prompt.type === "text") {
+                assert.ok(typed !== undefined, `nothing to type for "${prompt.message}"`);
+
+                return typed;
+            }
+
             const shown = events.find((event) => event.type === "auth_url");
 
             assert.ok(shown?.type === "auth_url", "the consent page comes before the code is asked for");
@@ -261,8 +272,10 @@ test("an account with no project yet is set up as agy does: onboardUser on its d
         return { body: JSON.stringify(polls < 2 ? { name: "operations/onboard-1", done: false } : { name: "operations/onboard-1", done: true, response: { cloudaicompanionProject: { id: "bright-river-123", name: "bright-river-123" } } }) };
     });
     const waits: number[] = [];
-    const { events, interaction } = card();
+    const { events, prompts, interaction } = card();
     const signedIn = await antigravityProvider({ send, platform: PLATFORM, sleep: async (ms) => void waits.push(ms) }).auth.oauth!.login(interaction);
+
+    assert.deepEqual(prompts.map((prompt) => prompt.type), ["manual_code"], "a free account is asked for no project");
 
     assert.deepEqual(
         sent.map((request) => `${request.method} ${request.url.replace("https://daily-cloudcode-pa.googleapis.com", "")}`),
@@ -282,13 +295,6 @@ test("an account with no project yet is set up as agy does: onboardUser on its d
     assert.equal(signedIn.projectId, "bright-river-123");
     assert.ok(events.some((event) => event.type === "progress" && /Setting up Antigravity/.test(event.message)));
 
-    const workspace = google((request) =>
-        request.url.endsWith("/token") ? { body: TOKENS } : { body: JSON.stringify({ allowedTiers: [{ id: "standard-tier", isDefault: true, userDefinedCloudaicompanionProject: true }] }) },
-    );
-
-    await assert.rejects(antigravityProvider({ send: workspace.send, platform: PLATFORM }).auth.oauth!.login(card().interaction), /needs a Google Cloud project of its own \(standard-tier\)/);
-    assert.equal(workspace.sent.some((request) => request.url.includes("onboardUser")), false);
-
     // Google never finishing: said so, after its tries.
     const slow = google((request) =>
         request.url.endsWith("/token") ? { body: TOKENS } : request.url.endsWith(":loadCodeAssist") ? { body: "{}" } : { body: JSON.stringify({ name: "operations/slow", done: false }) },
@@ -296,6 +302,120 @@ test("an account with no project yet is set up as agy does: onboardUser on its d
 
     await assert.rejects(antigravityProvider({ send: slow.send, platform: PLATFORM, sleep: async () => {} }).auth.oauth!.login(card().interaction), /has not finished setting up Antigravity/);
     assert.equal(slow.sent.filter((request) => request.method === "GET").length, 23);
+});
+
+/** loadCodeAssist without a project, for a Workspace account: its default tier needs one of the person's own. */
+const WORKSPACE = { allowedTiers: [{ id: "standard-tier", name: "Gemini Code Assist Standard", isDefault: true, userDefinedCloudaicompanionProject: true }] };
+const googleSaid = (status: number, code: string, message: string) => ({ status, body: JSON.stringify({ error: { code: status, message, status: code } }) });
+
+test("a Workspace account (standard-tier) is asked for its Google Cloud project, as gemini-cli's GOOGLE_CLOUD_PROJECT: loadCodeAssist with it as cloudaicompanionProject and duetProject, onboarded on its tier when Google has none yet; signing in again takes the saved one", async () => {
+    // Google knows the account's tier with that project.
+    const known = google((request) =>
+        request.url.endsWith("/token")
+            ? { body: TOKENS }
+            : request.body.includes("corp-gemini-1")
+              ? { body: JSON.stringify({ currentTier: { id: "standard-tier" }, cloudaicompanionProject: "corp-gemini-1" }) }
+              : { body: JSON.stringify(WORKSPACE) },
+    );
+    const first = card(undefined, " corp-gemini-1 ");
+    const signedIn = await antigravityProvider({ send: known.send, platform: PLATFORM }).auth.oauth!.login(first.interaction);
+
+    assert.equal(signedIn.projectId, "corp-gemini-1");
+    assert.deepEqual(
+        first.prompts.map((prompt) => [prompt.type, prompt.message]),
+        [
+            ["manual_code", "The code from Google Antigravity's page"],
+            ["text", "Google Cloud project ID"],
+        ],
+    );
+    const help = first.events.find((event) => event.type === "info" && event.message.includes("GOOGLE_CLOUD_PROJECT"));
+
+    assert.ok(help?.type === "info");
+    assert.match(help.message, /\(standard-tier\) needs a Google Cloud project of its own.*cloudaicompanion\.googleapis\.com.*Gemini Code Assist.*not its number/);
+    assert.ok(help.links?.some((link) => link.url.includes("cloudaicompanion.googleapis.com")));
+    const loads = known.sent.filter((request) => request.url.endsWith(":loadCodeAssist"));
+
+    assert.deepEqual(
+        loads.map((request) => JSON.parse(request.body) as unknown),
+        [{ metadata: { ideType: "ANTIGRAVITY" } }, { cloudaicompanionProject: "corp-gemini-1", metadata: { ideType: "ANTIGRAVITY", duetProject: "corp-gemini-1" } }],
+    );
+    assert.equal(known.sent.some((request) => request.url.includes("onboardUser")), false, "its tier is there: no onboarding");
+
+    // Google has no tier for it yet: onboarded on its default tier with the project, as gemini-cli does.
+    const fresh = google((request) =>
+        request.url.endsWith("/token")
+            ? { body: TOKENS }
+            : request.url.endsWith(":onboardUser")
+              ? { body: JSON.stringify({ name: "operations/ws-1", done: true, response: { cloudaicompanionProject: { id: "corp-gemini-1" } } }) }
+              : { body: JSON.stringify(WORKSPACE) },
+    );
+    const onboarded = await antigravityProvider({ send: fresh.send, platform: PLATFORM, sleep: async () => {} }).auth.oauth!.login(card(undefined, "corp-gemini-1").interaction);
+
+    assert.equal(onboarded.projectId, "corp-gemini-1");
+    assert.deepEqual(JSON.parse(fresh.sent.find((request) => request.url.endsWith(":onboardUser"))!.body), {
+        tierId: "standard-tier",
+        cloudaicompanionProject: "corp-gemini-1",
+        metadata: { ideType: "ANTIGRAVITY", duetProject: "corp-gemini-1" },
+    });
+
+    // Signing in again: the project its sign-in has, without asking.
+    const saved = JSON.stringify({ token: "ya29.before", project: "corp-gemini-1", userAgent: UA });
+    const again = card();
+    const resigned = await antigravityProvider({ send: known.send, platform: PLATFORM, auth: async () => saved }).auth.oauth!.login(again.interaction);
+
+    assert.equal(resigned.projectId, "corp-gemini-1");
+    assert.deepEqual(again.prompts.map((prompt) => prompt.type), ["manual_code"], "no project asked for");
+    assert.ok(again.events.some((event) => event.type === "info" && /Using the Google Cloud project corp-gemini-1/.test(event.message)));
+
+    // A saved project Google refuses now: said, and another asked for.
+    const moved = google((request) =>
+        request.url.endsWith("/token")
+            ? { body: TOKENS }
+            : request.body.includes("old-project")
+              ? googleSaid(403, "PERMISSION_DENIED", "The caller does not have permission")
+              : request.body.includes("corp-gemini-1")
+                ? { body: JSON.stringify({ currentTier: { id: "standard-tier" } }) }
+                : { body: JSON.stringify(WORKSPACE) },
+    );
+    const asked = card(undefined, "corp-gemini-1");
+    const switched = await antigravityProvider({ send: moved.send, platform: PLATFORM, auth: async () => JSON.stringify({ token: "t", project: "old-project", userAgent: UA }) }).auth.oauth!.login(
+        asked.interaction,
+    );
+
+    assert.equal(switched.projectId, "corp-gemini-1", "Google's tier with no project of its own: the one typed");
+    assert.ok(asked.events.some((event) => event.type === "info" && /^Google refused the project old-project.*needs a Google Cloud project of its own/.test(event.message)));
+});
+
+test("a project Google refuses says why and what to do in Google Cloud: the API off, no access or license, no such project; a project number or nothing typed is refused before Google is asked", async () => {
+    const refusing = (answer: { status: number; body: string }) =>
+        google((request) => (request.url.endsWith("/token") ? { body: TOKENS } : request.body.includes("corp-x") ? answer : { body: JSON.stringify(WORKSPACE) }));
+    const login = (send: AgySend, typed: string) => antigravityProvider({ send, platform: PLATFORM }).auth.oauth!.login(card(undefined, typed).interaction);
+    const cases: [{ status: number; body: string }, RegExp][] = [
+        [
+            googleSaid(403, "PERMISSION_DENIED", "Gemini for Google Cloud API has not been used in project corp-x before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/cloudaicompanion.googleapis.com/overview?project=corp-x then retry."),
+            /^The Gemini for Google Cloud API is off in the project corp-x: turn on cloudaicompanion\.googleapis\.com in Google Cloud console › APIs & Services › Library for that project, wait a few minutes, then sign in again\. Google said: PERMISSION_DENIED: Gemini for Google Cloud API has not been used/,
+        ],
+        [
+            googleSaid(403, "PERMISSION_DENIED", "The caller does not have permission"),
+            /^Google refused the project corp-x for this account: the account needs a role there that may use Gemini Code Assist \(such as Gemini for Google Cloud User\) and a Gemini Code Assist Standard or Enterprise license from your Workspace admin\. Then sign in again\. Google said: PERMISSION_DENIED: The caller does not have permission$/,
+        ],
+        [googleSaid(404, "NOT_FOUND", "Project corp-x not found"), /^Google knows no project corp-x this account may use: check the project ID \(not its number\)/],
+        [{ status: 200, body: JSON.stringify({ ineligibleTiers: [{ reasonCode: "INELIGIBLE_ACCOUNT", reasonMessage: "Your account is not licensed for Gemini Code Assist" }] }) }, /no Gemini Code Assist plan with the project corp-x \(Your account is not licensed for Gemini Code Assist\): ask your Google Workspace admin/],
+    ];
+
+    for (const [answer, said] of cases) {
+        const refused = refusing(answer);
+
+        await assert.rejects(login(refused.send, "corp-x"), (error: Error) => error instanceof HttpError && said.test(error.message));
+        assert.equal(refused.sent.some((request) => request.url.endsWith(":onboardUser")), false, "nothing onboarded on a refused project");
+    }
+
+    const none = refusing({ status: 500, body: "{}" });
+
+    await assert.rejects(login(none.send, "123456789012"), /123456789012 is a project number: type the project's ID/);
+    await assert.rejects(login(none.send, "  "), /No Google Cloud project ID was given/);
+    await assert.rejects(login(none.send, "My_Project"), /My_Project is not a Google Cloud project ID/);
+    assert.equal(none.sent.filter((request) => request.url.endsWith(":loadCodeAssist")).length, 3, "only the first loadCodeAssist of each sign-in");
 });
 
 test("the token is renewed as agy's Go client renews it, the refresh token kept; a refused renewal says invalid_grant and never the token", async () => {
@@ -837,4 +957,56 @@ test("in the app: Add account for Google Antigravity; it signs in with its own G
     await app.accounts.remove(WORK);
     assert.equal(app.models.getProvider(WORK), undefined);
     assert.equal(listed(AGY_PROVIDER)?.configured, true);
+});
+
+test("in the app: a Workspace account's sign-in asks for its project on the card, and Google's refusal shows on it as it is, with what to do; signed in with a project Google takes, it is kept in the sign-in", async () => {
+    await app?.close();
+    let apiOn = false;
+    const { send } = google((request) =>
+        request.url.endsWith("/token")
+            ? { body: TOKENS }
+            : request.url.endsWith(":loadCodeAssist") && request.body.includes("corp-gemini-1")
+              ? apiOn
+                  ? { body: JSON.stringify({ currentTier: { id: "standard-tier" }, cloudaicompanionProject: "corp-gemini-1" }) }
+                  : googleSaid(403, "PERMISSION_DENIED", "Gemini for Google Cloud API has not been used in project corp-gemini-1 before or it is disabled.")
+              : request.url.endsWith(":loadCodeAssist")
+                ? { body: JSON.stringify(WORKSPACE) }
+                : request.url.includes("fetchAvailableModels")
+                  ? { body: JSON.stringify(CATALOG) }
+                  : { body: "{}" },
+    );
+
+    app = await openApp(scriptedModel(() => fauxAssistantMessage([fauxText("ok")])), join(root, "antigravity-workspace-data"), undefined, { antigravity: { send, platform: PLATFORM } });
+    const user = owner(app);
+    const tab = fakeTab(undefined, user);
+
+    app.attach(tab.client);
+    const account = app.accounts.add(AGY_PROVIDER, "tuanlh ent");
+    const signIn = async () => {
+        const before = tab.events.length;
+        const flowId = app!.providers.startLogin(user, account.id, "oauth");
+        const last = () => tab.events.slice(before).findLast((each) => each.event === "auth")?.data;
+
+        await until(() => last()?.step === "prompt" && (last()!.prompt as AuthPrompt).type === "manual_code", "the code prompt");
+        app!.providers.answerLogin(user, flowId, last()!.promptId as string, CODE);
+        await until(() => last()?.step === "prompt" && (last()!.prompt as AuthPrompt).type === "text", "the project prompt");
+        app!.providers.answerLogin(user, flowId, last()!.promptId as string, "corp-gemini-1");
+        await until(() => last()?.step === "done", "the sign-in to end");
+
+        return last()!;
+    };
+    const refused = await signIn();
+
+    assert.equal(refused.ok, false);
+    assert.match(String(refused.error), /^The Gemini for Google Cloud API is off in the project corp-gemini-1: turn on cloudaicompanion\.googleapis\.com/, "Google's refusal and what to do, as the card shows it");
+    assert.equal(refused.details, undefined, "no second copy under Details");
+    assert.equal(app.models.hasConfiguredAuth(account.id), false);
+
+    // The API turned on: signed in, the project kept in its sign-in.
+    apiOn = true;
+    const done = await signIn();
+
+    assert.equal(done.ok, true, JSON.stringify(done));
+    assert.equal((JSON.parse((await app.models.getAuth(account.id))!.auth.apiKey!) as { project: string }).project, "corp-gemini-1");
+    await app.accounts.remove(account.id);
 });

@@ -427,8 +427,14 @@ export class TeamAccounts {
                         step: "done",
                         ok: false,
                         loginType: type,
-                        error: type === "oauth" && lastPromptType === "manual_code" ? "That code was not accepted." : "Sign-in did not finish. Try again.",
-                        details: error instanceof Error ? error.message : String(error),
+                        // A provider's own words for the person (an `HttpError`: a Google Cloud project to set up) as they are.
+                        error:
+                            error instanceof HttpError
+                                ? error.message
+                                : type === "oauth" && lastPromptType === "manual_code"
+                                  ? "That code was not accepted."
+                                  : "Sign-in did not finish. Try again.",
+                        ...(error instanceof HttpError ? {} : { details: error instanceof Error ? error.message : String(error) }),
                     }),
             )
             .finally(() => {

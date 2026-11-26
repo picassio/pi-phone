@@ -1,7 +1,7 @@
 // Model providers: signing in and out, the models subagents may use besides their session's own, and the dialog a
 // sign-in uses to ask for a code or a key.
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
-import { t, tn, tx } from "../i18n.js";
+import { t, tn, tServer, tx } from "../i18n.js";
 import { api, attempt, canSteer, closeSheet, closeSignIn, loadUsage, openSheet, roleAllows, signInAnswered, store } from "../store.js";
 import { UsageBars } from "../usage.js";
 import { html, Icon, item, Loader, Sheet, StateTag, Switch } from "../ui.js";
@@ -631,11 +631,17 @@ export function AuthDialog({ inline = false }) {
             auth.done &&
             !auth.done.ok &&
             html`<div class="error-box">
-                <p>${auth.done.details ? auth.done.error : t("Sign-in did not finish. Try again.")}</p>
-                <details>
-                    <summary>${t("Details")}</summary>
-                    <p>${auth.done.details ?? auth.done.error}</p>
-                </details>
+                ${
+                    // A provider's own words for the person, with what to do (a Google Cloud project to set up): shown
+                    // whole, in their language; otherwise the step it failed at, with the details beside it.
+                    auth.done.error && !auth.done.details
+                        ? html`<p class="auth-error" data-part="auth-error">${tServer(auth.done.error)}</p>`
+                        : html`<p>${auth.done.details ? auth.done.error : t("Sign-in did not finish. Try again.")}</p>
+                              <details>
+                                  <summary>${t("Details")}</summary>
+                                  <p>${auth.done.details ?? auth.done.error}</p>
+                              </details>`
+                }
                 <button
                     class="button"
                     onClick=${() =>
