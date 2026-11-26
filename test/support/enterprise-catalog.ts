@@ -1,8 +1,8 @@
 // A Gemini Enterprise license's catalog and quota, in the shape agy 1.5.18 received them (captured 2026-11-26):
 // `fetchAvailableModels {project, entitlement, location}` answers one model per effort and no `groupedModels`; its
-// `agentModelSorts` lists what the license offers the agent (the same list as Gemini Enterprise's own `fetchConfig`
-// `availableExperiences`), while `models` and the quota also name models the license does not offer (Gemini 4 Neon,
-// Claude). Only the models and the figures are kept; nothing of the account.
+// `agentModelSorts` lists what agy's CLI offers, while `models` (`recommended`, not `disabled`) and the quota also
+// name agent models outside it (Gemini 4 Neon, Claude), which Antigravity's desktop app lists; the background models
+// (Flash Lite, the image model) are not `recommended`. Only the models and the figures are kept; nothing of the account.
 import type { AgyCatalog } from "../../src/server/antigravity.ts";
 
 const effort = (family: string, name: string, model: string, levels: [string, number | undefined][], extra: Record<string, unknown> = {}) =>
@@ -13,6 +13,7 @@ const effort = (family: string, name: string, model: string, levels: [string, nu
                 displayName: `${name} (${suffix === "xhigh" ? "XHigh" : suffix[0]!.toUpperCase() + suffix.slice(1)})`,
                 supportsImages: true,
                 supportsThinking: true,
+                recommended: true,
                 ...(level === undefined ? {} : { thinkingLevel: level }),
                 maxTokens: 1048576,
                 maxOutputTokens: 65536,

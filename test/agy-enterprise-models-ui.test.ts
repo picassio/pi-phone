@@ -1,9 +1,10 @@
 // A Gemini Enterprise account in the model picker and the top bar, in a real browser (PP-555): its catalog (one model
-// per effort, no families, as captured) shows one model per family with the efforts as thinking levels, and only what
-// the license offers; each row's plan figures are its own model's buckets, named by the effort, without Google's one
-// group name "All Models"; the session's meter and its bars are the session model's. Google is stood in for with the
-// captured catalog and quota (neutral values). With PHONE_SHOTS, screenshots and layout reports go there.
-import { type App, cleanUp, cleanUpAll, home, owner, pastWelcome, root, work } from "./helpers.ts";
+// per effort, no families, as captured) shows one model per family with the efforts as thinking levels, its sorted
+// ones first and then its other agent models (Gemini 4 Neon, Claude); each row's plan figures are its own model's
+// buckets, named by the effort, without Google's one group name "All Models"; the session's meter and its bars are the
+// session model's; a model the license's administrator has not enabled says so in the session, once. Google is stood
+// in for with the captured catalog and quota (neutral values). With PHONE_SHOTS, screenshots and layout reports go there.
+import { type App, cleanUp, cleanUpAll, home, owner, pastWelcome, root, say, work } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -30,12 +31,26 @@ let browsers: Browsers;
 let page: BrowserPage;
 let base = "";
 
-/** Google, as captured for a Gemini Enterprise license: its catalog and its quota; anything else answers empty. */
+let turns = 0;
+
+/**
+ * Google, as captured for a Gemini Enterprise license: its catalog and its quota; a turn is refused as one on a model
+ * its administrator has not enabled; anything else answers empty.
+ */
 const send: AgySend = async (url) => {
-    const body = url.includes(":fetchAvailableModels") ? ENTERPRISE_FULL_CATALOG : url.includes(":retrieveUserQuotaSummary") ? ENTERPRISE_FULL_QUOTA : {};
+    const turn = url.includes(":streamGenerateContent");
+    const body = url.includes(":fetchAvailableModels")
+        ? ENTERPRISE_FULL_CATALOG
+        : url.includes(":retrieveUserQuotaSummary")
+          ? ENTERPRISE_FULL_QUOTA
+          : turn
+            ? { error: { code: 403, status: "PERMISSION_DENIED", message: "Requested model is not allowed by your administrator. Select a different model or reach out to your administrator to enable 'gemini-4-neon-high'." } }
+            : {};
+
+    turns += turn ? 1 : 0;
 
     return {
-        status: 200,
+        status: turn ? 403 : 200,
         headers: new Headers({ "content-type": "application/json" }),
         body: (async function* () {
             yield new TextEncoder().encode(JSON.stringify(body));
@@ -172,13 +187,15 @@ for (const [viewport, label] of [
 
         assert.deepEqual(
             listed.map((row) => row.split(" | ")[0]),
-            ["Gemini 4 Carbon", "Gemini 4 Hydrogen", "Gemini 4 Argon", "Gemini 3.8 Flash", "Gemini 3.7 Flash", "Gemini 3.6 Flash", "Gemini 3.1 Pro"],
-            "one model per family, what the license offers",
+            ["Gemini 4 Carbon", "Gemini 4 Hydrogen", "Gemini 4 Argon", "Gemini 3.8 Flash", "Gemini 3.7 Flash", "Gemini 3.6 Flash", "Gemini 3.1 Pro", "Gemini 4 Neon", "Claude Opus 5.5"],
+            "one model per family: the sorted ones, then the license's other agent models",
         );
         assert.equal(listed[0], "Gemini 4 Carbon | google-antigravity · Work account · Medium 0% · High 25% · Low 0%", "its own buckets, by effort");
         assert.equal(listed[1], "Gemini 4 Hydrogen | google-antigravity · Work account · High 50% · Medium 0%");
         assert.equal(listed[2], "Gemini 4 Argon | google-antigravity · Work account", "a model with no bucket: no figures");
-        assert.doesNotMatch(listed.join("\n"), /All Models|Neon|Claude/);
+        assert.equal(listed[7], "Gemini 4 Neon | google-antigravity · Work account · High 0% · XHigh 0%");
+        assert.equal(listed[8], "Claude Opus 5.5 | google-antigravity · Work account · High 0%");
+        assert.doesNotMatch(listed.join("\n"), /All Models|Flash Lite|Image/);
         await shot(`agy-enterprise-picker-${label}`, viewport.width);
         await page.press("Escape");
     });
@@ -199,4 +216,24 @@ test("a session on its model: the top bar's meter is that model's fullest bucket
 
     assert.deepEqual(bars, ["Medium | 0% used", "High | 25% used", "Low | 0% used"]);
     await shot("agy-enterprise-meter-390", 390);
+});
+
+test("a turn on a model the license's administrator has not enabled says so in the session, once, with no limit card", real, async () => {
+    await page.setViewport(VIEWPORTS.mobile);
+    const { id } = await app.commands.createSession(owner(app), { cwd: work });
+
+    await app.commands.configure(id, owner(app), { model: { provider: WORK, modelId: "gemini-4-neon" }, thinkingLevel: "high" });
+    await page.navigate(`${base}/s/${id}`);
+    turns = 0;
+    await say(app, id, "Reply with exactly: pong");
+    await present(".error-box", "the error");
+
+    const shown = await inPage<{ error: string; cards: number }>(
+        `return JSON.stringify({ error: document.querySelector(".error-box").innerText.trim(), cards: document.querySelectorAll(".limit-switch, .limit-card, .live-limit").length })`,
+    );
+
+    assert.equal(shown.error, "Google Antigravity (403): Gemini 4 Neon is not enabled for this Gemini Enterprise license. Pick another model, or ask the license's administrator to enable it.");
+    assert.equal(shown.cards, 0, "no limit's card nor wait");
+    assert.equal(turns, 1, "asked once: no retry");
+    await shot("agy-enterprise-not-allowed-390", 390);
 });

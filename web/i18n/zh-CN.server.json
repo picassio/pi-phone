@@ -861,5 +861,7 @@
     "Images and dictation are not available for a Google Cloud (Gemini Enterprise) sign-in here yet: agy's requests for them on such an account have not been captured. Use another account's, or another model in Menu › Images or Menu › Audio.": "此处暂不支持 Google Cloud（Gemini Enterprise）登录的图片和听写：尚未捕获 agy 对这类账号的相关请求。请使用其他账号，或在 菜单 › 图片 或 菜单 › 音频 中选择其他模型。",
     "Google did not list this account's Gemini Enterprise licenses ({1}): {2}": "Google 未列出该账号的 Gemini Enterprise 许可（{1}）：{2}",
     "This Google account has no Gemini Enterprise license: ask your Google Workspace admin to assign one (Gemini Enterprise in the Google Cloud console), or sign in as a Google account with a Google Cloud project for Gemini Code Assist.": "该 Google 账号没有 Gemini Enterprise 许可：请让 Google Workspace 管理员分配一个（Google Cloud console 中的 Gemini Enterprise），或以 Google 账号方式登录并使用用于 Gemini Code Assist 的 Google Cloud 项目。",
-    "No Gemini Enterprise subscription was picked: sign in again and pick one.": "未选择 Gemini Enterprise 订阅：请重新登录并选择一个。"
+    "No Gemini Enterprise subscription was picked: sign in again and pick one.": "未选择 Gemini Enterprise 订阅：请重新登录并选择一个。",
+    "// A turn's error, not an HttpError (src/server/antigravity.ts notAllowed): i18n-check does not find it, so it counts as no longer used; keep it.": "",
+    "Google Antigravity (403): {1} is not enabled for this Gemini Enterprise license. Pick another model, or ask the license's administrator to enable it.": "Google Antigravity (403)：此 Gemini Enterprise 许可的管理员尚未启用 {1}。请选择其他模型，或请许可管理员启用它。"
 }

@@ -253,6 +253,8 @@ type ModelInfo = {
     model?: string;
     modelProvider?: string;
     disabled?: boolean;
+    /** One of agy's agent models (its background models, Flash Lite and the image model, are not). */
+    recommended?: boolean;
 };
 
 export type AgyCatalog = {
@@ -289,6 +291,18 @@ export async function readText(body: AsyncIterable<Uint8Array>): Promise<string>
     }
 
     return Buffer.concat(chunks).toString("utf8");
+}
+
+/**
+ * A Gemini Enterprise license's refusal of a model its administrator has not enabled (403 PERMISSION_DENIED "Requested
+ * model is not allowed by your administrator"), said plainly: a person must pick another model or ask the
+ * administrator, so it is no limit to wait for nor a sign-in to renew (`limits.ts` reads the 403). Another error is
+ * undefined.
+ */
+export function notAllowed(status: number, said: string, name: string): string | undefined {
+    return status === 403 && /not allowed by your administrator/i.test(said)
+        ? `${name} is not enabled for this Gemini Enterprise license. Pick another model, or ask the license's administrator to enable it.`
+        : undefined;
 }
 
 /** Google's error message in a JSON error body, or the body cut short. */
@@ -484,9 +498,13 @@ function numericId(seed: string | undefined): string {
 /** The models `agy models` lists: one per family with agy's efforts as thinking levels, and the rest as they are. */
 export function catalogModels(catalog: AgyCatalog): Model<Api>[] {
     const infos = catalog.models ?? {};
-    const listed = [...new Set((catalog.agentModelSorts ?? []).flatMap((sort) => sort.groups ?? []).flatMap((group) => group.modelIds ?? []))];
+    const sorted = [...new Set((catalog.agentModelSorts ?? []).flatMap((sort) => sort.groups ?? []).flatMap((group) => group.modelIds ?? []))];
     // A Gemini Enterprise license's catalog has no families: one model per effort (`gemini-4-carbon-medium`). Its
-    // families are read from the ids and names, as agy's picker groups them.
+    // families are read from the ids and names, as agy's picker groups them. Its `agentModelSorts` leaves out agent
+    // models the license's catalog has (Gemini 4 Neon, Claude), which Antigravity's desktop app lists: they follow
+    // its sorted ones, and Google says whether the license allows one when a turn asks for it (`notAllowed`).
+    const listed =
+        catalog.groupedModels === undefined ? [...sorted, ...Object.keys(infos).filter((id) => !sorted.includes(id) && infos[id]!.recommended === true)] : sorted;
     const groups = catalog.groupedModels ?? familiesOf(listed, infos);
     const models: Model<Api>[] = [];
     const done = new Set<string>();
@@ -1239,7 +1257,9 @@ export function antigravity(options: AgyOptions = {}): AgyRuntime {
                         await streamOptions?.onResponse?.({ status: answer.status, headers: Object.fromEntries(answer.headers) }, model);
 
                         if (answer.status >= 400) {
-                            throw new AgyHttpError(answer.status, answer.headers, `${AGY_NAME} (${answer.status}): ${errorText(await readText(answer.body))}`);
+                            const said = errorText(await readText(answer.body));
+
+                            throw new AgyHttpError(answer.status, answer.headers, `${AGY_NAME} (${answer.status}): ${notAllowed(answer.status, said, model.name) ?? said}`);
                         }
 
                         return answer;

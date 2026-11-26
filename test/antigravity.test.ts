@@ -24,7 +24,9 @@ import {
 import { fauxAssistantMessage, fauxText } from "@earendil-works/pi-ai/providers/faux";
 import { accountProvider } from "../src/server/accounts.ts";
 import { AGY_START } from "../src/server/agy-wire.ts";
-import { AGY_PROVIDER, type AgyCatalog, type AgySend, antigravity, antigravityProvider, catalogModels } from "../src/server/antigravity.ts";
+import { AGY_PROVIDER, type AgyCatalog, type AgySend, antigravity, antigravityProvider, catalogModels, notAllowed } from "../src/server/antigravity.ts";
+import { classify } from "../src/server/limits.ts";
+import { isRetryableAssistantError } from "@earendil-works/pi-ai/utils/retry";
 import { appSettings } from "../src/server/settings-registry.ts";
 import { AgyMedia } from "../src/server/antigravity-media.ts";
 import { ENTERPRISE_FULL_CATALOG } from "./support/enterprise-catalog.ts";
@@ -641,6 +643,40 @@ test("a Gemini Enterprise turn is agy's: businessaicode's projects/<p>/locations
     assert.match(refused.errorMessage!, /\(429\): RESOURCE_EXHAUSTED: Quota pool exhausted\. Contact your administrator to enable overages/);
 });
 
+test("a model the license's administrator has not enabled is said plainly, once: no limit to wait for, no retry, no sign-in", async () => {
+    let turns = 0;
+    const { send } = google((request) => {
+        if (request.url.includes(":streamGenerateContent")) {
+            turns++;
+
+            return googleSaid(403, "PERMISSION_DENIED", "Requested model is not allowed by your administrator. Select a different model or reach out to your administrator to enable 'gemini-4-neon-high'.");
+        }
+
+        return { body: request.url.includes("fetchAvailableModels") ? JSON.stringify(ENTERPRISE_FULL_CATALOG) : "{}" };
+    });
+    const provider = antigravityProvider({ send });
+    const auth = await provider.auth.oauth!.toAuth(enterpriseCredential);
+
+    await provider.refreshModels!({ credential: enterpriseCredential, allowNetwork: true, signal: new AbortController().signal, publish: async (publication) => (publication.update?.(), true) });
+    const neon = provider.getModels().find((model) => model.id === "gemini-4-neon")! as Model<Api>;
+    const context = normalizeContext({ systemPrompt: "You are Pi.", messages: [{ role: "user", content: "Reply with exactly: pong", timestamp: NOW }] });
+    const refused = await provider.streamSimple(neon, context, { apiKey: auth.apiKey, reasoning: "high" }).result();
+
+    assert.equal(refused.stopReason, "error");
+    assert.equal(
+        refused.errorMessage,
+        "Google Antigravity (403): Gemini 4 Neon is not enabled for this Gemini Enterprise license. Pick another model, or ask the license's administrator to enable it.",
+    );
+    assert.equal(turns, 1, "asked once");
+    assert.equal(isRetryableAssistantError(refused), false, "Pi Durable does not try it again");
+    assert.equal(classify({ provider: `${AGY_PROVIDER}~work`, message: refused.errorMessage!, facts: { status: 403, headers: {} }, now: NOW }).type, "other", "no limit");
+    assert.equal(classify({ provider: `${AGY_PROVIDER}~work`, message: refused.errorMessage!, now: NOW }).type, "other", "no limit, by its words alone");
+
+    // Another 403 is Google's words, as before.
+    assert.equal(notAllowed(403, "PERMISSION_DENIED: Caller lacks permission", "Gemini 4 Neon"), undefined);
+    assert.equal(notAllowed(429, "Requested model is not allowed by your administrator.", "Gemini 4 Neon"), undefined);
+});
+
 test("a Gemini Enterprise license's background reads are agy's: Cloud Code's production host with the project, Gemini Enterprise's own configuration, its catalog with the license; its quota per model; no images nor dictation", async () => {
     const key = JSON.stringify({ token: "ya29.enterprise", project: "example-project-123", userAgent: GCP_UA, enterprise: { location: "global", userTier: "gcp-ge-plus-tier" } });
     const { sent, send } = google((request) =>
@@ -714,7 +750,7 @@ test("the token is renewed as agy's Go client renews it, the refresh token kept;
     );
 });
 
-test("a Gemini Enterprise catalog (one model per effort, no families) is one model per family with its efforts as thinking levels; what the license does not list stays out", () => {
+test("a Gemini Enterprise catalog (one model per effort, no families) is one model per family with its efforts as thinking levels: its sorted ones first, then its other agent models", () => {
     const models = catalogModels(ENTERPRISE_FULL_CATALOG);
 
     assert.deepEqual(
@@ -727,11 +763,12 @@ test("a Gemini Enterprise catalog (one model per effort, no families) is one mod
             ["gemini-3.7-flash", "Gemini 3.7 Flash", ["low", "medium", "high"]],
             ["gemini-3.6-flash", "Gemini 3.6 Flash", ["low", "medium", "high"]],
             ["gemini-3.1-pro", "Gemini 3.1 Pro", ["low", "high"]],
+            // Its other agent models, after: in its `models` but not its `agentModelSorts`, as the desktop app lists them.
+            ["gemini-4-neon", "Gemini 4 Neon", ["low", "medium", "high", "xhigh"]],
+            ["claude-opus-5-5", "Claude Opus 5.5", ["low", "medium", "high", "max"]],
         ],
+        "its background models (Flash Lite, the image model) are no agent's",
     );
-    // Gemini 4 Neon and Claude are in its `models` (and its quota) but not in what it offers the agent, as agy's own
-    // picker for it: Gemini Enterprise's configuration for the license does not list them either.
-    assert.equal(models.some((model) => /neon|claude/.test(model.id)), false);
     assert.equal(models[0]!.thinkingLevelMap?.medium, "medium", "the effort is the experience's suffix");
     // A Google account's catalog, with its families, is as before.
     assert.deepEqual(catalogModels(CATALOG).map((model) => model.id), ["gemini-4-hydrogen", "gemini-3.8-flash", "claude-sonnet-5-5", "gpt-oss-120b-medium"]);
