@@ -651,6 +651,8 @@ export type SelfCompactState = {
     asked?: { reason: SelfCompactReason; focus?: string; at: number };
     ready?: { reason: SelfCompactReason; summary: string; before: number; cost: number; read: number; written: number; model: string; at: number };
     reminded?: string;
+    /** The model, `provider/modelId`, the session was told is not in the catalogue: it is told once (`SelfCompact.onYield`). */
+    unknownModel?: string;
     done: SelfCompaction[];
 };
 

@@ -81,7 +81,8 @@ import { inBatchOrder } from "./batch-order.ts";
 import { Collab, REACTIONS } from "./collab.ts";
 import { Commands } from "./commands.ts";
 import { readAvatar, removeAvatar, saveAvatar } from "./avatars.ts";
-import { APP_ROOT, APPEARANCE_DEFAULTS, type AppearanceOptions, ConfigStore, type User, type WelcomeState } from "./config.ts";
+import { APP_ROOT, APPEARANCE_DEFAULTS, type AppearanceOptions, ConfigStore, type ModelChoice, type User, type WelcomeState } from "./config.ts";
+import { upgradedModel, upgradedSpec } from "./model-upgrade.ts";
 import { CODEMODE_MODES, type CodemodeMode, CONTEXT_PARTS, type ContextPart, type ContextPolicy, contextMode, resolveContextPolicy } from "./context-policy.ts";
 import { DEFERRED_EXTENSION, deferredToolsExtension } from "./deferred-tools.ts";
 import { McpServers } from "./mcp/config.ts";
@@ -1928,6 +1929,8 @@ export class PocketApp {
 
         // Subagents idle longer than the setting leave their sessions (PP-515), before work resumes: none is at work yet.
         await this.subagentRetire.atStart([...this.#subagents.keys()]);
+        // Sessions and settings on a Google Antigravity model's old id go on with its family, before their work resumes.
+        await this.upgradeModels().catch((error: unknown) => this.log(`models: old ids not moved: ${describe(error)}`));
         // Work a previous process left unfinished continues now.
         this.harness.resume();
         // Idle sessions' captures into the wiki, from now on.
@@ -5369,6 +5372,111 @@ export class PocketApp {
             this.#agents.get(id) ??
             ((await this.harness.snapshot(AgentDoc, id, context)) as AgentState | undefined)
         );
+    }
+
+    /**
+     * Sessions, subagents and settings kept on a Google Antigravity model's old id (`model-upgrade.ts`: one per effort,
+     * `gemini-4-carbon-medium`) moved to its family at that effort's thinking level, and kept so: every conversation's
+     * after the app opens and after each model refresh, `only`'s before a message to it is sent. One whose account's
+     * catalog has no such family stays as it is.
+     */
+    async upgradeModels(only?: ConversationId): Promise<void> {
+        for (const id of only === undefined ? [...this.#agents.keys()] : [only]) {
+            const ref = (await this.agentState(id))?.model;
+            const upgraded = ref === undefined ? undefined : upgradedModel(this.models, ref.provider, ref.modelId);
+
+            if (ref !== undefined && upgraded !== undefined) {
+                await (await this.conversation(id)).configure({ model: { provider: ref.provider, modelId: upgraded.modelId }, thinkingLevel: upgraded.thinkingLevel }, context);
+                // As the commit's observer will: what reads it next (the message being sent) finds the family.
+                this.#agents.set(id, (await this.harness.snapshot(AgentDoc, id, context)) as AgentState);
+                this.log(`model of ${String(id)}: ${ref.provider}/${ref.modelId} is ${upgraded.modelId} at ${upgraded.thinkingLevel} now`);
+            }
+        }
+
+        if (only === undefined) {
+            await this.#upgradeSettings();
+        }
+    }
+
+    /** The settings that name a model (`upgradeModels`): the defaults, subagents', favorites and the wiki's capture model. */
+    async #upgradeSettings(): Promise<void> {
+        const changed: string[] = [];
+        const choice = (was: ModelChoice | undefined, name: string): ModelChoice | undefined => {
+            const upgraded = was === undefined ? undefined : upgradedModel(this.models, was.provider, was.modelId);
+
+            if (was === undefined || upgraded === undefined) {
+                return was;
+            }
+
+            changed.push(`${name} ${was.provider}/${was.modelId}`);
+
+            return { ...was, modelId: upgraded.modelId, thinkingLevel: upgraded.thinkingLevel };
+        };
+        const specs = (was: readonly string[], name: string): string[] | undefined => {
+            const now = [...new Set(was.map((spec) => upgradedSpec(this.models, spec).spec))];
+
+            return now.length === was.length && now.every((spec, index) => spec === was[index]) ? undefined : (changed.push(name), now);
+        };
+        const defaultModel = choice(this.config.defaultModel, "models.default");
+        const lastModel = choice(this.config.lastModel, "the last model picked");
+        const allowed = specs(this.config.subagentModels, "models.subagents");
+        const subagents = this.config.subagentDefaults.model === undefined ? undefined : upgradedSpec(this.models, this.config.subagentDefaults.model);
+
+        if (defaultModel !== this.config.defaultModel) {
+            this.config.defaultModel = defaultModel;
+        }
+
+        if (lastModel !== this.config.lastModel) {
+            this.config.lastModel = lastModel;
+        }
+
+        if (allowed !== undefined) {
+            this.config.subagentModels = allowed;
+        }
+
+        if (subagents?.thinkingLevel !== undefined) {
+            this.config.setSubagentDefault("model", subagents.spec);
+            this.config.setSubagentDefault("thinking", subagents.thinkingLevel);
+            changed.push("subagents.model");
+        }
+
+        for (const user of this.config.users) {
+            const favorites = specs(user.favoriteModels ?? [], `${user.name}'s favorite models`);
+
+            if (favorites !== undefined) {
+                this.config.updateUser(user.id, { favoriteModels: favorites });
+            }
+        }
+
+        // Each session's own subagent model (`subagents.sessionModel`).
+        const sessions = Object.entries(this.#sessions).filter(([, meta]) => meta.subagentDefaults?.model !== undefined && upgradedSpec(this.models, meta.subagentDefaults.model).thinkingLevel !== undefined);
+
+        if (sessions.length > 0) {
+            await this.harness.commit(async (tx) => {
+                for (const [key] of sessions) {
+                    const meta = (await tx.doc(SessionsDoc)).items[key];
+                    const upgraded = meta?.subagentDefaults?.model === undefined ? undefined : upgradedSpec(this.models, meta.subagentDefaults.model);
+
+                    if (meta !== undefined && upgraded?.thinkingLevel !== undefined) {
+                        meta.subagentDefaults = { ...meta.subagentDefaults, model: upgraded.spec, thinking: upgraded.thinkingLevel };
+                    }
+                }
+            }, context);
+            changed.push(`subagents.sessionModel of ${sessions.length} session(s)`);
+        }
+
+        const capture = (await this.para.settings()).captureModel;
+        const upgradedCapture = capture === "auto" ? undefined : upgradedSpec(this.models, capture);
+
+        if (upgradedCapture?.thinkingLevel !== undefined) {
+            await this.para.updateSettings({ captureModel: upgradedCapture.spec });
+            changed.push("wiki.captureModel");
+        }
+
+        if (changed.length > 0) {
+            this.log(`models: old Google Antigravity ids moved to their families in ${changed.join(", ")}`);
+            await this.#refreshClients();
+        }
     }
 
     /** A conversation's handle; 404 when it does not exist. */

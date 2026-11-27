@@ -284,9 +284,12 @@ export function appSections(pending: Pending, files: { read: string[]; changed: 
 export type YieldDecision = {
     continue?: string;
     /** Fields of `SelfCompactDoc` to set; null removes one. */
-    patch: { queued?: null; asked?: SelfCompactState["asked"] | null; ready?: SelfCompactState["ready"] | null; reminded?: string };
-    /** What the session is told: the summary turn gave none, or a message came before the summary request. */
-    notice?: "no-summary" | "came-first";
+    patch: { queued?: null; asked?: SelfCompactState["asked"] | null; ready?: SelfCompactState["ready"] | null; reminded?: string; unknownModel?: string };
+    /**
+     * What the session is told: the summary turn gave none, a message came before the summary request, or the model that
+     * answered is not in the catalogue (once for that model: `SelfCompactState.unknownModel`).
+     */
+    notice?: "no-summary" | "came-first" | "unknown-model";
 };
 
 /** What the hook knows of the turn: the newest user message's text, and whether the context was compacted in it. */
@@ -415,11 +418,25 @@ export class SelfCompact {
     }
 
     /**
+     * The model that gave `answer`, as the catalogue lists it: an account's answer names its provider's original
+     * (`accounts.ts` hands the request so, `google-antigravity` for `google-antigravity~work`), whose catalogue may not
+     * be the account's (Google Antigravity's is each account's own), so the session's own model names the account.
+     */
+    async #answered(id: ConversationId, answer: AssistantMessage): Promise<{ provider: string; modelId: string }> {
+        const ref = (await this.#app.agentState(id))?.model;
+
+        return ref !== undefined && ref.modelId === answer.model && (ref.provider === answer.provider || ref.provider.startsWith(`${answer.provider}~`))
+            ? ref
+            : { provider: answer.provider, modelId: answer.model };
+    }
+
+    /**
      * A turn of `id` ended with `answer` (the generation's `onYield`): the summary turn's answer becomes the summary; a
      * compaction compact_self queued asks for the summary; or the compact reminder goes out. `hookOn`: the hook's switch.
      */
     async onYield(id: ConversationId, answer: AssistantMessage, turn: TurnInfo, hookOn: boolean): Promise<YieldDecision> {
         const state = await this.#app.harness.snapshot(SelfCompactDoc, id, context);
+        const answered = await this.#answered(id, answer);
 
         if (state?.asked !== undefined) {
             if (turn.lastUser?.startsWith(SUMMARY_PREFIX) === true) {
@@ -445,7 +462,7 @@ export class SelfCompact {
                             cost: usage.cost.total + turn.costAfterCall,
                             read: usage.cacheRead,
                             written: usage.input + usage.cacheWrite,
-                            model: `${answer.provider}/${answer.model}`,
+                            model: `${answered.provider}/${answered.modelId}`,
                             at: Date.now(),
                         },
                     },
@@ -462,10 +479,17 @@ export class SelfCompact {
             return { continue: summaryRequest(state.queued.reason, pending, state.queued.focus), patch: { queued: null, asked: state.queued } };
         }
 
-        return this.#remind(id, answer, turn, state, hookOn);
+        return this.#remind(id, answer, answered, turn, state, hookOn);
     }
 
-    async #remind(id: ConversationId, answer: AssistantMessage, turn: TurnInfo, state: SelfCompactState | undefined, hookOn: boolean): Promise<YieldDecision> {
+    async #remind(
+        id: ConversationId,
+        answer: AssistantMessage,
+        answered: { provider: string; modelId: string },
+        turn: TurnInfo,
+        state: SelfCompactState | undefined,
+        hookOn: boolean,
+    ): Promise<YieldDecision> {
         const none: YieldDecision = { patch: {} };
 
         if (!hookOn || this.refused(id) !== undefined || turn.compacted || turn.lastUser?.startsWith(COMPACT_REMINDER_PREFIX) === true || turn.lastUser?.startsWith(SUMMARY_PREFIX) === true) {
@@ -474,7 +498,17 @@ export class SelfCompact {
 
         const usage = answer.usage;
         const tokens = usage.input + usage.cacheRead + usage.cacheWrite + usage.output;
-        const { prices, window } = this.#model(answer.provider, answer.model);
+        const known = this.#app.models.getModel(answered.provider, answered.modelId);
+
+        // A model the catalogue no longer lists (it changed during the turn): its window is not known, so no reminder.
+        // Said once in the session, not after every answer.
+        if (known === undefined) {
+            const spec = `${answered.provider}/${answered.modelId}`;
+
+            return state?.unknownModel === spec ? none : { patch: { unknownModel: spec }, notice: "unknown-model" };
+        }
+
+        const { cost: prices, contextWindow: window } = known;
 
         if (window <= 0 || (tokens / window) * 100 < this.settings().remindAt) {
             return none;
@@ -522,6 +556,10 @@ export class SelfCompact {
                 if (patch.reminded !== undefined) {
                     doc.reminded = patch.reminded;
                 }
+
+                if (patch.unknownModel !== undefined) {
+                    doc.unknownModel = patch.unknownModel;
+                }
             }, context);
         }
 
@@ -529,6 +567,12 @@ export class SelfCompact {
             this.#app.notice("error", "Not compacted: the summary turn gave no summary.", id);
         } else if (decision.notice === "came-first") {
             this.#app.notice("info", "Not compacted: a message came first.", id);
+        } else if (decision.notice === "unknown-model" && patch.unknownModel !== undefined) {
+            this.#app.notice(
+                "warning",
+                `${patch.unknownModel} answered, but it is not in the model list now, so this session's context size is not watched. Pick this session's model again in the model picker.`,
+                id,
+            );
         }
     }
 

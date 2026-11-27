@@ -863,5 +863,7 @@
     "This Google account has no Gemini Enterprise license: ask your Google Workspace admin to assign one (Gemini Enterprise in the Google Cloud console), or sign in as a Google account with a Google Cloud project for Gemini Code Assist.": "该 Google 账号没有 Gemini Enterprise 许可：请让 Google Workspace 管理员分配一个（Google Cloud console 中的 Gemini Enterprise），或以 Google 账号方式登录并使用用于 Gemini Code Assist 的 Google Cloud 项目。",
     "No Gemini Enterprise subscription was picked: sign in again and pick one.": "未选择 Gemini Enterprise 订阅：请重新登录并选择一个。",
     "// A turn's error, not an HttpError (src/server/antigravity.ts notAllowed): i18n-check does not find it, so it counts as no longer used; keep it.": "",
-    "Google Antigravity (403): {1} is not enabled for this Gemini Enterprise license. Pick another model, or ask the license's administrator to enable it.": "Google Antigravity (403)：此 Gemini Enterprise 许可的管理员尚未启用 {1}。请选择其他模型，或请许可管理员启用它。"
+    "Google Antigravity (403): {1} is not enabled for this Gemini Enterprise license. Pick another model, or ask the license's administrator to enable it.": "Google Antigravity (403)：此 Gemini Enterprise 许可的管理员尚未启用 {1}。请选择其他模型，或请许可管理员启用它。",
+    "This session's model, {1}/{2}, is not offered now. Pick another model for this session; nothing was sent.": "此会话的模型 {1}/{2} 现在已不再提供。请为此会话选择其他模型；消息未发送。",
+    "{1} answered, but it is not in the model list now, so this session's context size is not watched. Pick this session's model again in the model picker.": "{1} 已回答，但它现在不在模型列表中，因此不再监视此会话的上下文大小。请在模型选择器中重新选择此会话的模型。"
 }
