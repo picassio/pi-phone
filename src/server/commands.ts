@@ -912,11 +912,17 @@ export class Commands {
             throw new HttpError(400, "Nothing to send");
         }
 
+        // A Google Antigravity model saved by its old id goes on with its family (`model-upgrade.ts`).
+        await app.upgradeModels(id);
         const agent = await app.agentState(id);
         const model =
             agent?.model === undefined
                 ? undefined
                 : app.models.getModel(agent.model.provider, agent.model.modelId);
+
+        if (agent?.model !== undefined && model === undefined) {
+            throw new HttpError(409, `This session's model, ${agent.model.provider}/${agent.model.modelId}, is not offered now. Pick another model for this session; nothing was sent.`);
+        }
 
         if (model === undefined) {
             throw new HttpError(409, "Pick a model for this conversation first.");

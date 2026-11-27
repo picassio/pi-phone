@@ -42,7 +42,13 @@ export class ModelRefresh {
             };
 
         // Registration and unregistration also call the public refresh method, including their fire-and-forget passes.
-        models.refresh = changed(models.refresh.bind(models));
+        // A catalog that came with it may list a family whose old ids sessions still use (`model-upgrade.ts`).
+        const refresh = changed(models.refresh.bind(models));
+
+        models.refresh = (...args) =>
+            refresh(...args).finally(() => {
+                void this.#app.upgradeModels().catch((error: unknown) => this.#app.log(`models: old ids not moved: ${String(error)}`));
+            });
         models.login = changed(models.login.bind(models));
         models.logout = changed(models.logout.bind(models));
         models.setRuntimeApiKey = changed(models.setRuntimeApiKey.bind(models));
@@ -211,6 +217,8 @@ export class ModelRefresh {
                     this.#app.providers.modelsChanged();
                 }),
         );
+        // This refresh goes past `watch`'s wrapper: the catalogs it fetched may list a family old ids stand for.
+        await this.#app.upgradeModels().catch((error: unknown) => this.#app.log(`models: old ids not moved: ${String(error)}`));
 
         return result();
     }
